@@ -1,4 +1,5 @@
-import { useId } from 'react';
+import { useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
+import { useCallback, useId, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Compass, Download, Layers, Settings, Warehouse, type LucideIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/Kbd';
@@ -7,9 +8,10 @@ import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
 import { useHangarSummary } from '@/queries/hangar';
 import { useSettings } from '@/queries/settings';
+import { WTLIVE_KEY } from '@/queries/wtlive';
 import { selectPendingCount, useQueue } from '@/store/queue';
 import { useUi } from '@/store/ui';
-import type { Section } from '@/types';
+import type { SearchParams, SearchResult, Section } from '@/types';
 
 interface NavDef {
   id: Section;
@@ -27,8 +29,49 @@ const NAV: NavDef[] = [
 ];
 
 export interface SidebarProps {
-  /** WT Live skin count for the status line; available from M5. */
+  /**
+   * WT Live skin count for the status line. Defaults to the catalogue size Explore already fetched
+   * (see `useCachedLiveSkinCount`); unknown until then.
+   */
   liveSkinCount?: number;
+}
+
+/** Last catalogue size seen per client, so the count survives Explore's query being garbage-collected. */
+const lastKnownCount = new WeakMap<QueryClient, number>();
+
+/** True for the params of an unfiltered search: any sort, no filter set. */
+function isUnfiltered(params: unknown): boolean {
+  if (typeof params !== 'object' || params === null) return false;
+  return Object.entries(params as Partial<SearchParams>).every(
+    ([key, value]) => key === 'sort' || value === undefined || value === null || value === '',
+  );
+}
+
+/**
+ * WT Live catalogue size: `total` of the first page of the newest cached **unfiltered** Explore
+ * search (a filtered total would only count that filter's skins), else the last one seen.
+ */
+function cachedLiveSkinCount(qc: QueryClient): number | undefined {
+  let newest: { at: number; total: number } | undefined;
+  for (const query of qc.getQueryCache().findAll({ queryKey: [...WTLIVE_KEY, 'search-pages'] })) {
+    if (!isUnfiltered(query.queryKey[2])) continue;
+    const first = (query.state.data as InfiniteData<SearchResult> | undefined)?.pages?.[0];
+    if (typeof first?.total !== 'number') continue;
+    if (!newest || query.state.dataUpdatedAt > newest.at) newest = { at: query.state.dataUpdatedAt, total: first.total };
+  }
+  if (newest) lastKnownCount.set(qc, newest.total);
+  return newest?.total ?? lastKnownCount.get(qc);
+}
+
+/**
+ * The catalogue size from the query cache, kept up to date by subscribing to it. Only reads: it
+ * never starts a WT Live request, so the count stays unknown until Explore has searched.
+ */
+function useCachedLiveSkinCount(): number | undefined {
+  const qc = useQueryClient();
+  const subscribe = useCallback((notify: () => void) => qc.getQueryCache().subscribe(notify), [qc]);
+  const snapshot = useCallback(() => cachedLiveSkinCount(qc), [qc]);
+  return useSyncExternalStore(subscribe, snapshot);
 }
 
 /**
@@ -43,12 +86,14 @@ export function Sidebar({ liveSkinCount }: SidebarProps) {
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const pending = useQueue(selectPendingCount);
   const badgeId = useId();
+  const cachedCount = useCachedLiveSkinCount();
+  const count = liveSkinCount ?? cachedCount;
 
   const liveText = !online
     ? t('common.status.offline')
-    : liveSkinCount === undefined
+    : count === undefined
       ? t('common.status.onlineNoCount')
-      : t('common.status.online', { count: liveSkinCount });
+      : t('common.status.online', { count });
 
   return (
     <nav

@@ -1,20 +1,20 @@
 //! Collections (M3): named sets of hangar skins, stored in the library index. Activating one
 //! makes exactly its skins active (their folders in `UserSkins`) and every other hangar skin
-//! inactive (folders in `.livery/inactive`); nothing is deleted.
+//! inactive (folders in `.livery/inactive`); Try in game skins stay where they are; nothing is
+//! deleted.
 //!
 //! Plain functions over the store (plus `UserSkins` for `activate`); the commands below only
 //! gather their inputs.
 
-use super::index::{new_id_with, LibraryStore};
+use super::index::{new_id_with, Library, LibraryStore};
 use super::ops::{self, move_skins};
-use super::{purge_expired, time, user_skins_dir};
+use super::{current_store, purge_expired, purge_in, required_store, time, GameLibrary};
 use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::model::{Collection, CollectionsState, HangarSkin};
-use crate::settings::SettingsStore;
 use std::collections::HashSet;
 use std::path::Path;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 fn not_found(id: &str) -> AppError {
     AppError::new(ErrorCode::NotFound, "Collection not found").with_detail(id)
@@ -127,13 +127,16 @@ pub fn set_skins(store: &LibraryStore, id: &str, add: &[String], remove: &[Strin
 }
 
 /// Makes exactly the collection's skins active and every other hangar skin inactive, moving
-/// folders as needed, and remembers the collection as the active one. Returns the whole index;
-/// skins that can't move are reported like `set_active` does (the others still move).
+/// folders as needed, and remembers the collection as the active one. A skin being tried in game
+/// (`temporary`) stays where it is, member or not: it isn't in My Hangar, and Keep or Discard
+/// decides what happens to it. Returns the whole index; skins that can't move are reported like
+/// `set_active` does (the others still move).
 pub fn activate(user_skins: &Path, store: &LibraryStore, id: &str) -> AppResult<Vec<HangarSkin>> {
     let (index, report) = store.transact(|library, journal| {
         let pos = library.collection_position(id).ok_or_else(|| not_found(id))?;
         let members: HashSet<String> = library.collections[pos].skin_ids.iter().cloned().collect();
-        let report = move_skins(user_skins, library, journal, |skin| Some(members.contains(&skin.id)));
+        let report =
+            move_skins(user_skins, library, journal, |skin| (!skin.temporary).then(|| members.contains(&skin.id)));
         library.active_collection_id = Some(id.to_owned());
         Ok((library.skins.clone(), report))
     })?;
@@ -142,12 +145,14 @@ pub fn activate(user_skins: &Path, store: &LibraryStore, id: &str) -> AppResult<
 }
 
 // ── Commands ────────────────────────────────────────────────────────────────
+// Collections belong to the saved game folder's index: with none saved the list is empty and
+// changes are `invalidInput` ("No game folder set").
 
 #[tauri::command]
 pub async fn collections_list(app: AppHandle) -> AppResult<CollectionsState> {
     blocking(move || {
         purge_expired(&app, &[]);
-        Ok(list(&app.state::<LibraryStore>()))
+        Ok(current_store(&app).map_or_else(|| Library::default().collections_state(), |store| list(&store)))
     })
     .await
 }
@@ -156,7 +161,8 @@ pub async fn collections_list(app: AppHandle) -> AppResult<CollectionsState> {
 pub async fn collections_create(app: AppHandle, name: String, description: Option<String>) -> AppResult<Collection> {
     blocking(move || {
         purge_expired(&app, &[]);
-        create(&app.state::<LibraryStore>(), &name, description.as_deref())
+        let store = required_store(&app)?;
+        create(&store, &name, description.as_deref())
     })
     .await
 }
@@ -171,7 +177,8 @@ pub async fn collections_update(
 ) -> AppResult<Collection> {
     blocking(move || {
         purge_expired(&app, &[]);
-        update(&app.state::<LibraryStore>(), &id, name.as_deref(), description.as_deref())
+        let store = required_store(&app)?;
+        update(&store, &id, name.as_deref(), description.as_deref())
     })
     .await
 }
@@ -180,7 +187,8 @@ pub async fn collections_update(
 pub async fn collections_delete(app: AppHandle, id: String) -> AppResult<CollectionsState> {
     blocking(move || {
         purge_expired(&app, &[]);
-        delete(&app.state::<LibraryStore>(), &id)
+        let store = required_store(&app)?;
+        delete(&store, &id)
     })
     .await
 }
@@ -190,7 +198,8 @@ pub async fn collections_delete(app: AppHandle, id: String) -> AppResult<Collect
 pub async fn collections_restore(app: AppHandle, collection: Collection) -> AppResult<CollectionsState> {
     blocking(move || {
         purge_expired(&app, &[]);
-        restore(&app.state::<LibraryStore>(), collection)
+        let store = required_store(&app)?;
+        restore(&store, collection)
     })
     .await
 }
@@ -205,18 +214,20 @@ pub async fn collections_set_skins(
 ) -> AppResult<Collection> {
     blocking(move || {
         purge_expired(&app, &[]);
-        set_skins(&app.state::<LibraryStore>(), &id, &add, &remove)
+        let store = required_store(&app)?;
+        set_skins(&store, &id, &add, &remove)
     })
     .await
 }
 
-/// Activates exactly the collection's skins and deactivates every other hangar skin.
+/// Activates exactly the collection's skins and deactivates every other hangar skin (Try in
+/// game skins stay where they are).
 #[tauri::command]
 pub async fn activate_collection(app: AppHandle, id: String) -> AppResult<Vec<HangarSkin>> {
     blocking(move || {
-        purge_expired(&app, &[]);
-        let user_skins = user_skins_dir(&app.state::<SettingsStore>().get())?;
-        activate(&user_skins, &app.state::<LibraryStore>(), &id)
+        let library = GameLibrary::current(&app)?;
+        purge_in(&library, &[]);
+        activate(&library.user_skins, &library.store, &id)
     })
     .await
 }

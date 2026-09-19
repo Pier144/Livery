@@ -5,8 +5,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/queries/client';
 import { useUi } from '@/store/ui';
 import { resetStores } from '@/test/render';
-import { EVENTS, type SearchParams, type SearchResult, type WtLiveSkin } from '@/types';
-import { isOfflineError, useNetStatusEvents, useWtLiveSearchPages } from './wtlive';
+import { EVENTS, type FollowEntry, type SearchParams, type SearchResult, type WtLiveSkin } from '@/types';
+import {
+  FOLLOWING_KEY,
+  WTLIVE_KEY,
+  isOfflineError,
+  useMarkFollowingSeen,
+  useNetStatusEvents,
+  useSetFollow,
+  useWtLiveSearchPages,
+} from './wtlive';
 
 const backend = vi.hoisted(() => ({
   call: vi.fn<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>(),
@@ -78,5 +86,45 @@ describe('useNetStatusEvents', () => {
     expect(useUi.getState().online).toBe(false);
     act(() => backend.listeners.get(EVENTS.netStatus)?.({ online: true }));
     expect(useUi.getState().online).toBe(true);
+  });
+});
+
+const LEOPARD: FollowEntry = { kind: 'vehicle', id: 'germ_leopard_2a6', name: 'Leopard 2A6', lastSeenAt: '2026-09-09T20:00:00Z' };
+
+describe('useSetFollow', () => {
+  it('passes lastSeenAt only when it is given', async () => {
+    backend.call.mockResolvedValue([LEOPARD]);
+    const client = createQueryClient();
+    const { result } = renderHook(() => useSetFollow(), {
+      wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    });
+    const { kind, id, name, lastSeenAt } = LEOPARD;
+
+    await act(() => result.current.mutateAsync({ kind, id, name, follow: false }));
+    expect(backend.call).toHaveBeenLastCalledWith('following_set', { kind, id, name, follow: false });
+    // The Undo of that unfollow: the entry comes back with its own lastSeenAt.
+    await act(() => result.current.mutateAsync({ kind, id, name, follow: true, lastSeenAt }));
+    expect(backend.call).toHaveBeenLastCalledWith('following_set', { kind, id, name, follow: true, lastSeenAt });
+    expect(client.getQueryData(FOLLOWING_KEY)).toEqual([LEOPARD]);
+  });
+});
+
+describe('useMarkFollowingSeen', () => {
+  it('stores the list and invalidates the new skins, which were counted from the old lastSeenAt', async () => {
+    const seen = [{ ...LEOPARD, lastSeenAt: '2026-09-19T10:00:00Z' }];
+    backend.call.mockResolvedValue(seen);
+    const client = createQueryClient();
+    const freshKey = [...WTLIVE_KEY, 'following-new', ['germ_leopard_2a6'], []];
+    client.setQueryData(freshKey, [item(14)]);
+    client.setQueryData([...WTLIVE_KEY, 'post', 's1'], item(1));
+    const { result } = renderHook(() => useMarkFollowingSeen(), {
+      wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    });
+
+    await act(() => result.current.mutateAsync());
+    expect(backend.call).toHaveBeenCalledWith('following_mark_seen', undefined);
+    expect(client.getQueryData(FOLLOWING_KEY)).toEqual(seen);
+    expect(client.getQueryState(freshKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState([...WTLIVE_KEY, 'post', 's1'])?.isInvalidated, 'posts stay cached').toBe(false);
   });
 });

@@ -25,11 +25,13 @@ export type PaletteActionKey = `common.palette.actions.${Section}`;
 export interface PaletteContext {
   t: (key: PaletteActionKey) => string;
   vehicles: readonly Vehicle[];
-  /** Cached WT Live skins; empty until M5. */
+  /** WT Live skins already in the query cache (Explore pages, posts, Following). */
   skins: readonly PaletteSkin[];
   go: (section: Section) => void;
-  /** Opens a skin's detail view (M5). Without it, skins fall back to Explore. */
+  /** Opens a skin's detail view. Without it, skins fall back to Explore. */
   openSkin?: (id: string) => void;
+  /** Sets the Explore vehicle filter (by code) before a vehicle result jumps to Explore. */
+  applyVehicle?: (code: string) => void;
 }
 
 export const PALETTE_MAX_RESULTS = 9;
@@ -59,8 +61,10 @@ function vehicleItem(v: Vehicle, ctx: PaletteContext): PaletteItem {
     kind: 'vehicle',
     label: v.name,
     hint: v.code,
-    // TODO(M5): also apply this vehicle as the Explore vehicle filter.
-    run: () => ctx.go('explore'),
+    run: () => {
+      ctx.applyVehicle?.(v.code);
+      ctx.go('explore');
+    },
   };
 }
 
@@ -74,23 +78,31 @@ function skinItem(s: PaletteSkin, ctx: PaletteContext): PaletteItem {
   };
 }
 
+/** Places kept for vehicle and action matches when skins alone could fill the list. */
+const RESERVED_FOR_OTHERS = 3;
+
 /**
  * Palette results. Empty query: the 5 actions, then the first 4 vehicles.
  * Otherwise skins → vehicles → actions whose label or hint contains the query
- * (case-insensitive), capped at 9.
+ * (case-insensitive), capped at 9. Up to 3 places go to matching vehicles and actions, so
+ * thousands of cached WT Live skins never hide the vehicle you typed.
  */
 export function buildPaletteItems(query: string, ctx: PaletteContext): PaletteItem[] {
   const q = query.trim().toLowerCase();
   if (!q) return [...actionItems(ctx), ...ctx.vehicles.slice(0, EMPTY_QUERY_VEHICLES).map((v) => vehicleItem(v, ctx))];
 
-  const results: PaletteItem[] = [];
-  // Returns true once the cap is reached, so thousands of cached skins are not all scanned.
-  const add = (item: PaletteItem) => {
-    if (item.label.toLowerCase().includes(q) || item.hint.toLowerCase().includes(q)) results.push(item);
-    return results.length >= PALETTE_MAX_RESULTS;
+  const matches = (item: PaletteItem) => item.label.toLowerCase().includes(q) || item.hint.toLowerCase().includes(q);
+  // Each scan stops at the cap, so thousands of cached skins are not all looked at.
+  const collect = <T,>(source: readonly T[], toItem: (x: T) => PaletteItem): PaletteItem[] => {
+    const out: PaletteItem[] = [];
+    for (const x of source) {
+      const item = toItem(x);
+      if (matches(item) && out.push(item) >= PALETTE_MAX_RESULTS) break;
+    }
+    return out;
   };
-  for (const s of ctx.skins) if (add(skinItem(s, ctx))) return results;
-  for (const v of ctx.vehicles) if (add(vehicleItem(v, ctx))) return results;
-  for (const a of actionItems(ctx)) if (add(a)) return results;
-  return results;
+  const skins = collect(ctx.skins, (s) => skinItem(s, ctx));
+  const others = [...collect(ctx.vehicles, (v) => vehicleItem(v, ctx)), ...collect(actionItems(ctx), (a) => a)];
+  const skinRoom = PALETTE_MAX_RESULTS - Math.min(RESERVED_FOR_OTHERS, others.length);
+  return [...skins.slice(0, skinRoom), ...others].slice(0, PALETTE_MAX_RESULTS);
 }

@@ -6,7 +6,8 @@
 //! - `inspect`: a file or a whole skin folder → `TextureInfo`s (also used by the install queue
 //!   on a staged folder);
 //! - `read_textures`: the list for an installed skin, wherever its folder is (active or
-//!   inactive).
+//!   inactive), for a queue item, or for a WT Live post that isn't installed (`wtliveId`, see
+//!   `crate::wtlive::post_textures`; `unsupported` until WT Live downloads are possible).
 
 pub mod header;
 pub mod inspect;
@@ -15,9 +16,8 @@ pub use inspect::{blk_texture_refs, inspect_file, inspect_skin, inspect_skin_dir
 
 use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
-use crate::library::{self, layout, LibraryStore};
+use crate::library::{layout, GameLibrary, LibraryStore};
 use crate::model::TextureInfo;
-use crate::settings::SettingsStore;
 use std::path::Path;
 use tauri::{AppHandle, Manager};
 
@@ -34,27 +34,56 @@ pub fn textures_for_skin(user_skins: &Path, store: &LibraryStore, skin_id: &str)
     inspect_skin(&dir)
 }
 
-/// Texture list for an installed skin (`skinId`) or a queued item (`queueId`); pass exactly one.
+/// Which texture list `read_textures` was asked for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextureTarget {
+    /// An installed skin (`HangarSkin.id`).
+    Skin(String),
+    /// An install queue item.
+    Queue(String),
+    /// A WT Live post that isn't installed (`WtLiveSkin.id`).
+    WtLive(String),
+}
+
+/// `invalidInput` message when `read_textures` gets none or several ids.
+pub const ONE_TEXTURE_TARGET: &str = "Pass exactly one of a skin id, a queue id or a WT Live id";
+
+/// Exactly one of the three ids → its target; none or several → `invalidInput`.
+pub fn texture_target(
+    skin_id: Option<String>,
+    queue_id: Option<String>,
+    wtlive_id: Option<String>,
+) -> AppResult<TextureTarget> {
+    match (skin_id, queue_id, wtlive_id) {
+        (Some(id), None, None) => Ok(TextureTarget::Skin(id)),
+        (None, Some(id), None) => Ok(TextureTarget::Queue(id)),
+        (None, None, Some(id)) => Ok(TextureTarget::WtLive(id)),
+        _ => Err(AppError::new(ErrorCode::InvalidInput, ONE_TEXTURE_TARGET)),
+    }
+}
+
+/// Texture list for an installed skin (`skinId`), a queued item (`queueId`) or a WT Live post
+/// (`wtliveId`); pass exactly one.
 #[tauri::command]
 pub async fn read_textures(
     app: AppHandle,
     skin_id: Option<String>,
     queue_id: Option<String>,
+    wtlive_id: Option<String>,
 ) -> AppResult<Vec<TextureInfo>> {
-    match (skin_id, queue_id) {
-        (Some(skin_id), None) => {
+    match texture_target(skin_id, queue_id, wtlive_id)? {
+        TextureTarget::Skin(skin_id) => {
             blocking(move || {
-                let settings = app.state::<SettingsStore>().get();
-                let user_skins = library::user_skins_dir(&settings)?;
-                textures_for_skin(&user_skins, &app.state::<LibraryStore>(), &skin_id)
+                let library = GameLibrary::current(&app)?;
+                textures_for_skin(&library.user_skins, &library.store, &skin_id)
             })
             .await
         }
         // Read from the queued source itself (see `archive::textures_for_queue`).
-        (None, Some(queue_id)) => {
+        TextureTarget::Queue(queue_id) => {
             blocking(move || crate::archive::textures_for_queue(&app.state::<crate::archive::QueueStore>(), &queue_id))
                 .await
         }
-        _ => Err(AppError::new(ErrorCode::InvalidInput, "Pass either a skin id or a queue id")),
+        TextureTarget::WtLive(id) => crate::wtlive::read_post_textures(app, id).await,
     }
 }

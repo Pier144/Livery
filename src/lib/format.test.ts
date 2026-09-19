@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseName, formatBytes, formatCompact, isArchive } from './format';
+import { baseName, formatBytes, formatCompact, formatShortDate, isArchive } from './format';
 
 describe('format', () => {
   it('formats bytes like the UI copy', () => {
@@ -27,5 +27,13 @@ describe('format', () => {
   it('takes the last path segment on Windows and POSIX', () => {
     expect(baseName('C:\\Users\\you\\Downloads\\a b.zip')).toBe('a b.zip');
     expect(baseName('/tmp/x.7z')).toBe('x.7z');
+  });
+});
+
+describe('formatShortDate', () => {
+  it('writes day, short month and year like the prototype', () => {
+    expect(formatShortDate('2026-09-10T12:00:00Z', 'en')).toBe('10 Sep 2026');
+    expect(formatShortDate('2026-06-12T12:00:00Z', 'it')).toBe('12 giu 2026');
+    expect(formatShortDate('not a date', 'en')).toBeNull();
   });
 });

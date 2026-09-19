@@ -27,7 +27,7 @@ import {
 } from './hangarModel';
 import { SkinCard } from './SkinCard';
 import { SkinRow } from './SkinRow';
-import type { SkinItemProps } from './SkinParts';
+import { SkinHints, type SkinItemProps } from './SkinParts';
 
 type ItemHandlers = Pick<SkinItemProps, 'onSelect' | 'onToggleActive' | 'onRecheck'>;
 
@@ -154,33 +154,36 @@ export function HangarGrid({ groups, view, selection, rechecking, resetKey, last
       className="absolute -left-1 -right-1 -top-1 bottom-0 overflow-y-auto px-1 scroll-pb-20 scroll-pt-7"
     >
       <PinnedHeader rows={rows} groups={groups} virtualizer={virtualizer} scrollRef={scrollRef} />
-      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-        {items.map((item) => {
-          const row = rows[item.index];
-          if (!row) return null;
-          return (
-            <div
-              key={item.key}
-              ref={virtualizer.measureElement}
-              data-index={item.index}
-              data-row-key={row.key}
-              className="absolute left-0 top-0 w-full"
-              style={{ transform: `translateY(${item.start}px)` }}
-            >
-              <RowView
-                row={row}
-                group={groups[row.groupIndex]}
-                cols={cols}
-                selection={selection}
-                rechecking={rechecking}
-                onSelect={onSelect}
-                onToggleActive={onToggleActive}
-                onRecheck={onRecheck}
-              />
-            </div>
-          );
-        })}
-      </div>
+      {/* The hidden hints that every card's aria-describedby points at (open vs select). */}
+      <SkinHints>
+        <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+          {items.map((item) => {
+            const row = rows[item.index];
+            if (!row) return null;
+            return (
+              <div
+                key={item.key}
+                ref={virtualizer.measureElement}
+                data-index={item.index}
+                data-row-key={row.key}
+                className="absolute left-0 top-0 w-full"
+                style={{ transform: `translateY(${item.start}px)` }}
+              >
+                <RowView
+                  row={row}
+                  group={groups[row.groupIndex]}
+                  cols={cols}
+                  selection={selection}
+                  rechecking={rechecking}
+                  onSelect={onSelect}
+                  onToggleActive={onToggleActive}
+                  onRecheck={onRecheck}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </SkinHints>
     </div>
   );
 }

@@ -350,6 +350,33 @@ fn user_skins_changes_give_one_event_once_they_hold_still() {
     assert!(driven.tick().is_empty());
 }
 
+#[test]
+fn a_new_game_folder_is_watched_from_the_next_poll() {
+    let setup = Setup::new("hangar-root");
+    let other = setup.tmp.path().join("Other Game");
+    fs::create_dir_all(other.join("UserSkins")).unwrap();
+    let host = TestHost::new(setup.settings(false));
+    let mut driven = Driven::new(host.clone());
+    assert!(driven.tick().is_empty(), "baseline");
+
+    // Settings → Game → Change: the other folder is a new baseline, not a change.
+    host.set(|s| s.game_path = Some(other.display().to_string()));
+    assert!(driven.tick().is_empty());
+    assert!(driven.tick().is_empty());
+
+    // The previous UserSkins is no longer looked at…
+    copy_dir(&fixture("Winter Tiger"), &setup.user_skins().join("Winter Tiger")).unwrap();
+    quiet(&setup.user_skins());
+    assert!(driven.tick().is_empty());
+    assert!(driven.tick().is_empty());
+
+    // …the new one is.
+    copy_dir(&fixture("Winter Tiger"), &other.join("UserSkins").join("Winter Tiger")).unwrap();
+    quiet(&other.join("UserSkins"));
+    driven.tick();
+    assert_eq!(driven.tick(), [Event::HangarChanged]);
+}
+
 // ── The polling thread ──────────────────────────────────────────────────────
 
 #[test]

@@ -19,6 +19,22 @@ export function formatCompact(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
 }
 
+const SHORT_DATE: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+
+/**
+ * Post dates: "12 Jun 2026" in English (the prototype's day-month-year with en-US month names;
+ * en-GB would write "Sept"), the language's own short form otherwise ("12 giu 2026").
+ * Returns null for a date that can't be read.
+ */
+export function formatShortDate(iso: string, language: string): string | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  if (!language.startsWith('en')) return new Intl.DateTimeFormat(language, SHORT_DATE).format(date);
+  const parts = new Intl.DateTimeFormat('en-US', SHORT_DATE).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('day')} ${part('month')} ${part('year')}`;
+}
+
 const ARCHIVE_RE = /\.(zip|rar|7z)$/i;
 
 export function isArchive(fileName: string): boolean {

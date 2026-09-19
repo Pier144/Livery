@@ -129,20 +129,40 @@ export function useFollowing() {
   });
 }
 
+export interface SetFollowArgs {
+  kind: FollowKind;
+  id: string;
+  name: string;
+  follow: boolean;
+  /**
+   * RFC 3339. With `follow`, the entry gets this `lastSeenAt` (new or already followed): the Undo
+   * of an unfollow passes the entry's old value so its "N new" comes back exactly.
+   */
+  lastSeenAt?: string;
+}
+
+/** Follows or unfollows a vehicle or an author (`following_set`); resolves with the whole list. */
 export function useSetFollow() {
   const qc = useQueryClient();
-  return useMutation<FollowEntry[], AppError, { kind: FollowKind; id: string; name: string; follow: boolean }>({
-    mutationFn: (args) => call<FollowEntry[]>('following_set', args),
+  return useMutation<FollowEntry[], AppError, SetFollowArgs>({
+    mutationFn: ({ lastSeenAt, ...args }) =>
+      call<FollowEntry[]>('following_set', lastSeenAt === undefined ? { ...args } : { ...args, lastSeenAt }),
     onSuccess: (list) => qc.setQueryData(FOLLOWING_KEY, list),
   });
 }
 
-/** Opening the Following tab resets its "N new" count. */
+/**
+ * Leaving the Following tab resets its "N new" count. `following-new` holds only the asked ids
+ * (not their `lastSeenAt`), so it is invalidated too: its cached skins are no longer new.
+ */
 export function useMarkFollowingSeen() {
   const qc = useQueryClient();
   return useMutation<FollowEntry[], AppError, void>({
     mutationFn: () => call<FollowEntry[]>('following_mark_seen'),
-    onSuccess: (list) => qc.setQueryData(FOLLOWING_KEY, list),
+    onSuccess: (list) => {
+      qc.setQueryData(FOLLOWING_KEY, list);
+      return qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'following-new'] });
+    },
   });
 }
 

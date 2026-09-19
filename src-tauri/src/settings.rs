@@ -1,11 +1,12 @@
 //! Settings load/save (`<appData>/settings.json`) and the `get_settings` / `set_settings` commands.
 
+use crate::blocking;
 use crate::error::AppResult;
 use crate::model::{Settings, SettingsPatch};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, Manager};
 
 pub struct SettingsStore {
     path: PathBuf,
@@ -60,14 +61,16 @@ fn write_atomic(path: &Path, settings: &Settings) -> AppResult<()> {
     Ok(())
 }
 
+/// The settings in memory (read from disk at launch).
 #[tauri::command]
-pub fn get_settings(store: State<'_, SettingsStore>) -> AppResult<Settings> {
-    Ok(store.get())
+pub async fn get_settings(app: AppHandle) -> AppResult<Settings> {
+    Ok(app.state::<SettingsStore>().get())
 }
 
+/// Applies a partial update; the file is written on a blocking thread (`crate::blocking`).
 #[tauri::command]
-pub fn set_settings(store: State<'_, SettingsStore>, patch: SettingsPatch) -> AppResult<Settings> {
-    let settings = store.update(patch)?;
+pub async fn set_settings(app: AppHandle, patch: SettingsPatch) -> AppResult<Settings> {
+    let settings = blocking(move || app.state::<SettingsStore>().update(patch)).await?;
     tracing::debug!("settings saved");
     Ok(settings)
 }

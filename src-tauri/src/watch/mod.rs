@@ -8,7 +8,9 @@
 //!   a folder name that is taken is left as a conflict row for the user. What was in the folder
 //!   when watching started is ignored;
 //! - `UserSkins`, when a game folder is set: a change to its listing (or to the inactive folder)
-//!   by anything, Explorer included, emits `hangar://changed` once it held still for a poll.
+//!   by anything, Explorer included, emits `hangar://changed` once it held still for a poll. The
+//!   game folder is read from the settings at every poll, so after Settings → Game → Change the
+//!   new `UserSkins` is watched from the next poll (a new baseline, not a change).
 //!
 //! The decisions are pure ([`poll`]); the disk reads are in [`snapshot`]; [`Watcher`] ties them
 //! together behind a [`Host`] (the app, or a test double), and [`WatchState`] owns the thread:

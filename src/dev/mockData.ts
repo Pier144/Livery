@@ -2,19 +2,23 @@
 // the dynamic import of `@/dev/mockBackend` behind `MOCK_BACKEND`, so it never ships.
 //
 // Mirrors the prototype's sample hangar, collections and install queue (Livery Prototype.dc.html,
-// lines 604-626) and its Textures tab (lines 687-696) in the shapes of src/types.ts. Every
-// builder returns fresh objects, so resetting the mock never shares state with an earlier run.
+// lines 604-626), its WT Live catalog and follows (lines 585-603) and its Textures tab (lines
+// 687-696) in the shapes of src/types.ts. Every builder returns fresh objects, so resetting the
+// mock never shares state with an earlier run.
 
 import { vehicles } from '@/data/vehicles';
 import type {
   Author,
   Backup,
+  Category,
   Collection,
   FileEntry,
+  FollowEntry,
   HangarSkin,
   TextureInfo,
   Vehicle,
   VehicleType,
+  WtLiveSkin,
 } from '@/types';
 
 const MB = 1024 * 1024;
@@ -39,8 +43,11 @@ function unknownVehicle(): Vehicle {
   return { code: '', name: 'Unknown vehicle', nation: 'UNK', type: 'air', class: '' };
 }
 
-function author(id: string, name: string, skinCount?: number): Author {
-  return { id, name, url: `https://live.warthunder.com/user/${id}/`, ...(skinCount ? { skinCount } : {}) };
+const WT_LIVE = 'https://live.warthunder.com';
+
+/** A WT Live author; `skinCount` is what the Following tab shows ("Author · 14 skins on WT Live"). */
+function author(id: string, name: string, skinCount: number): Author {
+  return { id, name, url: `${WT_LIVE}/user/${id}/`, skinCount };
 }
 
 /** Sizes in MB as the prototype lists them, plus some KB so totals look like real folders. */
@@ -54,13 +61,20 @@ function skin({ code, mb, kb, ...rest }: SkinSeed): HangarSkin {
   return { ...rest, vehicle: code ? vehicle(code) : unknownVehicle(), sizeBytes: size(mb, kb) };
 }
 
+/** The prototype's WT Live authors (Kessler_Wolf's 14 and Skyhook_Dan's 9 skins are its numbers). */
 const AUTHORS = {
   skyhook: () => author('61240877', 'Skyhook_Dan', 9),
   kessler: () => author('40318255', 'Kessler_Wolf', 14),
-  merlin: () => author('52907314', 'Merlin_Mod'),
-  redOak: () => author('38821460', 'RedOak_Petrov'),
-  ironclad: () => author('70455182', 'ironclad_mia'),
+  merlin: () => author('52907314', 'Merlin_Mod', 6),
+  redOak: () => author('38821460', 'RedOak_Petrov', 11),
+  ironclad: () => author('70455182', 'ironclad_mia', 7),
+  vesuvio: () => author('83316042', 'Vesuvio_Skins', 3),
+  erla: () => author('29574613', 'Erla_Works', 12),
+  flankerIvan: () => author('66102987', 'Flanker_Ivan', 8),
+  nachtjaeger: () => author('75840219', 'nachtjaeger', 4),
+  panzerlack: () => author('47129356', 'Panzerlack', 5),
 };
+type AuthorKey = keyof typeof AUTHORS;
 
 /**
  * The library index at start: the prototype's 12 hangar skins (3 from WT Live, 9 imported or
@@ -425,10 +439,13 @@ const PLAIN_TEXTURE: TextureSpec = { side: 2048, format: 'BC7', mb: 5.3 };
 const HEAVY_TEXTURE: TextureSpec = { side: 8192, format: 'BC7', mb: 85.3 };
 const BLK_BYTES = 2 * KB;
 
-/** English fallbacks, as the Rust `textures` module words them (the UI localizes its own). */
+/**
+ * English fallbacks, as the Rust `textures` module words them; rows also carry `warningKind`,
+ * which the UI localizes.
+ */
 export const HEAVY_TEXTURE_WARNING = 'Very heavy texture (8192²). Load times may suffer.';
-function missingWarning(blk: string): string {
-  return `Referenced in ${blk} but not in the skin folder.`;
+function missingWarning(blk: string, from: string): string {
+  return `Referenced in ${blk} but not in ${from}.`;
 }
 
 /** Every texture a complete skin ships (prototype Textures tab). */
@@ -470,6 +487,8 @@ interface RootSpec {
   heavy?: string;
   /** Referenced textures the folder lacks. */
   missing?: string[];
+  /** Where missing textures are missing from, for their warning (default "the skin folder"). */
+  missingFrom?: string;
   /** No blk at all. */
   noBlk?: boolean;
   /** Other files shipped along (readme, previews). */
@@ -481,11 +500,14 @@ export function skinRoot(spec: RootSpec): MockSkinRoot {
   const missing = spec.missing ?? [];
   const prefix = spec.prefix ?? '';
   const textures: TextureInfo[] = spec.textures.map((file) => {
-    if (missing.includes(file)) return { file, warning: missingWarning(blk ?? 'the blk'), missing: true };
+    if (missing.includes(file)) {
+      const warning = missingWarning(blk ?? 'the blk', spec.missingFrom ?? 'the skin folder');
+      return { file, warningKind: 'missing', warning, missing: true };
+    }
     const heavy = file === spec.heavy;
     const { side, format, mb } = heavy ? HEAVY_TEXTURE : (TEXTURE_SPECS[file] ?? PLAIN_TEXTURE);
     const info: TextureInfo = { file, width: side, height: side, format, sizeBytes: Math.round(mb * MB) };
-    return heavy ? { ...info, warning: HEAVY_TEXTURE_WARNING } : info;
+    return heavy ? { ...info, warningKind: 'heavy', warning: HEAVY_TEXTURE_WARNING } : info;
   });
   const files: FileEntry[] = [
     ...(blk ? [{ path: prefix + blk, sizeBytes: BLK_BYTES }] : []),
@@ -608,8 +630,8 @@ export function seedQueue(): QueueSeed[] {
 /** `?watch=1`: the folder that shows up in the watched folder after load (the prototype's drop). */
 export const WATCHED_FOLDER = 'tiger2_h_ambush_winter';
 
-/** Skins whose hull texture is saved at 8192² (Textures warning). */
-const HEAVY_SKINS = new Set(['h1']);
+/** Skins whose hull texture is saved at 8192² (Textures warning); h_s3 is WT Live post s3's. */
+const HEAVY_SKINS = new Set(['h1', 'h_s3']);
 
 /**
  * `read_textures` for a skin the mock didn't install itself: the full set for its vehicle type;
@@ -629,4 +651,167 @@ export function hangarTextures(skin: HangarSkin): TextureInfo[] {
     missing,
     noBlk: skin.attention?.some((a) => a.kind === 'noBlk'),
   }).textures;
+}
+
+// ── WT Live (M5) ────────────────────────────────────────────────────────────
+
+/**
+ * The prototype's CATALOG: [id, name, vehicle code, category, author, downloads, likes, MB, KB,
+ * posted, new from a follow, post number]. Dates are the prototype's (2026) with a time of day;
+ * the KB of installed or backed-up posts match their hangar entries.
+ */
+type CatalogRow = [string, string, string, Category, AuthorKey, number, number, number, number, string, boolean, number];
+
+const CATALOG: CatalogRow[] = [
+  ['s1', 'Schwarzwald Ambush', 'germ_pzkpfw_VI_ausf_b_tiger_IIH', 'Historical', 'kessler', 24120, 1932, 48, 407, '2026-06-12T17:48:09Z', false, 1043217],
+  ['s2', "Winter '44 Whitewash", 'ussr_t_34_85', 'Historical', 'redOak', 18702, 1204, 36, 90, '2026-07-03T09:15:42Z', false, 1045530],
+  ['s3', 'Desert Storm Tan', 'us_m1a2_sep', 'Semi-historical', 'ironclad', 31244, 2410, 61, 150, '2026-05-21T20:31:17Z', false, 1040871],
+  ['s4', 'Bundeswehr Flecktarn', 'germ_leopard_2a6', 'Historical', 'kessler', 42806, 3115, 52, 96, '2026-04-18T14:02:55Z', false, 1038264],
+  ['s5', 'Tricolore Parade', 'it_c1_ariete', 'Fictional', 'vesuvio', 6318, 512, 44, 233, '2026-09-10T11:47:30Z', true, 1051902],
+  ['s6', 'SEA Camo, 388th TFW', 'f_4e', 'Historical', 'skyhook', 27533, 1870, 29, 312, '2026-03-02T19:26:04Z', false, 1034715],
+  ['s7', 'JG 52 Yellow Nose', 'bf-109g-6', 'Historical', 'erla', 15911, 1102, 18, 61, '2026-02-14T16:08:51Z', false, 1031448],
+  ['s8', 'D-Day Invasion Stripes', 'spitfire_mk9c', 'Historical', 'merlin', 22048, 1655, 21, 188, '2026-06-06T06:30:00Z', false, 1042650],
+  ['s9', 'Russian Knights Blue', 'su_27', 'Semi-historical', 'flankerIvan', 38417, 2908, 73, 509, '2026-01-20T13:44:26Z', false, 1028093],
+  ['s10', 'Rust & Mud', 'ussr_t_34_85', 'Historical', 'redOak', 9806, 640, 35, 274, '2026-08-28T18:19:38Z', false, 1049377],
+  ['s11', 'Night Ops Matte', 'germ_leopard_2a6', 'Fictional', 'nachtjaeger', 11230, 903, 50, 18, '2026-09-14T22:05:13Z', true, 1052611],
+  ['s12', 'Ace of Spades', 'f_4e', 'Fictional', 'skyhook', 7402, 588, 27, 655, '2026-09-12T15:37:49Z', true, 1052245],
+  ['s13', 'Kursk Dust', 'germ_pzkpfw_VI_ausf_b_tiger_IIH', 'Semi-historical', 'panzerlack', 13480, 998, 47, 342, '2026-07-25T10:52:07Z', false, 1047106],
+  ['s14', 'Baltic Winter', 'germ_leopard_2a6', 'Historical', 'kessler', 19950, 1420, 53, 120, '2026-09-15T08:21:34Z', true, 1052798],
+  ['s15', 'Late-war Grey', 'bf-109g-6', 'Historical', 'erla', 8760, 611, 17, 890, '2026-05-05T12:13:20Z', false, 1039952],
+  ['s16', 'Ukrainian Digital', 'su_27', 'Fictional', 'flankerIvan', 21133, 1700, 70, 71, '2026-08-01T17:59:45Z', false, 1048020],
+];
+
+/** A download link that looks like WT Live's (a hash per post). */
+function downloadUrl(postNo: number): string {
+  const hash = (Math.imul(postNo, 2654435761) >>> 0).toString(16).padStart(8, '0');
+  return `${WT_LIVE}/dl/${hash}${postNo.toString(16)}/`;
+}
+
+/**
+ * A listing entry: no `files` (only the post page lists them) and no images (the UI shows its
+ * four placeholder views); `isNew` only when set, as serde leaves `None` out.
+ */
+function post([id, name, code, category, who, downloads, likes, mb, kb, postedAt, isNew, postNo]: CatalogRow): WtLiveSkin {
+  return {
+    id,
+    name,
+    vehicle: vehicle(code),
+    author: AUTHORS[who](),
+    category,
+    downloads,
+    likes,
+    postedAt,
+    sizeBytes: size(mb, kb),
+    images: [],
+    postUrl: `${WT_LIVE}/post/${postNo}/en/`,
+    downloadUrl: downloadUrl(postNo),
+    ...(isNew ? { isNew: true } : {}),
+  };
+}
+
+/** The prototype's 16 WT Live posts, s1…s16. */
+export function seedCatalog(): WtLiveSkin[] {
+  return CATALOG.map(post);
+}
+
+const SCHEME_PLACES = ['Winter', 'Desert', 'Forest', 'Urban', 'Night', 'Arctic', 'Jungle', 'Steppe', 'Coastal', 'Autumn', 'Tundra', 'Savanna'];
+const SCHEME_PATTERNS = ['Splinter', 'Stripes', 'Digital', 'Whitewash', 'Mottle', 'Brush', 'Dazzle', 'Hex', 'Blotch', 'Tiger Stripe', 'Ambush', 'Wave'];
+const CATEGORIES: Category[] = ['Historical', 'Semi-historical', 'Fictional', 'Camouflage', 'Other'];
+const AUTHOR_KEYS = Object.keys(AUTHORS) as AuthorKey[];
+
+/**
+ * `?many=1`: the prototype's posts plus generated ones up to `total` (the README's "1,284
+ * results"), over every catalog vehicle, author and category, posted between January 2025 and
+ * August 2026 (none new), so Explore has pages to load and a long grid to virtualize.
+ */
+export function seedManyCatalog(total = 1284): WtLiveSkin[] {
+  const base = seedCatalog();
+  const extra = Array.from({ length: Math.max(0, total - base.length) }, (_, i): WtLiveSkin => {
+    const id = `s${base.length + i + 1}`;
+    const hash = nameHash(id);
+    const place = SCHEME_PLACES[i % SCHEME_PLACES.length] ?? 'Winter';
+    const pattern = SCHEME_PATTERNS[Math.floor(i / SCHEME_PLACES.length) % SCHEME_PATTERNS.length] ?? 'Splinter';
+    const series = Math.floor(i / (SCHEME_PLACES.length * SCHEME_PATTERNS.length)) + 1;
+    const code = vehicles[i % vehicles.length]?.code ?? 'f_4e';
+    const downloads = 150 + (hash % 24000);
+    const posted = Date.UTC(2025, 0, 5) + (hash % 600) * DAY_MS + ((i * 37) % 1440) * 60_000;
+    return post([
+      id,
+      `${place} ${pattern} No. ${series}`,
+      code,
+      CATEGORIES[(i * 3) % CATEGORIES.length] ?? 'Other',
+      AUTHOR_KEYS[(i * 7) % AUTHOR_KEYS.length] ?? 'kessler',
+      downloads,
+      Math.round(downloads * (0.05 + (hash % 40) / 1000)),
+      12 + (hash % 70),
+      hash % 1000,
+      new Date(posted).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      false,
+      900_000 + i * 13,
+    ]);
+  });
+  return [...base, ...extra];
+}
+
+/** The prototype's Textures tab quirks: s3's hull is 8192², s5 lacks its fourth texture. */
+const POST_QUIRKS: Record<string, { heavy?: number; missing?: number }> = {
+  s3: { heavy: 0 },
+  s5: { missing: 3 },
+};
+
+const PREVIEW: FileEntry = { path: 'preview.jpg', sizeBytes: 412 * KB };
+
+/** The folder a post installs into: `<code>_<author>` (README Try in game). */
+export function postFolder(skin: WtLiveSkin): string {
+  return `${skin.vehicle.code}_${skin.author.name}`;
+}
+
+/**
+ * What a post's download holds (prototype `textures()`): the full texture set for its vehicle
+ * type and `<code>.blk`, with s3's heavy hull and s5's missing turret_n.dds. Missing textures are
+ * "not in the archive" before the install and "not in the skin folder" after it.
+ */
+export function postRoot(skin: WtLiveSkin, missingFrom = 'the archive'): MockSkinRoot {
+  const textures = fullTextureSet(skin.vehicle.type);
+  const quirk = POST_QUIRKS[skin.id] ?? {};
+  const at = (index: number | undefined) => (index === undefined ? undefined : textures[index]);
+  const missing = at(quirk.missing);
+  return skinRoot({
+    vehicle: skin.vehicle,
+    folder: postFolder(skin),
+    textures,
+    heavy: at(quirk.heavy),
+    missing: missing ? [missing] : [],
+    missingFrom,
+  });
+}
+
+/** FILES INCLUDED on the post (prototype: the textures, the blk, preview.jpg). */
+export function postFiles(skin: WtLiveSkin): FileEntry[] {
+  const inArchive = postRoot(skin).textures.filter((t) => !t.missing);
+  return [...inArchive.map((t) => ({ path: t.file, sizeBytes: t.sizeBytes ?? 0 })), { ...PREVIEW }];
+}
+
+/**
+ * Before the prototype's newest posts, so its "N new" counts hold: Leopard 2A6 has 2 new
+ * (Night Ops Matte, Baltic Winter), Kessler_Wolf 1, Skyhook_Dan 1, Spitfire Mk IX none.
+ */
+export const FOLLOWING_SEEN_AT = '2026-09-09T20:00:00Z';
+
+/** The prototype's four follows, in its order. */
+export function seedFollowing(): FollowEntry[] {
+  const follow = (kind: FollowEntry['kind'], id: string, name: string): FollowEntry => ({
+    kind,
+    id,
+    name,
+    lastSeenAt: FOLLOWING_SEEN_AT,
+  });
+  const kessler = AUTHORS.kessler();
+  const skyhook = AUTHORS.skyhook();
+  return [
+    follow('vehicle', 'germ_leopard_2a6', vehicle('germ_leopard_2a6').name),
+    follow('author', kessler.id, kessler.name),
+    follow('author', skyhook.id, skyhook.name),
+    follow('vehicle', 'spitfire_mk9c', vehicle('spitfire_mk9c').name),
+  ];
 }

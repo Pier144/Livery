@@ -156,7 +156,16 @@ pub async fn detect_game(app: AppHandle) -> AppResult<GameDetection> {
     .await
 }
 
+/// Saves the game folder. From then on the library works on that folder's own index (loaded
+/// now; skins, collections and backups of the previous folder stay in its index), the install
+/// queue checks clashes against it, and the watcher looks at its `UserSkins` from the next poll.
 #[tauri::command]
 pub async fn set_game_path(app: AppHandle, path: String, source: Option<GameSource>) -> AppResult<GameDetection> {
-    blocking(move || apply_game_path(&app.state::<SettingsStore>(), &path, source)).await
+    blocking(move || {
+        let detection = apply_game_path(&app.state::<SettingsStore>(), &path, source)?;
+        crate::archive::follow_game_root(&app);
+        crate::library::purge_expired(&app, &[]);
+        Ok(detection)
+    })
+    .await
 }

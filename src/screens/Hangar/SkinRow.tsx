@@ -4,7 +4,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
 import type { HangarSkin } from '@/types';
-import { ActiveToggle, attentionText, RecheckLink, selectHandlers, type SkinItemProps } from './SkinParts';
+import { ActiveToggle, attentionText, itemHandlers, RecheckLink, useSkinHint, type SkinItemProps } from './SkinParts';
 
 function authorOf(skin: HangarSkin, you: string, none: string): string {
   if (skin.author?.name) return skin.author.name;
@@ -13,11 +13,12 @@ function authorOf(skin: HangarSkin, you: string, none: string): string {
 
 /**
  * My Hangar list row: checkbox, thumb, name (+ attention line and Re-check), origin, author, size,
- * Active toggle. Selection works like the grid card (full-row hit area under the controls).
+ * Active toggle. Opening and selection work like the grid card (full-row hit area under the controls).
  */
 export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSelect, onToggleActive, onRecheck }: SkinItemProps) {
   const { t } = useTranslation();
   const attention = attentionText(t, skin);
+  const hint = useSkinHint(skin);
 
   return (
     <div
@@ -35,8 +36,9 @@ export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSel
         tabIndex={0}
         aria-pressed={selected}
         aria-label={skin.name}
+        aria-describedby={hint}
         title={skin.name}
-        {...selectHandlers(skin.id, onSelect)}
+        {...itemHandlers(skin, onSelect)}
         className="absolute inset-0 cursor-pointer focus-visible:-outline-offset-2"
       />
       <Checkbox

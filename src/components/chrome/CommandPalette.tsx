@@ -1,13 +1,13 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Kbd } from '@/components/ui/Kbd';
 import { vehicles } from '@/data/vehicles';
 import { cn } from '@/lib/cn';
+import { cachedWtLiveSkins } from '@/screens/Explore/exploreModel';
+import { useExplore } from '@/store/explore';
 import { useUi } from '@/store/ui';
-import { buildPaletteItems, type PaletteActionKey, type PaletteItem, type PaletteSkin } from './paletteItems';
-
-// TODO(M5): feed the cached WT Live skins (and `openSkin`) into the palette.
-const NO_SKINS: readonly PaletteSkin[] = [];
+import { buildPaletteItems, type PaletteActionKey, type PaletteItem } from './paletteItems';
 
 /** Ctrl+K command palette. Open/close state lives in the UI store. */
 export function CommandPalette() {
@@ -20,6 +20,8 @@ function PalettePanel() {
   const query = useUi((s) => s.palette.query);
   const index = useUi((s) => s.palette.index);
   const go = useUi((s) => s.go);
+  const openSkin = useUi((s) => s.openSkin);
+  const applyVehicle = useExplore((s) => s.applyVehicle);
   const closePalette = useUi((s) => s.closePalette);
   const setPaletteQuery = useUi((s) => s.setPaletteQuery);
   const setPaletteIndex = useUi((s) => s.setPaletteIndex);
@@ -39,9 +41,12 @@ function PalettePanel() {
   }, [opener]);
 
   const translate = useCallback((key: PaletteActionKey) => t(key), [t]);
+  // WT Live skins already fetched (Explore pages, posts, Following), read once per opening.
+  const qc = useQueryClient();
+  const [skins] = useState(() => cachedWtLiveSkins(qc));
   const items = useMemo(
-    () => buildPaletteItems(query, { t: translate, vehicles, skins: NO_SKINS, go }),
-    [query, translate, go],
+    () => buildPaletteItems(query, { t: translate, vehicles, skins, go, openSkin, applyVehicle }),
+    [query, translate, skins, go, openSkin, applyVehicle],
   );
   const active = Math.min(index, Math.max(0, items.length - 1));
   const activeItem = items[active];

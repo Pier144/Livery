@@ -12,15 +12,14 @@ use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::index::{new_id_with, BackupRecord, Library, LibraryStore};
 use crate::library::layout::{self, Journal};
-use crate::library::{time, user_skins_dir};
+use crate::library::{current_store, time, GameLibrary};
 use crate::model::{Backup, BackupReason, HangarSkin};
-use crate::settings::SettingsStore;
 use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 /// Seconds an ephemeral backup (backups turned off) lives: long enough for the Undo toast.
 pub const EPHEMERAL_SECS: i64 = 60;
@@ -147,15 +146,23 @@ pub fn list(store: &LibraryStore) -> Vec<Backup> {
     backups
 }
 
-/// Permanently removes every backup: folders (including leftovers no record points to) and
-/// records; collection members that are gone for good are dropped. Folders that can't be
-/// removed keep their record and are reported as an `io` error.
-pub fn clear(user_skins: &Path, store: &LibraryStore) -> AppResult<()> {
+/// Permanently removes backups (folder and record) and drops the collection members that are
+/// gone for good. `ids: None` clears every backup, ephemeral ones included, plus the leftover
+/// folders no record points to; `Some(ids)` only those backups (unknown ids are ignored, and
+/// nothing else in the backups folder is touched), so a backup made after the list the user saw
+/// survives a deferred Clear. Folders that can't be removed keep their record and are reported
+/// as an `io` error.
+pub fn clear(user_skins: &Path, store: &LibraryStore, ids: Option<&[String]>) -> AppResult<()> {
     let root = layout::backups_dir(user_skins);
+    let chosen: Option<HashSet<&str>> = ids.map(|ids| ids.iter().map(String::as_str).collect());
     let failed = store.transact(|library, _| {
         let mut failed = Vec::new();
         let mut kept = Vec::new();
         for record in std::mem::take(&mut library.backups) {
+            if chosen.as_ref().is_some_and(|chosen| !chosen.contains(record.backup.id.as_str())) {
+                kept.push(record);
+                continue;
+            }
             match holder_path(user_skins, &record).map_or(Ok(()), |dir| layout::remove_tree(&dir)) {
                 Ok(()) => {}
                 Err(e) => {
@@ -165,7 +172,8 @@ pub fn clear(user_skins: &Path, store: &LibraryStore) -> AppResult<()> {
             }
         }
         let held: HashSet<PathBuf> = kept.iter().filter_map(|r| holder_path(user_skins, r)).collect();
-        if let Ok(entries) = fs::read_dir(&root) {
+        let sweep = if chosen.is_none() { fs::read_dir(&root).ok() } else { None };
+        if let Some(entries) = sweep {
             for entry in entries.filter_map(Result::ok) {
                 let path = entry.path();
                 if held.contains(&path) {
@@ -186,7 +194,7 @@ pub fn clear(user_skins: &Path, store: &LibraryStore) -> AppResult<()> {
         Ok(failed)
     })?;
     if failed.is_empty() {
-        tracing::info!("backups cleared");
+        tracing::info!(all = chosen.is_none(), "backups cleared");
         Ok(())
     } else {
         Err(AppError::new(ErrorCode::Io, "Some backups could not be removed")
@@ -201,22 +209,23 @@ pub fn purge_on_startup(app: &AppHandle) {
     tauri::async_runtime::spawn_blocking(move || crate::library::purge_expired(&app, &[]));
 }
 
-/// Kept backups, newest first (Settings → Backups).
+/// Kept backups of the saved game folder, newest first (Settings → Backups); none while no game
+/// folder is saved.
 #[tauri::command]
 pub async fn list_backups(app: AppHandle) -> AppResult<Vec<Backup>> {
     blocking(move || {
         crate::library::purge_expired(&app, &[]);
-        Ok(list(&app.state::<LibraryStore>()))
+        Ok(current_store(&app).map(|store| list(&store)).unwrap_or_default())
     })
     .await
 }
 
-/// Permanently removes every backup (Settings → Backups → Clear).
+/// Permanently removes backups (Settings → Backups → Clear): the ones in `ids`, else every one.
 #[tauri::command]
-pub async fn clear_backups(app: AppHandle) -> AppResult<()> {
+pub async fn clear_backups(app: AppHandle, ids: Option<Vec<String>>) -> AppResult<()> {
     blocking(move || {
-        let user_skins = user_skins_dir(&app.state::<SettingsStore>().get())?;
-        clear(&user_skins, &app.state::<LibraryStore>())
+        let library = GameLibrary::current(&app)?;
+        clear(&library.user_skins, &library.store, ids.as_deref())
     })
     .await
 }
