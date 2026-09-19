@@ -104,6 +104,46 @@ describe('useFileDrop — browser', () => {
     expect(messages()).toEqual([en.common.drop.unsupported]);
   });
 
+  it('during First run adds archives to the queue but stays on the screen, with a toast', () => {
+    useUi.getState().go('firstRun');
+    render(<Harness />);
+    fireEvent.dragEnter(window, { dataTransfer: files() });
+    fireEvent.drop(window, { dataTransfer: files('a.zip', 'b.rar', 'notes.txt') });
+    expect(useQueue.getState().items.map((i) => i.fileName)).toEqual(['a.zip', 'b.rar']);
+    expect(useUi.getState().screen).toBe('firstRun');
+    expect(messages()).toEqual(['2 archives added to the install queue']);
+  });
+
+  it('during First run a drop with no archive only toasts', () => {
+    useUi.getState().go('firstRun');
+    render(<Harness />);
+    fireEvent.drop(window, { dataTransfer: files('notes.txt') });
+    expect(useQueue.getState().items).toEqual([]);
+    expect(useUi.getState().screen).toBe('firstRun');
+    expect(messages()).toEqual([en.common.drop.unsupported]);
+  });
+
+  it('hands every dropped entry to the folder drop handler instead of the queue', () => {
+    const onFolder = vi.fn();
+    useUi.getState().go('firstRun');
+    useUi.getState().setFolderDrop(onFolder);
+    render(<Harness />);
+    fireEvent.dragEnter(window, { dataTransfer: files() });
+    expect(active()).toBe(true);
+    // A dropped folder shows up as a File named after it; archives are not filtered either.
+    fireEvent.drop(window, { dataTransfer: files('War Thunder', 'skin.zip') });
+    expect(active()).toBe(false);
+    expect(onFolder).toHaveBeenCalledExactlyOnceWith(['War Thunder', 'skin.zip']);
+    expect(useQueue.getState().items).toEqual([]);
+    expect(useUi.getState().screen).toBe('firstRun');
+    expect(messages()).toEqual([]);
+    // Unregistered: back to the queue.
+    useUi.getState().setFolderDrop(null);
+    fireEvent.drop(window, { dataTransfer: files('skin.zip') });
+    expect(onFolder).toHaveBeenCalledTimes(1);
+    expect(useQueue.getState().items).toHaveLength(1);
+  });
+
   it('ignores drags that carry no files', () => {
     render(<Harness />);
     const text = { types: ['text/plain'], files: [] };
@@ -201,6 +241,35 @@ describe('useFileDrop — Tauri', () => {
     expect(messages()).toEqual([en.common.drop.unsupported]);
   });
 
+  it('passes dropped folder paths to the folder drop handler', async () => {
+    const onFolder = vi.fn();
+    useUi.getState().go('firstRun');
+    useUi.getState().setFolderDrop(onFolder);
+    render(<Harness />);
+    await waitFor(() => expect(tauri.handler).toBeDefined());
+    const paths = ['D:\\SteamLibrary\\steamapps\\common\\War Thunder'];
+    emit({ type: 'enter', paths, position });
+    expect(active()).toBe(true);
+    emit({ type: 'drop', paths, position });
+    expect(active()).toBe(false);
+    expect(onFolder).toHaveBeenCalledExactlyOnceWith(paths);
+    expect(useQueue.getState().items).toEqual([]);
+    expect(useUi.getState().screen).toBe('firstRun');
+    expect(messages()).toEqual([]);
+  });
+
+  it('during First run queues dropped archives without switching screens', async () => {
+    useUi.getState().go('firstRun');
+    render(<Harness />);
+    await waitFor(() => expect(tauri.handler).toBeDefined());
+    const paths = ['C:\\Skins\\tiger.zip'];
+    emit({ type: 'enter', paths, position });
+    emit({ type: 'drop', paths, position });
+    expect(useQueue.getState().items).toHaveLength(1);
+    expect(useUi.getState().screen).toBe('firstRun');
+    expect(messages()).toEqual(['1 archive added to the install queue']);
+  });
+
   it('keeps the overlay down for drags without paths', async () => {
     render(<Harness />);
     await waitFor(() => expect(tauri.handler).toBeDefined());
@@ -237,5 +306,12 @@ describe('handleDroppedPaths', () => {
     handleDroppedPaths([]);
     expect(useQueue.getState().items).toEqual([]);
     expect(messages()).toEqual([]);
+  });
+
+  it('does not call the folder drop handler for an empty drop', () => {
+    const onFolder = vi.fn();
+    useUi.getState().setFolderDrop(onFolder);
+    handleDroppedPaths([]);
+    expect(onFolder).not.toHaveBeenCalled();
   });
 });

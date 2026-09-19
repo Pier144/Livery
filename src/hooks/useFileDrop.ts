@@ -12,14 +12,23 @@ function setActive(active: boolean) {
 }
 
 /**
- * Archives join the install queue as "Analyzing archive…" and the app jumps to the queue;
- * a drop with no ZIP/RAR/7z in it only gets a toast.
+ * Routes a drop:
+ * - a folder drop handler is registered (First run asking for the game folder) → it gets every path, folders included;
+ * - otherwise archives join the install queue as "Analyzing archive…" and the app jumps to the queue —
+ *   except during First run, which stays put and confirms with a toast (the sidebar badge is hidden there);
+ * - a drop with no ZIP/RAR/7z in it only gets a toast.
  */
 export function handleDroppedPaths(paths: string[]) {
   if (paths.length === 0) return;
+  const ui = useUi.getState();
+  if (ui.folderDrop) {
+    ui.folderDrop(paths);
+    return;
+  }
   const accepted = useQueue.getState().addPaths(paths);
-  if (accepted.length > 0) useUi.getState().go('queue');
-  else toast(i18n.t('common.drop.unsupported'));
+  if (accepted.length === 0) toast(i18n.t('common.drop.unsupported'));
+  else if (ui.screen === 'firstRun') toast(i18n.t('common.drop.queued', { count: accepted.length }));
+  else ui.go('queue');
 }
 
 /**
@@ -125,7 +134,7 @@ function listenBrowser(): () => void {
   };
 }
 
-/** Window-level file drag & drop → overlay (`dragActive`) and install queue. Call once, in `App`. */
+/** Window-level file drag & drop → overlay (`dragActive`) and install queue (or `folderDrop`). Call once, in `App`. */
 export function useFileDrop() {
   useEffect(() => {
     const stop = isTauri() ? listenTauri() : listenBrowser();

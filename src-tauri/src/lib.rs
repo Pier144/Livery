@@ -1,5 +1,8 @@
 //! Livery backend. One module per domain; commands return `Result<T, AppError>` and long
 //! operations emit events (see design_handoff_livery/DATA_MODEL.md).
+//!
+//! Commands that touch the disk are `async` and do their work on a blocking thread
+//! (`tauri::async_runtime::spawn_blocking`) so the UI thread never waits on I/O.
 
 pub mod archive;
 pub mod backup;
@@ -14,6 +17,13 @@ pub mod wtlive;
 
 pub use error::{AppError, AppResult, ErrorCode};
 
+/// Runs disk work off the async runtime so the UI thread never waits on I/O.
+pub(crate) async fn blocking<T: Send + 'static>(work: impl FnOnce() -> AppResult<T> + Send + 'static) -> AppResult<T> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| AppError::new(ErrorCode::Internal, "Background task failed").with_detail(e.to_string()))?
+}
+
 use tauri::Manager;
 
 fn init_tracing() {
@@ -26,13 +36,23 @@ fn init_tracing() {
 pub fn run() {
     init_tracing();
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             app.manage(settings::SettingsStore::load(data_dir.join("settings.json")));
+            app.manage(library::LibraryStore::load(data_dir.join("library.json")));
             tracing::info!(data_dir = %data_dir.display(), version = env!("CARGO_PKG_VERSION"), "Livery started");
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![settings::get_settings, settings::set_settings])
+        .invoke_handler(tauri::generate_handler![
+            settings::get_settings,
+            settings::set_settings,
+            game::detect_game,
+            game::set_game_path,
+            library::scan_user_skins,
+            library::import_skins,
+            library::get_hangar,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Livery");
 }

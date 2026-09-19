@@ -1,0 +1,9 @@
+name:t="user"
+replace_tex{
+  from:t="leopard_2a6_body_c*"
+  to:t="body_c.dds"
+}
+camo_params{
+  scale:r=1.5
+  rotation:r=0
+}

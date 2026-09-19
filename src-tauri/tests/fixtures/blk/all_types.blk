@@ -1,0 +1,19 @@
+str:t="text"
+int:i=-42
+hex:i=0x1F
+big:i64=9000000000
+real:r=1.5e2
+flag:b=no
+p2:p2=1, 2.5
+p3:p3=1,2,3
+p4:p4=0, 0, 0, 1
+ip2:ip2=640, 480
+ip3:ip3=-1, 0, 1
+color:c=255, 128, 0
+color4:c=10, 20, 30, 40
+tm:m=[[1, 0, 0] [0, 1, 0] [0, 0, 1] [0, 0, 0]]
+custom:q8="whatever"
+untyped="loose"
+"quoted name":t="ok"
+include "common/other.blk"
+@override:tank{ x:i=1 }

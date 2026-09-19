@@ -1,0 +1,9 @@
+name:t="user"
+replace_tex{
+  from:t="t_34_85_body_c*"
+  to:t="hull_c*"
+}
+replace_tex{
+  from:t="t_34_85_turret_c*"
+  to:t="turret_c*"
+}

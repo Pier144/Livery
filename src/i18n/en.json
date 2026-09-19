@@ -72,10 +72,93 @@
       "title": "Drop to add to the install queue",
       "formats": "ZIP · RAR · 7Z",
       "analyzing": "Analyzing archive…",
-      "unsupported": "Only ZIP, RAR and 7z archives can be added"
+      "unsupported": "Only ZIP, RAR and 7z archives can be added",
+      "queued_one": "{{count}} archive added to the install queue",
+      "queued_other": "{{count}} archives added to the install queue"
     },
     "toasts": {
       "region": "Notifications"
+    }
+  },
+  "firstRun": {
+    "label": "First run",
+    "steps": {
+      "label": "Setup steps",
+      "detect": "01 DETECT",
+      "confirm": "02 CONFIRM",
+      "import": "03 IMPORT"
+    },
+    "detect": {
+      "title": "Looking for War Thunder",
+      "body": "Checking the usual places. This takes a second.",
+      "progress": "Detection progress",
+      "sources": {
+        "steam": "Steam library",
+        "standalone": "Standalone launcher",
+        "custom": "Custom location"
+      },
+      "state": {
+        "queued": "queued",
+        "checking": "checking…",
+        "found": "found",
+        "notFound": "not found",
+        "notInstalled": "not installed",
+        "skipped": "skipped"
+      },
+      "doneFound": "Detection finished. War Thunder found: {{source}}.",
+      "doneNotFound": "Detection finished. War Thunder wasn't found in the usual places."
+    },
+    "found": {
+      "title": "Found War Thunder",
+      "body": "Livery will install skins into this copy of the game.",
+      "game": "War Thunder",
+      "meta_one": "Version {{version}} · {{count}} skin already in UserSkins",
+      "meta_other": "Version {{version}} · {{count}} skins already in UserSkins",
+      "metaNoVersion_one": "{{count}} skin already in UserSkins",
+      "metaNoVersion_other": "{{count}} skins already in UserSkins",
+      "use": "Use this install",
+      "other": "Choose another folder"
+    },
+    "notFound": {
+      "title": "Can't find War Thunder",
+      "body": "Pick the folder where the game is installed. Livery looks for the UserSkins folder inside it.",
+      "choose": "Choose game folder",
+      "drop": "or drop it here",
+      "pickerTitle": "Choose the War Thunder folder",
+      "invalid": "That folder doesn't look like War Thunder. Pick the folder that contains launcher.exe or UserSkins.",
+      "dropOverlay": "Drop the War Thunder folder",
+      "dropFormats": "FOLDER",
+      "skip": "Skip for now",
+      "back": "Back"
+    },
+    "import": {
+      "title": "Skins already on disk",
+      "body": "Livery found skins in your UserSkins folder. Add them to My Hangar to manage them here.",
+      "stats": {
+        "skins": "skins",
+        "vehicles": "vehicles",
+        "attention": "need attention"
+      },
+      "tag": {
+        "ok": "ok",
+        "mine": "created by you",
+        "attention": "needs attention"
+      },
+      "more": "+ {{count}} more",
+      "import": "Import and continue",
+      "skip": "Skip import",
+      "scanFailed": "Couldn't read the UserSkins folder."
+    },
+    "toast": {
+      "imported_one": "{{count}} skin added to My Hangar",
+      "imported_other": "{{count}} skins added to My Hangar",
+      "gameSet": "Game folder set",
+      "later": "You can set the game folder later in Settings"
+    },
+    "anim": {
+      "hull": "HULL 200 × 120 × 110",
+      "sheet": "SHEET 00 · DETECTING INSTALL",
+      "unofficial": "UNOFFICIAL TOOL"
     }
   },
   "explore": {
@@ -86,7 +169,14 @@
     "title": "My Hangar",
     "emptyTitle": "Nothing here yet",
     "emptyBody": "Install a skin from Explore, or drop a ZIP anywhere in this window.",
-    "emptyAction": "Browse WT Live"
+    "emptyAction": "Browse WT Live",
+    "attention": {
+      "missingTexture": "{{file}} is missing",
+      "unknownBlkBlock": "{{file}} has an unknown block",
+      "partialExtract": "archive was only partially extracted",
+      "noBlk": "no .blk file, so the game can't use it",
+      "unreadableBlk": "{{file}} can't be read"
+    }
   },
   "collections": {
     "title": "Collections"

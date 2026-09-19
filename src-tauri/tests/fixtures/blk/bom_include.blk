@@ -1,0 +1,6 @@
+﻿include "#/develop/skins/base.blk"
+name:t="bom"
+replace_tex{
+  from:t="a*"
+  to:t="b*"
+}

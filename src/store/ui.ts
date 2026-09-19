@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { Section } from '@/types';
+import type { Screen } from '@/types';
 
 export interface PaletteState {
   open: boolean;
@@ -9,15 +9,20 @@ export interface PaletteState {
   index: number;
 }
 
+/** Receives dropped paths instead of the install queue (First run's "or drop it here"). */
+export type FolderDropHandler = (paths: string[]) => void;
+
 export interface UiState {
-  screen: Section;
+  screen: Screen;
   sidebarOpen: boolean;
   palette: PaletteState;
   /** WT Live reachability; drives the title-bar tag and the sidebar dot. */
   online: boolean;
   /** Files are being dragged over the window. */
   dragActive: boolean;
-  go: (screen: Section) => void;
+  /** While set, window drops go here and the overlay asks for the game folder. */
+  folderDrop: FolderDropHandler | null;
+  go: (screen: Screen) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   openPalette: () => void;
@@ -27,6 +32,7 @@ export interface UiState {
   setPaletteIndex: (index: number) => void;
   setOnline: (online: boolean) => void;
   setDragActive: (active: boolean) => void;
+  setFolderDrop: (handler: FolderDropHandler | null) => void;
   /** Esc: closes the palette (and, from later milestones, menus/dialogs/zoom). */
   dismissTransient: () => void;
 }
@@ -41,6 +47,7 @@ export const useUi = create<UiState>()(
       palette: closedPalette,
       online: true,
       dragActive: false,
+      folderDrop: null,
       go: (screen) => set({ screen, palette: closedPalette }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
@@ -51,6 +58,7 @@ export const useUi = create<UiState>()(
       setPaletteIndex: (index) => set((s) => ({ palette: { ...s.palette, index } })),
       setOnline: (online) => set({ online }),
       setDragActive: (dragActive) => set({ dragActive }),
+      setFolderDrop: (folderDrop) => set({ folderDrop }),
       dismissTransient: () => set({ palette: closedPalette }),
     }),
     {

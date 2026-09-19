@@ -21,7 +21,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 /**
  * Window-level shortcuts: Ctrl/Cmd+K palette, Esc close, Ctrl/Cmd+Z undo last toast, 1–5 sections, [ / ] sidebar.
- * Section and sidebar keys are ignored while typing or with modifiers held.
+ * Section and sidebar keys are ignored while typing, with modifiers held, and during First run
+ * (no sidebar there; leaving it takes the screen's own actions, as in the prototype).
  */
 export function useKeyboardShortcuts() {
   useEffect(() => {
@@ -43,7 +44,7 @@ export function useKeyboardShortcuts() {
         return;
       }
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (isTypingTarget(e.target) || ui.palette.open) return;
+      if (isTypingTarget(e.target) || ui.palette.open || ui.screen === 'firstRun') return;
       if (e.key === '[' || e.key === ']') {
         e.preventDefault();
         ui.toggleSidebar();

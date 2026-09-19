@@ -1,0 +1,18 @@
+// Written by the in-game "create template" button, then edited by hand.
+name:t="user"
+
+replace_tex{
+  from:t="t_34_85_body_c*"
+  to:t="t_34_85_body_c_uv*"
+}
+
+replace_tex{
+  from:t="t_34_85_turret_c*"
+  to:t="t_34_85_turret_c_uv.tga"
+}
+
+set_tex{
+  from:t="camo_skin_tex*"
+  to:t="t_34_85_camo*"
+  param:t="camo_skin_tex"
+}

@@ -1,0 +1,4 @@
+replace_tex{
+  from:t="hull_c*"
+  to:t="hull_c.dds
+}

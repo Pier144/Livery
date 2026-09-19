@@ -1,6 +1,7 @@
 // Shared shapes — keep in sync with src-tauri/src/model.rs (see design_handoff_livery/DATA_MODEL.md).
 
-export type Nation = 'USA' | 'GER' | 'USSR' | 'GBR' | 'JPN' | 'CHN' | 'ITA' | 'FRA' | 'SWE' | 'ISR';
+/** `UNK`: a vehicle code missing from the local catalog whose nation can't be inferred (see DESIGN_NOTES). */
+export type Nation = 'USA' | 'GER' | 'USSR' | 'GBR' | 'JPN' | 'CHN' | 'ITA' | 'FRA' | 'SWE' | 'ISR' | 'UNK';
 export type VehicleType = 'ground' | 'air' | 'heli' | 'naval';
 export type Category = 'Historical' | 'Semi-historical' | 'Fictional' | 'Camouflage' | 'Other';
 export type Origin = 'wtlive' | 'imported' | 'mine';
@@ -51,7 +52,7 @@ export interface TextureInfo {
   missing?: boolean;
 }
 
-export type Attention = 'missingTexture' | 'unknownBlkBlock' | 'partialExtract' | 'noBlk';
+export type Attention = 'missingTexture' | 'unknownBlkBlock' | 'partialExtract' | 'noBlk' | 'unreadableBlk';
 /** Installed, indexed by the library. */
 export interface HangarSkin {
   id: string;
@@ -119,14 +120,25 @@ export interface Settings {
   language: Language;
   autoUpdate: boolean;
   startWithWindows: boolean;
+  /** First run finished or skipped; the app then opens on Explore. (Not in DATA_MODEL; see DESIGN_NOTES.) */
+  onboarded: boolean;
 }
 export interface GameDetection {
   found: boolean;
   source?: GameSource;
+  /** Game root (holds `launcher.exe` / `UserSkins`). Hidden in the UI unless "Show path". */
   path?: string;
+  /** Full version from `content/pkg_main.ver`, e.g. "2.59.0.13". */
   version?: string;
   existingSkins: number;
 }
+/** `game://detect` payload: one event per source and state change while `detect_game` runs. */
+export type DetectState = 'checking' | 'found' | 'notFound' | 'skipped';
+export interface DetectEvent {
+  source: GameSource;
+  state: DetectState;
+}
+export const DETECT_EVENT = 'game://detect';
 export interface Backup {
   id: string;
   skinId: string;
@@ -145,3 +157,5 @@ export interface AppError {
 
 /** Top-level sections reachable from the sidebar (keys 1–5). */
 export type Section = 'explore' | 'hangar' | 'collections' | 'queue' | 'settings';
+/** Everything the main area can show. First run hides the sidebar and disables section keys. */
+export type Screen = Section | 'firstRun';

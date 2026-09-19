@@ -1,0 +1,14 @@
+name:t="user"
+replace_tex{
+  from:t="tiger_ii_body_c*"
+  to:t="tiger_body_c.dds"
+}
+replace_tex{
+  from:t="tiger_ii_turret_c*"
+  to:t="tiger_turret_c*"
+}
+set_tex{
+  from:t="camo_skin_tex*"
+  to:t="tiger_camo"
+  param:t="camo_skin_tex"
+}

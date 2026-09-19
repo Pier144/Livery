@@ -67,6 +67,26 @@ describe('useKeyboardShortcuts', () => {
     expect(useToasts.getState().toasts).toHaveLength(1);
   });
 
+  it('ignores section and sidebar keys during First run; Ctrl+K, Esc and Ctrl+Z still work', () => {
+    const undo = vi.fn();
+    render(<Harness />);
+    useUi.getState().go('firstRun');
+    for (const k of ['1', '2', '3', '4', '5', ',', '[', ']']) key(k);
+    expect(useUi.getState().screen).toBe('firstRun');
+    expect(useUi.getState().sidebarOpen).toBe(true);
+    key('k', { ctrlKey: true });
+    expect(useUi.getState().palette.open).toBe(true);
+    key('Escape');
+    expect(useUi.getState().palette.open).toBe(false);
+    toast.undoable('Deleted 1 skin', undo);
+    key('z', { ctrlKey: true });
+    expect(undo).toHaveBeenCalledTimes(1);
+    // Leaving First run (e.g. via the palette) brings the section keys back.
+    useUi.getState().go('explore');
+    key('2');
+    expect(useUi.getState().screen).toBe('hangar');
+  });
+
   it('ignores section keys while typing, with modifiers, or with the palette open', () => {
     const { getByLabelText } = render(<Harness />);
     fireEvent.keyDown(getByLabelText('field'), { key: '3' });

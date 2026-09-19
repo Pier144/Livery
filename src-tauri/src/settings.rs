@@ -115,6 +115,19 @@ mod tests {
     }
 
     #[test]
+    fn game_version_can_be_cleared_but_null_leaves_it() {
+        let mut s = Settings { game_version: Some("2.59.0.13".into()), ..Settings::default() };
+        let from_json: SettingsPatch = serde_json::from_str(r#"{ "gameVersion": null, "language": "it" }"#).unwrap();
+        s.apply(from_json);
+        assert_eq!(s.game_version.as_deref(), Some("2.59.0.13"), "null from the UI changes nothing");
+        s.apply(SettingsPatch { game_version: Some(None), ..Default::default() });
+        assert_eq!(s.game_version, None, "a new root without a version clears it");
+        let set: SettingsPatch = serde_json::from_str(r#"{ "gameVersion": "2.60.0.1" }"#).unwrap();
+        s.apply(set);
+        assert_eq!(s.game_version.as_deref(), Some("2.60.0.1"));
+    }
+
+    #[test]
     fn corrupt_file_is_set_aside() {
         let dir = temp_dir("corrupt");
         let path = dir.join("settings.json");
