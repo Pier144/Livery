@@ -51,6 +51,7 @@ pub async fn install_from_wtlive(
 }
 
 /// Try in game: keep → the temporary install becomes a normal hangar skin; discard → removed.
+/// `skin_id` is the **WT Live** skin id (the hangar skin's `source_id`), not a hangar id.
 #[tauri::command]
 pub async fn finalize_try(app: AppHandle, skin_id: String, keep: bool) -> AppResult<Option<HangarSkin>> {
     let _ = (app, skin_id, keep);

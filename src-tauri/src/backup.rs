@@ -1,4 +1,4 @@
-//! Backups (M3): skin folders kept aside by a delete (later also a replace) to drive Undo, listed
+//! Backups (M3): skin folders kept aside by a delete or a replace to drive Undo, listed
 //! and cleared from Settings → Backups.
 //!
 //! A backup is the skin folder itself, moved (a rename, so instant) to

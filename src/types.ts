@@ -120,6 +120,10 @@ export interface InstallProgress {
 export interface InstallStarted {
   installId: string;
 }
+/** `net://status`: whether WT Live can be reached (the backend emits it when that changes). */
+export interface NetStatus {
+  online: boolean;
+}
 
 /** Backend events (`listen`). */
 export const EVENTS = {

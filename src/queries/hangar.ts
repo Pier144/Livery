@@ -12,11 +12,19 @@ export const HANGAR_KEY = ['hangar'] as const;
 
 const NONE: HangarSkin[] = [];
 
-/** Skins in My Hangar (`get_hangar`, from the library index). Empty outside Tauri. */
-export function useHangar() {
-  return useQuery<HangarSkin[], AppError>({
+/** Drops Try-in-game installs: nothing joins My Hangar until the user presses Keep. */
+const withoutTemporary = (skins: HangarSkin[]) => (skins.some((s) => s.temporary) ? skins.filter((s) => !s.temporary) : skins);
+
+/**
+ * Skins in My Hangar (`get_hangar`, from the library index). Empty outside Tauri.
+ * Temporary (Try in game) installs are left out unless `includeTemporary`: only the WT Live
+ * install state, the Skin detail and the queue's folder-conflict hints need them.
+ */
+export function useHangar({ includeTemporary = false }: { includeTemporary?: boolean } = {}) {
+  return useQuery<HangarSkin[], AppError, HangarSkin[]>({
     queryKey: HANGAR_KEY,
     queryFn: () => (hasBackend() ? call<HangarSkin[]>('get_hangar') : Promise.resolve(NONE)),
+    select: includeTemporary ? undefined : withoutTemporary,
   });
 }
 

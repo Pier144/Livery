@@ -11,6 +11,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
 import { useWtLiveInstallEvents } from '@/store/installs';
 import { useSettings } from '@/queries/settings';
+import { useNetStatusEvents } from '@/queries/wtlive';
 import { Collections } from '@/screens/Collections';
 import { Explore } from '@/screens/Explore';
 import { FirstRun } from '@/screens/FirstRun/FirstRun';
@@ -58,6 +59,7 @@ export function App() {
   useFileDrop();
   useInstallEvents();
   useWtLiveInstallEvents();
+  useNetStatusEvents();
   useLanguageSync();
   const booted = useBootScreen();
   const { t } = useTranslation();

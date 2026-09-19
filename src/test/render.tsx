@@ -5,6 +5,7 @@ import { createQueryClient } from '@/queries/client';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
 import { resetCollectionsUi } from '@/store/collections';
 import { hangarDefaults, useHangarStore } from '@/store/hangar';
+import { useInstalls } from '@/store/installs';
 import { useQueue } from '@/store/queue';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
@@ -26,6 +27,7 @@ export function resetStores() {
   useQueue.setState({ items: [], conflictDialogId: null, installs: {}, picked: {}, batchRunning: false });
   useHangarStore.setState(hangarDefaults());
   resetCollectionsUi();
+  useInstalls.setState({ bySkin: {}, byInstallId: {} });
 }
 
 interface ProviderOptions extends RenderOptions {

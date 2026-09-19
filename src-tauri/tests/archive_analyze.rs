@@ -285,6 +285,8 @@ fn an_archive_is_an_error_item_with_the_unsupported_message() {
     let e = err(textures_for_queue(&env.queue, &item.id));
     assert_eq!(e.code, ErrorCode::Unsupported);
     assert_eq!(e.message, UNSUPPORTED_ARCHIVES);
+    // User-visible text: a mis-encoded dash once slipped in as mojibake.
+    assert!(UNSUPPORTED_ARCHIVES.is_ascii());
 }
 
 #[test]

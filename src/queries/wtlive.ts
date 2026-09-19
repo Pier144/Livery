@@ -1,17 +1,29 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryKey,
+} from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { listenEvent } from '@/lib/events';
 import { call, hasBackend, toAppError } from '@/lib/tauri';
 import { useUi } from '@/store/ui';
-import type {
-  AppError,
-  ConflictPolicy,
-  FollowEntry,
-  FollowKind,
-  HangarSkin,
-  InstallMode,
-  InstallStarted,
-  SearchParams,
-  SearchResult,
-  WtLiveSkin,
+import {
+  EVENTS,
+  type AppError,
+  type ConflictPolicy,
+  type FollowEntry,
+  type FollowKind,
+  type HangarSkin,
+  type InstallMode,
+  type InstallStarted,
+  type NetStatus,
+  type SearchParams,
+  type SearchResult,
+  type WtLiveSkin,
 } from '@/types';
 import { HANGAR_KEY } from './hangar';
 
@@ -40,11 +52,48 @@ async function tracked<T>(run: () => Promise<T>): Promise<T> {
 
 export const isOfflineError = (e: AppError | null | undefined) => !!e && OFFLINE_CODES.has(e.code);
 
+/** Keeps `ui.online` in step with the backend's `net://status` events; mounted once in App. */
+export function useNetStatusEvents() {
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listenEvent<NetStatus>(EVENTS.netStatus, (status) => useUi.getState().setOnline(status.online))
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch((e: unknown) => console.error('[livery] net://status listener failed', e));
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+}
+
 /** Explore grid. Filters combine (AND); previous results stay on screen while the next page loads. */
 export function useWtLiveSearch(params: SearchParams) {
   return useQuery<SearchResult, AppError>({
     queryKey: [...WTLIVE_KEY, 'search', params],
     queryFn: () => tracked(() => call<SearchResult>('wtlive_search', { params })),
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Explore grid, page after page (BUILD_PLAN open decision 2): the backend fetches, caches and
+ * filters WT Live locally and answers pages of results; call `fetchNextPage()` when the virtual
+ * grid nears the end. `total` and `tookMs` come from the first page.
+ */
+export function useWtLiveSearchPages(params: Omit<SearchParams, 'page'>) {
+  return useInfiniteQuery<SearchResult, AppError, InfiniteData<SearchResult, number>, QueryKey, number>({
+    queryKey: [...WTLIVE_KEY, 'search-pages', params],
+    queryFn: ({ pageParam }) => tracked(() => call<SearchResult>('wtlive_search', { params: { ...params, page: pageParam } })),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((n, p) => n + p.items.length, 0);
+      return last.items.length > 0 && loaded < last.total ? pages.length : undefined;
+    },
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
   });
@@ -102,7 +151,10 @@ export function installFromWtLive(skinId: string, mode: InstallMode, conflict?: 
   return tracked(() => call<InstallStarted>('install_from_wtlive', conflict ? { skinId, mode, conflict } : { skinId, mode }));
 }
 
-/** Try in game → Keep (becomes a normal hangar skin) or Discard (removed, game files restored). */
+/**
+ * Try in game → Keep (becomes a normal hangar skin) or Discard (removed, game files restored).
+ * `skinId` is the **WT Live** skin id (the hangar skin's `sourceId`), not a hangar id.
+ */
 export function useFinalizeTry() {
   const qc = useQueryClient();
   return useMutation<HangarSkin | null, AppError, { skinId: string; keep: boolean }>({
