@@ -1,6 +1,7 @@
 import { fireEvent, render } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetStores } from '@/test/render';
+import { toast, useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 
@@ -45,6 +46,25 @@ describe('useKeyboardShortcuts', () => {
     expect(useUi.getState().palette.open).toBe(true);
     key('k', { ctrlKey: true });
     expect(useUi.getState().palette.open).toBe(false);
+  });
+
+  it('Ctrl+Z undoes the newest undoable toast, but not while typing', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { getByLabelText } = render(<Harness />);
+    toast.undoable('Deleted 1 skin', first);
+    toast.undoable('Deleted 2 skins', second);
+    toast('Installed “X”');
+    fireEvent.keyDown(getByLabelText('field'), { key: 'z', ctrlKey: true });
+    expect(second).not.toHaveBeenCalled();
+    key('z', { ctrlKey: true });
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
+    key('z', { ctrlKey: true });
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(useToasts.getState().toasts.map((t) => t.message)).toEqual(['Installed “X”']);
+    key('z', { ctrlKey: true });
+    expect(useToasts.getState().toasts).toHaveLength(1);
   });
 
   it('ignores section keys while typing, with modifiers, or with the palette open', () => {

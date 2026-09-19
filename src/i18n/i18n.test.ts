@@ -36,7 +36,7 @@ describe('i18n', () => {
 
   it('formats counts in interpolations', () => {
     expect(i18n.t('common.status.online', { count: 2318 })).toBe('WT Live online · 2,318 skins');
-    expect(i18n.t('common.drop.added', { count: 1 })).toBe('Added 1 archive to the install queue');
-    expect(i18n.t('common.drop.added', { count: 3 })).toBe('Added 3 archives to the install queue');
+    expect(i18n.t('common.nav.queueBadge', { count: 1 })).toBe('1 archive waiting');
+    expect(i18n.t('common.nav.queueBadge', { count: 3 })).toBe('3 archives waiting');
   });
 });

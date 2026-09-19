@@ -25,7 +25,7 @@
       "explore": "Esplora",
       "hangar": "Il mio hangar",
       "collections": "Collezioni",
-      "queue": "Coda di installazione",
+      "queue": "Da installare",
       "settings": "Impostazioni",
       "queueBadge_one": "{{count}} archivio in attesa",
       "queueBadge_other": "{{count}} archivi in attesa",
@@ -58,7 +58,7 @@
       },
       "actions": {
         "explore": "Vai a Esplora",
-        "hangar": "Vai a Il mio hangar",
+        "hangar": "Vai al mio hangar",
         "collections": "Vai a Collezioni",
         "queue": "Apri la coda di installazione",
         "settings": "Apri le impostazioni"
@@ -72,8 +72,6 @@
       "title": "Rilascia per aggiungere alla coda di installazione",
       "formats": "ZIP · RAR · 7Z",
       "analyzing": "Analisi dell'archivio…",
-      "added_one": "{{count}} archivio aggiunto alla coda di installazione",
-      "added_other": "{{count}} archivi aggiunti alla coda di installazione",
       "unsupported": "Si possono aggiungere solo archivi ZIP, RAR e 7z"
     },
     "toasts": {

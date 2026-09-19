@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import type { Section } from '@/types';
 
@@ -19,7 +20,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * Window-level shortcuts: Ctrl/Cmd+K palette, Esc close, 1–5 sections, [ / ] sidebar.
+ * Window-level shortcuts: Ctrl/Cmd+K palette, Esc close, Ctrl/Cmd+Z undo last toast, 1–5 sections, [ / ] sidebar.
  * Section and sidebar keys are ignored while typing or with modifiers held.
  */
 export function useKeyboardShortcuts() {
@@ -33,6 +34,12 @@ export function useKeyboardShortcuts() {
       }
       if (e.key === 'Escape') {
         ui.dismissTransient();
+        return;
+      }
+      // Ctrl/Cmd+Z undoes the newest undoable toast, so keyboard users needn't reach its button in 6 s.
+      // Inputs keep their native text undo.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z' && !isTypingTarget(e.target)) {
+        if (useToasts.getState().undoLatest()) e.preventDefault();
         return;
       }
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;

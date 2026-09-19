@@ -1,0 +1,189 @@
+import { QueryClientProvider } from '@tanstack/react-query';
+import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createQueryClient } from '@/queries/client';
+import { HANGAR_SUMMARY_KEY } from '@/queries/hangar';
+import { DEFAULT_SETTINGS } from '@/queries/settings';
+import { useQueue } from '@/store/queue';
+import { useUi } from '@/store/ui';
+import { seriousViolations } from '@/test/axe';
+import { renderWithProviders, resetStores } from '@/test/render';
+import { Sidebar } from './Sidebar';
+
+const ITEMS = [
+  ['Explore', '1'],
+  ['My Hangar', '2'],
+  ['Collections', '3'],
+  ['Install queue', '4'],
+  ['Settings', ','],
+] as const;
+
+/** Renders the sidebar and waits for the status card queries to settle. */
+async function renderSidebar(ui = <Sidebar />) {
+  const result = renderWithProviders(ui);
+  if (useUi.getState().sidebarOpen) await screen.findByText('NOT SET');
+  return result;
+}
+
+const nav = () => screen.getByRole('navigation', { name: 'Sections' });
+
+describe('Sidebar', () => {
+  beforeEach(() => resetStores());
+
+  it('renders the five sections with icons and shortcut hints', async () => {
+    await renderSidebar();
+    for (const [name, key] of ITEMS) {
+      const item = within(nav()).getByRole('button', { name });
+      expect(item.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+      expect(item).toHaveAttribute('aria-keyshortcuts', key);
+      expect(within(item).getByText(key).tagName).toBe('KBD');
+    }
+    const explore = screen.getByRole('button', { name: 'Explore' });
+    expect(explore).toHaveAttribute('aria-current', 'page');
+    expect(explore).toHaveClass('border-amber', 'bg-bg-hover', 'text-ink-1');
+    expect(screen.getByRole('button', { name: 'My Hangar' })).toHaveClass('border-transparent', 'text-ink-3');
+  });
+
+  it('navigates with the keyboard', async () => {
+    const user = userEvent.setup();
+    await renderSidebar();
+    screen.getByRole('button', { name: 'Collections' }).focus();
+    await user.keyboard('{Enter}');
+    expect(useUi.getState().screen).toBe('collections');
+  });
+
+  it('navigates on click and moves aria-current', async () => {
+    const user = userEvent.setup();
+    await renderSidebar();
+    await user.click(screen.getByRole('button', { name: 'My Hangar' }));
+    expect(useUi.getState().screen).toBe('hangar');
+    expect(screen.getByRole('button', { name: 'My Hangar' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Explore' })).not.toHaveAttribute('aria-current');
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(useUi.getState().screen).toBe('settings');
+  });
+
+  it('shows the pending queue count as a badge with an accessible description', async () => {
+    await renderSidebar();
+    const queue = screen.getByRole('button', { name: 'Install queue' });
+    expect(queue).not.toHaveAttribute('aria-describedby');
+
+    act(() => {
+      useQueue.getState().addPaths(['a.zip', 'b.zip']);
+    });
+    expect(within(queue).getByText('2')).toBeInTheDocument();
+    expect(queue).toHaveAccessibleName('Install queue');
+    expect(queue).toHaveAccessibleDescription('2 archives waiting');
+
+    // Installed items no longer count.
+    act(() => {
+      const [first] = useQueue.getState().items;
+      useQueue.getState().update(first!.id, { status: 'done' });
+    });
+    expect(within(queue).getByText('1')).toBeInTheDocument();
+    expect(queue).toHaveAccessibleDescription('1 archive waiting');
+  });
+
+  it('switches the WT Live dot and text when offline', async () => {
+    await renderSidebar();
+    const onlineRow = screen.getByText('WT Live online');
+    expect(onlineRow.querySelector('span')).toHaveClass('bg-amber');
+
+    act(() => useUi.getState().setOnline(false));
+    const offlineRow = screen.getByText('WT Live offline');
+    expect(offlineRow.querySelector('span')).toHaveClass('bg-ink-5');
+    expect(screen.queryByText('WT Live online')).not.toBeInTheDocument();
+  });
+
+  it('shows the WT Live skin count when one is provided', async () => {
+    await renderSidebar(<Sidebar liveSkinCount={2318} />);
+    expect(screen.getByText('WT Live online · 2,318 skins')).toBeInTheDocument();
+  });
+
+  it('shows the game source and the hangar summary', async () => {
+    const client = createQueryClient();
+    client.setQueryData(['settings'], { ...DEFAULT_SETTINGS, gameSource: 'steam' });
+    client.setQueryDefaults(HANGAR_SUMMARY_KEY, { staleTime: Infinity });
+    client.setQueryData(HANGAR_SUMMARY_KEY, { count: 214, sizeBytes: 3.8 * 1024 ** 3 });
+    render(
+      <QueryClientProvider client={client}>
+        <Sidebar />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText('War Thunder')).toBeInTheDocument();
+    expect(screen.getByText('STEAM')).toBeInTheDocument();
+    expect(screen.getByText('Hangar 214 · 3.8 GB')).toBeInTheDocument();
+  });
+
+  it('defaults to an empty hangar and an unset game source', async () => {
+    await renderSidebar();
+    expect(screen.getByText('NOT SET')).toBeInTheDocument();
+    expect(screen.getByText('Hangar 0 · 0 B')).toBeInTheDocument();
+  });
+
+  it('collapses to an icon rail that keeps accessible names, and expands again', async () => {
+    const user = userEvent.setup();
+    await renderSidebar();
+    act(() => {
+      useQueue.getState().addPaths(['a.zip']);
+    });
+
+    const collapse = screen.getByRole('button', { name: 'Collapse sidebar' });
+    expect(collapse).toHaveAttribute('aria-keyshortcuts', '[');
+    await user.click(collapse);
+    expect(useUi.getState().sidebarOpen).toBe(false);
+    expect(screen.queryByText('War Thunder')).not.toBeInTheDocument();
+
+    for (const [name, key] of ITEMS) {
+      const item = within(nav()).getByRole('button', { name });
+      expect(item).toHaveAttribute('title', name);
+      expect(item).toHaveAttribute('aria-keyshortcuts', key);
+      expect(item.querySelector('svg')).toBeInTheDocument();
+      expect(within(item).queryByText(key)).not.toBeInTheDocument();
+    }
+    expect(screen.getByRole('button', { name: 'Explore' })).toHaveAttribute('aria-current', 'page');
+    const queue = screen.getByRole('button', { name: 'Install queue' });
+    expect(queue).toHaveAccessibleDescription('1 archive waiting');
+    // The pill becomes a 6px amber dot; the number is no longer rendered.
+    expect(queue.querySelector('span.bg-amber')).toHaveClass('h-1.5', 'w-1.5', 'rounded-full');
+    expect(within(queue).queryByText('1')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'WT Live online' })).toHaveAttribute('title', 'WT Live online');
+
+    act(() => useUi.getState().setOnline(false));
+    expect(screen.getByRole('img', { name: 'WT Live offline' })).toHaveClass('bg-ink-5');
+
+    // Focus stays on the toggle across the variant switch.
+    const expand = screen.getByRole('button', { name: 'Expand sidebar' });
+    expect(expand).toHaveAttribute('aria-keyshortcuts', ']');
+    expect(expand).toHaveFocus();
+    await user.click(expand);
+    expect(useUi.getState().sidebarOpen).toBe(true);
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toHaveFocus();
+    await screen.findByText('NOT SET');
+  });
+
+  it('follows the store when toggled by the [ / ] shortcuts', async () => {
+    await renderSidebar();
+    act(() => useUi.getState().toggleSidebar());
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+    expect(nav()).toHaveClass('w-sidebar-c');
+  });
+
+  it('has no serious axe violations when expanded', async () => {
+    const { container } = await renderSidebar();
+    act(() => {
+      useQueue.getState().addPaths(['a.zip', 'b.zip']);
+    });
+    expect(await seriousViolations(container)).toEqual([]);
+  });
+
+  it('has no serious axe violations when collapsed', async () => {
+    useUi.setState({ sidebarOpen: false });
+    const { container } = await renderSidebar();
+    act(() => {
+      useQueue.getState().addPaths(['a.zip']);
+    });
+    expect(await seriousViolations(container)).toEqual([]);
+  });
+});
