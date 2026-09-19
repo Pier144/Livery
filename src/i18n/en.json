@@ -163,6 +163,9 @@
       "unofficial": "UNOFFICIAL TOOL"
     }
   },
+  "detail": {
+    "label": "Skin detail"
+  },
   "explore": {
     "title": "Explore",
     "following": "Following"

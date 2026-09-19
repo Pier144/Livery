@@ -163,6 +163,9 @@
       "unofficial": "STRUMENTO NON UFFICIALE"
     }
   },
+  "detail": {
+    "label": "Dettaglio skin"
+  },
   "explore": {
     "title": "Esplora",
     "following": "Seguiti"

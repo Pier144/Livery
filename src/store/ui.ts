@@ -9,6 +9,14 @@ export interface PaletteState {
   index: number;
 }
 
+/** Where First run starts and where it returns when done (Settings → Game → Change). */
+export interface FirstRunEntry {
+  /** `detect` = full onboarding; `choose` = straight to the folder picker (not-found view). */
+  step: 'detect' | 'choose';
+  /** Screen to open when it finishes; Explore for the onboarding. */
+  returnTo: Screen;
+}
+
 /** Receives dropped paths instead of the install queue (First run's "or drop it here"). */
 export type FolderDropHandler = (paths: string[]) => void;
 
@@ -22,7 +30,14 @@ export interface UiState {
   dragActive: boolean;
   /** While set, window drops go here and the overlay asks for the game folder. */
   folderDrop: FolderDropHandler | null;
+  /** WT Live skin shown by the Skin detail screen. */
+  detailSkinId: string | null;
+  firstRun: FirstRunEntry;
   go: (screen: Screen) => void;
+  /** Opens the Skin detail for a WT Live skin. */
+  openSkin: (skinId: string) => void;
+  /** Opens First run at a given step (Settings → Game → Change uses `choose`, returning to Settings). */
+  startFirstRun: (entry: FirstRunEntry) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   openPalette: () => void;
@@ -48,7 +63,11 @@ export const useUi = create<UiState>()(
       online: true,
       dragActive: false,
       folderDrop: null,
+      detailSkinId: null,
+      firstRun: { step: 'detect', returnTo: 'explore' },
       go: (screen) => set({ screen, palette: closedPalette }),
+      openSkin: (detailSkinId) => set({ screen: 'detail', detailSkinId, palette: closedPalette }),
+      startFirstRun: (firstRun) => set({ screen: 'firstRun', firstRun, palette: closedPalette }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
       openPalette: () => set({ palette: { open: true, query: '', index: 0 } }),

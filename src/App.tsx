@@ -9,12 +9,14 @@ import { useFileDrop } from '@/hooks/useFileDrop';
 import { useInstallEvents } from '@/hooks/useInstallEvents';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
+import { useWtLiveInstallEvents } from '@/store/installs';
 import { useSettings } from '@/queries/settings';
 import { Collections } from '@/screens/Collections';
 import { Explore } from '@/screens/Explore';
 import { FirstRun } from '@/screens/FirstRun/FirstRun';
 import { Hangar } from '@/screens/Hangar';
 import { Queue } from '@/screens/Queue';
+import { SkinDetail } from '@/screens/Detail/SkinDetail';
 import { Settings } from '@/screens/Settings';
 import { useUi } from '@/store/ui';
 import type { Screen } from '@/types';
@@ -26,6 +28,7 @@ const SCREENS: Record<Screen, () => JSX.Element> = {
   queue: Queue,
   settings: Settings,
   firstRun: FirstRun,
+  detail: SkinDetail,
 };
 
 /**
@@ -54,6 +57,7 @@ export function App() {
   useKeyboardShortcuts();
   useFileDrop();
   useInstallEvents();
+  useWtLiveInstallEvents();
   useLanguageSync();
   const booted = useBootScreen();
   const { t } = useTranslation();
@@ -66,7 +70,9 @@ export function App() {
     ? t('common.loading')
     : screen === 'firstRun'
       ? t('firstRun.label')
-      : t(`common.nav.${screen}`);
+      : screen === 'detail'
+        ? t('detail.label')
+        : t(`common.nav.${screen}`);
 
   return (
     <div className="flex h-full flex-col bg-bg-2 text-ink-1">

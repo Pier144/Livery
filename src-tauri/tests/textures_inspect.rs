@@ -7,7 +7,7 @@ use livery_lib::library::blk;
 use livery_lib::library::index::LibraryStore;
 use livery_lib::library::layout::inactive_dir;
 use livery_lib::library::{import_folders, scan_game};
-use livery_lib::model::TextureInfo;
+use livery_lib::model::{TextureInfo, TextureWarningKind};
 use livery_lib::textures::inspect::{
     heavy_warning, size_warning, BLK_FORMAT, MISSING_WARNING, NOT_SQUARE_POW2_WARNING, UNREADABLE_WARNING,
 };
@@ -78,6 +78,9 @@ fn texture(file: &str, width: u32, height: u32, format: &str, size: u64, warning
         height: Some(height),
         format: Some(format.to_owned()),
         size_bytes: Some(size),
+        warning_kind: warning.as_deref().map(|w| {
+            if w == NOT_SQUARE_POW2_WARNING { TextureWarningKind::NotSquarePow2 } else { TextureWarningKind::Heavy }
+        }),
         warning,
         missing: false,
     }
@@ -91,6 +94,7 @@ fn missing(file: &str) -> TextureInfo {
         format: None,
         size_bytes: None,
         warning: Some(MISSING_WARNING.to_owned()),
+        warning_kind: Some(TextureWarningKind::Missing),
         missing: true,
     }
 }
@@ -103,6 +107,7 @@ fn blk_entry(file: &str, size: u64) -> TextureInfo {
         format: Some(BLK_FORMAT.to_owned()),
         size_bytes: Some(size),
         warning: None,
+        warning_kind: None,
         missing: false,
     }
 }
@@ -155,6 +160,7 @@ fn unreadable_headers_get_a_warning_and_keep_their_size() {
         format: None,
         size_bytes: size,
         warning: Some(UNREADABLE_WARNING.to_owned()),
+        warning_kind: Some(TextureWarningKind::Unreadable),
         missing: false,
     };
     assert_eq!(inspect_file(&fixture("truncated.dds")), expected("truncated.dds", Some(100)));
@@ -249,6 +255,7 @@ fn skin_dir_lists_textures_then_missing_references_then_the_blk() {
                 format: None,
                 size_bytes: Some(7),
                 warning: Some(UNREADABLE_WARNING.into()),
+                warning_kind: Some(TextureWarningKind::Unreadable),
                 missing: false,
             },
             texture("camo.tga", 256, 256, "RGB8 RLE", 18, None),
@@ -371,7 +378,7 @@ fn texture_info_wire_shape() {
         json,
         serde_json::json!([
             { "file": "hull_c.dds", "width": 4096, "height": 4096, "format": "BC7", "sizeBytes": 148 },
-            { "file": "turret_c.dds", "warning": MISSING_WARNING, "missing": true },
+            { "file": "turret_c.dds", "warningKind": "missing", "warning": MISSING_WARNING, "missing": true },
             { "file": "ussr_t_34_85.blk", "format": "BLK", "sizeBytes": 28 },
         ])
     );

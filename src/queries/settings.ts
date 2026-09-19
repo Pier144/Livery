@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoUpdate: true,
   startWithWindows: false,
   onboarded: false,
+  reduceMotion: 'system',
 };
 
 export const SETTINGS_KEY = ['settings'] as const;

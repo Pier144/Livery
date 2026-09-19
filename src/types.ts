@@ -42,8 +42,11 @@ export interface FileEntry {
   path: string;
   sizeBytes: number;
 }
+/** Localizable warning kind (the backend also sends English text in `warning`). */
+export type TextureWarningKind = 'unreadable' | 'notSquarePow2' | 'heavy' | 'missing';
 export interface TextureInfo {
   file: string;
+  warningKind?: TextureWarningKind;
   width?: number;
   height?: number;
   format?: string;
@@ -143,7 +146,10 @@ export interface Settings {
   startWithWindows: boolean;
   /** First run finished or skipped; the app then opens on Explore. (Not in DATA_MODEL; see DESIGN_NOTES.) */
   onboarded: boolean;
+  /** Settings → General → Reduce motion; `system` follows Windows. (Not in DATA_MODEL; see DESIGN_NOTES.) */
+  reduceMotion: ReduceMotion;
 }
+export type ReduceMotion = 'system' | 'on' | 'off';
 export interface GameDetection {
   found: boolean;
   source?: GameSource;
@@ -193,4 +199,35 @@ export interface AppError {
 /** Top-level sections reachable from the sidebar (keys 1–5). */
 export type Section = 'explore' | 'hangar' | 'collections' | 'queue' | 'settings';
 /** Everything the main area can show. First run hides the sidebar and disables section keys. */
-export type Screen = Section | 'firstRun';
+export type Screen = Section | 'firstRun' | 'detail';
+
+// ── WT Live (M5) ─────────────────────────────────────────────────────────────
+
+export type SortOrder = 'downloads' | 'likes' | 'newest' | 'name';
+export interface SearchParams {
+  q?: string;
+  nation?: Nation;
+  type?: VehicleType;
+  class?: string;
+  /** Vehicle code. */
+  vehicle?: string;
+  category?: Category;
+  sort: SortOrder;
+  page: number;
+}
+export interface SearchResult {
+  items: WtLiveSkin[];
+  total: number;
+  /** Server + parse time, shown as "1,284 results · 24 ms". */
+  tookMs: number;
+}
+export type FollowKind = 'vehicle' | 'author';
+export interface FollowEntry {
+  kind: FollowKind;
+  /** Vehicle code or author id. */
+  id: string;
+  name: string;
+  /** RFC 3339; skins posted after it count as new. */
+  lastSeenAt: string;
+}
+export type InstallMode = 'normal' | 'temporary';
