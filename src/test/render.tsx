@@ -15,6 +15,7 @@ import type { Settings } from '@/types';
 
 /** Resets all Zustand stores to their initial state. Call in `beforeEach`. */
 export function resetStores() {
+  useUi.setState(useUi.getInitialState());
   useUi.setState({
     screen: 'explore',
     sidebarOpen: true,

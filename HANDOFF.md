@@ -1,4 +1,4 @@
-# Handoff — Livery (updated 2026-09-19, after the M5/M6 integration)
+# Handoff — Livery (updated 2026-09-19, after the M6 polish)
 
 Read this first in a new session. Then read `CLAUDE.md`, `DESIGN_NOTES.md` (every decision so far, including the "M5 ·" and "M6 ·" rows) and the handoff spec in `design_handoff_livery/` (README → DATA_MODEL → BUILD_PLAN).
 
@@ -12,9 +12,9 @@ Read this first in a new session. Then read `CLAUDE.md`, `DESIGN_NOTES.md` (ever
 | M3 library, My Hangar, Collections | done. Uses a JSON index, not SQLite (see "Pending approvals"). The 30-day backup expiry job (BUILD_PLAN M6) is already here: it purges at launch and before every library command. | `3503850` |
 | M4 install queue | done **for skin folders**. ZIP/RAR/7z wait for crate approval; the acceptance test "drop three fixture archives" needs those crates plus archive fixtures. | `2c86010` |
 | M5 WT Live | **UI done on the mock; network pending approval.** Explore (filters, vehicle autocomplete, sort, paged virtual grid, card install states, offline/empty states), Following (vehicles and authors, "N new"), Skin detail (Gallery with zoom and compare, Textures, Try in game with Keep/Discard, side panel with Follow and Add to collection), palette skins and vehicles, sidebar count, Hangar cards opening the detail. Rust: `WtLiveClient` seam with a disabled client (`unsupported` + `net://status` offline), real Following store (`following.json`). | `feat(m5): …` (see git log) |
-| M6 Settings/polish | **Settings done** (7 sections, reduce motion with a real 'off' override, deferred Clear backups by ids, game folder change through First run 'choose', licenses dialog). The library is now **one index per game folder**. Still to do: the polish list below and packaging. | `feat(m6): …` (see git log) |
+| M6 Settings/polish | **Done except the release itself.** Settings (7 sections), one library index per game folder, log file, `LIVERY_DATA_DIR`, startup timing, read-only stores for unreadable files, de/ru/fr key files + i18n checks, localized backend errors, a11y pass (`docs/a11y.md`), NSIS + CI + release workflows, developer README. | `feat(m6): …` (see git log) |
 
-Checks at the latest commit: `pnpm typecheck` clean · `pnpm test` 607 passing · `cargo test` 350 passing (2 ignored real-install tests) · `cargo clippy --all-targets -D warnings` clean · `cargo fmt --check` clean (`src-tauri/rustfmt.toml`) · `pnpm build` has no mock chunk or mock strings in `dist/`. Visual check at 1440×900 against the prototype (Explore, Skin detail, Settings) matched; the deltas are the ones recorded in DESIGN_NOTES.
+Checks at the latest commit: `pnpm typecheck` clean · `pnpm test` 662 passing · `pnpm i18n:check` clean · `cargo test` 383 passing (2 ignored real-install tests) · `cargo clippy --all-targets -D warnings` clean · `cargo fmt --check` clean · `pnpm build` has no mock chunk or mock strings in `dist/`. Cold start of the release build: 367–415 ms (BUILD_PLAN asks for < 1.5 s), measured with `app_ready` on a scratch `LIVERY_DATA_DIR`. Visual check at 1440×900 against the prototype (Explore, Skin detail, Settings) matched; the deltas are the ones recorded in DESIGN_NOTES.
 
 ### What still depends on the author
 - WT Live can't be reached from the app until an HTTP client is approved. The real app shows the designed offline state everywhere WT Live is involved; the full UI can be seen with `pnpm dev:mock`.
@@ -22,21 +22,12 @@ Checks at the latest commit: `pnpm typecheck` clean · `pnpm test` 607 passing �
 
 ## Next steps (in order)
 
-1. **M6 polish:**
-   - A11y pass: axe on every screen, keyboard, contrast table.
-   - i18n completeness. BUILD_PLAN wants de/ru/fr **keys present** with English fallback; there are no de/ru/fr files yet (`useLanguageSync` already falls back to English, and `<html lang>` follows what's shown). Also localize backend errors by `code`: about 12 toasts, the queue rows and the watch-folder row show the backend's English `AppError.message` in the Italian UI.
-   - Cold start < 1.5 s with skeletons.
-   - A log file in app data: release builds have no console, and tracing writes only to stdout. Do it with a `tracing_subscriber` writer, not a new crate, unless approved.
-   - Packaging: NSIS config (the icon set is already generated), a code-signing placeholder, and a GitHub Actions release workflow on windows-latest (needs a GitHub repo, see below).
-   - A root `README.md` for developers.
-   - The M6 acceptance run: installer on a clean Windows 11 VM, first run to first installed skin in < 2 min. Without archive or WT Live support a typical user can only install a skin **folder**, so this depends on the approvals.
-2. **Small leftovers** (found by the reviewers, low severity):
-   - `following.json` and `settings.json` that can't be read for a reason other than "not found" (a sharing violation, permissions) load as empty and are overwritten on the next change. Decide whether to refuse writes until a successful reload.
-   - Skin detail's "← Explore" always goes to Explore, also when the detail was opened from My Hangar or the palette (prototype behaviour). Returning to the opener would be nicer.
-   - Mock data: "Blue Angels Tribute" in the hangar looks like a WT Live skin but has no `sourceId`, so it behaves as a local skin.
-   - `TODO(M5)` in `src/screens/Collections/MemberCard.tsx`: the WT Live screenshot for WT Live skins. `HangarSkin` has no image field, and posts have no images until HTTP lands.
-   - When remote screenshots arrive, the Tauri CSP needs an `img-src` entry for the WT Live image host.
-3. When the author approves dependencies (below), implement what they unlock. The seams are ready: `WtLiveClient` + `Parser` (module doc in `src-tauri/src/wtlive/mod.rs`), `archive::SkinSource`, and the unavailable controls in Settings.
+1. **Publish the repo.** There is no git remote yet, so `.github/workflows/ci.yml` and `release.yml` have never run. Push, watch CI, then tag `v0.1.0` to get the draft release with the NSIS installer (`docs/release.md`).
+2. **Sign the installer** (needs a certificate or a cloud signing service) and decide the publisher name shown in Apps & features, which is derived as "livery" today, and whether the identifier stays `app.livery.desktop`.
+3. **The M6 acceptance run**: the installer on a clean Windows 11 VM, first run to first installed skin in under 2 minutes. Without archive or WT Live support a user can only install a skin **folder**, so this really wants the approvals below.
+4. **Open a11y decisions** (`docs/a11y.md`): control boundaries under WCAG 1.4.11 (input, chip and secondary-button borders at 1.33–1.38:1; the selected segment of a segmented control at 1.14:1 by fill alone), and the Hangar Active switch whose name ("Active in game") doesn't contain the visible "Inactive". Also confirm First run's future steps moving from ink-5 to ink-4.
+5. **When the author approves dependencies** (below), implement what they unlock. The seams are ready: `WtLiveClient` + `Parser` (module doc in `src-tauri/src/wtlive/mod.rs`), `archive::SkinSource`, and the unavailable controls in Settings.
+6. **Nice to have, not blocking:** real de/ru/fr translations (the files hold English today); a `readOnly` flag on `get_settings` so the shell can explain an unreadable settings file instead of opening First run; storing the error code alongside queue rows and WT Live install failures so unknown messages fall back to the localized generic text; aligning the mock's own error messages with the Rust ones.
 
 ## Pending dependency approvals (ask the author; CLAUDE.md requires it)
 
@@ -68,7 +59,7 @@ Already approved and in use: `tauri-plugin-dialog`, `winreg`, jsdom/testing-libr
 - Activating a collection isn't undoable. `activeCollectionId` stays set after manual toggles, and undoing the delete of the active collection doesn't re-activate it.
 - `undo_replace` deletes the new copy without a backup (its source still exists).
 - A pack with two skins for the same vehicle installs only the first (the command picks by vehicle code; it needs a `targetFolder` argument).
-- Contrast: `ink-5` (≈3.6:1) stays on supplementary hints **and** on First run's future-step labels, which the README mandates. `ink-4` was nudged to #80828a for AA.
+- Contrast: First run's future-step labels moved from `ink-5` to `ink-4` in the M6 a11y pass (README says ink-5). `ink-5` stays on supplementary hints; `ink-4` is #80828a. See `docs/a11y.md`.
 
 ## How to run
 
@@ -78,6 +69,7 @@ pnpm tauri dev          # real app, see "Dev safety" below
 pnpm dev:mock           # browser + in-memory mock backend; ?onboarded=1, ?empty=1, ?notfound=1, ?many=1 (1,000 hangar skins, 1,284 WT Live posts), ?watch=1, ?offline=1
 pnpm handoff            # serves the .dc.html prototypes on http://localhost:4599
 pnpm test && pnpm typecheck
+pnpm i18n:check         # en/it parity + de/ru/fr in sync (pnpm i18n:sync writes them)
 pnpm build              # then grep dist/ for mockCall|mockListen|livery.mock: must find nothing
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
@@ -86,10 +78,11 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 - `pnpm dev:mock` and `pnpm tauri dev` both bind port 1420 with `strictPort`, so run one at a time. The preview configs in `.claude/launch.json` use `prototype`, `web` (1430) and `mock` (1431).
 - The browser pane can't click inside the native Tauri window. `scripts/capture-window.ps1 -Out <png>` captures it with PrintWindow without stealing focus. Always pass `-Out` to a scratch path, because the default `scripts/livery.png` lands in the repo.
 
-### Dev safety (real game folder)
+### Dev safety (real game folder and real app data)
+- **Use a scratch data folder:** set `LIVERY_DATA_DIR` to an empty folder and Livery keeps its settings, Following list, library indexes and logs there instead of `%APPDATA%\\app.livery.desktop`. PowerShell: `$env:LIVERY_DATA_DIR='D:\\scratch\\livery-data'; pnpm tauri dev`. Logs land in `<that folder>/logs/livery.log` (rotated to `livery.log.1` above 1 MB).
 - First run **detection reads** the real Steam/standalone locations (read-only) as soon as it starts. Confirming a folder creates `UserSkins\`, and from then on the dev app installs, toggles and deletes skins there.
 - To try the real app without touching the game: in First run choose the custom folder and pick an empty folder that contains an empty `launcher.exe` (a valid root has `UserSkins\`, `launcher.exe`, `aces.exe` or `win64\aces.exe`).
-- Dev and release builds share the same app data (identifier `app.livery.desktop`): `settings.json`, `following.json` and `library/<key>.json` (one index per game folder; an old `library.json` is migrated once). Rename those to start over.
+- Without `LIVERY_DATA_DIR`, dev and release builds share the same app data (identifier `app.livery.desktop`): `settings.json`, `following.json`, `library/<key>.json` (one index per game folder; an old `library.json` is migrated once) and `logs/`. Rename those to start over.
 
 ## Working method that worked
 
@@ -107,4 +100,5 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 - `install://progress` is consumed by two hooks: `useInstallEvents` (queue, keyed by queue id) and `useWtLiveInstallEvents` (`src/store/installs.ts`, keyed by install id → WT Live skin id).
 - Never write to the real game folder during development. Rust tests use temp dirs; the ignored `detects_real_install` / `scans_real_install` tests only read.
 - The mock backend must never ship. Every dynamic `import('@/dev/mockBackend')` must sit behind an **inline** `import.meta.env.VITE_MOCK_BACKEND === '1'` check, not the imported `MOCK_BACKEND` constant. With the constant, Rollup still emitted an orphan `mockBackend-*.js` chunk into `dist/`. Check with `pnpm build` and grep `dist/`.
+- Adding or renaming a user-visible `AppError` message in Rust means adding it to `common.errors.backend` in `en.json` + `it.json`, or to `GENERIC_ON_PURPOSE` in `src/lib/errors.test.ts`; a guard test scans the Rust sources and fails otherwise. After adding any English key, run `pnpm i18n:sync` (writes de/ru/fr) and give `it.json` its Italian text, or `pnpm i18n:check` fails.
 - `DATA_MODEL.md` belongs to the handoff spec and isn't edited. Contract additions (e.g. `skipped`, `unreadableBlk`, `UNK`, `onboarded`, `reduceMotion`, `following_*`) are recorded in DESIGN_NOTES instead.

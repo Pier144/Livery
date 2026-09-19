@@ -5,8 +5,8 @@ interface KbdProps {
   children: ReactNode;
   /** `boxed`: bordered key cap (title bar, palette). `bare`: plain hint (sidebar). */
   variant?: 'boxed' | 'bare';
-  /** Text color: ink-3 (title bar) or ink-5 (palette Esc, sidebar hints). */
-  tone?: 'ink3' | 'ink5';
+  /** Text color: ink-3 (title bar), ink-4 (palette Esc: 4.5:1 on bg-3) or ink-5 (sidebar hints, aria-hidden). */
+  tone?: 'ink3' | 'ink4' | 'ink5';
   className?: string;
 }
 
@@ -17,7 +17,7 @@ export function Kbd({ children, variant = 'boxed', tone = 'ink3', className }: K
       className={cn(
         // Line-height `normal` matches the prototype's `font:` shorthand (17px boxed cap).
         'font-mono text-[10px] leading-[normal]',
-        tone === 'ink3' ? 'text-ink-3' : 'text-ink-5',
+        tone === 'ink3' ? 'text-ink-3' : tone === 'ink4' ? 'text-ink-4' : 'text-ink-5',
         variant === 'boxed' && 'rounded-tag border border-line-3 px-[5px] py-px',
         className,
       )}

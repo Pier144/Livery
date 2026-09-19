@@ -1,0 +1,923 @@
+{
+  "common": {
+    "appName": "Livery",
+    "brand": "LIVERY",
+    "unofficial": "Unofficial tool, not affiliated with Gaijin Entertainment.",
+    "undo": "Undo",
+    "dismiss": "Dismiss",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "showPath": "Show path",
+    "hidePath": "Hide path",
+    "comingIn": "Coming in {{milestone}}",
+    "loading": "Loading",
+    "any": "Any",
+    "all": "All",
+    "clear": "Clear",
+    "installed": {
+      "toast": "Installed “{{name}}”",
+      "toastPlain": "Installed. It’s in My Hangar now."
+    },
+    "titlebar": {
+      "offline": "OFFLINE · library only",
+      "search": "Search skins, vehicles, authors",
+      "searchShortcut": "Ctrl K",
+      "minimize": "Minimize",
+      "maximize": "Maximize",
+      "restore": "Restore",
+      "close": "Close"
+    },
+    "nav": {
+      "label": "Sections",
+      "explore": "Explore",
+      "hangar": "My Hangar",
+      "collections": "Collections",
+      "queue": "Install queue",
+      "settings": "Settings",
+      "queueBadge_one": "{{count}} archive waiting",
+      "queueBadge_many": "{{count}} archives waiting",
+      "queueBadge_other": "{{count}} archives waiting",
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar"
+    },
+    "status": {
+      "game": "War Thunder",
+      "source": {
+        "steam": "STEAM",
+        "standalone": "STANDALONE",
+        "custom": "CUSTOM",
+        "none": "NOT SET"
+      },
+      "online": "WT Live online · {{count, number}} skins",
+      "onlineNoCount": "WT Live online",
+      "offline": "WT Live offline",
+      "hangar": "Hangar {{count, number}} · {{size}}"
+    },
+    "palette": {
+      "label": "Command palette",
+      "input": "Command",
+      "placeholder": "Jump to a vehicle, skin or action…",
+      "esc": "Esc",
+      "results": "Results",
+      "kind": {
+        "skin": "Skin",
+        "vehicle": "Vehicle",
+        "action": "Action"
+      },
+      "actions": {
+        "explore": "Go to Explore",
+        "hangar": "Go to My Hangar",
+        "collections": "Go to Collections",
+        "queue": "Open Install queue",
+        "settings": "Open Settings"
+      },
+      "empty": "No matches",
+      "hintNavigate": "↑↓ navigate",
+      "hintOpen": "↵ open",
+      "hintClose": "Ctrl K close"
+    },
+    "drop": {
+      "title": "Drop to add to the install queue",
+      "formats": "ZIP · RAR · 7Z · FOLDER",
+      "analyzing": "Analyzing archive…",
+      "queued_one": "{{count}} archive added to the install queue",
+      "queued_many": "{{count}} archives added to the install queue",
+      "queued_other": "{{count}} archives added to the install queue"
+    },
+    "toasts": {
+      "region": "Notifications"
+    },
+    "errors": {
+      "io": "Something went wrong reading or writing files. Check that the folder is still there and not open in another program, then try again.",
+      "notFound": "Something Livery needs isn’t there anymore. It may have been moved or deleted outside Livery.",
+      "parse": "A file couldn’t be read: its contents aren’t what Livery expects.",
+      "invalidInput": "Livery couldn’t accept that request. Nothing was changed.",
+      "conflict": "Something with the same name is already there.",
+      "unsupported": "This isn’t available in this version of Livery yet.",
+      "network": "WT Live can’t be reached. Check your connection, then try again.",
+      "noBackend": "This needs the Livery desktop app.",
+      "internal": "Something went wrong inside Livery. Try again, and restart the app if it keeps happening.",
+      "templates": {
+        "unreadableAtLaunch": "Livery couldn’t read {{file}} when it started, so it won’t overwrite it. Close other programs using it and restart Livery."
+      },
+      "backend": {
+        "noGameFolder": "No game folder set",
+        "gameFolderGone": "The game folder can't be found",
+        "notAGameFolder": "That folder doesn't look like a War Thunder install",
+        "createUserSkinsFailed": "Could not create the UserSkins folder",
+        "steamLibraryUnreadable": "Could not read a Steam library file",
+        "userSkinsGone": "The UserSkins folder can't be found",
+        "userSkinsUnreadable": "Could not read the UserSkins folder",
+        "notInLibrary": "This skin is not in the library",
+        "skinFolderGone": "The skin folder can't be found",
+        "skinFolderUnreadable": "Could not read the skin folder",
+        "blkUnreadable": "Could not read a .blk file",
+        "badFolderName": "Not a skin folder name",
+        "nameTaken": "Another skin folder already has this name",
+        "someFoldersNotMoved": "Some skin folders could not be moved",
+        "someFoldersMissing": "Some skin folders are missing",
+        "deleteFailed": "Could not delete the skin",
+        "someSkinsNotRestored": "Some skins could not be restored",
+        "someBackupsGone": "Some backups are no longer available",
+        "someBackupsNotRemoved": "Some backups could not be removed",
+        "exportFolderGone": "The export folder can't be found",
+        "exportFailed": "Could not export the skin",
+        "collectionNotFound": "Collection not found",
+        "collectionNeedsName": "A collection needs a name",
+        "collectionExists": "This collection already exists",
+        "archivesUnsupported": "ZIP, RAR and 7z archives can't be unpacked yet: this needs the unpacking library the author hasn't approved. Skin folders work today.",
+        "notASource": "Not a skin folder or archive",
+        "sourceGone": "The file or folder can't be found",
+        "openFailed": "Could not open the file or folder",
+        "tooManyFiles": "This folder holds too many files to be a skin",
+        "pathOutsideSkin": "Not a path inside the skin folder",
+        "noBlk": "No .blk file inside, so the game can't use it",
+        "notInQueue": "This item is no longer in the queue",
+        "waitForInstall": "Wait for the install to finish",
+        "itemInstalling": "This item is already installing",
+        "itemInstalled": "This item is already installed",
+        "pickVehicle": "Pick a vehicle first",
+        "vehicleNotInFolder": "That vehicle isn't in this folder",
+        "alreadyInstalled": "This skin is already installed",
+        "fileInTheWay": "A file with this name is in the way",
+        "startFailed": "Could not start the install",
+        "prepareFailed": "Could not prepare the install",
+        "copyFailed": "Could not copy the skin files",
+        "copyUnreadable": "The copied skin can't be read",
+        "copyIncomplete": "The copy is incomplete",
+        "backUpFailed": "Could not back up the installed version",
+        "installFailed": "Could not install the skin",
+        "backupGone": "This backup is no longer available",
+        "backupMismatch": "This backup isn't an older version of that skin",
+        "undoReplaceFailed": "Could not put the previous version back",
+        "watchFolderGone": "The watched folder can't be found",
+        "watchInsideUserSkins": "The watched folder can't be inside UserSkins",
+        "noDownloadsFolder": "Can't find the Downloads folder. Pick a folder to watch.",
+        "watchStartFailed": "Could not start watching folders",
+        "wtliveUnsupported": "WT Live can't be reached from this build yet: it needs a network library the author hasn't approved.",
+        "followingNotSaved": "The Following list couldn't be saved"
+      }
+    }
+  },
+  "firstRun": {
+    "label": "First run",
+    "steps": {
+      "label": "Setup steps",
+      "detect": "01 DETECT",
+      "confirm": "02 CONFIRM",
+      "import": "03 IMPORT"
+    },
+    "detect": {
+      "title": "Looking for War Thunder",
+      "body": "Checking the usual places. This takes a second.",
+      "progress": "Detection progress",
+      "sources": {
+        "steam": "Steam library",
+        "standalone": "Standalone launcher",
+        "custom": "Custom location"
+      },
+      "state": {
+        "queued": "queued",
+        "checking": "checking…",
+        "found": "found",
+        "notFound": "not found",
+        "notInstalled": "not installed",
+        "skipped": "skipped"
+      },
+      "doneFound": "Detection finished. War Thunder found: {{source}}.",
+      "doneNotFound": "Detection finished. War Thunder wasn't found in the usual places."
+    },
+    "found": {
+      "title": "Found War Thunder",
+      "body": "Livery will install skins into this copy of the game.",
+      "game": "War Thunder",
+      "meta_one": "Version {{version}} · {{count}} skin already in UserSkins",
+      "meta_many": "Version {{version}} · {{count}} skins already in UserSkins",
+      "meta_other": "Version {{version}} · {{count}} skins already in UserSkins",
+      "metaNoVersion_one": "{{count}} skin already in UserSkins",
+      "metaNoVersion_many": "{{count}} skins already in UserSkins",
+      "metaNoVersion_other": "{{count}} skins already in UserSkins",
+      "use": "Use this install",
+      "other": "Choose another folder"
+    },
+    "notFound": {
+      "title": "Can't find War Thunder",
+      "body": "Pick the folder where the game is installed. Livery looks for the UserSkins folder inside it.",
+      "choose": "Choose game folder",
+      "drop": "or drop it here",
+      "pickerTitle": "Choose the War Thunder folder",
+      "invalid": "That folder doesn't look like War Thunder. Pick the folder that contains launcher.exe or UserSkins.",
+      "dropOverlay": "Drop the War Thunder folder",
+      "dropFormats": "FOLDER",
+      "skip": "Skip for now",
+      "back": "Back",
+      "backToSettings": "Back to Settings"
+    },
+    "import": {
+      "title": "Skins already on disk",
+      "body": "Livery found skins in your UserSkins folder. Add them to My Hangar to manage them here.",
+      "stats": {
+        "skins": "skins",
+        "vehicles": "vehicles",
+        "attention": "need attention"
+      },
+      "tag": {
+        "ok": "ok",
+        "mine": "created by you",
+        "attention": "needs attention"
+      },
+      "more": "+ {{count}} more",
+      "import": "Import and continue",
+      "skip": "Skip import",
+      "scanFailed": "Couldn't read the UserSkins folder."
+    },
+    "toast": {
+      "imported_one": "{{count}} skin added to My Hangar",
+      "imported_many": "{{count}} skins added to My Hangar",
+      "imported_other": "{{count}} skins added to My Hangar",
+      "gameSet": "Game folder set",
+      "later": "You can set the game folder later in Settings"
+    },
+    "anim": {
+      "hull": "HULL 200 × 120 × 110",
+      "sheet": "SHEET 00 · DETECTING INSTALL",
+      "unofficial": "UNOFFICIAL TOOL"
+    }
+  },
+  "detail": {
+    "label": "Skin detail",
+    "backTo": {
+      "explore": "Back to Explore",
+      "hangar": "Back to My Hangar",
+      "collections": "Back to Collections",
+      "queue": "Back to Install queue",
+      "settings": "Back to Settings"
+    },
+    "loading": "Loading the skin",
+    "tabs": {
+      "label": "Skin detail",
+      "gallery": "Gallery",
+      "textures": "Textures",
+      "try": "Try in game"
+    },
+    "noSkin": {
+      "title": "No skin selected",
+      "body": "Pick a skin in Explore to see its gallery, textures and files."
+    },
+    "offline": {
+      "title": "WT Live can’t be reached",
+      "body": "Your library works as usual. Browsing and installing from WT Live will resume when you’re back online.",
+      "hangar": "Open My Hangar"
+    },
+    "error": {
+      "title": "This skin can’t be loaded"
+    },
+    "gallery": {
+      "views": "Views",
+      "view": {
+        "front": "Front",
+        "side": "Side",
+        "rear": "Rear",
+        "detail": "Detail"
+      },
+      "image": "Image {{n}}",
+      "imageAlt": "{{name}}, {{view}}",
+      "placeholder": "screenshot · {{vehicle}} · {{view}} view",
+      "counter": "{{n}} / {{total}}",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "compare": "Compare",
+      "compareHint": "Compare with another skin for the same vehicle",
+      "compareA": "A · {{name}}",
+      "compareB": "B · {{name}} · by {{author}}",
+      "compareWith": "COMPARE WITH · same vehicle",
+      "comparePlaceholder": "screenshot · {{name}}",
+      "exitCompare": "Exit compare"
+    },
+    "textures": {
+      "loading": "Reading the textures",
+      "loadFailedTitle": "Can’t read the textures",
+      "title": "Textures in the archive",
+      "meta_one": "{{count}} file · {{size}}",
+      "meta_many": "{{count}} files · {{size}}",
+      "meta_other": "{{count}} files · {{size}}",
+      "attention_one": "{{count}} file needs attention. The skin still installs; the game may skip the affected part.",
+      "attention_many": "{{count}} files need attention. The skin still installs; the game may skip the affected part.",
+      "attention_other": "{{count}} files need attention. The skin still installs; the game may skip the affected part.",
+      "empty": "No textures in this archive.",
+      "col": {
+        "file": "File",
+        "resolution": "Resolution",
+        "format": "Format",
+        "size": "Size"
+      },
+      "missing": "missing",
+      "warning": {
+        "heavy": "Very heavy texture ({{size}}²). Load times may suffer.",
+        "notSquarePow2": "Not a square power-of-two size ({{resolution}}). The game may not load it.",
+        "unreadable": "The header can’t be read. The file may be damaged.",
+        "missing": "Referenced in skin.blk but not in the archive."
+      }
+    },
+    "try": {
+      "idleTitle": "Try it before you keep it",
+      "idleBody": "Livery installs the skin temporarily. Look at it in the game, then decide. Nothing is added to My Hangar until you press Keep.",
+      "steps": "How it works",
+      "step1": "Livery copies the files into UserSkins",
+      "step2": "In War Thunder, open the vehicle’s Customisation and press the <b>refresh</b> button",
+      "step3": "Come back and choose Keep or Discard",
+      "start": "Try in game · {{size}}",
+      "busy": "This skin is being installed right now.",
+      "offline": "WT Live can’t be reached. Try again when you’re back online.",
+      "failed": "Couldn’t install it for a try: {{message}}",
+      "installingTitle": "Installing temporarily…",
+      "installingBody": "Downloading and extracting {{size}}.",
+      "installingLabel": "Installing temporarily",
+      "activeTitle": "Skin is in the game",
+      "activeBody": "Open <b>{{vehicle}}</b> → Customisation → press <b>refresh</b>, then select “{{name}}”.",
+      "temporary": "Temporary · will be removed on Discard",
+      "keep": "Keep",
+      "discard": "Discard",
+      "kept": "Kept “{{name}}” — it’s in My Hangar",
+      "discarded": "Discarded “{{name}}”. Game files restored.",
+      "finalizeFailed": "Couldn’t finish the try: {{message}}",
+      "keptTitle": "It’s in My Hangar",
+      "keptBody": "“{{name}}” is installed. Open <b>{{vehicle}}</b> → Customisation to see it in the game."
+    },
+    "side": {
+      "label": "About this skin"
+    },
+    "author": {
+      "label": "Author",
+      "onWtLive": "on WT Live",
+      "openPost": "Open original post",
+      "openPostHint": "Copies the link: Livery can’t open the browser yet"
+    },
+    "linkCopied": "Link to the original post copied. Livery can’t open the browser yet, so paste it there.",
+    "linkCopyFailed": "Couldn’t copy the link: {{url}}",
+    "vehicle": {
+      "label": "Vehicle",
+      "open": "Show this vehicle’s skins in Explore",
+      "meta": "{{code}} · {{nation}} · {{class}}"
+    },
+    "follow": {
+      "follow": "Follow",
+      "following": "Following",
+      "followName": "Follow {{name}}",
+      "followingName": "Following {{name}}",
+      "followed": "Following “{{name}}”",
+      "unfollowed": "Unfollowed “{{name}}”",
+      "failed": "Couldn’t update Following: {{message}}"
+    },
+    "stats": {
+      "downloads": "Downloads",
+      "likes": "Likes",
+      "category": "Category",
+      "posted": "Posted"
+    },
+    "category": {
+      "Historical": "Historical",
+      "Semi-historical": "Semi-historical",
+      "Fictional": "Fictional",
+      "Camouflage": "Camouflage",
+      "Other": "Other"
+    },
+    "files": {
+      "label": "Files included",
+      "meta": "{{count}} · {{size}}",
+      "none": "The post doesn’t list its files."
+    },
+    "install": {
+      "install": "Install",
+      "progressLabel": "Installing “{{name}}”",
+      "step": {
+        "download": "Download",
+        "extract": "Extract",
+        "verify": "Verify",
+        "done": "Done"
+      },
+      "running": {
+        "download": "Downloading",
+        "extract": "Extracting",
+        "verify": "Verifying"
+      },
+      "stepNow": "{{step}} {{pct}}%",
+      "installed": "Installed",
+      "inHangar": "in Hangar",
+      "trying": "Trying in game",
+      "tryingAction": "Keep or discard",
+      "failed": "Install failed",
+      "asCopy": "Install as a copy",
+      "offline": "WT Live can’t be reached. Try again when you’re back online."
+    },
+    "collections": {
+      "add": "Add to collection",
+      "installFirst": "Install it first",
+      "none": "No collections yet",
+      "member": "already in it",
+      "added": "Added to “{{name}}”",
+      "already": "Already in “{{name}}”",
+      "failed": "Couldn’t add it: {{message}}"
+    }
+  },
+  "explore": {
+    "title": "Explore",
+    "following": "Following",
+    "tabs": "Explore views",
+    "newCount_one": "{{count, number}} new",
+    "newCount_many": "{{count, number}} new",
+    "newCount_other": "{{count, number}} new",
+    "results_one": "{{count, number}} result · {{ms, number}} ms",
+    "results_many": "{{count, number}} results · {{ms, number}} ms",
+    "results_other": "{{count, number}} results · {{ms, number}} ms",
+    "filters": {
+      "label": "Filters",
+      "nation": "Nation",
+      "class": "Class",
+      "category": "Category",
+      "type": "Vehicle type",
+      "allTypes": "All types",
+      "vehicle": "Vehicle",
+      "vehiclePlaceholder": "Vehicle…",
+      "vehicleSuggestions": "Matching vehicles",
+      "sort": "Sort",
+      "active_one": "{{count}} filter",
+      "active_many": "{{count}} filters combined",
+      "active_other": "{{count}} filters combined",
+      "remove": "Remove filter: {{label}}",
+      "clearAll": "Clear all",
+      "query": "“{{q}}”"
+    },
+    "category": {
+      "Historical": "Historical",
+      "Semi-historical": "Semi-historical",
+      "Fictional": "Fictional",
+      "Camouflage": "Camouflage",
+      "Other": "Other"
+    },
+    "sort": {
+      "downloads": "Most downloaded",
+      "likes": "Most liked",
+      "newest": "Newest",
+      "name": "Name A–Z"
+    },
+    "grid": {
+      "label": "WT Live skins",
+      "moreFailed": "Couldn't load more skins."
+    },
+    "card": {
+      "new": "New",
+      "by": "by <author>{{author}}</author>",
+      "stats": "{{downloads}} dl · {{likes}} likes",
+      "statsFull": "{{downloads, number}} downloads, {{likes, number}} likes",
+      "install": "Install",
+      "installed": "Installed",
+      "inHangar": "in Hangar",
+      "trying": "Trying in game",
+      "tryingHint": "Keep or discard it on the skin page",
+      "failed": "Install failed",
+      "retry": "Retry",
+      "installCopy": "Install as a copy",
+      "progress": "Installing",
+      "steps": {
+        "download": "Download",
+        "extract": "Extract",
+        "verify": "Verify",
+        "done": "Done"
+      },
+      "stepsNow": {
+        "download": "Downloading",
+        "extract": "Extracting",
+        "verify": "Verifying",
+        "done": "Done"
+      },
+      "stepPct": "{{step}} {{pct}}%",
+      "errors": {
+        "network": "WT Live can't be reached. Check your connection, then retry.",
+        "unavailable": "Installing from WT Live isn't available in this build yet.",
+        "conflict": "It's already in My Hangar.",
+        "notFound": "This skin is no longer on WT Live."
+      }
+    },
+    "empty": {
+      "title": "No skins match",
+      "body": "Try fewer filters, or search by vehicle code instead.",
+      "clear": "Clear all filters"
+    },
+    "offline": {
+      "title": "WT Live can't be reached",
+      "body": "Your library works as usual. Browsing and installing from WT Live will resume when you're back online.",
+      "hangar": "Open My Hangar",
+      "stillOffline": "Still offline. Your library is fully available."
+    },
+    "error": {
+      "title": "WT Live didn't answer as expected",
+      "body": "Your library works as usual. Try again in a moment."
+    },
+    "follow": {
+      "label": "Following · {{count, number}}",
+      "listLabel": "Followed vehicles and authors",
+      "vehicle": "Vehicle · {{code}}",
+      "author": "Author",
+      "authorCount_one": "Author · {{count, number}} skin on WT Live",
+      "authorCount_many": "Author · {{count, number}} skins on WT Live",
+      "authorCount_other": "Author · {{count, number}} skins on WT Live",
+      "unfollow": "Unfollow {{name}}",
+      "unfollowed": "Unfollowed “{{name}}”",
+      "unfollowFailed": "Couldn't unfollow “{{name}}”",
+      "refollowFailed": "Couldn't follow “{{name}}” again",
+      "newTitle": "New from people and vehicles you follow",
+      "newMeta": "{{vehicle}} · by <author>{{author}}</author> · {{date}}",
+      "nothingNew": "Nothing new since your last look.",
+      "offline": "New skins show up here when WT Live can be reached.",
+      "emptyTitle": "You're not following anyone yet",
+      "emptyBody": "Open a skin and press Follow next to its author. New skins from the people and vehicles you follow show up here.",
+      "browse": "Browse skins"
+    }
+  },
+  "hangar": {
+    "title": "My Hangar",
+    "emptyTitle": "Nothing here yet",
+    "emptyBody": "Install a skin from Explore, or drop a ZIP anywhere in this window.",
+    "emptyAction": "Browse WT Live",
+    "attention": {
+      "missingTexture": "{{file}} is missing",
+      "unknownBlkBlock": "{{file}} has an unknown block",
+      "partialExtract": "archive was only partially extracted",
+      "noBlk": "no .blk file, so the game can't use it",
+      "unreadableBlk": "{{file}} can't be read"
+    },
+    "unknownVehicle": "Unknown vehicle",
+    "stats": {
+      "skins_one": "{{count, number}} skin",
+      "skins_many": "{{count, number}} skins",
+      "skins_other": "{{count, number}} skins",
+      "active_one": "{{count, number}} active",
+      "active_many": "{{count, number}} active",
+      "active_other": "{{count, number}} active",
+      "size": "{{size}} on disk",
+      "attention_one": "{{count, number}} needs attention",
+      "attention_many": "{{count, number}} need attention",
+      "attention_other": "{{count, number}} need attention"
+    },
+    "search": "Search your skins…",
+    "searchLabel": "Search My Hangar",
+    "filters": {
+      "nation": "Nation",
+      "type": "Type",
+      "origin": "Origin",
+      "anyNation": "All nations",
+      "anyType": "All types",
+      "anyOrigin": "All origins"
+    },
+    "nation": {
+      "USA": "USA",
+      "GER": "Germany",
+      "USSR": "USSR",
+      "GBR": "Great Britain",
+      "JPN": "Japan",
+      "CHN": "China",
+      "ITA": "Italy",
+      "FRA": "France",
+      "SWE": "Sweden",
+      "ISR": "Israel",
+      "UNK": "Unknown"
+    },
+    "type": {
+      "ground": "Ground",
+      "air": "Air",
+      "heli": "Helicopters",
+      "naval": "Naval"
+    },
+    "origin": {
+      "wtlive": "WT Live",
+      "imported": "Imported",
+      "mine": "Mine"
+    },
+    "selectAll": "Select all",
+    "clearSelection": "Clear selection",
+    "view": {
+      "label": "View",
+      "grid": "Grid view",
+      "list": "List view"
+    },
+    "skins": "Your skins",
+    "groupCount_one": "{{count, number}} skin",
+    "groupCount_many": "{{count, number}} skins",
+    "groupCount_other": "{{count, number}} skins",
+    "card": {
+      "select": "Select {{name}}",
+      "needsAttention": "NEEDS ATTENTION",
+      "active": "Active",
+      "inactive": "Inactive",
+      "activeToggle": "Active in game",
+      "recheck": "Re-check",
+      "attentionMore": "{{message}} +{{count}}",
+      "authorYou": "you",
+      "noAuthor": "—",
+      "hintOpen": "Press Enter to open the skin page, Space to select it.",
+      "hintSelect": "Press Enter or Space to select it. Local skins have no skin page."
+    },
+    "noResultsTitle": "No skins match",
+    "noResultsBody": "Try fewer filters, or search by vehicle code instead.",
+    "clearFilters": "Clear filters",
+    "loadErrorTitle": "Couldn't read My Hangar",
+    "bulk": {
+      "label": "Selected skins",
+      "selected_one": "{{count, number}} skin selected",
+      "selected_many": "{{count, number}} skins selected",
+      "selected_other": "{{count, number}} skins selected",
+      "f6Hint": "Press F6 to reach the actions for the selection.",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "move": "Move to collection",
+      "noCollections": "No collections yet",
+      "export": "Export",
+      "exportTitle": "Choose where to export the skins",
+      "delete": "Delete"
+    },
+    "toast": {
+      "activated_one": "{{count, number}} skin activated",
+      "activated_many": "{{count, number}} skins activated",
+      "activated_other": "{{count, number}} skins activated",
+      "deactivated_one": "{{count, number}} skin deactivated",
+      "deactivated_many": "{{count, number}} skins deactivated",
+      "deactivated_other": "{{count, number}} skins deactivated",
+      "deleted_one": "Deleted {{count, number}} skin",
+      "deleted_many": "Deleted {{count, number}} skins",
+      "deleted_other": "Deleted {{count, number}} skins",
+      "restored_one": "Restored {{count, number}} skin",
+      "restored_many": "Restored {{count, number}} skins",
+      "restored_other": "Restored {{count, number}} skins",
+      "moved_one": "{{count, number}} skin moved to “{{collection}}”",
+      "moved_many": "{{count, number}} skins moved to “{{collection}}”",
+      "moved_other": "{{count, number}} skins moved to “{{collection}}”",
+      "exported_one": "Exported {{count, number}} skin to “{{folder}}”",
+      "exported_many": "Exported {{count, number}} skins to “{{folder}}”",
+      "exported_other": "Exported {{count, number}} skins to “{{folder}}”",
+      "recheckOk": "“{{name}}” looks fine now",
+      "recheckStill": "“{{name}}” still needs attention",
+      "recheckGone": "“{{name}}” is no longer in UserSkins"
+    }
+  },
+  "collections": {
+    "title": "Collections",
+    "new": "New",
+    "newCollection": "New collection",
+    "newName": "New collection",
+    "helper": "Activate a collection to use only its skins in the game. Others stay installed, just inactive.",
+    "activeBadge": "Active",
+    "inUse": "In use",
+    "count_one": "{{count}} skin",
+    "count_many": "{{count}} skins",
+    "count_other": "{{count}} skins",
+    "meta_one": "{{count}} skin · {{size}}",
+    "meta_many": "{{count}} skins · {{size}}",
+    "meta_other": "{{count}} skins · {{size}}",
+    "nameLabel": "Collection name",
+    "descriptionLabel": "Collection description",
+    "addDescription": "Add a description",
+    "activeInGame": "Active in game",
+    "activate": "Activate",
+    "delete": "Delete collection",
+    "members": "Skins in “{{name}}”",
+    "remove": "Remove",
+    "removeLabel": "Remove “{{name}}” from this collection",
+    "addFromHangar": "Add skins from My Hangar\n(select → Move to collection)",
+    "emptyTitle": "No collections yet",
+    "loadFailed": "Couldn't load your collections",
+    "toast": {
+      "activated_one": "“{{name}}” activated · {{count}} skin",
+      "activated_many": "“{{name}}” activated · {{count}} skins",
+      "activated_other": "“{{name}}” activated · {{count}} skins",
+      "deleted": "Deleted “{{name}}”",
+      "removed": "Removed from “{{name}}”"
+    }
+  },
+  "queue": {
+    "title": "Install queue",
+    "dropZone": "Drop ZIP, RAR or 7z archives anywhere in the window",
+    "browse": "or click to browse",
+    "browseTitle": "Add skin archives",
+    "browseFilter": "Skin archives",
+    "chooseFolder": "Choose a skin folder",
+    "foldersOnlyNote": "ZIP, RAR and 7z unpacking arrives in a later update. Skin folders install now.",
+    "empty": "Queue is empty.",
+    "list": "Queued items",
+    "meta": {
+      "items_one": "{{count}} archive",
+      "items_many": "{{count}} archives",
+      "items_other": "{{count}} archives",
+      "ready_one": "{{count}} ready",
+      "ready_many": "{{count}} ready",
+      "ready_other": "{{count}} ready"
+    },
+    "clearDone": "Clear installed",
+    "installReady_one": "Install {{count}} ready",
+    "installReady_many": "Install {{count}} ready",
+    "installReady_other": "Install {{count}} ready",
+    "status": {
+      "analyzing": "Analyzing",
+      "ready": "Ready",
+      "conflict": "Conflict",
+      "needsLook": "Needs a look",
+      "installing": "Installing",
+      "done": "Installed",
+      "error": "Error"
+    },
+    "note": {
+      "files_one": "{{count}} file",
+      "files_many": "{{count}} files",
+      "files_other": "{{count}} files",
+      "textures_one": "{{count}} texture",
+      "textures_many": "{{count}} textures",
+      "textures_other": "{{count}} textures",
+      "analyzing": "Analyzing…",
+      "blkOk": "skin.blk ok",
+      "blkBad": "skin.blk has problems",
+      "conflict": "Same folder name as “{{installed}}” (installed)",
+      "conflictQueued": "Same folder name as “{{installed}}” (queued)",
+      "needsLook_one": "Can’t detect the vehicle. Pick it to continue.",
+      "needsLook_many": "Can’t detect the vehicle: {{count}} folders inside. Pick one to continue.",
+      "needsLook_other": "Can’t detect the vehicle: {{count}} folders inside. Pick one to continue.",
+      "installed": "Now in My Hangar",
+      "error": "Something went wrong."
+    },
+    "action": {
+      "install": "Install",
+      "resolve": "Resolve",
+      "pickVehicle": "Pick vehicle",
+      "installed": "Installed",
+      "remove": "Remove {{name}} from the queue"
+    },
+    "progress": {
+      "label": "Installing {{name}}",
+      "extract": "Extract",
+      "verify": "Verify",
+      "done": "Done",
+      "extracting": "Extracting {{pct}}%",
+      "verifying": "Verifying {{pct}}%"
+    },
+    "watch": {
+      "title": "Watch Downloads folder",
+      "helper": "New skin archives install automatically.",
+      "showFolder": "Show folder",
+      "hideFolder": "Hide folder",
+      "defaultFolder": "Downloads (default)",
+      "change": "Change",
+      "pickTitle": "Choose the folder to watch"
+    },
+    "legend": {
+      "title": "What the states mean",
+      "ready": "vehicle detected, files look good.",
+      "conflict": "a skin with the same folder is installed.",
+      "needsLook": "can’t tell which vehicle it’s for.",
+      "done": "it’s in My Hangar and in the game.",
+      "error": "it can’t be installed; the row says why."
+    },
+    "conflict": {
+      "title": "This skin is already installed",
+      "body": "<file>{{file}}</file> uses the same folder as “{{installed}}” on {{vehicle}}.",
+      "bodyNoVehicle": "<file>{{file}}</file> uses the same folder as “{{installed}}”.",
+      "replace": "Replace, keep a backup",
+      "replaceHelp": "The old version goes to Backups. Undo available.",
+      "copy": "Install as a copy",
+      "copyHelp": "Both versions stay. The new one gets “(2)” in its name.",
+      "skip": "Skip",
+      "skipHelp": "Leave the installed version as it is.",
+      "footer": "Change the default in Settings → Conflicts"
+    },
+    "toast": {
+      "notSkin_one": "“{{name}}” isn’t a skin archive or folder",
+      "notSkin_many": "{{count}} items aren’t skin archives or folders",
+      "notSkin_other": "{{count}} items aren’t skin archives or folders",
+      "installed": "Installed “{{name}}”",
+      "installedMany_one": "Installed {{count}} skin",
+      "installedMany_many": "Installed {{count}} skins",
+      "installedMany_other": "Installed {{count}} skins",
+      "replaced": "Replaced “{{name}}” · backup kept",
+      "replacedPlain": "Replaced “{{name}}”",
+      "restored": "Restored the previous version",
+      "copied": "Installed as a copy",
+      "skipped": "Skipped. Nothing changed."
+    },
+    "announce": {
+      "done": "{{name}}: installed",
+      "error": "{{name}} can’t be installed. {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "sections": "Settings sections",
+    "nav": {
+      "general": "General",
+      "game": "Game",
+      "conflicts": "Conflicts",
+      "backups": "Backups",
+      "language": "Language",
+      "updates": "Updates",
+      "about": "About"
+    },
+    "general": {
+      "autostart": "Start with Windows",
+      "autostartPending": "Not available yet. It arrives in a later build.",
+      "reduceMotion": "Reduce motion",
+      "reduceMotionHelper": "Follows your Windows setting by default.",
+      "motion": {
+        "system": "System",
+        "on": "On",
+        "off": "Off"
+      },
+      "shortcuts": "Keyboard shortcuts",
+      "keys": {
+        "search": "Ctrl K",
+        "sections": "1–5",
+        "sidebar": "[ ]",
+        "undo": "Ctrl Z",
+        "close": "Esc"
+      },
+      "actions": {
+        "search": "search",
+        "sections": "sections",
+        "sidebar": "sidebar",
+        "undo": "undo",
+        "close": "close"
+      }
+    },
+    "game": {
+      "game": "War Thunder · {{source}}",
+      "source": {
+        "steam": "Steam",
+        "standalone": "Standalone",
+        "custom": "Custom folder"
+      },
+      "change": "Change",
+      "none": "No game folder set",
+      "noneHelper": "Livery installs skins into the game’s UserSkins folder.",
+      "choose": "Choose",
+      "watched": "Watched folder",
+      "downloadsDefault": "Downloads (default)",
+      "watchPickTitle": "Choose the folder to watch"
+    },
+    "conflicts": {
+      "intro": "What to do when an archive has the same folder as an installed skin.",
+      "policy": {
+        "ask": "Ask every time",
+        "replace": "Replace and keep a backup",
+        "copy": "Install as a copy",
+        "skip": "Skip"
+      }
+    },
+    "backups": {
+      "keep": "Keep a backup when replacing or deleting",
+      "keepHelper_one": "Lets you undo for {{count}} day.",
+      "keepHelper_many": "Lets you undo for {{count}} days.",
+      "keepHelper_other": "Lets you undo for {{count}} days.",
+      "onDisk": "Backups on disk",
+      "summary_one": "{{count}} item · {{size}}",
+      "summary_many": "{{count}} items · {{size}}",
+      "summary_other": "{{count}} items · {{size}}",
+      "unavailable": "Can’t read the backups right now",
+      "clear": "Clear",
+      "cleared_one": "Cleared {{count}} backup",
+      "cleared_many": "Cleared {{count}} backups",
+      "cleared_other": "Cleared {{count}} backups"
+    },
+    "language": {
+      "names": {
+        "en": "English",
+        "it": "Italiano",
+        "de": "Deutsch",
+        "ru": "Русский",
+        "fr": "Français"
+      },
+      "englishForNow": "English for now"
+    },
+    "updates": {
+      "version": "Livery {{version}}",
+      "pending": "Update checks aren’t available yet. They arrive in a later build.",
+      "check": "Check now",
+      "auto": "Install updates automatically"
+    },
+    "about": {
+      "build": "{{version}} · Windows x64",
+      "description": "A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.",
+      "links": "Links",
+      "source": "Source code",
+      "sourcePending": "The source code isn’t public yet.",
+      "report": "Report a problem",
+      "reportPending": "There’s no public place to report problems yet.",
+      "licenses": "Licenses"
+    },
+    "licenses": {
+      "title": "Licenses",
+      "intro": "Livery is built with open-source fonts and libraries. Thanks to everyone who makes them.",
+      "fonts": "Fonts",
+      "libraries": "Libraries",
+      "showText": "Show license text",
+      "hideText": "Hide license text",
+      "text": "{{name}} license text",
+      "close": "Close"
+    }
+  }
+}

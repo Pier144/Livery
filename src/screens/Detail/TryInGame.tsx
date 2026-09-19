@@ -1,11 +1,12 @@
 import { useId, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
 import { isOfflineError, useFinalizeTry } from '@/queries/wtlive';
 import { useInstalls, type WtInstall } from '@/store/installs';
 import { toast } from '@/store/toasts';
-import type { HangarSkin, WtLiveSkin } from '@/types';
+import type { AppError, HangarSkin, WtLiveSkin } from '@/types';
 import type { TryState } from './detailModel';
 import { useFocusFallback } from './useFocusFallback';
 
@@ -46,7 +47,7 @@ export function TryInGame({ skin, state, hangarSkin, track }: TryInGameProps) {
     // The toast also comes when the user has left the screen meanwhile (mutateAsync, not mutate).
     finalize.mutateAsync({ skinId: skin.id, keep }).then(
       () => toast(keep ? t('detail.try.kept', { name: skin.name }) : t('detail.try.discarded', { name: skin.name })),
-      (e: { message: string }) => toast(t('detail.try.finalizeFailed', { message: e.message })),
+      (e: AppError) => toast(t('detail.try.finalizeFailed', { message: errorText(e, t) })),
     );
   };
 
@@ -77,7 +78,7 @@ export function TryInGame({ skin, state, hangarSkin, track }: TryInGameProps) {
               <p role="alert" className="text-meta text-danger">
                 {isOfflineError({ code: failed.errorCode ?? 'internal', message: failed.error ?? '' })
                   ? t('detail.try.offline')
-                  : t('detail.try.failed', { message: failed.error ?? '' })}
+                  : t('detail.try.failed', { message: errorText({ code: failed.errorCode, message: failed.error ?? '' }, t) })}
               </p>
             )}
             <div className="flex flex-col items-start gap-2">

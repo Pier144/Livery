@@ -100,7 +100,8 @@ export const QueueRow = memo(function QueueRow({
               value: v.code,
               label: v.name,
               textValue: v.name,
-              hint: <span className="font-mono text-[10px] text-ink-4">{v.code}</span>,
+              // ink-3 on the highlighted item (bg-4), where ink-4 is 4.25:1.
+              hint: <span className="font-mono text-[10px] text-ink-4 group-hover:text-ink-3 group-focus-visible:text-ink-3">{v.code}</span>,
             }))}
             onSelect={(code) => onPickVehicle(item, code)}
             align="end"

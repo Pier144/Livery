@@ -3,6 +3,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { focusScreenHeading, focusSkinCard } from '@/hooks/useScreenFocus';
+import { useUi } from '@/store/ui';
 import type { WtLiveSkin } from '@/types';
 import { buildRows, columnsFor, estimateRowSize, GRID_BOTTOM_PADDING, GRID_GAP, PREFETCH_ROWS, type GridRow } from './exploreModel';
 import { SkinCard } from './SkinCard';
@@ -51,7 +53,8 @@ function useContentWidth(ref: RefObject<HTMLElement>): number {
  * Virtualized Explore grid (TanStack Virtual): lines of `auto-fill, minmax(250px, 1fr)` cards
  * chunked by the container width, measured as they render. When the last rendered line comes
  * within PREFETCH_ROWS of the end, the next WT Live page is asked for (DESIGN_NOTES "Explore
- * paging"). The line holding keyboard focus stays mounted while scrolled away.
+ * paging"). The line holding keyboard focus stays mounted while scrolled away. Back from the Skin
+ * detail, the card that opened it takes focus again, scrolled into view.
  */
 export function SkinGrid({ skins, hasMore, loadingMore, moreFailed, onLoadMore, resetKey, onOpen }: SkinGridProps) {
   const { t } = useTranslation();
@@ -96,6 +99,38 @@ export function SkinGrid({ skins, hasMore, loadingMore, moreFailed, onLoadMore, 
     virtualizer.measure();
     virtualizer.elementsCache.forEach((el) => virtualizer.measureElement(el));
   }, [virtualizer, width]);
+
+  // Back from the Skin detail (`ui.leaveDetail`): claim the skin when its card is in these pages
+  // (useScreenFocus puts focus on the heading otherwise), then keep its line mounted, scroll to it
+  // and focus the card once it is rendered.
+  const [restoreId, setRestoreId] = useState<string | null>(null);
+  const mountSkins = useRef(skins);
+  useEffect(() => {
+    const ui = useUi.getState();
+    const id = ui.returnFocusSkin;
+    if (id === null || !mountSkins.current.some((s) => s.id === id)) return;
+    ui.takeReturnFocus();
+    setRestoreId(id);
+  }, []);
+  useEffect(() => {
+    if (restoreId === null) return;
+    const index = rows.findIndex((r) => r.kind === 'cards' && r.skins.some((s) => s.id === restoreId));
+    const row = rows[index];
+    if (!row) {
+      setRestoreId(null);
+      focusScreenHeading();
+      return;
+    }
+    if (focusedKey !== row.key) {
+      setFocusedKey(row.key);
+      virtualizer.scrollToIndex(index, { align: 'center' });
+      return;
+    }
+    // One try once its line is rendered: a later page load must never pull focus back here.
+    setRestoreId(null);
+    const root = scrollRef.current;
+    if (!root || !focusSkinCard(restoreId, root)) focusScreenHeading();
+  }, [restoreId, rows, focusedKey, virtualizer]);
 
   // New filters / sort: start from the top.
   const firstReset = useRef(true);

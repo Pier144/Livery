@@ -1,12 +1,15 @@
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetStores } from '@/test/render';
 import { toast, useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { useScreenFocus } from './useScreenFocus';
 
+/** App mounts both: the shortcuts change the screen, useScreenFocus moves focus there. */
 function Harness() {
   useKeyboardShortcuts();
+  useScreenFocus();
   return <input aria-label="field" />;
 }
 
@@ -85,6 +88,112 @@ describe('useKeyboardShortcuts', () => {
     useUi.getState().go('explore');
     key('2');
     expect(useUi.getState().screen).toBe('hangar');
+  });
+
+  it('a section key moves focus to the new screen’s heading, so the screen is announced', () => {
+    // The screen's h1 as App renders it inside <main>.
+    function Shell() {
+      useKeyboardShortcuts();
+      useScreenFocus();
+      const current = useUi((s) => s.screen);
+      return (
+        <main>
+          <h1 tabIndex={-1}>{`heading:${current}`}</h1>
+          <button type="button">control</button>
+        </main>
+      );
+    }
+    render(<Shell />);
+    expect(document.body).toHaveFocus();
+    key('2');
+    expect(screen.getByRole('heading', { name: 'heading:hangar' })).toHaveFocus();
+
+    // The section that is already shown: focus stays where it is.
+    screen.getByRole('button', { name: 'control' }).focus();
+    key('2');
+    expect(screen.getByRole('button', { name: 'control' })).toHaveFocus();
+    key('5');
+    expect(screen.getByRole('heading', { name: 'heading:settings' })).toHaveFocus();
+  });
+
+  it('back from the Skin detail: focus returns to the skin’s card, else to the heading', () => {
+    function Shell() {
+      useKeyboardShortcuts();
+      useScreenFocus();
+      const current = useUi((s) => s.screen);
+      return (
+        <main>
+          <h1 tabIndex={-1}>{`heading:${current}`}</h1>
+          {current === 'hangar' && (
+            // A My Hangar card installed from WT Live post s1 (full-card hit area inside).
+            <div role="group" aria-label="Ambush" data-skin-id="h1" data-source-id="s1">
+              <div role="button" tabIndex={0} aria-label="Ambush" />
+            </div>
+          )}
+        </main>
+      );
+    }
+    render(<Shell />);
+    act(() => {
+      useUi.getState().go('hangar');
+      useUi.getState().openSkin('s1');
+    });
+    act(() => useUi.getState().leaveDetail());
+    expect(useUi.getState().screen).toBe('hangar');
+    expect(screen.getByRole('button', { name: 'Ambush' })).toHaveFocus();
+    expect(useUi.getState().returnFocusSkin).toBeNull();
+
+    // A skin whose card isn't on the screen it returns to.
+    act(() => {
+      useUi.getState().go('collections');
+      useUi.getState().openSkin('s9');
+    });
+    act(() => useUi.getState().leaveDetail());
+    expect(screen.getByRole('heading', { name: 'heading:collections' })).toHaveFocus();
+  });
+
+  it('a screen change that removed the focused control puts focus on the new heading', () => {
+    function Shell() {
+      useKeyboardShortcuts();
+      useScreenFocus();
+      const current = useUi((s) => s.screen);
+      return (
+        <main>
+          <h1 tabIndex={-1}>{`heading:${current}`}</h1>
+          {current === 'explore' ? (
+            // Like the offline state's "Open My Hangar": the button goes away with the screen.
+            <button type="button" onClick={() => useUi.getState().go('hangar')}>
+              Open My Hangar
+            </button>
+          ) : (
+            <button type="button">stays</button>
+          )}
+        </main>
+      );
+    }
+    render(<Shell />);
+    act(() => screen.getByRole('button', { name: 'Open My Hangar' }).click());
+    expect(screen.getByRole('heading', { name: 'heading:hangar' })).toHaveFocus();
+
+    // Focus that survives the change (a sidebar button, say) is left alone.
+    screen.getByRole('button', { name: 'stays' }).focus();
+    act(() => useUi.getState().go('queue'));
+    expect(screen.getByRole('button', { name: 'stays' })).toHaveFocus();
+  });
+
+  it('Ctrl+K does not open the palette over a modal dialog (its results would navigate under it)', () => {
+    render(
+      <>
+        <Harness />
+        <div role="dialog" aria-modal="true" aria-label="Licenses" />
+      </>,
+    );
+    key('k', { ctrlKey: true });
+    expect(useUi.getState().palette.open).toBe(false);
+    // Opened another way, Ctrl+K still closes it.
+    act(() => useUi.getState().openPalette());
+    key('k', { ctrlKey: true });
+    expect(useUi.getState().palette.open).toBe(false);
   });
 
   it('ignores section keys while typing, with modifiers, or with the palette open', () => {

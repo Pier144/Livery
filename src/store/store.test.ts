@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetStores } from '@/test/render';
 import { TOAST_DURATION_MS, toast, useToasts } from './toasts';
-import { useUi } from './ui';
+import { detailReturnFor, useUi } from './ui';
 
 beforeEach(() => resetStores());
 
@@ -21,6 +21,58 @@ describe('ui store', () => {
     expect(useUi.getState().palette).toEqual({ open: true, query: 'leo', index: 0 });
     ui.togglePalette();
     expect(useUi.getState().palette).toEqual({ open: false, query: '', index: 0 });
+  });
+
+  it('remembers where the Skin detail was opened from', () => {
+    const ui = useUi.getState();
+    expect(useUi.getInitialState().detailReturnTo).toBe('explore');
+    ui.go('hangar');
+    ui.openPalette();
+    ui.openSkin('s1');
+    expect(useUi.getState()).toMatchObject({ screen: 'detail', detailSkinId: 's1', detailReturnTo: 'hangar' });
+    expect(useUi.getState().palette.open).toBe(false);
+    // Another skin opened from the detail (palette) keeps the first opener.
+    ui.openSkin('s2');
+    expect(useUi.getState()).toMatchObject({ detailSkinId: 's2', detailReturnTo: 'hangar' });
+    ui.go('settings');
+    ui.openSkin('s3');
+    expect(useUi.getState().detailReturnTo).toBe('settings');
+  });
+
+  it('sends the Skin detail back to Explore when it was opened from First run', () => {
+    useUi.getState().startFirstRun({ step: 'choose', returnTo: 'settings' });
+    useUi.getState().openSkin('s1');
+    expect(useUi.getState().detailReturnTo).toBe('explore');
+    expect(detailReturnFor('collections', 'hangar')).toBe('collections');
+    expect(detailReturnFor('detail', 'queue')).toBe('queue');
+  });
+
+  it('leaveDetail goes back to the opener and remembers which card gets focus; any go drops it', () => {
+    const ui = useUi.getState();
+    ui.go('hangar');
+    ui.openSkin('s1');
+    ui.openPalette();
+    useUi.getState().leaveDetail();
+    expect(useUi.getState()).toMatchObject({ screen: 'hangar', returnFocusSkin: 's1', palette: { open: false } });
+    // Taken once.
+    expect(useUi.getState().takeReturnFocus()).toBe('s1');
+    expect(useUi.getState().takeReturnFocus()).toBeNull();
+
+    ui.openSkin('s2');
+    useUi.getState().leaveDetail();
+    useUi.getState().go('queue');
+    expect(useUi.getState().returnFocusSkin).toBeNull();
+    ui.openSkin('s3');
+    expect(useUi.getState().returnFocusSkin).toBeNull();
+  });
+
+  it('focusHeading bumps a counter; leaving a detail with no skin asks for the heading', () => {
+    const start = useUi.getState().headingFocus;
+    useUi.getState().focusHeading();
+    expect(useUi.getState().headingFocus).toBe(start + 1);
+    useUi.setState({ screen: 'detail', detailSkinId: null, detailReturnTo: 'collections' });
+    useUi.getState().leaveDetail();
+    expect(useUi.getState()).toMatchObject({ screen: 'collections', returnFocusSkin: null, headingFocus: start + 2 });
   });
 
   it('persists only the sidebar preference', () => {

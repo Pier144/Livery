@@ -131,6 +131,40 @@ describe('mock backend · start-up', () => {
     });
   });
 
+  it('seeds WT Live skins only where the prototype has a skinId; its Mine skins stay local', async () => {
+    await onboard();
+    const hangar = await call<HangarSkin[]>('get_hangar');
+    const fromWt = hangar.filter((s) => s.origin === 'wtlive');
+    expect(fromWt.map((s) => [s.id, s.sourceId])).toEqual([
+      ['h_s6', 's6'],
+      ['h_s4', 's4'],
+      ['h_s8', 's8'],
+    ]);
+    expect(hangar.filter((s) => s.sourceId !== undefined)).toEqual(fromWt);
+    const blueAngels = hangar.find((s) => s.name === 'Blue Angels Tribute');
+    expect(blueAngels).toMatchObject({ id: 'h7', folder: 'template_f_4e', origin: 'mine' });
+    expect(blueAngels).not.toHaveProperty('author');
+    expect(blueAngels).not.toHaveProperty('sourceId');
+  });
+
+  it('?many=1: generated WT Live skins are installs of catalog posts, the others are local', async () => {
+    window.history.replaceState(null, '', '/?onboarded=1&many=1');
+    resetMockBackend();
+    const hangar = await call<HangarSkin[]>('get_hangar');
+    expect(hangar).toHaveLength(1000);
+    const fromWt = hangar.filter((s) => s.origin === 'wtlive');
+    expect(fromWt.length).toBeGreaterThan(300);
+    expect(new Set(fromWt.map((s) => s.sourceId)).size).toBe(fromWt.length);
+    for (const s of fromWt) {
+      const post = await call<WtLiveSkin>('wtlive_post', { id: s.sourceId });
+      expect(s).toMatchObject({ name: post.name, vehicle: post.vehicle, author: post.author, sizeBytes: post.sizeBytes });
+    }
+    const local = hangar.filter((s) => s.origin !== 'wtlive');
+    expect(local.every((s) => s.sourceId === undefined && s.author === undefined)).toBe(true);
+    expect(local.filter((s) => s.origin === 'mine').every((s) => s.folder.startsWith('template_'))).toBe(true);
+    expect(new Set(hangar.map((s) => s.folder.toLowerCase())).size).toBe(hangar.length);
+  });
+
   it('rejects unknown commands with noBackend', async () => {
     expect(await rejection(call('install_skin'))).toMatchObject({ code: 'noBackend' });
   });

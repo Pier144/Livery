@@ -1,5 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
+import { errorText } from '@/lib/errors';
 import { toAppError } from '@/lib/tauri';
 import {
   COLLECTIONS_KEY,
@@ -16,7 +18,7 @@ import { toast } from '@/store/toasts';
 import type { Collection, CollectionsState, HangarSkin } from '@/types';
 
 const fail = (e: unknown) => {
-  toast(toAppError(e).message);
+  toast(errorText(toAppError(e), i18n.t));
 };
 
 /**

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { errorText } from '@/lib/errors';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { toast } from '@/store/toasts';
 import { useUi } from '@/store/ui';
@@ -111,7 +112,7 @@ function NotFoundView({ invalidFolder, busy, headingRef, onFolder, onSkip, onBac
       const picked = await open({ directory: true, title: t('firstRun.notFound.pickerTitle') });
       if (typeof picked === 'string') onFolderRef.current(picked);
     } catch (e) {
-      toast(toAppError(e).message);
+      toast(errorText(toAppError(e), t));
     }
   };
 

@@ -2,6 +2,8 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/chrome/Toaster';
+import i18n from '@/i18n';
+import itJson from '@/i18n/it.json';
 import { createQueryClient } from '@/queries/client';
 import { COLLECTIONS_KEY } from '@/queries/collections';
 import { HANGAR_KEY } from '@/queries/hangar';
@@ -455,6 +457,22 @@ describe('Collections', () => {
     failing = false;
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByRole('list', { name: 'Collections' })).toBeInTheDocument();
+  });
+
+  it('explains a load failure in Italian with the generic text for its code', async () => {
+    fakeBackend();
+    const ok = backend.call.getMockImplementation()!;
+    backend.call.mockImplementation(async (cmd: string, args?: Args) =>
+      cmd === 'collections_list' ? Promise.reject({ code: 'io', message: 'library.json is locked' } satisfies AppError) : ok(cmd, args),
+    );
+    await i18n.changeLanguage('it');
+    try {
+      renderWithProviders(<Collections />);
+      expect(await screen.findByText(itJson.common.errors.io)).toBeInTheDocument();
+      expect(screen.queryByText('library.json is locked')).not.toBeInTheDocument();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 
   it('empty: "No collections yet" and New collection', async () => {

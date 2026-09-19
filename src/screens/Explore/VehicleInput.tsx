@@ -154,8 +154,8 @@ export function VehicleInput({ list = localVehicles }: { list?: readonly Vehicle
               )}
             >
               <span className="min-w-0 truncate">{v.name}</span>
-              {/* ink-4, not the prototype's ink-5: 10px text needs 4.5:1. */}
-              <span className="flex-none font-mono text-[10px] text-ink-4">{v.code}</span>
+              {/* ink-4, not the prototype's ink-5: 10px text needs 4.5:1; ink-3 on the highlighted bg-4 (ink-4 is 4.25 there). */}
+              <span className={cn('flex-none font-mono text-[10px]', i === current ? 'text-ink-3' : 'text-ink-4')}>{v.code}</span>
             </div>
           ))}
         </div>

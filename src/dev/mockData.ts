@@ -80,6 +80,9 @@ type AuthorKey = keyof typeof AUTHORS;
  * The library index at start: the prototype's 12 hangar skins (3 from WT Live, 9 imported or
  * made by the user). h3, h7 and h9 are inactive; h3, h4 and h9 carry the prototype's attention
  * examples. WT Live installs live in `<code>_<author>` folders, the user's own in `template_<code>`.
+ * Only the prototype's `c(…)` entries (a `skinId`: s6, s4, s8) are WT Live installs with a
+ * `sourceId`; "My Test Camo" (h4) and "Blue Angels Tribute" (h7) are its `Mine` skins by "you", so
+ * they carry no author or `sourceId` and select on click rather than open a Skin detail.
  */
 export function seedHangar(): HangarSkin[] {
   return [
@@ -387,24 +390,55 @@ export function seedBackups(now: number): StoredBackup[] {
 /**
  * `?many=1`: the seed hangar plus generated skins up to `total`, spread over every catalog
  * vehicle, for checking that My Hangar scrolls smoothly with 1,000 skins (BUILD_PLAN M3).
+ *
+ * Origins are honest, as a scan and the WT Live installs would record them. Every third skin is
+ * an install of one of `seedManyCatalog`'s generated posts: its `sourceId`, name, vehicle, author
+ * and size, in the post's `<code>_<author>` folder (`(2)`, `(3)`… when taken, like the mock
+ * install), so it opens its Skin detail like the seed's WT Live skins. The user's own skins sit
+ * in `template_` folders (what the Rust scan calls `mine`); the rest are imported.
  */
 export function seedManyHangar(total = 1000): HangarSkin[] {
   const base = seedHangar();
   const codes = [...new Set(base.map((s) => s.vehicle.code).filter(Boolean))];
   const origins = ['wtlive', 'imported', 'mine'] as const;
-  const extra = Array.from({ length: Math.max(0, total - base.length) }, (_, i) => {
+  // Generated posts only: the prototype's s1…s16 stay installed (or not) as the seed has them.
+  const posts = seedManyCatalog().slice(CATALOG.length);
+  let nextPost = 0;
+  const taken = new Set(base.map((s) => s.folder.toLowerCase()));
+  const freeFolder = (folder: string): string => {
+    let name = folder;
+    for (let k = 2; taken.has(name.toLowerCase()); k += 1) name = `${folder} (${k})`;
+    taken.add(name.toLowerCase());
+    return name;
+  };
+  const extra = Array.from({ length: Math.max(0, total - base.length) }, (_, i): HangarSkin => {
     const code = codes[i % codes.length] ?? 'f_4e';
     const n = i + 1;
+    const origin = origins[i % origins.length] ?? 'imported';
+    const common = { id: `h_many_${n}`, active: i % 7 !== 0, installedAt: '2026-08-01T12:00:00Z' };
+    // Past the last generated post, a would-be WT Live skin is imported instead.
+    const post = origin === 'wtlive' ? posts[nextPost++] : undefined;
+    if (post) {
+      return {
+        ...common,
+        folder: freeFolder(postFolder(post)),
+        name: post.name,
+        vehicle: { ...post.vehicle },
+        origin: 'wtlive',
+        author: { ...post.author },
+        sizeBytes: post.sizeBytes,
+        sourceId: post.id,
+      };
+    }
+    const own = origin === 'mine';
     return skin({
-      id: `h_many_${n}`,
-      folder: `${code}_generated_${n}`,
+      ...common,
+      folder: freeFolder(own ? `template_${code}_${n}` : `${code}_generated_${n}`),
       name: `Generated livery ${String(n).padStart(4, '0')}`,
       code,
-      origin: origins[i % origins.length] ?? 'imported',
+      origin: own ? 'mine' : 'imported',
       mb: 12 + (i % 60),
       kb: (i * 37) % 1024,
-      active: i % 7 !== 0,
-      installedAt: '2026-08-01T12:00:00Z',
     });
   });
   return [...base, ...extra];

@@ -92,7 +92,8 @@ export function Gallery({ skin }: { skin: WtLiveSkin }) {
                 <span
                   role="img"
                   aria-label={t('detail.gallery.imageAlt', { name: skin.name, view: viewLabel(view) })}
-                  className="font-mono text-mono-data text-ink-4"
+                  // ink-3: ink-4 is 4.2–4.5:1 on the stage stripes (docs/a11y.md).
+                  className="font-mono text-mono-data text-ink-3"
                 >
                   {t('detail.gallery.placeholder', { vehicle: skin.vehicle.name, view: viewLabel(view) })}
                 </span>

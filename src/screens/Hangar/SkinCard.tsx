@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
-import { ActiveToggle, attentionText, itemHandlers, RecheckLink, useSkinHint, type SkinItemProps } from './SkinParts';
+import { ActiveToggle, attentionText, itemHandlers, RecheckLink, useSkinDescription, type SkinItemProps } from './SkinParts';
 
 /**
  * My Hangar grid card. The card itself is a toggle button (pressed = selected): a WT Live skin opens
@@ -16,11 +16,13 @@ import { ActiveToggle, attentionText, itemHandlers, RecheckLink, useSkinHint, ty
 export const SkinCard = memo(function SkinCard({ skin, selected, rechecking, onSelect, onToggleActive, onRecheck }: SkinItemProps) {
   const { t } = useTranslation();
   const attention = attentionText(t, skin);
-  const hint = useSkinHint(skin);
+  const { attentionId, describedBy, title } = useSkinDescription(skin, attention);
 
   return (
     <div
       data-skin-id={skin.id}
+      // Focus comes back here from the Skin detail of the WT Live post it came from (useScreenFocus).
+      data-source-id={skin.sourceId}
       // Names the card's inner controls ("Active", "Re-check"), which repeat on every skin.
       role="group"
       aria-label={skin.name}
@@ -34,8 +36,8 @@ export const SkinCard = memo(function SkinCard({ skin, selected, rechecking, onS
         tabIndex={0}
         aria-pressed={selected}
         aria-label={skin.name}
-        aria-describedby={hint}
-        title={skin.name}
+        aria-describedby={describedBy}
+        title={title}
         {...itemHandlers(skin, onSelect)}
         className="absolute inset-0 cursor-pointer rounded-card"
       />
@@ -63,7 +65,11 @@ export const SkinCard = memo(function SkinCard({ skin, selected, rechecking, onS
           {/* ink-4 is 4.4:1 on the selected card's bg-hover; ink-3 keeps AA there. */}
           <span className={cn('font-mono text-[10px]', selected ? 'text-ink-3' : 'text-ink-4')}>{formatBytes(skin.sizeBytes)}</span>
         </div>
-        {attention && <div className="text-[11px] leading-[normal] text-amber">{attention}</div>}
+        {attention && (
+          <div id={attentionId} className="text-[11px] leading-[normal] text-amber">
+            {attention}
+          </div>
+        )}
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <ActiveToggle active={skin.active} onToggle={() => onToggleActive(skin)} />
           {attention && <RecheckLink busy={rechecking} onClick={() => onRecheck(skin)} />}

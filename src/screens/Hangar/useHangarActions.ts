@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
+import { errorText } from '@/lib/errors';
 import { baseName } from '@/lib/format';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { useSetCollectionSkins } from '@/queries/collections';
@@ -16,7 +18,7 @@ interface PendingActive {
 }
 
 function reportError(e: unknown) {
-  toast(toAppError(e).message);
+  toast(errorText(toAppError(e), i18n.t));
 }
 
 /**

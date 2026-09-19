@@ -176,10 +176,10 @@ describe('FirstRun · detect', () => {
     expect(screen.getByRole('heading', { name: 'Found War Thunder' })).toHaveFocus();
     expect(screen.getByRole('status')).toHaveTextContent('Detection finished. War Thunder found: Steam library.');
     expect(within(tracker).getByText('02 CONFIRM').closest('li')).toHaveAttribute('aria-current', 'step');
-    // README: current amber, past ink-3, future ink-5.
+    // README: current amber, past ink-3; future ink-4, not the README's ink-5 (10px text needs 4.5:1, docs/a11y.md).
     expect(within(tracker).getByText('01 DETECT')).toHaveClass('text-ink-3');
     expect(within(tracker).getByText('02 CONFIRM')).toHaveClass('text-amber');
-    expect(within(tracker).getByText('03 IMPORT')).toHaveClass('text-ink-5');
+    expect(within(tracker).getByText('03 IMPORT')).toHaveClass('text-ink-4');
   });
 
   it('labels a missing standalone launcher "not installed" and falls through to not found', async () => {

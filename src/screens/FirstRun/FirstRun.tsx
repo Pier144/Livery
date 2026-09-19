@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { errorText } from '@/lib/errors';
 import { toAppError } from '@/lib/tauri';
 import { detectGame, useImportSkins, useScanUserSkins, useSetGamePath } from '@/queries/game';
 import { useUpdateSettings } from '@/queries/settings';
@@ -44,7 +45,7 @@ export function FirstRun() {
       })
       .catch((e: unknown) => {
         if (!alive) return;
-        toast(toAppError(e).message);
+        toast(errorText(toAppError(e), t));
         dispatch({ type: 'detectFailed' });
       });
     return () => {
@@ -78,14 +79,14 @@ export function FirstRun() {
           if (message) toast(message);
           useUi.getState().go(entry.returnTo);
         },
-        onError: (e) => toast(e.message),
+        onError: (e) => toast(errorText(e, t)),
       },
     );
   };
 
   const runScan = () =>
     scan.mutate(undefined, {
-      onError: (e) => toast(e.message),
+      onError: (e) => toast(errorText(e, t)),
     });
 
   /** `source` is the detected one; a picked or dropped folder has none (custom). */
@@ -107,7 +108,7 @@ export function FirstRun() {
         },
         onError: (e) => {
           if (manual && e.code === 'invalidInput') dispatch({ type: 'folderInvalid' });
-          else toast(e.message);
+          else toast(errorText(e, t));
         },
       },
     );
@@ -127,7 +128,7 @@ export function FirstRun() {
           const count = index.filter((s) => wanted.has(s.folder.toLowerCase())).length;
           finish(t('firstRun.toast.imported', { count }));
         },
-        onError: (e) => toast(e.message),
+        onError: (e) => toast(errorText(e, t)),
       },
     );
   };

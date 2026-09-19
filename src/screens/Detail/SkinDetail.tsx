@@ -2,13 +2,14 @@ import { useEffect, useId, useLayoutEffect, useMemo, type ReactNode } from 'reac
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { errorText } from '@/lib/errors';
 import { isOfflineError, useWtLivePost } from '@/queries/wtlive';
 import { useDetail, useDetailTry } from '@/store/detail';
 import { useExplore } from '@/store/explore';
 import { useWtLiveInstall } from '@/store/installs';
 import { useUi } from '@/store/ui';
 import type { WtLiveSkin } from '@/types';
-import { DetailTitle, DetailTopBar, type TabIds } from './DetailTopBar';
+import { DetailTopBar, type TabIds } from './DetailTopBar';
 import { Gallery } from './Gallery';
 import { SidePanel } from './SidePanel';
 import { TexturesTab } from './TexturesTab';
@@ -23,6 +24,7 @@ import type { DetailTab } from './detailModel';
 export function SkinDetail() {
   const { t } = useTranslation();
   const id = useUi((s) => s.detailSkinId);
+  const returnTo = useUi((s) => s.detailReturnTo);
   const go = useUi((s) => s.go);
   const post = useWtLivePost(id);
 
@@ -38,7 +40,7 @@ export function SkinDetail() {
         <EmptyState
           title={t('detail.noSkin.title')}
           body={t('detail.noSkin.body')}
-          primary={{ label: t('detail.backLabel'), onClick: () => go('explore') }}
+          primary={{ label: t(`detail.backTo.${returnTo}`), onClick: () => go(returnTo) }}
         />
       </Frame>
     );
@@ -53,7 +55,7 @@ export function SkinDetail() {
         <EmptyState
           dot={offline}
           title={offline ? t('detail.offline.title') : t('detail.error.title')}
-          body={offline ? t('detail.offline.body') : post.error.message}
+          body={offline ? t('detail.offline.body') : errorText(post.error, t)}
           primary={offline ? { label: t('detail.offline.hangar'), onClick: () => go('hangar') } : undefined}
           secondary={{ label: t('common.retry'), onClick: () => void post.refetch() }}
         />
@@ -64,11 +66,11 @@ export function SkinDetail() {
   return <DetailSkeleton />;
 }
 
-/** Top bar with only "← Explore" (loading, offline, errors) above the given content. */
-function Frame({ children, title }: { children: ReactNode; title?: ReactNode }) {
+/** Top bar with only the back button (loading, offline, errors) above the given content. */
+function Frame({ children, placeholder }: { children: ReactNode; placeholder?: ReactNode }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <DetailTopBar title={title} />
+      <DetailTopBar placeholder={placeholder} />
       {children}
     </div>
   );
@@ -102,10 +104,7 @@ function LoadedDetail({ skin }: { skin: WtLiveSkin }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <DetailTopBar
-        title={<DetailTitle name={skin.name} code={skin.vehicle.code} />}
-        tabs={{ active: tab, ids, onSelect: setTab }}
-      />
+      <DetailTopBar skin={{ name: skin.name, code: skin.vehicle.code }} tabs={{ active: tab, ids, onSelect: setTab }} />
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px]">
         <div
           role="tabpanel"
@@ -135,7 +134,7 @@ function LoadedDetail({ skin }: { skin: WtLiveSkin }) {
 function DetailSkeleton() {
   const { t } = useTranslation();
   return (
-    <Frame title={<Skeleton className="h-4 w-[220px] rounded-tag" />}>
+    <Frame placeholder={<Skeleton className="h-4 w-[220px] rounded-tag" />}>
       <div role="status" aria-busy="true" className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px]">
         <span className="sr-only">{t('detail.loading')}</span>
         <div aria-hidden className="flex min-h-0 flex-col gap-3 px-6 py-5">

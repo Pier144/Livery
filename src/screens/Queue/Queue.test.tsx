@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/chrome/Toaster';
 import { useInstallEvents } from '@/hooks/useInstallEvents';
+import i18n from '@/i18n';
 import { createQueryClient } from '@/queries/client';
 import { HANGAR_KEY } from '@/queries/hangar';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
@@ -338,6 +339,9 @@ describe('Install queue — installing', () => {
     await user.click(screen.getByRole('button', { name: 'Pick vehicle' }));
     const menu = screen.getByRole('menu');
     expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Su-27su_27', 'Su-27SMsu_27sm']);
+    // The code brightens to ink-3 on the highlighted item (bg-4 on hover / keyboard focus; ink-4 is 4.25:1 there).
+    expect(within(menu).getByText('su_27sm')).toHaveClass('text-ink-4', 'group-hover:text-ink-3', 'group-focus-visible:text-ink-3');
+    expect(within(menu).getAllByRole('menuitem')[1]).toHaveClass('group');
     await user.keyboard('{ArrowDown}{Enter}');
     expect(calls('install_from_archive')).toEqual([{ queueId: LOOK.id, vehicleCode: 'su_27sm' }]);
     expect(row(LOOK.fileName)).toHaveTextContent('Installing · Su-27SM');
@@ -498,6 +502,21 @@ describe('Install queue — watch folder', () => {
     await user.click(toggle);
     await within(toasts()).findByText('The Downloads folder doesn’t exist');
     expect(toggle).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('says why in Italian: the backend’s known message translated', async () => {
+    const user = userEvent.setup();
+    watchReply = () => {
+      throw { code: 'invalidInput', message: "The watched folder can't be found" };
+    };
+    await i18n.changeLanguage('it');
+    try {
+      renderQueue([]);
+      await user.click(screen.getByRole('switch', { name: 'Controlla la cartella Download' }));
+      await within(screen.getByRole('region', { name: 'Notifiche' })).findByText('Impossibile trovare la cartella controllata');
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 });
 

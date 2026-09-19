@@ -1,0 +1,211 @@
+# Builds the NSIS installer and attaches it to a DRAFT GitHub release.
+# Trigger: push a tag `v<version>` (it must match tauri.conf.json), or run it by hand
+# (workflow_dispatch), which drafts `v<version>` on the chosen branch's commit.
+# Code signing is optional and off until the secrets exist. See docs/release.md.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '10.32.1'
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Windows installer (NSIS)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # ── Toolchains (same as ci.yml) ───────────────────────────────────────
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # The installer is named after tauri.conf.json's version; package.json and Cargo.toml
+      # carry the same number (docs/release.md, "Cut a release").
+      - name: Read the version
+        id: version
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          tag="v${version}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "${tag}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} doesn't match tauri.conf.json version ${version} (expected ${tag})."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Enable pnpm through corepack
+        run: |
+          corepack enable
+          corepack install --global "pnpm@${PNPM_VERSION}"
+          actual=$(pnpm --version)
+          if [ "${actual}" != "${PNPM_VERSION}" ]; then
+            echo "::error::pnpm ${actual} is active, expected ${PNPM_VERSION}."
+            exit 1
+          fi
+
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      # Restore-only caches: a release never writes a cache, and the Rust build starts clean.
+      - name: Restore the pnpm store
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+
+      - name: Restore the cargo registry
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+
+      # ── Optional code signing (placeholder) ───────────────────────────────
+      # Runs only when the WINDOWS_CERTIFICATE secret exists. The secrets are passed to the two
+      # steps that need them, never to the whole job (build scripts run in the build step).
+      - name: Check for a signing certificate
+        id: signing-check
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+        run: |
+          if [ -n "${WINDOWS_CERTIFICATE}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Signing: on"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Signing: off (no WINDOWS_CERTIFICATE secret). The installer will be unsigned."
+          fi
+
+      # Imports the .pfx into the runner's user store and writes a config overlay with its
+      # thumbprint. `tauri build` then signs livery.exe, the uninstaller and the installer.
+      - name: Import the signing certificate
+        id: signing
+        if: steps.signing-check.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL || 'http://timestamp.digicert.com' }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'livery-signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password |
+            Where-Object HasPrivateKey | Select-Object -First 1
+          Remove-Item $pfx -Force
+          if (-not $cert) { throw 'The certificate has no private key.' }
+          $overlay = @{ bundle = @{ windows = @{
+            certificateThumbprint = $cert.Thumbprint
+            digestAlgorithm       = 'sha256'
+            timestampUrl          = $env:WINDOWS_TIMESTAMP_URL
+            tsp                   = $true
+          } } } | ConvertTo-Json -Depth 5
+          $file = Join-Path $env:RUNNER_TEMP 'tauri.signing.json'
+          Set-Content -Path $file -Value $overlay -Encoding utf8NoBOM
+          "config=$file" >> $env:GITHUB_OUTPUT
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+          Write-Host "Signing with certificate $($cert.Subject)"
+
+      # ── Build ─────────────────────────────────────────────────────────────
+      # `tauri build` runs `pnpm build` (tsc + vite) first, then cargo in release mode, then makensis.
+      - name: Build the installer
+        env:
+          SIGNING_CONFIG: ${{ steps.signing.outputs.config }}
+        run: |
+          if [ -n "${SIGNING_CONFIG}" ]; then
+            pnpm tauri build --ci --config "${SIGNING_CONFIG}"
+          else
+            pnpm tauri build --ci
+          fi
+
+      - name: Locate the installer
+        id: installer
+        run: |
+          shopt -s nullglob
+          files=(src-tauri/target/release/bundle/nsis/*-setup.exe)
+          if [ "${#files[@]}" -ne 1 ]; then
+            echo "::error::Expected one NSIS installer, found ${#files[@]}."
+            exit 1
+          fi
+          installer="${files[0]}"
+          (cd "$(dirname "$installer")" && sha256sum "$(basename "$installer")" > "$(basename "$installer").sha256")
+          echo "path=${installer}" >> "$GITHUB_OUTPUT"
+          echo "checksum=${installer}.sha256" >> "$GITHUB_OUTPUT"
+          ls -l "$(dirname "$installer")"
+
+      - name: Verify the signature
+        if: steps.signing-check.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          INSTALLER: ${{ steps.installer.outputs.path }}
+          THUMBPRINT: ${{ steps.signing.outputs.thumbprint }}
+        run: |
+          $sig = Get-AuthenticodeSignature -FilePath $env:INSTALLER
+          Write-Host "Signature status: $($sig.Status) ($($sig.StatusMessage))"
+          if (-not $sig.SignerCertificate -or $sig.SignerCertificate.Thumbprint -ne $env:THUMBPRINT) {
+            throw 'The installer is not signed with the imported certificate.'
+          }
+
+      # ── Draft release ─────────────────────────────────────────────────────
+      # Draft only: a person reviews the notes, tries the installer and publishes it by hand.
+      # Re-running the workflow replaces the assets of the existing draft; a published release
+      # is never touched.
+      - name: Create or update the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          INSTALLER: ${{ steps.installer.outputs.path }}
+          CHECKSUM: ${{ steps.installer.outputs.checksum }}
+        run: |
+          if draft=$(gh release view "${TAG}" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "${draft}" != "true" ]; then
+              echo "::error::Release ${TAG} is already published. Bump the version to release again."
+              exit 1
+            fi
+            gh release upload "${TAG}" "${INSTALLER}" "${CHECKSUM}" --clobber
+          else
+            gh release create "${TAG}" "${INSTALLER}" "${CHECKSUM}" \
+              --draft \
+              --target "${GITHUB_SHA}" \
+              --title "Livery ${VERSION}" \
+              --generate-notes
+          fi
+          echo "Draft release ${TAG} is ready for review."

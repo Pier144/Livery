@@ -1,6 +1,7 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import i18n from '@/i18n';
+import { errorText } from '@/lib/errors';
 import { listenEvent } from '@/lib/events';
 import { call, hasBackend, toAppError } from '@/lib/tauri';
 import { HANGAR_KEY } from '@/queries/hangar';
@@ -101,7 +102,7 @@ function afterEvent(outcome: ProgressOutcome, qc: QueryClient) {
             useQueue.getState().update(item.id, { status: 'conflict', conflictWith: restored.id });
             toast(t('queue.toast.restored'));
           } catch (e) {
-            toast(toAppError(e).message);
+            toast(errorText(toAppError(e), t));
           } finally {
             void qc.invalidateQueries({ queryKey: HANGAR_KEY });
           }

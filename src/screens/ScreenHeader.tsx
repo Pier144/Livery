@@ -12,7 +12,10 @@ export function ScreenHeader({ title, meta, right }: ScreenHeaderProps) {
   return (
     <div className="flex items-end justify-between border-b border-line-2 pb-2.5">
       <div className="flex items-baseline gap-4">
-        <h1 className="text-card">{title}</h1>
+        {/* Focus target when the screen opens from the keyboard (useScreenFocus); not a tab stop. */}
+        <h1 tabIndex={-1} className="text-card outline-none">
+          {title}
+        </h1>
         {meta && <span className="font-mono text-mono-sm text-ink-4">{meta}</span>}
       </div>
       {right}

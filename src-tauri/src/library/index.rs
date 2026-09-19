@@ -10,9 +10,14 @@
 //! date, WT Live source, collections and backups. What the disk can tell (folder spelling,
 //! vehicle, size, attention, active = which place the folder is in) is refreshed on every scan.
 //! Skins are matched by folder name (case-insensitive on Windows, like the file system).
+//!
+//! An index file that exists but can't be read at launch (a sharing violation, permissions)
+//! loads as an empty index and the store turns read-only for the session: every
+//! [`LibraryStore::transact`] is refused before it touches the disk, so neither the real index
+//! nor the folders it describes are changed on the strength of an empty one.
 
 use super::layout::Journal;
-use crate::error::{AppError, AppResult, ErrorCode};
+use crate::error::{AppError, AppResult, ErrorCode, UnreadableFile};
 use crate::model::{Backup, Collection, CollectionsState, HangarSkin};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -87,6 +92,8 @@ pub struct LibraryStore {
     /// The game root this index belongs to (display form), written into the file.
     game_root: Option<String>,
     library: Mutex<Library>,
+    /// Set when the file existed but couldn't be read at launch: every transaction is refused.
+    unreadable: Option<UnreadableFile>,
 }
 
 #[derive(Serialize)]
@@ -121,10 +128,15 @@ struct IndexIn {
 impl LibraryStore {
     /// Loads the index; a missing file is an empty index. A corrupt file is renamed to
     /// `library.json.bad` and the index starts empty; entries that don't parse are dropped and
-    /// the original file is copied to `library.json.bad` first. Never writes.
+    /// the original file is copied to `library.json.bad` first. A file that exists but can't be
+    /// read starts empty too, and the store is read-only for the session (see the module doc).
+    /// Never writes.
     pub fn load(path: PathBuf) -> Self {
-        let library = read_index(&path);
-        Self { path, game_root: None, library: Mutex::new(library) }
+        let (library, unreadable) = match read_index(&path) {
+            Ok(library) => (library, None),
+            Err(unreadable) => (Library::default(), Some(unreadable)),
+        };
+        Self { path, game_root: None, library: Mutex::new(library), unreadable }
     }
 
     /// [`Self::load`] for the index of the game root `game_root` (display form), which every
@@ -136,7 +148,7 @@ impl LibraryStore {
     /// An empty index that belongs to no file: what the install queue checks clashes against
     /// while no game folder is set. Never saved: a change to it fails to save and is undone.
     pub fn detached() -> Self {
-        Self { path: PathBuf::new(), game_root: None, library: Mutex::new(Library::default()) }
+        Self { path: PathBuf::new(), game_root: None, library: Mutex::new(Library::default()), unreadable: None }
     }
 
     pub fn path(&self) -> &Path {
@@ -146,6 +158,11 @@ impl LibraryStore {
     /// The game root this index belongs to (display form), when it was loaded for one.
     pub fn game_root(&self) -> Option<&str> {
         self.game_root.as_deref()
+    }
+
+    /// Whether the file couldn't be read at launch, so nothing will be changed this session.
+    pub fn is_read_only(&self) -> bool {
+        self.unreadable.is_some()
     }
 
     /// The skins in My Hangar.
@@ -161,8 +178,13 @@ impl LibraryStore {
     /// Runs `change` on a copy of the index. When it succeeds and the copy differs, the copy is
     /// written (atomically) and becomes the index; when it fails or the write fails, the file
     /// changes it recorded in the journal are undone and the index stays as it was. Changes are
-    /// serialized: one at a time.
+    /// serialized: one at a time. A read-only store (see the module doc) refuses every change
+    /// with `io` before running it: a change may touch the disk (move folders, delete backups)
+    /// and only the real index, which couldn't be read, knows what those folders are.
     pub fn transact<T>(&self, change: impl FnOnce(&mut Library, &mut Journal) -> AppResult<T>) -> AppResult<T> {
+        if let Some(unreadable) = &self.unreadable {
+            return Err(unreadable.error());
+        }
         let mut guard = self.lock();
         let mut next = guard.clone();
         let mut journal = Journal::default();
@@ -257,14 +279,15 @@ fn folder_positions(skins: &[HangarSkin]) -> HashMap<String, usize> {
     map
 }
 
-fn read_index(path: &Path) -> Library {
+/// The stored index, or why the file that is there can't be read (see the module doc).
+fn read_index(path: &Path) -> Result<Library, UnreadableFile> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Library::default(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Library::default()),
         Err(e) => {
-            tracing::warn!(error = %e, "cannot read the library index; starting empty");
+            tracing::warn!(error = %e, "cannot read the library index; starting empty, read-only this session");
             tracing::debug!(path = %path.display(), "library index");
-            return Library::default();
+            return Err(UnreadableFile::new(path, &e));
         }
     };
     let text = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&bytes);
@@ -273,7 +296,7 @@ fn read_index(path: &Path) -> Library {
         Err(e) => {
             tracing::warn!(error = %e, "library index is corrupt; set aside as library.json.bad");
             let _ = fs::rename(path, bad_path(path));
-            return Library::default();
+            return Ok(Library::default());
         }
     };
     if index.version > INDEX_VERSION {
@@ -291,7 +314,7 @@ fn read_index(path: &Path) -> Library {
         .active_collection_id
         .and_then(|v| v.as_str().map(str::to_owned))
         .filter(|id| collections.iter().any(|c| &c.id == id));
-    Library { skins, collections, active_collection_id, backups }
+    Ok(Library { skins, collections, active_collection_id, backups })
 }
 
 /// The entries of one list that parse; the others are counted in `dropped`.

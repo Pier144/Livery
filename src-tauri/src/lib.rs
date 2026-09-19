@@ -9,8 +9,10 @@ pub mod backup;
 pub mod error;
 pub mod game;
 pub mod library;
+pub mod logging;
 pub mod model;
 pub mod settings;
+pub mod startup;
 pub mod textures;
 pub mod watch;
 pub mod wtlive;
@@ -26,19 +28,29 @@ pub(crate) async fn blocking<T: Send + 'static>(work: impl FnOnce() -> AppResult
 
 use tauri::Manager;
 
-fn init_tracing() {
-    let level = if cfg!(debug_assertions) { tracing::Level::DEBUG } else { tracing::Level::INFO };
-    // `try_init` so a second initialisation (tests, hot restarts) is harmless.
-    let _ = tracing_subscriber::fmt().with_max_level(level).with_target(false).try_init();
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    init_tracing();
+    // First thing: `app_ready` measures the first screen from here.
+    let clock = startup::StartupClock::new();
+    // stdout (debug builds) now; the log file joins once the app data dir is known.
+    logging::init();
     tauri::Builder::default()
+        .manage(clock)
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let data_dir = app.path().app_data_dir()?;
+            let data_dir = startup::resolve_data_dir(std::env::var_os(startup::DATA_DIR_ENV), || {
+                app.path().app_data_dir().map_err(|e| {
+                    AppError::new(ErrorCode::Internal, "The app data folder can't be found").with_detail(e.to_string())
+                })
+            })?;
+            if let Err(e) = logging::attach(&data_dir.path) {
+                tracing::warn!(error = %e, "the log file can't be opened; logging to stdout only");
+            }
+            if data_dir.from_env {
+                tracing::info!("using LIVERY_DATA_DIR");
+            }
+            tracing::debug!(data_dir = %data_dir.path.display(), "app data");
+            let data_dir = data_dir.path;
             let settings = settings::SettingsStore::load(data_dir.join("settings.json"));
             // One library index per game folder; the saved folder's is loaded now, which also
             // migrates a library.json from before per-folder indexes to it.
@@ -53,7 +65,7 @@ pub fn run() {
             // Stale install staging (.livery/partial) from a crash or a closed window goes too.
             archive::purge_on_startup(app.handle());
             watch::start(app.handle());
-            tracing::info!(data_dir = %data_dir.display(), version = env!("CARGO_PKG_VERSION"), "Livery started");
+            tracing::info!(version = env!("CARGO_PKG_VERSION"), "Livery started");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -92,6 +104,7 @@ pub fn run() {
             wtlive::following_set,
             wtlive::following_mark_seen,
             backup::clear_backups,
+            startup::app_ready,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Livery");

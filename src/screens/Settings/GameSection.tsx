@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { errorText } from '@/lib/errors';
 import { baseName } from '@/lib/format';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { useWatchFolder } from '@/queries/queue';
@@ -67,7 +68,7 @@ export function GameSection() {
       const picked = await open({ directory: true, title: t('settings.game.watchPickTitle'), defaultPath: settings.watchFolder });
       path = typeof picked === 'string' ? picked : null;
     } catch (e) {
-      toast(toAppError(e).message);
+      toast(errorText(toAppError(e), t));
       return;
     }
     if (!path) return;
@@ -75,7 +76,7 @@ export function GameSection() {
       // Watching stays on or off as it was; the reply (new settings) lands in the settings query.
       await watchFolder({ path, enabled: settings.autoInstall });
     } catch (e) {
-      toast(toAppError(e).message);
+      toast(errorText(toAppError(e), t));
     }
   };
 

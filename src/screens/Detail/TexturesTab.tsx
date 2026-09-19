@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
+import { errorText } from '@/lib/errors';
 import { call } from '@/lib/tauri';
 import { isOfflineError } from '@/queries/wtlive';
 import { useUi } from '@/store/ui';
@@ -63,7 +64,7 @@ export function TexturesTab({ skin, hangarSkin }: { skin: WtLiveSkin; hangarSkin
         className="px-6 py-10"
         dot={offline}
         title={offline ? t('detail.offline.title') : t('detail.textures.loadFailedTitle')}
-        body={offline ? t('detail.offline.body') : query.error.message}
+        body={offline ? t('detail.offline.body') : errorText(query.error, t)}
         primary={offline ? { label: t('detail.offline.hangar'), onClick: () => go('hangar') } : undefined}
         secondary={{ label: t('common.retry'), onClick: () => void query.refetch() }}
       />

@@ -78,7 +78,8 @@ function ComparePane({ skin, caption, highlight = false }: { skin: WtLiveSkin; c
       {src ? (
         <img src={src} alt="" draggable={false} className="h-full w-full object-contain" />
       ) : (
-        <span aria-hidden className="truncate px-4 font-mono text-mono-data text-ink-4">
+        // ink-3: ink-4 is 4.2–4.5:1 on the stage stripes (docs/a11y.md).
+        <span aria-hidden className="truncate px-4 font-mono text-mono-data text-ink-3">
           {t('detail.gallery.comparePlaceholder', { name: skin.name })}
         </span>
       )}
