@@ -15,7 +15,8 @@ export function Kbd({ children, variant = 'boxed', tone = 'ink3', className }: K
   return (
     <kbd
       className={cn(
-        'font-mono text-[10px] leading-[1.4]',
+        // Line-height `normal` matches the prototype's `font:` shorthand (17px boxed cap).
+        'font-mono text-[10px] leading-[normal]',
         tone === 'ink3' ? 'text-ink-3' : 'text-ink-5',
         variant === 'boxed' && 'rounded-tag border border-line-3 px-[5px] py-px',
         className,

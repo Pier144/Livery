@@ -72,8 +72,6 @@
       "title": "Drop to add to the install queue",
       "formats": "ZIP · RAR · 7Z",
       "analyzing": "Analyzing archive…",
-      "added_one": "Added {{count}} archive to the install queue",
-      "added_other": "Added {{count}} archives to the install queue",
       "unsupported": "Only ZIP, RAR and 7z archives can be added"
     },
     "toasts": {
