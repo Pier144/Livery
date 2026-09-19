@@ -2,7 +2,7 @@
 
 How the Windows installer is built, how to turn on code signing, and how a release goes out. The configuration lives in `src-tauri/tauri.conf.json` (`bundle`), `.github/workflows/release.yml` and `.github/workflows/ci.yml`.
 
-> **No remote yet.** The repository has no git remote, so neither workflow has ever run. Everything below works once the repo is pushed to GitHub (see [First push](#first-push)). Until then, build the installer locally.
+> The repository lives at <https://github.com/Pier144/Livery>. Check the first CI run there before tagging a release.
 
 ## What gets built
 
@@ -133,14 +133,9 @@ A push to a branch with an open pull request runs twice (once per event). Restri
 
 The workflow needs only `GITHUB_TOKEN` with `contents: write` (declared in the workflow). If the repository limits the default token to read-only, the explicit `permissions` block still grants it.
 
-## First push
+## Remote
 
-```bash
-gh repo create <owner>/livery --private --source . --remote origin   # or create it on github.com
-git push -u origin main
-```
-
-Then check that Actions are enabled for the repository, and that the first CI run is green before tagging.
+`origin` is <https://github.com/Pier144/Livery> (`git push -u origin main`). Actions must be enabled for the repository, and the CI run on the commit you tag must be green before you tag it.
 
 ## Decisions
 

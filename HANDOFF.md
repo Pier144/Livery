@@ -22,7 +22,7 @@ Checks at the latest commit: `pnpm typecheck` clean · `pnpm test` 662 passing �
 
 ## Next steps (in order)
 
-1. **Publish the repo.** There is no git remote yet, so `.github/workflows/ci.yml` and `release.yml` have never run. Push, watch CI, then tag `v0.1.0` to get the draft release with the NSIS installer (`docs/release.md`).
+1. **Release.** The repo is <https://github.com/Pier144/Livery> (`origin`). With CI green, tag `v0.1.0` to get the draft release with the NSIS installer (`docs/release.md`), then publish the draft by hand.
 2. **Sign the installer** (needs a certificate or a cloud signing service) and decide the publisher name shown in Apps & features, which is derived as "livery" today, and whether the identifier stays `app.livery.desktop`.
 3. **The M6 acceptance run**: the installer on a clean Windows 11 VM, first run to first installed skin in under 2 minutes. Without archive or WT Live support a user can only install a skin **folder**, so this really wants the approvals below.
 4. **Open a11y decisions** (`docs/a11y.md`): control boundaries under WCAG 1.4.11 (input, chip and secondary-button borders at 1.33–1.38:1; the selected segment of a segmented control at 1.14:1 by fill alone), and the Hangar Active switch whose name ("Active in game") doesn't contain the visible "Inactive". Also confirm First run's future steps moving from ink-5 to ink-4.
@@ -47,7 +47,7 @@ Already approved and in use: `tauri-plugin-dialog`, `winreg`, jsdom/testing-libr
 ## Decisions the author needs to make (not dependencies)
 
 - **Vehicle list source (BUILD_PLAN open decision 3).** `src/data/vehicles.json` is still the 9-vehicle placeholder seed. It feeds the Explore autocomplete and class chips, the palette and the Rust nation/type fallback. Which public datamine should we use, and is its licence OK to ship?
-- **GitHub repo / remote.** There is no git remote. The release workflow and the updater endpoint need one.
+- **Updater endpoint.** The repo exists (<https://github.com/Pier144/Livery>); the updater still needs a public release feed and a signing key before it can be switched on.
 - **WT Live.** Is scraping allowed by its terms? Who captures the saved-HTML fixtures (needs network access)?
 - **Following a vehicle.** The README only designs the author Follow button. The Skin detail now has a small Follow toggle on the VEHICLE row of the side panel (DESIGN_NOTES "M5 · Skin detail · side panel"). Is that OK?
 - **Two WT Live posts in the same folder.** Folders are named `<code>_<author>`, so two different posts by one author for one vehicle clash. The mock installs the second into `<folder> (2)`; the Rust plan applies the conflict policy as in the queue. Which rule should the real pipeline use?
