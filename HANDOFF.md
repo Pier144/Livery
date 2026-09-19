@@ -20,14 +20,22 @@ Checks at the latest commit: `pnpm typecheck` clean · `pnpm test` 662 passing �
 - WT Live can't be reached from the app until an HTTP client is approved. The real app shows the designed offline state everywhere WT Live is involved; the full UI can be seen with `pnpm dev:mock`.
 - Archives (ZIP/RAR/7z), opening links, Start with Windows and updates are shown as unavailable, with a reason, until their crates/plugins are approved.
 
+## Where we stopped (2026-09-20)
+
+The author approved the dependencies: `zip`, `sevenz-rust2` (the maintained fork of `sevenz-rust`), `unrar`, `reqwest` with rustls, `tauri-plugin-opener` and `tauri-plugin-autostart`. They are in the manifests and the crate builds (`3dab278`). `scraper` is **not** needed: WT Live answers JSON, see [docs/wtlive-terms.md](docs/wtlive-terms.md), which also records the posture the author accepted for the network client (JSON endpoints, 1 req/s with backoff, fetch only on a user action, 24 h clearable cache, robots.txt re-checked daily, attribution, a kill switch, never `market.gaijin.net`, the app stays free).
+
+A workflow for the archive support and the plugin wiring was **stopped mid-run**. Its partial output is saved on the branch `wip/m4-archives-plugins` (do not merge: `pnpm typecheck` fails there, an i18n key rename is half applied). `main` is back at `3dab278` and green. Re-run that work from the saved script, or write it again from the two specs in this file's history; then comes the WT Live client.
+
 ## Next steps (in order)
 
-1. **Release.** The repo is <https://github.com/Pier144/Livery> (`origin`). With CI green, tag `v0.1.0` to get the draft release with the NSIS installer (`docs/release.md`), then publish the draft by hand.
-2. **Sign the installer** (needs a certificate or a cloud signing service) and decide the publisher name shown in Apps & features, which is derived as "livery" today, and whether the identifier stays `app.livery.desktop`.
-3. **The M6 acceptance run**: the installer on a clean Windows 11 VM, first run to first installed skin in under 2 minutes. Without archive or WT Live support a user can only install a skin **folder**, so this really wants the approvals below.
-4. **Open a11y decisions** (`docs/a11y.md`): control boundaries under WCAG 1.4.11 (input, chip and secondary-button borders at 1.33–1.38:1; the selected segment of a segmented control at 1.14:1 by fill alone), and the Hangar Active switch whose name ("Active in game") doesn't contain the visible "Inactive". Also confirm First run's future steps moving from ink-5 to ink-4.
-5. **When the author approves dependencies** (below), implement what they unlock. The seams are ready: `WtLiveClient` + `Parser` (module doc in `src-tauri/src/wtlive/mod.rs`), `archive::SkinSource`, and the unavailable controls in Settings.
-6. **Nice to have, not blocking:** real de/ru/fr translations (the files hold English today); a `readOnly` flag on `get_settings` so the shell can explain an unreadable settings file instead of opening First run; storing the error code alongside queue rows and WT Live install failures so unknown messages fall back to the localized generic text; aligning the mock's own error messages with the Rust ones.
+1. **Archives and plugins** (dependencies approved, nothing written yet on `main`): ZIP/7z/RAR in the install queue with zip-slip, symlink, archive-bomb and encrypted-archive guards; ZIP export; "Open original post", the About links and "Show in Explorer" through the opener; a working "Start with Windows".
+2. **WT Live client** with the posture above (`src-tauri/src/wtlive/`, the `WtLiveClient` seam is ready; fixtures become saved JSON, not saved HTML).
+3. **Release.** The repo is <https://github.com/Pier144/Livery> (`origin`). With CI green, tag `v0.1.0` to get the draft release with the NSIS installer (`docs/release.md`), then publish the draft by hand.
+4. **Sign the installer** (needs a certificate or a cloud signing service) and decide the publisher name shown in Apps & features, which is derived as "livery" today, and whether the identifier stays `app.livery.desktop`.
+5. **The M6 acceptance run**: the installer on a clean Windows 11 VM, first run to first installed skin in under 2 minutes. Without archive or WT Live support a user can only install a skin **folder**, so this really wants the approvals below.
+6. **Open a11y decisions** (`docs/a11y.md`): control boundaries under WCAG 1.4.11 (input, chip and secondary-button borders at 1.33–1.38:1; the selected segment of a segmented control at 1.14:1 by fill alone), and the Hangar Active switch whose name ("Active in game") doesn't contain the visible "Inactive". Also confirm First run's future steps moving from ink-5 to ink-4.
+7. **Updater**: the only dependency still unapproved (it also needs a signing key and a public release feed).
+8. **Nice to have, not blocking:** real de/ru/fr translations (the files hold English today); a `readOnly` flag on `get_settings` so the shell can explain an unreadable settings file instead of opening First run; storing the error code alongside queue rows and WT Live install failures so unknown messages fall back to the localized generic text; aligning the mock's own error messages with the Rust ones.
 
 ## Pending dependency approvals (ask the author; CLAUDE.md requires it)
 
