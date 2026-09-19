@@ -39,9 +39,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
-            app.manage(settings::SettingsStore::load(data_dir.join("settings.json")));
-            app.manage(library::LibraryStore::load(data_dir.join("library.json")));
+            let settings = settings::SettingsStore::load(data_dir.join("settings.json"));
+            // One library index per game folder; the saved folder's is loaded now, which also
+            // migrates a library.json from before per-folder indexes to it.
+            let libraries = library::Libraries::new(&data_dir);
+            libraries.for_settings(&settings.get());
+            app.manage(settings);
+            app.manage(libraries);
             app.manage(archive::QueueStore::default());
+            app.manage(wtlive::WtLive::load(&data_dir));
             // Expired and ephemeral backups go away at launch, not only on the first library command.
             backup::purge_on_startup(app.handle());
             // Stale install staging (.livery/partial) from a crash or a closed window goes too.

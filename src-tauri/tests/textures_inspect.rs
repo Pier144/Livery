@@ -79,7 +79,11 @@ fn texture(file: &str, width: u32, height: u32, format: &str, size: u64, warning
         format: Some(format.to_owned()),
         size_bytes: Some(size),
         warning_kind: warning.as_deref().map(|w| {
-            if w == NOT_SQUARE_POW2_WARNING { TextureWarningKind::NotSquarePow2 } else { TextureWarningKind::Heavy }
+            if w == NOT_SQUARE_POW2_WARNING {
+                TextureWarningKind::NotSquarePow2
+            } else {
+                TextureWarningKind::Heavy
+            }
         }),
         warning,
         missing: false,

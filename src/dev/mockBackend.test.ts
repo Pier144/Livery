@@ -7,13 +7,17 @@ import {
   type CollectionsState,
   type DeleteResult,
   type DetectEvent,
+  type FollowEntry,
   type GameDetection,
   type HangarSkin,
   type InstallProgress,
   type InstallStarted,
+  type NetStatus,
   type QueueItem,
+  type SearchResult,
   type Settings,
   type TextureInfo,
+  type WtLiveSkin,
 } from '@/types';
 import {
   configureMockBackend,
@@ -23,7 +27,10 @@ import {
   mockListen,
   resetMockBackend,
 } from './mockBackend';
-import { MOCK_DOWNLOADS, MOCK_GAME } from './mockData';
+import { FOLLOWING_SEEN_AT, MOCK_DOWNLOADS, MOCK_GAME } from './mockData';
+
+const MB = 1024 * 1024;
+const KB = 1024;
 
 const call = <T>(cmd: string, args: Record<string, unknown> = {}) => mockCall<T>(cmd, args);
 
@@ -69,6 +76,21 @@ async function install(args: Record<string, unknown>): Promise<{ started: Instal
 
 const queued = async (id: string) => (await call<QueueItem[]>('list_queue')).find((q) => q.id === id);
 
+/** Starts a WT Live install and waits for its last progress event. */
+async function installWt(args: Record<string, unknown>): Promise<{ started: InstallStarted; events: InstallProgress[] }> {
+  let installId: string | undefined;
+  const ended = progressUntilEnd(() => installId);
+  const started = await call<InstallStarted>('install_from_wtlive', args);
+  installId = started.installId;
+  return { started, events: await ended };
+}
+
+/** `wtlive_search` with the defaults the Explore screen starts with. */
+const search = (params: Record<string, unknown> = {}) =>
+  call<SearchResult>('wtlive_search', { params: { sort: 'downloads', page: 0, ...params } });
+const postIds = (result: SearchResult) => result.items.map((s) => s.id);
+const hangarSkin = async (id: string | undefined) => (await call<HangarSkin[]>('get_hangar')).find((s) => s.id === id);
+
 beforeEach(() => {
   window.history.replaceState(null, '', '/');
   configureMockBackend({ latency: [0, 0], timeScale: 0 });
@@ -76,11 +98,16 @@ beforeEach(() => {
 });
 
 describe('mock backend · start-up', () => {
-  it('starts on First run with the prototype hangar and collections', async () => {
+  it('starts on First run with the prototype hangar and collections for the first game folder', async () => {
     const settings = await call<Settings>('get_settings');
     expect(settings).toMatchObject({ onboarded: false, backups: true, backupDays: 30 });
     expect(settings.gamePath).toBeUndefined();
+    // No game folder yet: no library to show (the real app has no index for "no folder").
+    expect(await call('get_hangar')).toEqual([]);
+    expect(await call('collections_list')).toEqual({ collections: [] });
+    expect(await call('list_backups')).toEqual([]);
 
+    await onboard();
     const hangar = await call<HangarSkin[]>('get_hangar');
     expect(hangar).toHaveLength(12);
     expect(hangar.filter((s) => !s.active).map((s) => s.id)).toEqual(['h3', 'h7', 'h9']);
@@ -106,6 +133,15 @@ describe('mock backend · start-up', () => {
 
   it('rejects unknown commands with noBackend', async () => {
     expect(await rejection(call('install_skin'))).toMatchObject({ code: 'noBackend' });
+  });
+
+  it('keeps reduceMotion (system by default) and accepts it in set_settings', async () => {
+    expect((await call<Settings>('get_settings')).reduceMotion).toBe('system');
+    expect((await call<Settings>('set_settings', { patch: { reduceMotion: 'on' } })).reduceMotion).toBe('on');
+    expect(await rejection(call('set_settings', { patch: { reduceMotion: 'sometimes' } }))).toMatchObject({
+      code: 'internal',
+    });
+    expect((await call<Settings>('get_settings')).reduceMotion).toBe('on');
   });
 });
 
@@ -219,6 +255,19 @@ describe('mock backend · hangar', () => {
 describe('mock backend · collections', () => {
   beforeEach(onboard);
 
+  it('need a game folder to change', async () => {
+    window.history.replaceState(null, '', '/');
+    resetMockBackend();
+    const noFolder = { code: 'invalidInput', message: 'No game folder set' };
+    expect(await rejection(call('collections_create', { name: 'Night' }))).toEqual(noFolder);
+    expect(await rejection(call('collections_update', { id: 'c1', name: 'x' }))).toEqual(noFolder);
+    expect(await rejection(call('collections_delete', { id: 'c1' }))).toEqual(noFolder);
+    expect(await rejection(call('collections_set_skins', { id: 'c1', add: [], remove: [] }))).toEqual(noFolder);
+    expect(await rejection(call('activate_collection', { id: 'c1' }))).toEqual(noFolder);
+    const collection = { id: 'c9', name: 'Back', skinIds: [], createdAt: '2026-09-01T00:00:00Z' };
+    expect(await rejection(call('collections_restore', { collection }))).toEqual(noFolder);
+  });
+
   it('activating a collection makes exactly its skins active', async () => {
     const index = await call<HangarSkin[]>('activate_collection', { id: 'c2' });
     expect(index.filter((s) => s.active).map((s) => s.id).sort()).toEqual(['h5', 'h7', 'h_s4']);
@@ -253,6 +302,88 @@ describe('mock backend · collections', () => {
     const restored = await call<CollectionsState>('collections_restore', { collection: original });
     expect(restored.collections.at(-1)).toMatchObject(original);
     expect(await rejection(call('collections_restore', { collection: original }))).toMatchObject({ code: 'conflict' });
+  });
+});
+
+describe('mock backend · backups', () => {
+  beforeEach(onboard);
+
+  it('clear_backups with ids removes only those; without, every one', async () => {
+    const { backupIds } = await call<DeleteResult>('delete_skins', { ids: ['h1', 'h2'] });
+    const listed = await call<Backup[]>('list_backups');
+    expect(listed).toHaveLength(5);
+    const [first, second] = backupIds;
+    expect(await call('clear_backups', { ids: [first, 'nope'] })).toBeNull();
+    const left = (await call<Backup[]>('list_backups')).map((b) => b.id);
+    expect(left).toHaveLength(4);
+    expect(left).not.toContain(first);
+    expect(left).toContain(second);
+    // h1 is gone for good: it leaves its collections; h2 can still come back.
+    const { collections } = await call<CollectionsState>('collections_list');
+    expect(collections.some((c) => c.skinIds.includes('h1'))).toBe(false);
+    expect(await rejection(call('restore_backups', { backupIds: [first] }))).toMatchObject({ code: 'notFound' });
+
+    expect(await call('clear_backups', { ids: [] })).toBeNull();
+    expect(await call<Backup[]>('list_backups')).toHaveLength(4);
+    expect(await call('clear_backups', { ids: null })).toBeNull();
+    expect(await call<Backup[]>('list_backups')).toEqual([]);
+    expect(await rejection(call('clear_backups', { ids: 'all' }))).toMatchObject({ code: 'internal' });
+  });
+
+  it('clear_backups needs a game folder', async () => {
+    window.history.replaceState(null, '', '/');
+    resetMockBackend();
+    expect(await rejection(call('clear_backups'))).toEqual({ code: 'invalidInput', message: 'No game folder set' });
+  });
+});
+
+describe('mock backend · game folders', () => {
+  const OTHER = 'E:\\Games\\War Thunder';
+
+  it('keeps one library per game folder and brings each back', async () => {
+    await onboard();
+    await call('delete_skins', { ids: ['h1'] });
+    await call<Collection>('collections_create', { name: 'Steam only' });
+    const steam = await call<HangarSkin[]>('get_hangar');
+    const steamCollections = await call<CollectionsState>('collections_list');
+    const steamBackups = await call<Backup[]>('list_backups');
+
+    // Another folder: an empty index, two folders on its disk to import, nothing else.
+    const detection = await call<GameDetection>('set_game_path', { path: OTHER });
+    expect(detection).toMatchObject({ path: OTHER, source: 'custom', existingSkins: 2 });
+    expect(await call('get_hangar')).toEqual([]);
+    expect(await call('collections_list')).toEqual({ collections: [] });
+    expect(await call('list_backups')).toEqual([]);
+    const scanned = await call<HangarSkin[]>('scan_user_skins');
+    expect(scanned.map((s) => s.folder)).toEqual(['Kursk Dust', 'template_bf-109g-6']);
+    const imported = await call<HangarSkin[]>('import_skins', { folders: ['Kursk Dust'] });
+    expect(imported.map((s) => s.folder)).toEqual(['Kursk Dust']);
+
+    // Back to Steam (spelled differently): its library as it was.
+    const back = await call<GameDetection>('set_game_path', { path: `${MOCK_GAME.path.toUpperCase()}\\`, source: 'steam' });
+    expect(back.existingSkins).toBe(MOCK_GAME.existingSkins);
+    expect(await call('get_hangar')).toEqual(steam);
+    expect(await call('collections_list')).toEqual(steamCollections);
+    expect(await call('list_backups')).toEqual(steamBackups);
+
+    // And the other folder kept what was imported there.
+    expect((await call<GameDetection>('set_game_path', { path: `${OTHER}\\UserSkins` })).existingSkins).toBe(2);
+    expect((await call<HangarSkin[]>('get_hangar')).map((s) => s.folder)).toEqual(['Kursk Dust']);
+  });
+
+  it('gives the start-up library to the first folder saved, whichever it is', async () => {
+    await call('set_game_path', { path: OTHER });
+    expect(await call<HangarSkin[]>('get_hangar')).toHaveLength(12);
+    await call('set_game_path', { path: MOCK_GAME.path, source: 'steam' });
+    expect(await call('get_hangar')).toEqual([]);
+  });
+
+  it('follows a game folder saved through set_settings too', async () => {
+    await onboard();
+    await call('set_settings', { patch: { gamePath: OTHER } });
+    expect(await call('get_hangar')).toEqual([]);
+    await call('set_settings', { patch: { gamePath: MOCK_GAME.path } });
+    expect(await call<HangarSkin[]>('get_hangar')).toHaveLength(12);
   });
 });
 
@@ -497,13 +628,20 @@ describe('mock backend · install queue', () => {
       'tracks_c.dds',
       'germ_pzkpfw_VI_ausf_b_tiger_IIH.blk',
     ]);
-    expect(heavy[0]).toMatchObject({ width: 8192, height: 8192, format: 'BC7', warning: expect.stringContaining('8192²') });
+    expect(heavy[0]).toMatchObject({
+      width: 8192,
+      height: 8192,
+      format: 'BC7',
+      warningKind: 'heavy',
+      warning: expect.stringContaining('8192²'),
+    });
     expect(heavy[1]).toEqual({ file: 'hull_n.dds', width: 4096, height: 4096, format: 'BC5', sizeBytes: 22334669 });
     expect(heavy.at(-1)).toEqual({ file: 'germ_pzkpfw_VI_ausf_b_tiger_IIH.blk', format: 'BLK', sizeBytes: 2048 });
 
     const missing = await call<TextureInfo[]>('read_textures', { skinId: 'h3' });
     expect(missing.find((t) => t.file === 'turret_c.dds')).toEqual({
       file: 'turret_c.dds',
+      warningKind: 'missing',
       missing: true,
       warning: 'Referenced in ussr_t_34_85.blk but not in the skin folder.',
     });
@@ -511,7 +649,9 @@ describe('mock backend · install queue', () => {
     const pack = await call<TextureInfo[]>('read_textures', { queueId: 'q3' });
     expect(pack.map((t) => t.file)).toContain('f_4e_Aggressor_Grey/wings_c.dds');
     const air = await call<TextureInfo[]>('read_textures', { queueId: 'q2' });
-    expect(air.find((t) => t.file === 'cockpit_c.tga')).toMatchObject({ missing: true });
+    expect(air.find((t) => t.file === 'cockpit_c.tga')).toMatchObject({ missing: true, warningKind: 'missing' });
+    // Rows without a warning carry no kind either.
+    expect(air.filter((t) => !t.warning).every((t) => !('warningKind' in t))).toBe(true);
 
     expect(await rejection(call('read_textures'))).toMatchObject({ code: 'invalidInput' });
     expect(await rejection(call('read_textures', { skinId: 'h1', queueId: 'q2' }))).toMatchObject({
@@ -583,5 +723,546 @@ describe('mock backend · watching', () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(added).toEqual([]);
     expect(await call<QueueItem[]>('list_queue')).toHaveLength(3);
+  });
+});
+
+describe('mock backend · WT Live search', () => {
+  it('lists the prototype catalog, most downloaded first, with its count and time', async () => {
+    const result = await search();
+    expect(result).toMatchObject({ total: 16, tookMs: 28 });
+    expect(postIds(result)).toEqual([
+      's4', 's9', 's3', 's6', 's1', 's8', 's16', 's14', 's2', 's7', 's13', 's11', 's10', 's15', 's12', 's5',
+    ]);
+    expect(result.items.find((s) => s.id === 's1')).toEqual({
+      id: 's1',
+      name: 'Schwarzwald Ambush',
+      vehicle: { code: 'germ_pzkpfw_VI_ausf_b_tiger_IIH', name: 'Tiger II (H)', nation: 'GER', type: 'ground', class: 'Heavy tank' },
+      author: { id: '40318255', name: 'Kessler_Wolf', url: 'https://live.warthunder.com/user/40318255/', skinCount: 14 },
+      category: 'Historical',
+      downloads: 24120,
+      likes: 1932,
+      postedAt: '2026-06-12T17:48:09Z',
+      sizeBytes: 48 * MB + 407 * KB,
+      images: [],
+      postUrl: 'https://live.warthunder.com/post/1043217/en/',
+      downloadUrl: expect.stringMatching(/^https:\/\/live\.warthunder\.com\/dl\/[0-9a-f]+\/$/),
+    });
+    // New from a follow: the prototype's flags. Listings carry no files (the post does).
+    expect(result.items.filter((s) => s.isNew).map((s) => s.id)).toEqual(['s14', 's11', 's12', 's5']);
+    expect(result.items.some((s) => 'files' in s || ('isNew' in s && s.isNew !== true))).toBe(false);
+    expect(result.items.every((s) => s.author.skinCount !== undefined)).toBe(true);
+  });
+
+  it('combines filters (AND); q matches the skin, vehicle or author name', async () => {
+    expect(postIds(await search({ nation: 'GER', type: 'ground' }))).toEqual(['s4', 's1', 's14', 's13', 's11']);
+    const combined = await search({ nation: 'GER', type: 'ground', category: 'Historical' });
+    expect(combined).toMatchObject({ total: 3, tookMs: 15 });
+    expect(postIds(combined)).toEqual(['s4', 's1', 's14']);
+    expect(postIds(await search({ q: '  KESSLER ' }))).toEqual(['s4', 's1', 's14']);
+    expect(postIds(await search({ q: 'phantom' }))).toEqual(['s6', 's12']);
+    expect(postIds(await search({ q: 'winter' }))).toEqual(['s14', 's2']);
+    expect(postIds(await search({ class: 'fighter', type: 'air' }))).toEqual(['s9', 's8', 's16', 's7', 's15']);
+    expect(postIds(await search({ vehicle: 'su_27' }))).toEqual(['s9', 's16']);
+    // A vehicle code, not a prefix.
+    expect(postIds(await search({ vehicle: 'su_2' }))).toEqual([]);
+    expect(await search({ nation: 'ITA', category: 'Historical' })).toEqual({ items: [], total: 0, tookMs: 12 });
+    // Null or blank means any, like serde's Option.
+    expect((await search({ nation: null, q: '  ', class: null })).total).toBe(16);
+  });
+
+  it('sorts by likes, newest or name, and pages by 60', async () => {
+    expect(postIds(await search({ sort: 'likes' })).slice(0, 3)).toEqual(['s4', 's9', 's3']);
+    expect(postIds(await search({ sort: 'newest' })).slice(0, 5)).toEqual(['s14', 's11', 's12', 's5', 's10']);
+    const byName = await search({ sort: 'name' });
+    expect(byName.items.map((s) => s.name).slice(0, 3)).toEqual(['Ace of Spades', 'Baltic Winter', 'Bundeswehr Flecktarn']);
+    expect(byName.items.at(-1)?.name).toBe("Winter '44 Whitewash");
+    expect(await search({ page: 1 })).toEqual({ items: [], total: 16, tookMs: 12 });
+  });
+
+  it('?many=1 has 1,284 posts to page through', async () => {
+    window.history.replaceState(null, '', '/?many=1');
+    resetMockBackend();
+    const first = await search();
+    expect(first).toMatchObject({ total: 1284, tookMs: 72 });
+    expect(first.items).toHaveLength(60);
+    const seen = new Set<string>();
+    for (let page = 0; page < 22; page += 1) postIds(await search({ page })).forEach((id) => seen.add(id));
+    expect(seen.size).toBe(1284);
+    expect((await search({ page: 21 })).items).toHaveLength(24);
+    expect((await search({ page: 22 })).items).toEqual([]);
+    for (const category of ['Camouflage', 'Other']) expect((await search({ category })).total).toBeGreaterThan(0);
+  });
+
+  it('rejects malformed params like serde', async () => {
+    const malformed: unknown[] = [
+      undefined,
+      { page: 0 },
+      { sort: 'popular', page: 0 },
+      { sort: 'name', page: -1 },
+      { sort: 'name', page: 1.5 },
+      { sort: 'name', page: 0, nation: 'Germany' },
+      { sort: 'name', page: 0, type: 'tank' },
+      { sort: 'name', page: 0, category: 'historical' },
+      { sort: 'name', page: 0, q: 3 },
+    ];
+    for (const params of malformed) {
+      expect(await rejection(call('wtlive_search', { params }))).toEqual({
+        code: 'internal',
+        message: 'invalid args `params` for command `wtlive_search`',
+      });
+    }
+  });
+
+  it('answers a post with the files in its archive', async () => {
+    const post = await call<WtLiveSkin>('wtlive_post', { id: 's6' });
+    expect(post).toMatchObject({ id: 's6', name: 'SEA Camo, 388th TFW', images: [] });
+    expect(post.files?.map((f) => f.path)).toEqual([
+      'fuselage_c.dds',
+      'fuselage_n.dds',
+      'wings_c.dds',
+      'cockpit_c.tga',
+      'f_4e.blk',
+      'preview.jpg',
+    ]);
+    const s5 = await call<WtLiveSkin>('wtlive_post', { id: 's5' });
+    expect(s5.isNew).toBe(true);
+    expect(s5.files?.map((f) => f.path)).not.toContain('turret_n.dds');
+    expect(await rejection(call('wtlive_post', { id: 's99' }))).toEqual({
+      code: 'notFound',
+      message: 'This skin is no longer on WT Live',
+      detail: 's99',
+    });
+    expect((await call<WtLiveSkin>('wtlive_post', { id: ' s6 ' })).id).toBe('s6');
+  });
+
+  it('rejects a blank WT Live id first, and that says nothing about reaching WT Live', async () => {
+    const statuses: NetStatus[] = [];
+    mockListen<NetStatus>(EVENTS.netStatus, (s) => statuses.push(s));
+    const blank = { code: 'invalidInput', message: 'Pass the id of a WT Live skin' };
+    expect(await rejection(call('wtlive_post', { id: ' ' }))).toEqual(blank);
+    expect(await rejection(call('install_from_wtlive', { skinId: '', mode: 'normal' }))).toEqual(blank);
+    expect(await rejection(call('read_textures', { wtliveId: '' }))).toEqual(blank);
+    expect(await rejection(call('finalize_try', { skinId: ' ', keep: false }))).toEqual(blank);
+    // Neither does an unknown post.
+    expect(await rejection(call('wtlive_post', { id: 's99' }))).toMatchObject({ code: 'notFound' });
+    expect(statuses).toEqual([]);
+  });
+
+  it("reads a post's textures like the prototype Textures tab", async () => {
+    const s3 = await call<TextureInfo[]>('read_textures', { wtliveId: 's3' });
+    expect(s3.map((t) => t.file)).toEqual([
+      'hull_c.dds',
+      'hull_n.dds',
+      'turret_c.dds',
+      'turret_n.dds',
+      'tracks_c.dds',
+      'us_m1a2_sep.blk',
+    ]);
+    expect(s3[0]).toEqual({
+      file: 'hull_c.dds',
+      width: 8192,
+      height: 8192,
+      format: 'BC7',
+      sizeBytes: Math.round(85.3 * MB),
+      warningKind: 'heavy',
+      warning: 'Very heavy texture (8192²). Load times may suffer.',
+    });
+    const s5 = await call<TextureInfo[]>('read_textures', { wtliveId: 's5' });
+    expect(s5[3]).toEqual({
+      file: 'turret_n.dds',
+      warningKind: 'missing',
+      warning: 'Referenced in it_c1_ariete.blk but not in the archive.',
+      missing: true,
+    });
+    expect(s5.filter((t) => t.warningKind)).toHaveLength(1);
+    const s8 = await call<TextureInfo[]>('read_textures', { wtliveId: 's8' });
+    expect(s8.at(-1)).toEqual({ file: 'spitfire_mk9c.blk', format: 'BLK', sizeBytes: 2048 });
+    expect(s8.some((t) => t.warning || t.warningKind)).toBe(false);
+    expect(await rejection(call('read_textures', { wtliveId: 's99' }))).toMatchObject({ code: 'notFound' });
+    expect(await rejection(call('read_textures', { wtliveId: 's3', skinId: 'h1' }))).toEqual({
+      code: 'invalidInput',
+      message: 'Pass exactly one of a skin id, a queue id or a WT Live id',
+    });
+  });
+});
+
+describe('mock backend · following', () => {
+  it('seeds the prototype follows and answers their new posts', async () => {
+    const following = await call<FollowEntry[]>('following_list');
+    expect(following).toEqual([
+      { kind: 'vehicle', id: 'germ_leopard_2a6', name: 'Leopard 2A6', lastSeenAt: FOLLOWING_SEEN_AT },
+      { kind: 'author', id: '40318255', name: 'Kessler_Wolf', lastSeenAt: FOLLOWING_SEEN_AT },
+      { kind: 'author', id: '61240877', name: 'Skyhook_Dan', lastSeenAt: FOLLOWING_SEEN_AT },
+      { kind: 'vehicle', id: 'spitfire_mk9c', name: 'Spitfire Mk IX', lastSeenAt: FOLLOWING_SEEN_AT },
+    ]);
+    const fresh = await call<WtLiveSkin[]>('wtlive_following_new', {
+      vehicles: ['germ_leopard_2a6', 'spitfire_mk9c'],
+      authors: ['40318255', '61240877'],
+    });
+    expect(fresh.map((s) => s.id)).toEqual(['s14', 's11', 's12']);
+    // The prototype's "N new" per follow: its new posts since it was last seen.
+    const newFor = (f: FollowEntry) =>
+      fresh.filter((s) => (f.kind === 'vehicle' ? s.vehicle.code : s.author.id) === f.id && s.postedAt > f.lastSeenAt).length;
+    expect(following.map(newFor)).toEqual([2, 1, 1, 0]);
+    expect(fresh.every((s) => s.isNew)).toBe(true);
+    expect(fresh.find((s) => s.id === 's14')?.author.skinCount).toBe(14);
+    expect(await call('wtlive_following_new', { vehicles: [], authors: [] })).toEqual([]);
+    // Ids that aren't followed are left out, even with new posts (Tricolore Parade).
+    expect(await call('wtlive_following_new', { vehicles: ['it_c1_ariete'], authors: ['83316042'] })).toEqual([]);
+    // Each entry counts from its own lastSeenAt: once seen, nothing is new.
+    await call('following_mark_seen');
+    expect(
+      await call('wtlive_following_new', { vehicles: ['germ_leopard_2a6'], authors: ['40318255', '61240877'] }),
+    ).toEqual([]);
+  });
+
+  it('follows, unfollows and marks everything seen', async () => {
+    const added = await call<FollowEntry[]>('following_set', {
+      kind: 'author',
+      id: '83316042',
+      name: ' Vesuvio_Skins ',
+      follow: true,
+    });
+    expect(added).toHaveLength(5);
+    expect(added.at(-1)).toMatchObject({ kind: 'author', id: '83316042', name: 'Vesuvio_Skins' });
+    expect(Date.parse(added.at(-1)?.lastSeenAt ?? '')).toBeGreaterThan(Date.parse(FOLLOWING_SEEN_AT));
+    // Following again only refreshes the name; unfollowing something not followed changes nothing.
+    expect(await call('following_set', { kind: 'author', id: '83316042', name: 'Vesuvio_Skins', follow: true })).toEqual(added);
+    const renamed = await call<FollowEntry[]>('following_set', { kind: 'author', id: '83316042', name: 'Vesuvio', follow: true });
+    expect(renamed.at(-1)).toEqual({ ...added.at(-1), name: 'Vesuvio' });
+    const removed = await call<FollowEntry[]>('following_set', {
+      kind: 'vehicle',
+      id: 'spitfire_mk9c',
+      name: 'Spitfire Mk IX',
+      follow: false,
+    });
+    expect(removed.map((f) => f.id)).toEqual(['germ_leopard_2a6', '40318255', '61240877', '83316042']);
+    // A vehicle and an author are different follows even with the same id.
+    expect(await call('following_set', { kind: 'author', id: 'germ_leopard_2a6', name: 'x', follow: false })).toEqual(removed);
+    expect(await rejection(call('following_set', { kind: 'squad', id: 'x', name: 'x', follow: true }))).toMatchObject({
+      code: 'internal',
+    });
+    expect(await rejection(call('following_set', { kind: 'vehicle', id: ' ', name: 'x', follow: true }))).toEqual({
+      code: 'invalidInput',
+      message: 'Pass the id of the vehicle or author to follow',
+    });
+    expect(await rejection(call('following_set', { kind: 'vehicle', id: 'su_27', name: ' ', follow: true }))).toEqual({
+      code: 'invalidInput',
+      message: 'Pass the name of the vehicle or author to follow',
+    });
+
+    const seen = await call<FollowEntry[]>('following_mark_seen');
+    expect(seen).toHaveLength(4);
+    expect(new Set(seen.map((f) => f.lastSeenAt)).size).toBe(1);
+    expect(Date.parse(seen[0]?.lastSeenAt ?? '')).toBeGreaterThan(Date.parse(FOLLOWING_SEEN_AT));
+    expect(await call('following_list')).toEqual(seen);
+  });
+
+  it('trims id and name, and following again keeps lastSeenAt', async () => {
+    const list = await call<FollowEntry[]>('following_set', {
+      kind: 'vehicle',
+      id: ' germ_leopard_2a6 ',
+      name: ' Leopard 2A6 (renamed) ',
+      follow: true,
+    });
+    expect(list).toHaveLength(4);
+    expect(list[0]).toEqual({
+      kind: 'vehicle',
+      id: 'germ_leopard_2a6',
+      name: 'Leopard 2A6 (renamed)',
+      lastSeenAt: FOLLOWING_SEEN_AT,
+    });
+    const off = await call<FollowEntry[]>('following_set', {
+      kind: 'vehicle',
+      id: 'germ_leopard_2a6 ',
+      name: 'x',
+      follow: false,
+    });
+    expect(off.map((f) => f.id)).not.toContain('germ_leopard_2a6');
+  });
+
+  it('Undo of an unfollow: lastSeenAt brings the entry back exactly', async () => {
+    const before = await call<FollowEntry[]>('following_list');
+    const [leopard] = before;
+    if (!leopard) throw new Error('seeded follows');
+    await call('following_set', { ...leopard, follow: false });
+    const undone = await call<FollowEntry[]>('following_set', { ...leopard, follow: true });
+    expect(undone.at(-1)).toEqual(leopard);
+    // The "N new" count is back: the posts after the old lastSeenAt are new again.
+    const fresh = await call<WtLiveSkin[]>('wtlive_following_new', { vehicles: [leopard.id], authors: [] });
+    expect(fresh).toHaveLength(2);
+
+    // It also replaces the lastSeenAt of an entry already followed, and a new one takes it as given.
+    const moved = await call<FollowEntry[]>('following_set', {
+      ...leopard,
+      lastSeenAt: ' 2026-01-01T00:00:00.5+01:00 ',
+      follow: true,
+    });
+    expect(moved.at(-1)?.lastSeenAt).toBe('2026-01-01T00:00:00.5+01:00');
+    const added = await call<FollowEntry[]>('following_set', {
+      kind: 'author',
+      id: 'a-new',
+      name: 'New',
+      follow: true,
+      lastSeenAt: '2026-02-28T00:00:00Z',
+    });
+    expect(added.at(-1)).toEqual({ kind: 'author', id: 'a-new', name: 'New', lastSeenAt: '2026-02-28T00:00:00Z' });
+    const again = { kind: 'author', id: 'a-new', name: 'New', follow: true, lastSeenAt: null };
+    expect(await call('following_set', again)).toEqual(added);
+  });
+
+  it('refuses a lastSeenAt that is not RFC 3339, even with an unfollow', async () => {
+    const before = await call<FollowEntry[]>('following_list');
+    const follow = (lastSeenAt: unknown, more: Record<string, unknown> = {}) =>
+      rejection(call('following_set', { kind: 'author', id: 'a1', name: 'A', follow: true, lastSeenAt, ...more }));
+    for (const bad of ['', 'yesterday', '2026-02-29T00:00:00Z', '2026-09-19', '2026-09-19T25:00:00Z']) {
+      expect(await follow(bad)).toEqual({ code: 'invalidInput', message: 'Not an RFC 3339 time', detail: bad });
+    }
+    const unfollow = { kind: 'vehicle', id: 'germ_leopard_2a6', follow: false };
+    expect(await follow('soon', unfollow)).toMatchObject({ code: 'invalidInput', message: 'Not an RFC 3339 time' });
+    // A blank id is reported first.
+    expect(await follow('soon', { id: ' ' })).toMatchObject({ message: 'Pass the id of the vehicle or author to follow' });
+    expect(await follow(7)).toMatchObject({ code: 'internal' });
+    expect(await call('following_list')).toEqual(before);
+  });
+
+  it('follows nothing with ?empty=1, while WT Live keeps its catalog', async () => {
+    window.history.replaceState(null, '', '/?empty=1');
+    resetMockBackend();
+    expect(await call('following_list')).toEqual([]);
+    expect((await search()).total).toBe(16);
+  });
+});
+
+describe('mock backend · WT Live installs', () => {
+  beforeEach(onboard);
+
+  it('answers at once, then walks download → extract → verify → done into the hangar', async () => {
+    const { started, events } = await installWt({ skinId: 's1', mode: 'normal' });
+    expect(events[0]).toEqual({ installId: started.installId, step: 'download', pct: 0 });
+    expect(events.map((e) => e.step)).toEqual([
+      ...Array<string>(6).fill('download'),
+      ...Array<string>(3).fill('extract'),
+      ...Array<string>(3).fill('verify'),
+      'done',
+    ]);
+    const pcts = events.map((e) => e.pct);
+    expect(pcts).toEqual([...pcts].sort((a, b) => a - b));
+    const lastOf = (step: string) => events.filter((e) => e.step === step).at(-1)?.pct;
+    expect([lastOf('download'), lastOf('extract'), lastOf('verify')]).toEqual([40, 75, 96]);
+    const done = events.at(-1);
+    expect(done).toEqual({ installId: started.installId, step: 'done', pct: 100, skinId: expect.any(String) });
+
+    const post = await call<WtLiveSkin>('wtlive_post', { id: 's1' });
+    const skin = await hangarSkin(done?.skinId);
+    expect(skin).toMatchObject({
+      folder: 'germ_pzkpfw_VI_ausf_b_tiger_IIH_Kessler_Wolf',
+      name: 'Schwarzwald Ambush',
+      origin: 'wtlive',
+      sourceId: 's1',
+      author: post.author,
+      vehicle: post.vehicle,
+      sizeBytes: post.sizeBytes,
+      active: true,
+    });
+    expect(skin).not.toHaveProperty('temporary');
+    expect(skin).not.toHaveProperty('attention');
+    expect(await call<HangarSkin[]>('get_hangar')).toHaveLength(13);
+    expect(await call('read_textures', { skinId: skin?.id })).toEqual(await call('read_textures', { wtliveId: 's1' }));
+  });
+
+  it('takes about 3 s, and a post installs once at a time', async () => {
+    configureMockBackend({ timeScale: 1 });
+    vi.useFakeTimers();
+    try {
+      const seen: InstallProgress[] = [];
+      mockListen<InstallProgress>(EVENTS.installProgress, (p) => seen.push(p));
+      await call<InstallStarted>('install_from_wtlive', { skinId: 's9', mode: 'normal' });
+      expect(await rejection(call('install_from_wtlive', { skinId: 's9', mode: 'temporary' }))).toMatchObject({
+        code: 'invalidInput',
+      });
+      await vi.advanceTimersByTimeAsync(2900);
+      expect(seen.at(-1)).toMatchObject({ step: 'verify', pct: 96 });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(seen.at(-1)).toMatchObject({ step: 'done', pct: 100 });
+      // Installed now: another install is a conflict.
+      expect(await rejection(call('install_from_wtlive', { skinId: 's9', mode: 'normal' }))).toMatchObject({
+        code: 'conflict',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("goes to \"<folder> (2)\" when another post's skin has the folder", async () => {
+    const { events } = await installWt({ skinId: 's14', mode: 'normal' });
+    expect(await hangarSkin(events.at(-1)?.skinId)).toMatchObject({
+      folder: 'germ_leopard_2a6_Kessler_Wolf (2)',
+      name: 'Baltic Winter',
+      sourceId: 's14',
+    });
+    expect(await hangarSkin('h_s4')).toMatchObject({ folder: 'germ_leopard_2a6_Kessler_Wolf', name: 'Bundeswehr Flecktarn' });
+  });
+
+  it('settles an installed post like the queue: ask rejects, skip, copy, replace with undo', async () => {
+    expect(await rejection(call('install_from_wtlive', { skinId: 's4', mode: 'normal' }))).toEqual({
+      code: 'conflict',
+      message: 'This skin is already installed',
+      detail: 'germ_leopard_2a6_Kessler_Wolf',
+    });
+    expect(await rejection(call('install_from_wtlive', { skinId: 's4', mode: 'temporary', conflict: 'ask' }))).toMatchObject({
+      code: 'conflict',
+    });
+    expect(await call<HangarSkin[]>('get_hangar')).toHaveLength(12);
+
+    const skipped = await installWt({ skinId: 's4', mode: 'normal', conflict: 'skip' });
+    expect(skipped.events).toEqual([expect.objectContaining({ step: 'done', pct: 100, message: 'skipped' })]);
+    expect(skipped.events[0]).not.toHaveProperty('skinId');
+    expect(await call<HangarSkin[]>('get_hangar')).toHaveLength(12);
+
+    const copied = await installWt({ skinId: 's4', mode: 'normal', conflict: 'copy' });
+    expect(await hangarSkin(copied.events.at(-1)?.skinId)).toMatchObject({
+      name: 'Bundeswehr Flecktarn (2)',
+      folder: 'germ_leopard_2a6_Kessler_Wolf (2)',
+      sourceId: 's4',
+    });
+
+    const replaced = await installWt({ skinId: 's6', mode: 'normal', conflict: 'replace' });
+    const done = replaced.events.at(-1);
+    expect(done).toMatchObject({ step: 'done', skinId: 'h_s6', backupId: expect.any(String) });
+    expect((await call<Backup[]>('list_backups'))[0]).toMatchObject({
+      id: done?.backupId,
+      skinId: 'h_s6',
+      name: 'SEA Camo, 388th TFW',
+      reason: 'replace',
+    });
+    const newer = await hangarSkin('h_s6');
+    expect(newer).toMatchObject({ folder: 'f_4e_Skyhook_Dan', sourceId: 's6', origin: 'wtlive' });
+    expect(newer?.installedAt).not.toBe('2026-03-04T19:22:41Z');
+    const restored = await call<HangarSkin>('undo_replace', { skinId: 'h_s6', backupId: done?.backupId });
+    expect(restored).toMatchObject({ id: 'h_s6', folder: 'f_4e_Skyhook_Dan', installedAt: '2026-03-04T19:22:41Z' });
+
+    // Without the argument, Settings → Conflicts decides.
+    await call<Settings>('set_settings', { patch: { conflictPolicy: 'copy' } });
+    const byPolicy = await installWt({ skinId: 's8', mode: 'normal' });
+    expect((await hangarSkin(byPolicy.events.at(-1)?.skinId))?.name).toBe('D-Day Invasion Stripes (2)');
+  });
+
+  it('Try in game installs temporarily, then Keep or Discard', async () => {
+    const tried = await installWt({ skinId: 's3', mode: 'temporary' });
+    const id = tried.events.at(-1)?.skinId;
+    expect(await hangarSkin(id)).toMatchObject({
+      sourceId: 's3',
+      temporary: true,
+      active: true,
+      folder: 'us_m1a2_sep_ironclad_mia',
+    });
+    // Activating a collection leaves the skin being tried in the game.
+    await call('activate_collection', { id: 'c2' });
+    expect((await hangarSkin(id))?.active).toBe(true);
+
+    const kept = await call<HangarSkin>('finalize_try', { skinId: 's3', keep: true });
+    expect(kept).toMatchObject({ id, sourceId: 's3' });
+    expect(kept).not.toHaveProperty('temporary');
+    expect(await hangarSkin(id)).toEqual(kept);
+    expect(await rejection(call('finalize_try', { skinId: 's3', keep: true }))).toMatchObject({ code: 'notFound' });
+
+    // s5 lacks a texture: the scan flags it. Discard leaves nothing behind, not even a backup.
+    const second = await installWt({ skinId: 's5', mode: 'temporary' });
+    const secondId = second.events.at(-1)?.skinId;
+    expect((await hangarSkin(secondId))?.attention).toEqual([
+      { kind: 'missingTexture', message: 'turret_n.dds is missing', file: 'turret_n.dds' },
+    ]);
+    expect(await call('finalize_try', { skinId: 's5', keep: false })).toBeNull();
+    expect((await call<HangarSkin[]>('get_hangar')).some((s) => s.sourceId === 's5')).toBe(false);
+    expect(await call<Backup[]>('list_backups')).toHaveLength(3);
+    expect(await rejection(call('read_textures', { skinId: secondId }))).toMatchObject({ code: 'notFound' });
+  });
+
+  it('Discard puts back the version a Try in game replaced', async () => {
+    const before = await hangarSkin('h_s8');
+    const tried = await installWt({ skinId: 's8', mode: 'temporary', conflict: 'replace' });
+    expect(tried.events.at(-1)).toMatchObject({ skinId: 'h_s8', backupId: expect.any(String) });
+    expect(await hangarSkin('h_s8')).toMatchObject({ temporary: true, sourceId: 's8' });
+    expect(await call('finalize_try', { skinId: 's8', keep: false })).toBeNull();
+    expect(await hangarSkin('h_s8')).toEqual(before);
+    expect(await call<HangarSkin[]>('get_hangar')).toHaveLength(12);
+    expect(await call<Backup[]>('list_backups')).toHaveLength(3);
+  });
+
+  it('a normal install of a post being tried takes over its skin', async () => {
+    const tried = await installWt({ skinId: 's7', mode: 'temporary' });
+    const kept = await installWt({ skinId: 's7', mode: 'normal' });
+    expect(kept.events.at(-1)?.skinId).toBe(tried.events.at(-1)?.skinId);
+    const skins = (await call<HangarSkin[]>('get_hangar')).filter((s) => s.sourceId === 's7');
+    expect(skins).toHaveLength(1);
+    expect(skins[0]).not.toHaveProperty('temporary');
+  });
+
+  it('checks its arguments and needs a game folder', async () => {
+    expect(await rejection(call('install_from_wtlive', { skinId: 's1', mode: 'forever' }))).toMatchObject({
+      code: 'internal',
+    });
+    expect(await rejection(call('install_from_wtlive', { skinId: 's1', mode: 'normal', conflict: 'maybe' }))).toMatchObject({
+      code: 'internal',
+    });
+    expect(await rejection(call('install_from_wtlive', { skinId: 's99', mode: 'normal' }))).toMatchObject({
+      code: 'notFound',
+    });
+    expect(await rejection(call('finalize_try', { skinId: 's1' }))).toMatchObject({ code: 'internal' });
+
+    window.history.replaceState(null, '', '/');
+    resetMockBackend();
+    const noFolder = { code: 'invalidInput', message: 'No game folder set' };
+    expect(await rejection(call('install_from_wtlive', { skinId: 's1', mode: 'normal' }))).toEqual(noFolder);
+    expect(await rejection(call('finalize_try', { skinId: 's1', keep: true }))).toEqual(noFolder);
+  });
+});
+
+describe('mock backend · offline', () => {
+  afterEach(() => localStorage.removeItem('livery.mock.offline'));
+
+  it('?offline=1: WT Live calls reject network, net://status goes offline once, local data works', async () => {
+    window.history.replaceState(null, '', '/?offline=1');
+    resetMockBackend();
+    await onboard();
+    const statuses: NetStatus[] = [];
+    mockListen<NetStatus>(EVENTS.netStatus, (s) => statuses.push(s));
+    const network = { code: 'network', message: "WT Live can't be reached" };
+    expect(await rejection(search())).toEqual(network);
+    expect(await rejection(call('wtlive_post', { id: 's1' }))).toEqual(network);
+    expect(await rejection(call('wtlive_following_new', { vehicles: ['f_4e'], authors: [] }))).toEqual(network);
+    expect(await rejection(call('install_from_wtlive', { skinId: 's1', mode: 'normal' }))).toEqual(network);
+    expect(await rejection(call('read_textures', { wtliveId: 's1' }))).toEqual(network);
+    expect(statuses).toEqual(Array<NetStatus>(5).fill({ online: false }));
+
+    expect(await call<FollowEntry[]>('following_list')).toHaveLength(4);
+    expect(await call<FollowEntry[]>('following_mark_seen')).toHaveLength(4);
+    expect(await call<HangarSkin[]>('get_hangar')).toHaveLength(12);
+    expect(await call<TextureInfo[]>('read_textures', { skinId: 'h1' })).toHaveLength(6);
+  });
+
+  it('reads the localStorage switch on every call and comes back online', async () => {
+    const statuses: NetStatus[] = [];
+    mockListen<NetStatus>(EVENTS.netStatus, (s) => statuses.push(s));
+    expect((await search()).total).toBe(16);
+
+    localStorage.setItem('livery.mock.offline', '1');
+    expect(await rejection(search())).toMatchObject({ code: 'network' });
+    localStorage.removeItem('livery.mock.offline');
+    expect((await search()).total).toBe(16);
+    expect(statuses).toEqual([{ online: true }, { online: false }, { online: true }]);
+  });
+
+  it('works for Try in game offline: finalize_try is local', async () => {
+    await onboard();
+    const tried = await installWt({ skinId: 's2', mode: 'temporary' });
+    localStorage.setItem('livery.mock.offline', '1');
+    const statuses: NetStatus[] = [];
+    mockListen<NetStatus>(EVENTS.netStatus, (s) => statuses.push(s));
+    expect(await call<HangarSkin>('finalize_try', { skinId: 's2', keep: true })).toMatchObject({
+      id: tried.events.at(-1)?.skinId,
+    });
+    expect(statuses).toEqual([]);
   });
 });

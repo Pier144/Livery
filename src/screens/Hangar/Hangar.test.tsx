@@ -6,7 +6,6 @@ import i18n from '@/i18n';
 import { createQueryClient } from '@/queries/client';
 import { COLLECTIONS_KEY } from '@/queries/collections';
 import { HANGAR_KEY } from '@/queries/hangar';
-import { hangarDefaults, useHangarStore } from '@/store/hangar';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
@@ -145,7 +144,6 @@ let restoreLayout: () => void;
 
 beforeEach(() => {
   resetStores();
-  useHangarStore.setState(hangarDefaults());
   backend.call.mockReset();
   backend.open.mockReset();
   installBackend();
@@ -256,8 +254,89 @@ describe('My Hangar', () => {
     expect(JSON.parse(localStorage.getItem('livery.hangar') ?? '{}').state).toEqual({ view: 'list' });
   });
 
+  describe('WT Live skins open their Skin detail', () => {
+    // Ambush and SEA Camo came from WT Live (sourceId); the others are local.
+    const SOURCES: Record<string, string> = { h3: 'wt-ambush', h5: 'wt-sea' };
+    const FROM_WT_LIVE = SKINS.map((s) => (SOURCES[s.id] ? { ...s, sourceId: SOURCES[s.id] } : s));
+    const backToHangar = () => act(() => useUi.getState().go('hangar'));
+
+    it('click and Enter open the page; Space, Ctrl+click, the checkbox and Shift still select', async () => {
+      const user = userEvent.setup();
+      renderHangar(FROM_WT_LIVE);
+      backToHangar();
+
+      await user.click(card('Ambush'));
+      expect(useUi.getState()).toMatchObject({ screen: 'detail', detailSkinId: 'wt-ambush' });
+      expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+      backToHangar();
+
+      card('SEA Camo').focus();
+      await user.keyboard('{Enter}');
+      expect(useUi.getState()).toMatchObject({ screen: 'detail', detailSkinId: 'wt-sea' });
+      backToHangar();
+
+      // Space selects instead of opening.
+      card('SEA Camo').focus();
+      await user.keyboard(' ');
+      expect(useUi.getState().screen).toBe('hangar');
+      expect(screen.getByRole('button', { name: 'SEA Camo' })).toHaveAttribute('aria-pressed', 'true');
+      expect(within(bar()).getByText('1 skin selected')).toBeInTheDocument();
+
+      // Ctrl+click and the checkbox select too.
+      await user.keyboard('{Control>}');
+      await user.click(card('Ambush'));
+      await user.keyboard('{/Control}');
+      expect(useUi.getState().screen).toBe('hangar');
+      expect(within(bar()).getByText('2 skins selected')).toBeInTheDocument();
+      await user.click(screen.getByRole('checkbox', { name: 'Select Ambush' }));
+      expect(screen.getByRole('button', { name: 'Ambush' })).toHaveAttribute('aria-pressed', 'false');
+
+      // Shift+click extends the range from the last toggled skin (Ambush → Desert tan).
+      await user.keyboard('{Shift>}');
+      await user.click(screen.getByRole('button', { name: 'Desert tan' }));
+      await user.keyboard('{/Shift}');
+      expect(useUi.getState().screen).toBe('hangar');
+      expect(within(bar()).getByText('3 skins selected')).toBeInTheDocument();
+    });
+
+    it('local skins keep selecting on click and Enter', async () => {
+      const user = userEvent.setup();
+      renderHangar(FROM_WT_LIVE);
+      backToHangar();
+      await user.click(card('Factory olive'));
+      card('Winter whitewash').focus();
+      await user.keyboard('{Enter}');
+      expect(useUi.getState().screen).toBe('hangar');
+      expect(within(bar()).getByText('2 skins selected')).toBeInTheDocument();
+    });
+
+    it('tells screen-reader users what Enter does on each kind of skin', () => {
+      renderHangar(FROM_WT_LIVE);
+      expect(card('Ambush')).toHaveAccessibleDescription('Press Enter to open the skin page, Space to select it.');
+      expect(card('Factory olive')).toHaveAccessibleDescription('Press Enter or Space to select it. Local skins have no skin page.');
+    });
+
+    it('list rows open the page the same way', async () => {
+      const user = userEvent.setup();
+      renderHangar(FROM_WT_LIVE);
+      backToHangar();
+      await user.click(screen.getByRole('radio', { name: 'List view' }));
+      await user.click(card('Ambush'));
+      expect(useUi.getState()).toMatchObject({ screen: 'detail', detailSkinId: 'wt-ambush' });
+      backToHangar();
+      expect(card('SEA Camo')).toHaveAccessibleDescription('Press Enter to open the skin page, Space to select it.');
+      await user.click(card('Winter whitewash'));
+      expect(within(bar()).getByText('1 skin selected')).toBeInTheDocument();
+    });
+
+    it('stays axe-clean with the hints', async () => {
+      const { container } = renderHangar(FROM_WT_LIVE);
+      expect(await seriousViolations(container)).toEqual([]);
+    });
+  });
+
   describe('selection', () => {
-    it('selects with the checkbox, the card (click, Enter, Space) and Shift ranges', async () => {
+    it('selects local skins with the checkbox, the card (click, Enter, Space) and Shift ranges', async () => {
       const user = userEvent.setup();
       renderHangar();
       await user.click(screen.getByRole('checkbox', { name: 'Select Ambush' }));

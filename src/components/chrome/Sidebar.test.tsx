@@ -1,10 +1,11 @@
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createQueryClient } from '@/queries/client';
 import { HANGAR_KEY } from '@/queries/hangar';
-import type { HangarSkin } from '@/types';
+import { WTLIVE_KEY } from '@/queries/wtlive';
+import type { HangarSkin, SearchResult } from '@/types';
 import { DEFAULT_SETTINGS } from '@/queries/settings';
 import { useQueue } from '@/store/queue';
 import { useUi } from '@/store/ui';
@@ -100,6 +101,69 @@ describe('Sidebar', () => {
   it('shows the WT Live skin count when one is provided', async () => {
     await renderSidebar(<Sidebar liveSkinCount={2318} />);
     expect(screen.getByText('WT Live online · 2,318 skins')).toBeInTheDocument();
+  });
+
+  describe('WT Live count from the Explore cache', () => {
+    const page = (total: number): InfiniteData<SearchResult, number> => ({ pages: [{ items: [], total, tookMs: 20 }], pageParams: [0] });
+    const searchKey = (params: Record<string, unknown>) => [...WTLIVE_KEY, 'search-pages', params];
+
+    async function renderWith(client: QueryClient) {
+      renderWithProviders(<Sidebar />, { client });
+      await screen.findByText('NOT SET');
+    }
+
+    it('reads the unfiltered search total without asking WT Live, and follows the cache', async () => {
+      const client = createQueryClient();
+      await renderWith(client);
+      // Explore never ran: today's text, and the sidebar started no WT Live query of its own.
+      expect(screen.getByText('WT Live online')).toBeInTheDocument();
+      expect(client.getQueryCache().findAll({ queryKey: WTLIVE_KEY })).toHaveLength(0);
+
+      // Explore's first page lands.
+      act(() => client.setQueryData(searchKey({ sort: 'downloads' }), page(2318)));
+      expect(screen.getByText('WT Live online · 2,318 skins')).toBeInTheDocument();
+
+      // A filtered search counts only its filter's skins: it doesn't change the catalogue size.
+      act(() => client.setQueryData(searchKey({ sort: 'downloads', vehicle: 'f_4e' }), page(12)));
+      expect(screen.getByText('WT Live online · 2,318 skins')).toBeInTheDocument();
+
+      // Another sort of the whole catalogue, fetched later, wins.
+      act(() => client.setQueryData(searchKey({ sort: 'newest' }), page(2320)));
+      expect(screen.getByText('WT Live online · 2,320 skins')).toBeInTheDocument();
+
+      // Offline wins over the count; back online, the count comes back.
+      act(() => useUi.getState().setOnline(false));
+      expect(screen.getByText('WT Live offline')).toBeInTheDocument();
+      act(() => useUi.getState().setOnline(true));
+      expect(screen.getByText('WT Live online · 2,320 skins')).toBeInTheDocument();
+    });
+
+    it('keeps the last count when Explore’s queries are garbage-collected', async () => {
+      const client = createQueryClient();
+      client.setQueryData(searchKey({ sort: 'downloads' }), page(2318));
+      await renderWith(client);
+      expect(screen.getByText('WT Live online · 2,318 skins')).toBeInTheDocument();
+      act(() => client.removeQueries({ queryKey: WTLIVE_KEY }));
+      expect(screen.getByText('WT Live online · 2,318 skins')).toBeInTheDocument();
+    });
+
+    it('ignores filtered searches when no unfiltered one is cached', async () => {
+      const client = createQueryClient();
+      client.setQueryData(searchKey({ sort: 'downloads', q: 'desert' }), page(7));
+      await renderWith(client);
+      expect(screen.getByText('WT Live online')).toBeInTheDocument();
+      // The collapsed dot speaks the same text.
+      act(() => useUi.getState().toggleSidebar());
+      expect(screen.getByRole('img', { name: 'WT Live online' })).toBeInTheDocument();
+    });
+
+    it('a count passed in wins over the cache', async () => {
+      const client = createQueryClient();
+      client.setQueryData(searchKey({ sort: 'downloads' }), page(2318));
+      renderWithProviders(<Sidebar liveSkinCount={10} />, { client });
+      await screen.findByText('NOT SET');
+      expect(screen.getByText('WT Live online · 10 skins')).toBeInTheDocument();
+    });
   });
 
   it('shows the game source and the hangar summary', async () => {

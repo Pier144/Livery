@@ -3,17 +3,20 @@ import { useTranslation } from 'react-i18next';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
-import { ActiveToggle, attentionText, RecheckLink, selectHandlers, type SkinItemProps } from './SkinParts';
+import { ActiveToggle, attentionText, itemHandlers, RecheckLink, useSkinHint, type SkinItemProps } from './SkinParts';
 
 /**
- * My Hangar grid card. Until the skin detail exists (M5) the card itself is a toggle button that
- * selects the skin. It is drawn as a full-card hit area *under* the other controls rather than as
- * the card's own role, so the checkbox and buttons are not nested inside a button (axe
- * `nested-interactive`). The checkbox is not a tab stop: the card already selects from the keyboard.
+ * My Hangar grid card. The card itself is a toggle button (pressed = selected): a WT Live skin opens
+ * its Skin detail on click / Enter and selects with Space, a local skin selects with all three (see
+ * `itemHandlers`); a hidden hint says which. It is drawn as a full-card hit area *under* the other
+ * controls rather than as the card's own role, so the checkbox and buttons are not nested inside a
+ * button (axe `nested-interactive`). The checkbox is not a tab stop: the card already selects from
+ * the keyboard.
  */
 export const SkinCard = memo(function SkinCard({ skin, selected, rechecking, onSelect, onToggleActive, onRecheck }: SkinItemProps) {
   const { t } = useTranslation();
   const attention = attentionText(t, skin);
+  const hint = useSkinHint(skin);
 
   return (
     <div
@@ -31,8 +34,9 @@ export const SkinCard = memo(function SkinCard({ skin, selected, rechecking, onS
         tabIndex={0}
         aria-pressed={selected}
         aria-label={skin.name}
+        aria-describedby={hint}
         title={skin.name}
-        {...selectHandlers(skin.id, onSelect)}
+        {...itemHandlers(skin, onSelect)}
         className="absolute inset-0 cursor-pointer rounded-card"
       />
       {/* 16:9 image area; the real screenshot arrives with WT Live data (M5). */}

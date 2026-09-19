@@ -60,6 +60,14 @@ describe('buildPaletteItems', () => {
     expect(go).toHaveBeenCalledWith('explore');
   });
 
+  it('vehicles set the Explore vehicle filter before jumping there', () => {
+    const order: string[] = [];
+    const applyVehicle = vi.fn((code: string) => order.push(`filter:${code}`));
+    const go = vi.fn((section: string) => order.push(`go:${section}`));
+    buildPaletteItems('ariete', ctx({ go, applyVehicle }))[0]?.run();
+    expect(order).toEqual(['filter:it_c1_ariete', 'go:explore']);
+  });
+
   it('orders skins → vehicles → actions and matches skin hints ("vehicle · author")', () => {
     const skins = [skin('s1', 'Bundeswehr Flecktarn'), skin('s2', 'Winter wash', 'T-34-85', 'Oleg')];
     const items = buildPaletteItems('leopard', ctx({ skins }));
@@ -94,6 +102,14 @@ describe('buildPaletteItems', () => {
     // Also when the matches span skins and vehicles.
     const skins = Array.from({ length: 6 }, (_, i) => skin(`s${i}`, `Test skin ${i}`));
     expect(buildPaletteItems('test', ctx({ vehicles: many, skins }))).toHaveLength(PALETTE_MAX_RESULTS);
+  });
+
+  it('keeps room for matching vehicles when many cached skins match', () => {
+    const skins = Array.from({ length: 40 }, (_, i) => skin(`s${i}`, `Flecktarn ${i}`));
+    const items = buildPaletteItems('leopard', ctx({ skins }));
+    expect(items).toHaveLength(PALETTE_MAX_RESULTS);
+    expect(items.map((i) => i.kind)).toEqual([...Array(8).fill('skin'), 'vehicle']);
+    expect(items.at(-1)?.label).toBe('Leopard 2A6');
   });
 
   it('returns [] when nothing matches', () => {

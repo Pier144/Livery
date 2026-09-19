@@ -4,6 +4,8 @@ import type { ReactElement } from 'react';
 import { createQueryClient } from '@/queries/client';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
 import { resetCollectionsUi } from '@/store/collections';
+import { resetDetail } from '@/store/detail';
+import { exploreDefaults, useExplore } from '@/store/explore';
 import { hangarDefaults, useHangarStore } from '@/store/hangar';
 import { useInstalls } from '@/store/installs';
 import { useQueue } from '@/store/queue';
@@ -28,6 +30,8 @@ export function resetStores() {
   useHangarStore.setState(hangarDefaults());
   resetCollectionsUi();
   useInstalls.setState({ bySkin: {}, byInstallId: {} });
+  useExplore.setState(exploreDefaults());
+  resetDetail();
 }
 
 interface ProviderOptions extends RenderOptions {

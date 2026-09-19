@@ -258,3 +258,32 @@ fn deleted_members_are_skipped_and_come_back_with_undo() {
     assert_eq!(list(&store).collections[0].skin_ids, ids(&[w, d]));
     assert!(tmp.is_active("Winter"));
 }
+
+#[test]
+fn skins_being_tried_in_game_stay_where_they_are() {
+    let tmp = TempDir::new("activate-temporary");
+    let (store, index) = hangar(&tmp, &["Winter", "Desert", "Tried", "Tried Off"]);
+    let (w, tried, tried_off) = (&index[0], &index[2], &index[3]);
+    ops::set_active(&tmp.user_skins(), &store, &ids(&[tried_off]), false).unwrap();
+    // Two Try in game installs: one active (being tried), one inactive; one of them a member.
+    let temporary = ids(&[tried, tried_off]);
+    store
+        .transact(|library, _| {
+            library.skins.iter_mut().filter(|s| temporary.contains(&s.id)).for_each(|s| s.temporary = true);
+            Ok(())
+        })
+        .unwrap();
+    let c = create(&store, "Winter and the tried one", None).unwrap();
+    set_skins(&store, &c.id, &ids(&[w, tried_off]), &[]).unwrap();
+
+    let after = activate(&tmp.user_skins(), &store, &c.id).unwrap();
+    let state: Vec<(&str, bool, bool)> = after.iter().map(|s| (s.folder.as_str(), s.active, s.temporary)).collect();
+    assert_eq!(
+        state,
+        [("Winter", true, false), ("Desert", false, false), ("Tried", true, true), ("Tried Off", false, true)],
+        "neither activated nor deactivated"
+    );
+    assert!(tmp.is_active("Winter") && !tmp.is_active("Desert"));
+    assert!(tmp.is_active("Tried") && !tmp.is_active("Tried Off"), "their folders didn't move");
+    assert_eq!(list(&store).active_collection_id.as_deref(), Some(c.id.as_str()));
+}

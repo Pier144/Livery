@@ -1,6 +1,8 @@
-//! The library index, persisted as `<appData>/library.json`:
-//! `{ "version": 2, "skins": [HangarSkin…], "collections": [Collection…],
+//! A library index, persisted as JSON:
+//! `{ "version": 2, "gameRoot"?: "…", "skins": [HangarSkin…], "collections": [Collection…],
 //!    "activeCollectionId"?: "…", "backups": [BackupRecord…] }`.
+//! Each game root has its own index file (`<appData>/library/<key>.json`, see `super::roots`);
+//! `gameRoot` names the root it belongs to, for people reading the file (loading ignores it).
 //! Version 1 files (M2: `{ "version": 1, "skins": […] }`) load as they are; the next write
 //! stores version 2.
 //!
@@ -10,7 +12,7 @@
 //! Skins are matched by folder name (case-insensitive on Windows, like the file system).
 
 use super::layout::Journal;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult, ErrorCode};
 use crate::model::{Backup, Collection, CollectionsState, HangarSkin};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -82,6 +84,8 @@ impl Library {
 
 pub struct LibraryStore {
     path: PathBuf,
+    /// The game root this index belongs to (display form), written into the file.
+    game_root: Option<String>,
     library: Mutex<Library>,
 }
 
@@ -89,6 +93,8 @@ pub struct LibraryStore {
 #[serde(rename_all = "camelCase")]
 struct IndexOut<'a> {
     version: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    game_root: Option<&'a str>,
     skins: &'a [HangarSkin],
     collections: &'a [Collection],
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,11 +124,28 @@ impl LibraryStore {
     /// the original file is copied to `library.json.bad` first. Never writes.
     pub fn load(path: PathBuf) -> Self {
         let library = read_index(&path);
-        Self { path, library: Mutex::new(library) }
+        Self { path, game_root: None, library: Mutex::new(library) }
+    }
+
+    /// [`Self::load`] for the index of the game root `game_root` (display form), which every
+    /// write records in the file as `gameRoot`.
+    pub fn load_for_root(path: PathBuf, game_root: String) -> Self {
+        Self { game_root: Some(game_root), ..Self::load(path) }
+    }
+
+    /// An empty index that belongs to no file: what the install queue checks clashes against
+    /// while no game folder is set. Never saved: a change to it fails to save and is undone.
+    pub fn detached() -> Self {
+        Self { path: PathBuf::new(), game_root: None, library: Mutex::new(Library::default()) }
     }
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// The game root this index belongs to (display form), when it was loaded for one.
+    pub fn game_root(&self) -> Option<&str> {
+        self.game_root.as_deref()
     }
 
     /// The skins in My Hangar.
@@ -151,7 +174,7 @@ impl LibraryStore {
             }
         };
         if next != *guard {
-            if let Err(e) = write_atomic(&self.path, &next) {
+            if let Err(e) = write_atomic(&self.path, self.game_root.as_deref(), &next) {
                 tracing::error!(error = %e, "library index could not be saved; changes undone");
                 journal.rollback();
                 return Err(e);
@@ -284,12 +307,16 @@ fn bad_path(path: &Path) -> PathBuf {
 }
 
 /// Write to a sibling temp file, then rename over the target (replaces on Windows too).
-fn write_atomic(path: &Path, library: &Library) -> AppResult<()> {
+fn write_atomic(path: &Path, game_root: Option<&str>, library: &Library) -> AppResult<()> {
+    if path.as_os_str().is_empty() {
+        return Err(AppError::new(ErrorCode::Internal, "This library index can't be saved"));
+    }
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }
     let out = IndexOut {
         version: INDEX_VERSION,
+        game_root,
         skins: &library.skins,
         collections: &library.collections,
         active_collection_id: library.active_collection_id.as_deref(),

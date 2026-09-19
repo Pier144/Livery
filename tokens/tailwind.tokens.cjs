@@ -1,7 +1,7 @@
 // Spread into tailwind.config: theme: { extend: { ...require('./tokens/tailwind.tokens.cjs') } }
 module.exports = {
   colors: {
-    bg: { 0: '#0f1012', 1: '#111214', 2: '#131416', 3: '#18191c', 4: '#1f2024', 5: '#26272c', hover: '#1c1d21', input: '#17181b', chip: '#1b1c20', status: '#141518', scrim: 'rgba(19,20,22,.85)', skel: '#222327', tile: '#1a1b1e' },
+    bg: { 0: '#0f1012', 1: '#111214', 2: '#131416', 3: '#18191c', 4: '#1f2024', 5: '#26272c', hover: '#1c1d21', input: '#17181b', chip: '#1b1c20', status: '#141518', scrim: 'rgba(19,20,22,.85)', skel: '#222327', tile: '#1a1b1e', tag: 'rgba(15,16,18,.85)' },
     line: { 1: '#1f2024', 2: '#26272c', 3: '#2e2f35', 4: '#3a3b41', mark: '#4a4c54', grid: '#1c1d21' },
     // ink-4 is #80828a (handoff: #7c7e86) so small text meets 4.5:1 on bg-3 and inputs too (DESIGN_NOTES).
     ink: { 1: '#ececee', 2: '#c9cbd1', 3: '#9a9ca3', 4: '#80828a', 5: '#6b6d74' },
@@ -31,6 +31,8 @@ module.exports = {
     dialog: '0 30px 80px rgba(0,0,0,.7)',
     card: '0 8px 24px rgba(0,0,0,.45)',
     glow: '0 0 8px oklch(0.78 0.16 70 / .6)',
+    // Settings → About brand dot (10px).
+    'glow-lg': '0 0 10px oklch(0.78 0.16 70 / .6)',
   },
   backgroundImage: {
     grid: 'linear-gradient(#1c1d21 1px, transparent 1px), linear-gradient(90deg, #1c1d21 1px, transparent 1px)',
@@ -39,6 +41,9 @@ module.exports = {
     // Small stripes: First run import thumbs (6px) and atlas tiles (5px).
     'placeholder-thumb': 'repeating-linear-gradient(135deg,#1e1f23 0 6px,#26272c 6px 12px)',
     'placeholder-tile': 'repeating-linear-gradient(135deg,#1e1f23 0 5px,#26272c 5px 10px)',
+    // Skin detail stage (main image, compare pane A) and compare pane B (mirrored stripes).
+    'placeholder-stage': 'repeating-linear-gradient(135deg,#1a1b1e 0 14px,#202125 14px 28px)',
+    'placeholder-stage-alt': 'repeating-linear-gradient(45deg,#1a1b1e 0 14px,#202125 14px 28px)',
     // First run technical drawing: hatched top face and the sweeping scanline.
     hatch: 'repeating-linear-gradient(45deg,transparent 0 9px,oklch(0.78 0.16 70 / .18) 9px 10px)',
     scanline: 'linear-gradient(90deg,transparent,oklch(0.78 0.16 70 / .5),transparent)',
@@ -53,8 +58,11 @@ module.exports = {
     spinBox: { from: { transform: 'rotateX(-22deg) rotateY(0)' }, to: { transform: 'rotateX(-22deg) rotateY(360deg)' } },
     scan: { from: { transform: 'translateY(0)' }, to: { transform: 'translateY(300px)' } },
     draw: { from: { strokeDashoffset: '600' }, to: { strokeDashoffset: '0' } },
+    // Indeterminate progress (Try in game): a 40% bar sliding across its track.
+    indeterminate: { from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(250%)' } },
   },
   animation: {
+    indeterminate: 'indeterminate 1.2s ease-in-out infinite',
     shimmer: 'shimmer 1.4s linear infinite',
     pulse6: 'pulse6 1.2s ease-in-out infinite',
     toastIn: 'toastIn 200ms ease-out',

@@ -26,7 +26,7 @@ use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::root;
 use crate::library::index::{folder_key, Library};
-use crate::library::{self, layout, LibraryStore};
+use crate::library::{self, layout, GameLibrary, LibraryStore};
 use crate::model::{ConflictPolicy, HangarSkin, InstallStarted, QueueItem, QueueStatus, TextureInfo};
 use crate::settings::SettingsStore;
 use crate::textures;
@@ -34,7 +34,7 @@ use analyze::Conflict;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Event names emitted by this module.
@@ -275,12 +275,34 @@ fn user_skins(app: &AppHandle) -> Option<PathBuf> {
     library::user_skins_dir(&app.state::<SettingsStore>().get()).ok()
 }
 
+/// What queue items are checked against: the game folder's `UserSkins` and index, or, while no
+/// game folder is set, nothing on disk and an empty index.
+fn clash_target(app: &AppHandle) -> (Option<PathBuf>, Arc<LibraryStore>) {
+    match GameLibrary::current(app) {
+        Ok(library) => (Some(library.user_skins), library.store),
+        Err(_) => (None, Arc::new(LibraryStore::detached())),
+    }
+}
+
 /// Analyses `path` and queues it (drop, browse, or the folder watcher). Blocking. The caller
 /// shows or emits `item`; `changed` are other items to re-send.
 pub fn queue_path(app: &AppHandle, path: &str) -> AppResult<Queued> {
     let path = root::native_path(path.trim().trim_matches('"'));
-    let user_skins = user_skins(app);
-    analyze_path(&path, user_skins.as_deref(), &app.state::<LibraryStore>(), &app.state::<QueueStore>())
+    let (user_skins, store) = clash_target(app);
+    analyze_path(&path, user_skins.as_deref(), &store, &app.state::<QueueStore>())
+}
+
+/// After the game folder changed (`set_game_path`): stale staging in the new `UserSkins` goes,
+/// and every waiting item's clash status is checked against the new folder and its index.
+/// Items whose status changed are re-sent (`queue://added`).
+pub fn follow_game_root(app: &AppHandle) {
+    let (user_skins, store) = clash_target(app);
+    let queue = app.state::<QueueStore>();
+    if let Some(user_skins) = &user_skins {
+        queue.ensure_partials_purged(user_skins);
+    }
+    let ((), changed) = queue.update(user_skins.as_deref(), &store.snapshot(), |_| ());
+    emit_changed(app, &changed);
 }
 
 /// Checks and starts an install (see `install::prepare`), then runs it on a background thread
@@ -291,29 +313,29 @@ pub fn start_install(
     vehicle_code: Option<&str>,
     conflict: Option<ConflictPolicy>,
 ) -> AppResult<InstallStarted> {
-    library::purge_expired(app, &[]);
-    let settings = app.state::<SettingsStore>().get();
-    let user_skins = library::user_skins_dir(&settings)?;
+    // One game folder from start to end, even if the user picks another one meanwhile.
+    let library = GameLibrary::current(app)?;
+    library::purge_in(&library, &[]);
+    let GameLibrary { settings, user_skins, store } = library;
     let job = {
-        let library = app.state::<LibraryStore>();
         let queue = app.state::<QueueStore>();
-        let ctx = Ctx { user_skins: &user_skins, library: &library, queue: &queue, settings: &settings };
+        let ctx = Ctx { user_skins: &user_skins, library: &store, queue: &queue, settings: &settings };
         install::prepare(&ctx, queue_id, vehicle_code, conflict)?
     };
     let started = InstallStarted { install_id: job.install_id.clone() };
     let refresh_in = user_skins.clone();
+    let thread_store = Arc::clone(&store);
     let thread_app = app.clone();
     let spawned = std::thread::Builder::new().name("livery-install".into()).spawn(move || {
         let app = thread_app;
-        let library = app.state::<LibraryStore>();
         let queue = app.state::<QueueStore>();
-        let ctx = Ctx { user_skins: &user_skins, library: &library, queue: &queue, settings: &settings };
+        let ctx = Ctx { user_skins: &user_skins, library: &thread_store, queue: &queue, settings: &settings };
         let changed = install::run(&ctx, job, &mut |progress| emit(&app, PROGRESS_EVENT, progress));
         emit_changed(&app, &changed);
     });
     if let Err(e) = spawned {
         // The job went down with the closure: the item must not stay "installing".
-        let library = app.state::<LibraryStore>().snapshot();
+        let library = store.snapshot();
         let message = "Could not start the install";
         // With `UserSkins` given, so the refresh keeps the other items' clashes on disk.
         let (_, changed) = app.state::<QueueStore>().update(Some(&refresh_in), &library, |entries| {
@@ -381,8 +403,8 @@ pub async fn list_queue(app: AppHandle) -> AppResult<Vec<QueueItem>> {
 #[tauri::command]
 pub async fn remove_queue_item(app: AppHandle, queue_id: String) -> AppResult<()> {
     blocking(move || {
-        let library = app.state::<LibraryStore>().snapshot();
-        let changed = app.state::<QueueStore>().remove(&queue_id, user_skins(&app).as_deref(), &library)?;
+        let (user_skins, store) = clash_target(&app);
+        let changed = app.state::<QueueStore>().remove(&queue_id, user_skins.as_deref(), &store.snapshot())?;
         emit_changed(&app, &changed);
         Ok(())
     })
@@ -393,13 +415,12 @@ pub async fn remove_queue_item(app: AppHandle, queue_id: String) -> AppResult<()
 #[tauri::command]
 pub async fn undo_replace(app: AppHandle, skin_id: String, backup_id: String) -> AppResult<HangarSkin> {
     blocking(move || {
+        let library = GameLibrary::current(&app)?;
         // The Undo in progress must not lose its backup to the purge that runs first.
-        library::purge_expired(&app, std::slice::from_ref(&backup_id));
-        let settings = app.state::<SettingsStore>().get();
-        let user_skins = library::user_skins_dir(&settings)?;
+        library::purge_in(&library, std::slice::from_ref(&backup_id));
+        let GameLibrary { user_skins, store, .. } = library;
         let queue = app.state::<QueueStore>();
         queue.ensure_partials_purged(&user_skins);
-        let store = app.state::<LibraryStore>();
         let restored = install::undo_replace(&user_skins, &store, &skin_id, &backup_id)?;
         let changed = queue.reopen_installed(&skin_id, Some(&user_skins), &store.snapshot());
         emit_changed(&app, &changed);

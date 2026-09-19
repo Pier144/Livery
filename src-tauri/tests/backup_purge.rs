@@ -190,7 +190,7 @@ fn clear_removes_every_backup_leftovers_and_dangling_members() {
     fs::create_dir_all(tmp.backups().join("b-orphan").join("Old")).unwrap();
     fs::write(tmp.backups().join("stray.txt"), "x").unwrap();
 
-    backup::clear(&tmp.user_skins(), &store).unwrap();
+    backup::clear(&tmp.user_skins(), &store, None).unwrap();
     assert_eq!(backup_count(&store), 0);
     assert_eq!(fs::read_dir(tmp.backups()).unwrap().count(), 0, "nothing left on disk");
     assert_eq!(collections::list(&store).collections[0].skin_ids, [index[2].id.clone()]);
@@ -199,7 +199,7 @@ fn clear_removes_every_backup_leftovers_and_dangling_members() {
 
     // Clearing with no backups folder at all is fine.
     fs::remove_dir_all(tmp.backups()).unwrap();
-    backup::clear(&tmp.user_skins(), &store).unwrap();
+    backup::clear(&tmp.user_skins(), &store, None).unwrap();
 }
 
 #[test]
@@ -223,6 +223,43 @@ fn records_with_unreadable_dates_or_dirs_are_handled() {
     // Desert's real backup folder stays (the tampered record pointed elsewhere); Clear removes
     // it as a leftover.
     assert_eq!(fs::read_dir(tmp.backups()).unwrap().count(), 2);
-    backup::clear(&tmp.user_skins(), &store).unwrap();
+    backup::clear(&tmp.user_skins(), &store, None).unwrap();
+    assert_eq!(fs::read_dir(tmp.backups()).unwrap().count(), 0);
+}
+
+#[test]
+fn clear_with_ids_removes_only_those_backups() {
+    let tmp = TempDir::new("clear-ids");
+    let (store, index) = setup(&tmp, &["Winter", "Desert", "Jungle"]);
+    let set = collections::create(&store, "Set", None).unwrap();
+    let all: Vec<String> = index.iter().map(|s| s.id.clone()).collect();
+    collections::set_skins(&store, &set.id, &all, &[]).unwrap();
+    let winter = delete_one(&tmp, &store, &index[0], true, T0);
+    let desert = delete_one(&tmp, &store, &index[1], true, T0 + 1);
+    let jungle = delete_one(&tmp, &store, &index[2], false, T0 + 2);
+    fs::create_dir_all(tmp.backups().join("b-orphan").join("Old")).unwrap();
+
+    // The list the user saw held Winter; Desert was made afterwards, "b-nope" doesn't exist.
+    backup::clear(&tmp.user_skins(), &store, Some(&[winter.clone(), "b-nope".into()][..])).unwrap();
+    let left: Vec<String> = store.snapshot().backups.iter().map(|r| r.backup.id.clone()).collect();
+    assert_eq!(left, [desert.clone(), jungle.clone()], "only the named backup is gone");
+    assert!(!tmp.backups().join(&winter).exists());
+    assert!(tmp.backups().join(&desert).join("Desert").is_dir());
+    assert!(tmp.backups().join(&jungle).join("Jungle").is_dir());
+    assert!(tmp.backups().join("b-orphan").is_dir(), "leftovers are only swept by a full Clear");
+    assert_eq!(collections::list(&store).collections[0].skin_ids, [index[1].id.clone(), index[2].id.clone()]);
+    assert_eq!(LibraryStore::load(tmp.index_path()).snapshot(), store.snapshot(), "saved");
+
+    // An ephemeral (Undo-only) backup can be named too; unknown ids alone change nothing.
+    backup::clear(&tmp.user_skins(), &store, Some(&[jungle][..])).unwrap();
+    assert_eq!(backup_count(&store), 1);
+    backup::clear(&tmp.user_skins(), &store, Some(&["b-nope".into()][..])).unwrap();
+    backup::clear(&tmp.user_skins(), &store, Some(&[][..])).unwrap();
+    assert_eq!(backup_count(&store), 1);
+    assert!(tmp.backups().join(&desert).is_dir());
+
+    // No ids: every backup and every leftover.
+    backup::clear(&tmp.user_skins(), &store, None).unwrap();
+    assert_eq!(backup_count(&store), 0);
     assert_eq!(fs::read_dir(tmp.backups()).unwrap().count(), 0);
 }

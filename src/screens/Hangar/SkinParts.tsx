@@ -1,7 +1,8 @@
 import type { TFunction } from 'i18next';
-import type { KeyboardEvent, MouseEvent } from 'react';
+import { createContext, useContext, useId, useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
+import { useUi } from '@/store/ui';
 import type { HangarSkin } from '@/types';
 
 /** What a grid card and a list row need from the screen. Handlers must be stable (the items are memoized). */
@@ -29,19 +30,63 @@ export function attentionText(t: TFunction, skin: HangarSkin): string | null {
 }
 
 /**
- * Keyboard/click handlers for the element that selects a skin (`role=button`): Enter or Space
- * toggles, Shift extends from the last toggled skin.
+ * Keyboard/click handlers for a card's full-area button (`role=button`, `aria-pressed` = selected).
+ * A skin that came from WT Live (`sourceId`) opens its Skin detail on click or Enter, as in the
+ * prototype; Space, Ctrl/Cmd+click and the checkbox select it. A local skin has no page: click,
+ * Enter and Space toggle its selection. Shift (click, Enter or Space) always extends the selection
+ * from the last toggled skin.
  */
-export function selectHandlers(id: string, onSelect: SkinItemProps['onSelect']) {
+export function itemHandlers(skin: HangarSkin, onSelect: SkinItemProps['onSelect']) {
+  const source = skin.sourceId;
   return {
-    onClick: (e: MouseEvent<HTMLElement>) => onSelect(id, e.shiftKey),
+    onClick: (e: MouseEvent<HTMLElement>) => {
+      if (source && !e.shiftKey && !e.ctrlKey && !e.metaKey) useUi.getState().openSkin(source);
+      else onSelect(skin.id, e.shiftKey);
+    },
     onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       // Space would scroll the list; Enter would repeat while held.
       e.preventDefault();
-      if (!e.repeat) onSelect(id, e.shiftKey);
+      if (e.repeat) return;
+      if (source && e.key === 'Enter' && !e.shiftKey) useUi.getState().openSkin(source);
+      else onSelect(skin.id, e.shiftKey);
     },
   };
+}
+
+/** Ids of the two hidden hints that tell screen-reader users what a card's keys do. */
+interface SkinHintIds {
+  /** WT Live skin: Enter opens the Skin detail, Space selects. */
+  open: string;
+  /** Local skin: Enter or Space selects (there is no page to open). */
+  select: string;
+}
+
+const SkinHintContext = createContext<SkinHintIds | null>(null);
+
+/** Renders the hints once for every card below it (the cards point at them with aria-describedby). */
+export function SkinHints({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
+  const base = useId();
+  const ids = useMemo(() => ({ open: `${base}-open`, select: `${base}-select` }), [base]);
+  return (
+    <SkinHintContext.Provider value={ids}>
+      <span id={ids.open} hidden>
+        {t('hangar.card.hintOpen')}
+      </span>
+      <span id={ids.select} hidden>
+        {t('hangar.card.hintSelect')}
+      </span>
+      {children}
+    </SkinHintContext.Provider>
+  );
+}
+
+/** `aria-describedby` for a card's full-area button (none outside `SkinHints`). */
+export function useSkinHint(skin: HangarSkin): string | undefined {
+  const ids = useContext(SkinHintContext);
+  if (!ids) return undefined;
+  return skin.sourceId ? ids.open : ids.select;
 }
 
 /**

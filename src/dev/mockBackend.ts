@@ -15,6 +15,19 @@
 // `{ code, message, detail? }`. State lives in memory and resets on reload. Each command answers
 // after 80–250 ms (`analyze_archive` takes three times as long, so "Analyzing…" shows).
 //
+// One library per game folder (library/roots.rs). The hangar, the folders on disk, collections,
+// backups and Try in game state belong to the saved game folder. The start-up library (the
+// prototype's) belongs to no folder yet, like a library.json from before per-folder indexes, and
+// goes to the first folder saved (`?onboarded=1`: the Steam folder). Any other folder starts with
+// an empty index and the two disk-only folders (Kursk Dust, template_bf-109g-6), and each folder
+// keeps its library until a reset; saving the first folder again brings its library back. Folders
+// compare like `path_key` (separators, a trailing one and case don't matter). `set_game_path`
+// reports "N skins already in UserSkins" from that folder's library (the prototype's 9 for the
+// first one). With no folder saved, get_hangar, collections_list and list_backups answer empty and
+// collection changes reject invalidInput "No game folder set". Differences from the real app: the
+// install queue isn't re-checked against the new folder, and an install or Try in game still in
+// progress when the folder changes lands in the new folder's library (Rust: its own folder's).
+//
 // Install queue (M4). Only skin folders install for now; `analyze_archive` looks at the last
 // segment of the path:
 //   *.zip / *.rar / *.7z   an `error` item: unpacking needs a library that isn't approved yet
@@ -36,15 +49,60 @@
 // Events (`mockListen` / `mockEmit`) arrive asynchronously, each listener with its own JSON copy.
 // The queue starts with the prototype's three items: a conflict, a ready one, one to look at.
 //
+// WT Live (M5). The catalog is the prototype's 16 posts, s1…s16 (`?many=1`: 1,284, so Explore
+// has pages). `wtlive_search({ params })` combines its filters (AND): `q` in the skin, vehicle or
+// author name (case-insensitive), nation, type, class, vehicle code, category; sorts by downloads,
+// likes, newest or name; answers pages of 60 (page 0 first) with `total` and `tookMs` = 12 + the
+// page's items (the prototype's "16 results · 28 ms"). Listing items carry no `files`;
+// `wtlive_post({ id })` adds them (textures, `<code>.blk`, preview.jpg). `images` is always
+// empty: the UI shows its four placeholder views. Following is local data (works offline),
+// seeded with the prototype's four follows last seen on 9 Sep 2026. Like the Rust command,
+// `wtlive_following_new({ vehicles, authors })` answers the posts of the asked ids that are
+// followed, each posted after its own entry's `lastSeenAt`, newest first and marked `isNew`: at
+// start Night Ops Matte and Baltic Winter (Leopard 2A6: 2 new; Kessler_Wolf: 1) and Ace of
+// Spades (Skyhook_Dan: 1; Spitfire Mk IX: 0), the prototype's counts; nothing after
+// `following_mark_seen` (all seen now). `following_set` trims id and name and follows (seen now;
+// again: renames and keeps lastSeenAt) or unfollows; with `lastSeenAt` (RFC 3339, kept as given,
+// trimmed) a follow stores that time, new or already followed (the Undo of an unfollow); a blank
+// id or name, or a lastSeenAt that isn't RFC 3339 (checked on an unfollow too), is `invalidInput`.
+// WT Live calls emit `net://status` from their outcome like the Rust `reported`: success →
+// online, `network` → offline, other errors nothing; `finalize_try` (local) never emits it.
+// `install_from_wtlive({ skinId, mode, conflict? })` answers `{ installId }`, then
+// `install://progress` (no queueId) walks download 0→40, extract →75, verify →96 and `done`
+// (with the new hangar `skinId`) over ~3 s. The skin lands in `<code>_<author>` ("(2)" when
+// another post's skin has that folder) with origin wtlive, the post's name, vehicle, author and
+// size, and `sourceId` = the post id; mode `temporary` adds `temporary: true`. A post already
+// installed (not temporary) is a conflict settled like the queue's, by `conflict` or else
+// Settings → Conflicts: ask rejects `conflict`; replace keeps a backup of the installed version
+// (`done` carries `backupId` for `undo_replace`); copy installs "<name> (2)"; skip installs
+// nothing (`done`, message "skipped"). A post can't install twice at once; installing a post
+// that is being tried takes over its temporary skin. `finalize_try({ skinId: <post id>, keep })`
+// (local, works offline): keep clears `temporary` and returns the skin; discard removes it
+// without a backup, puts back a version it replaced, and returns null. Activating a collection
+// leaves temporary skins where they are. Blank WT Live ids reject `invalidInput` ("Pass the id
+// of a WT Live skin") before anything else. `read_textures({ wtliveId })`
+// lists the post's archive like the prototype's Textures tab: s3's hull is 8192² (`heavy`), s5
+// lacks turret_n.dds (`missing`). Every texture row with a warning carries its `warningKind`.
+//
 // Start-up switches — a query parameter, or a localStorage key set to "1" (then reload):
 //   ?onboarded=1  livery.mock.onboarded  skip First run: onboarded, Steam game folder saved
-//   ?empty=1      livery.mock.empty      empty library, no collections, no backups, empty queue
+//   ?empty=1      livery.mock.empty      empty library, no collections, no backups, empty queue,
+//                                        nothing followed (WT Live keeps its catalog)
 //   ?many=1       livery.mock.many       ~1,000 skins in the hangar (scroll performance check)
+//                                        and 1,284 posts on WT Live (Explore paging)
 //   ?notfound=1   livery.mock.notfound   detection finds nothing ("Can't find War Thunder"); a
 //                                        folder whose path contains "War Thunder" is accepted
 //   ?watch=1      livery.mock.watch      "Watch Downloads folder" starts on, and 3 s after load a
 //                                        new folder, tiger2_h_ambush_winter, arrives through
 //                                        `queue://added` (unless watching was turned off by then)
+//   ?offline=1    livery.mock.offline    WT Live can't be reached: wtlive_*, install_from_wtlive
+//                                        and read_textures({ wtliveId }) reject `network` ("WT Live
+//                                        can't be reached") and `net://status` { online: false }
+//                                        is emitted; Following and everything local still work.
+//                                        Read on every WT Live call, not only at load: with no
+//                                        query parameter, setting or removing the localStorage
+//                                        key takes effect at the next call, and a call that
+//                                        succeeds again emits { online: true }
 // A query parameter wins over localStorage; `=0` turns a stored switch off for that load.
 // Without switches the app opens on First run (onboarded: false, no game folder), which saves the
 // Steam folder; until a folder is saved, commands that touch UserSkins fail like the real app
@@ -55,6 +113,7 @@ import {
   EVENTS,
   type AppError,
   type Backup,
+  type Category,
   type Collection,
   type CollectionsState,
   type ConflictPolicy,
@@ -62,16 +121,27 @@ import {
   type DetectEvent,
   type DetectState,
   type ExportResult,
+  type FollowEntry,
+  type FollowKind,
   type GameDetection,
   type GameSource,
   type HangarSkin,
+  type InstallMode,
   type InstallProgress,
   type InstallStarted,
   type InstallStep,
   type Language,
+  type Nation,
+  type NetStatus,
   type QueueItem,
+  type ReduceMotion,
+  type SearchParams,
+  type SearchResult,
   type Settings,
+  type SortOrder,
   type TextureInfo,
+  type VehicleType,
+  type WtLiveSkin,
 } from '@/types';
 import {
   MOCK_DOWNLOADS,
@@ -79,10 +149,16 @@ import {
   WATCHED_FOLDER,
   hangarTextures,
   nameHash,
+  postFiles,
+  postFolder,
+  postRoot,
   seedBackups,
+  seedCatalog,
   seedCollections,
   seedDiskOnly,
+  seedFollowing,
   seedHangar,
+  seedManyCatalog,
   seedManyHangar,
   seedQueue,
   sourceRoots,
@@ -92,7 +168,7 @@ import {
 
 // ── Start-up switches ───────────────────────────────────────────────────────
 
-type Flag = 'onboarded' | 'empty' | 'notfound' | 'many' | 'watch';
+type Flag = 'onboarded' | 'empty' | 'notfound' | 'many' | 'watch' | 'offline';
 
 function readFlag(name: Flag): boolean {
   try {
@@ -183,8 +259,8 @@ interface StoredQueueItem {
   roots: MockSkinRoot[];
 }
 
-interface MockState {
-  settings: Settings;
+/** What one game folder holds: its library index (`<appData>/library/<key>.json`) and its disk. */
+interface RootLibrary {
   /** The library index (My Hangar), in index order. */
   index: HangarSkin[];
   /** Folders in UserSkins the index doesn't know (scan reports them as `disk:<folder>`). */
@@ -193,17 +269,37 @@ interface MockState {
   activeCollectionId?: string;
   /** In the order they were made (oldest first), like the Rust index. */
   backups: StoredBackup[];
-  /** The install queue, newest first. */
-  queue: StoredQueueItem[];
   /** `read_textures` rows of skins the mock installed (the others are made up per vehicle). */
   textures: Map<string, TextureInfo[]>;
+  /** Try in game installs that replaced an installed version: hangar id → that version's backup. */
+  triedBackups: Map<string, string>;
+}
+
+/** The saved game folder's library is spread on the state; the other folders' wait in `libraries`. */
+interface MockState extends RootLibrary {
+  settings: Settings;
+  /** Folder key of the library on the state; `undefined` until a folder claims the start-up one. */
+  libraryRoot?: string;
+  /** The folder that claimed the start-up library (its detection says the prototype's 9 skins). */
+  firstRoot?: string;
+  /** Libraries of the other game folders seen since the last reset, by folder key. */
+  libraries: Map<string, RootLibrary>;
+  /** The install queue, newest first. */
+  queue: StoredQueueItem[];
   detectNothing: boolean;
   nextId: number;
+  /** WT Live posts, in catalog order. */
+  catalog: WtLiveSkin[];
+  /** Followed vehicles and authors (`<appData>/following.json` in the real app). */
+  following: FollowEntry[];
+  /** WT Live ids with an install on its way. */
+  wtInstalling: Set<string>;
 }
 
 function createState(): MockState {
   const onboarded = readFlag('onboarded');
   const empty = readFlag('empty');
+  const many = readFlag('many');
   const seeded = empty ? undefined : seedCollections();
   const created: MockState = {
     settings: {
@@ -213,7 +309,7 @@ function createState(): MockState {
         : {}),
       ...(readFlag('watch') ? { watchFolder: MOCK_DOWNLOADS, autoInstall: true } : {}),
     },
-    index: empty ? [] : readFlag('many') ? seedManyHangar() : seedHangar(),
+    index: empty ? [] : many ? seedManyHangar() : seedHangar(),
     diskOnly: seedDiskOnly(),
     collections: seeded?.collections ?? [],
     activeCollectionId: seeded?.activeCollectionId,
@@ -222,7 +318,16 @@ function createState(): MockState {
     textures: new Map(),
     detectNothing: readFlag('notfound'),
     nextId: 1,
+    catalog: many ? seedManyCatalog() : seedCatalog(),
+    following: empty ? [] : seedFollowing(),
+    wtInstalling: new Set(),
+    triedBackups: new Map(),
+    libraries: new Map(),
   };
+  if (onboarded) {
+    created.libraryRoot = rootKey(MOCK_GAME.path);
+    created.firstRoot = created.libraryRoot;
+  }
   if (!empty) {
     created.queue = seedQueue().map(({ id, path, roots }) => ({ item: describeSource(created, id, path, roots), roots }));
   }
@@ -294,6 +399,11 @@ function strList(cmd: string, args: Args, key: string): string[] {
   return value;
 }
 
+/** An `Option<Vec<String>>` argument: missing or null → undefined. */
+function optStrList(cmd: string, args: Args, key: string): string[] | undefined {
+  return args[key] === undefined || args[key] === null ? undefined : strList(cmd, args, key);
+}
+
 function bool(cmd: string, args: Args, key: string): boolean {
   const value = args[key];
   return typeof value === 'boolean' ? value : badArg(cmd, key);
@@ -338,6 +448,7 @@ function uniqueName(name: string, taken: (candidate: string) => boolean): string
 const GAME_SOURCES: readonly GameSource[] = ['steam', 'standalone', 'custom'];
 const CONFLICT_POLICIES: readonly ConflictPolicy[] = ['ask', 'replace', 'copy', 'skip'];
 const LANGUAGES: readonly Language[] = ['en', 'it', 'de', 'ru', 'fr'];
+const REDUCE_MOTION: readonly ReduceMotion[] = ['system', 'on', 'off'];
 
 const isString = (v: unknown) => typeof v === 'string';
 const isBool = (v: unknown) => typeof v === 'boolean';
@@ -356,9 +467,13 @@ const PATCH_FIELDS: Partial<Record<keyof Settings, (v: unknown) => boolean>> = {
   autoUpdate: isBool,
   startWithWindows: isBool,
   onboarded: isBool,
+  reduceMotion: oneOf(REDUCE_MOTION),
 };
 
-/** `set_settings`: present fields change, `null` leaves a field as it is (serde `Option`). */
+/**
+ * `set_settings`: present fields change, `null` leaves a field as it is (serde `Option`). A new
+ * `gamePath` switches the library like `set_game_path` does (see `followGameRoot`).
+ */
 function setSettings(args: Args): Settings {
   const patch = args.patch;
   if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) return badArg('set_settings', 'patch');
@@ -383,8 +498,68 @@ function normalizeRoot(path: string): string {
   return cleaned.replace(/[\\/]UserSkins$/i, '');
 }
 
+/** How the Rust backend tells game folders apart (`path_key`): separators, a trailing one and case don't matter. */
+function rootKey(path: string): string {
+  return normalizeRoot(path).replace(/\//g, '\\').toLowerCase();
+}
+
+/** A game folder seen for the first time: nothing indexed, two skin folders on its disk. */
+function newRootLibrary(): RootLibrary {
+  return {
+    index: [],
+    diskOnly: seedDiskOnly(),
+    collections: [],
+    backups: [],
+    textures: new Map(),
+    triedBackups: new Map(),
+  };
+}
+
+function takeLibrary(st: MockState): RootLibrary {
+  const { index, diskOnly, collections, activeCollectionId, backups, textures, triedBackups } = st;
+  return { index, diskOnly, collections, activeCollectionId, backups, textures, triedBackups };
+}
+
+function putLibrary(st: MockState, library: RootLibrary): void {
+  st.index = library.index;
+  st.diskOnly = library.diskOnly;
+  st.collections = library.collections;
+  st.activeCollectionId = library.activeCollectionId;
+  st.backups = library.backups;
+  st.textures = library.textures;
+  st.triedBackups = library.triedBackups;
+}
+
+/**
+ * Puts the saved game folder's library on the state (the Rust commands each resolve their
+ * folder's index). The start-up library goes to the first folder saved; a folder seen before
+ * gets its own back; a new one starts with `newRootLibrary()`. Runs around every command.
+ */
+function followGameRoot(): void {
+  const saved = state.settings.gamePath?.trim();
+  if (!saved) return;
+  const key = rootKey(saved);
+  if (key === state.libraryRoot) return;
+  if (state.libraryRoot === undefined) {
+    state.firstRoot = key;
+  } else {
+    state.libraries.set(state.libraryRoot, takeLibrary(state));
+    putLibrary(state, state.libraries.get(key) ?? newRootLibrary());
+    state.libraries.delete(key);
+  }
+  state.libraryRoot = key;
+}
+
+/** "N skins already in UserSkins" of a folder: the prototype's 9 for the first one, else what its library holds. */
+function existingSkins(path: string): number {
+  const key = rootKey(path);
+  if (state.libraryRoot === undefined || key === state.firstRoot) return MOCK_GAME.existingSkins;
+  const library = key === state.libraryRoot ? takeLibrary(state) : (state.libraries.get(key) ?? newRootLibrary());
+  return library.index.length + library.diskOnly.length;
+}
+
 function describe(source: GameSource, path: string): GameDetection {
-  return { found: true, source, path, version: MOCK_GAME.version, existingSkins: MOCK_GAME.existingSkins };
+  return { found: true, source, path, version: MOCK_GAME.version, existingSkins: existingSkins(path) };
 }
 
 /**
@@ -435,6 +610,7 @@ function setGamePath(args: Args): GameDetection {
   }
   const detection = describe((source as GameSource | undefined) ?? 'custom', root);
   state.settings = { ...state.settings, gamePath: root, gameSource: detection.source, gameVersion: detection.version };
+  followGameRoot();
   return detection;
 }
 
@@ -456,14 +632,16 @@ function dropDanglingMembers(): void {
 
 /**
  * Every library command starts here (`purge_expired`): with a game folder set, backups past
- * their lifetime (ephemeral: a minute; kept: `backupDays`) are removed, except `keep`.
+ * their lifetime (ephemeral: a minute; kept: `backupDays`) are removed, except `keep` and the
+ * versions a Try in game install replaced (Discard needs them).
  */
 function purgeExpired(keep: string[] = []): void {
   if (!hasGameFolder()) return;
   const now = Date.now();
+  const tried = new Set(state.triedBackups.values());
   const expired = (b: StoredBackup) => {
     const created = Date.parse(b.backup.createdAt);
-    if (Number.isNaN(created) || keep.includes(b.backup.id)) return false;
+    if (Number.isNaN(created) || keep.includes(b.backup.id) || tried.has(b.backup.id)) return false;
     return now - created > (b.ephemeral ? EPHEMERAL_MS : state.settings.backupDays * DAY_MS);
   };
   if (!state.backups.some(expired)) return;
@@ -474,6 +652,11 @@ function purgeExpired(keep: string[] = []): void {
 /** `prepare`: purge, then the saved game folder is required. */
 function prepare(keep: string[] = []): void {
   purgeExpired(keep);
+  requireGameFolder();
+}
+
+/** Collections and backups belong to a game folder's index (`required_store`). */
+function requireGameFolder(): void {
   if (!hasGameFolder()) fail('invalidInput', 'No game folder set');
 }
 
@@ -621,9 +804,10 @@ function exportSkins(args: Args): ExportResult {
   return { exported: dedupe(ids).filter((id) => known.has(id)).length, dest: dest.trim() };
 }
 
-/** Kept backups (not the ephemeral Undo-only ones), newest first. */
+/** Kept backups (not the ephemeral Undo-only ones), newest first; none without a game folder. */
 function listBackups(): Backup[] {
   purgeExpired();
+  if (!hasGameFolder()) return [];
   return state.backups
     .filter((b) => !b.ephemeral)
     .map((b) => b.backup)
@@ -631,16 +815,28 @@ function listBackups(): Backup[] {
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
 
-function clearBackups(): null {
-  if (!hasGameFolder()) fail('invalidInput', 'No game folder set');
-  state.backups = [];
+/**
+ * Permanently removes the backups in `ids` (unknown ids are ignored), or every backup when `ids`
+ * is absent, ephemeral ones included; members gone for good leave their collections.
+ */
+function clearBackups(args: Args): null {
+  const ids = optStrList('clear_backups', args, 'ids');
+  requireGameFolder();
+  if (ids === undefined) {
+    state.backups = [];
+  } else {
+    const chosen = new Set(ids);
+    state.backups = state.backups.filter((b) => !chosen.has(b.backup.id));
+  }
   dropDanglingMembers();
   return null;
 }
 
 // ── Collections ─────────────────────────────────────────────────────────────
 
+/** Every collection of the saved game folder, plus the one activated last; empty without a folder. */
 function collectionsState(): CollectionsState {
+  if (!hasGameFolder()) return { collections: [] };
   return { collections: state.collections, activeCollectionId: state.activeCollectionId };
 }
 
@@ -663,6 +859,7 @@ function createCollection(args: Args): Collection {
   const name = str('collections_create', args, 'name');
   const description = optStr('collections_create', args, 'description');
   purgeExpired();
+  requireGameFolder();
   const collection: Collection = {
     id: newId('c'),
     name: cleanName(name),
@@ -680,6 +877,7 @@ function updateCollection(args: Args): Collection {
   const name = optStr('collections_update', args, 'name');
   const description = optStr('collections_update', args, 'description');
   purgeExpired();
+  requireGameFolder();
   const cleaned = name === undefined ? undefined : cleanName(name);
   const collection = findCollection(id);
   if (cleaned !== undefined) collection.name = cleaned;
@@ -691,6 +889,7 @@ function updateCollection(args: Args): Collection {
 function deleteCollection(args: Args): CollectionsState {
   const id = str('collections_delete', args, 'id');
   purgeExpired();
+  requireGameFolder();
   const collection = findCollection(id);
   state.collections = state.collections.filter((c) => c !== collection);
   if (state.activeCollectionId === id) state.activeCollectionId = undefined;
@@ -715,6 +914,7 @@ function restoreCollection(args: Args): CollectionsState {
   const collection = args.collection;
   if (!isCollection(collection)) return badArg('collections_restore', 'collection');
   purgeExpired();
+  requireGameFolder();
   if (!collection.id.trim()) fail('invalidInput', 'A collection needs an id');
   const restored: Collection = {
     ...collection,
@@ -735,6 +935,7 @@ function setCollectionSkins(args: Args): Collection {
   const add = strList('collections_set_skins', args, 'add');
   const remove = new Set(strList('collections_set_skins', args, 'remove'));
   purgeExpired();
+  requireGameFolder();
   const collection = findCollection(id);
   const indexed = new Set(state.index.map((s) => s.id));
   for (const skinId of dedupe(add)) {
@@ -745,8 +946,9 @@ function setCollectionSkins(args: Args): Collection {
 }
 
 /**
- * Exactly the collection's skins become active and every other hangar skin inactive; the
- * collection is remembered as the active one even when some folders clash (`conflict`).
+ * Exactly the collection's skins become active and every other hangar skin inactive (a skin
+ * being tried in game stays where it is); the collection is remembered as the active one even
+ * when some folders clash (`conflict`).
  */
 function activateCollection(args: Args): HangarSkin[] {
   const id = str('activate_collection', args, 'id');
@@ -754,7 +956,7 @@ function activateCollection(args: Args): HangarSkin[] {
   const collection = findCollection(id);
   const members = new Set(collection.skinIds);
   state.activeCollectionId = id;
-  moveSkins((skin) => members.has(skin.id));
+  moveSkins((skin) => (skin.temporary ? undefined : members.has(skin.id)));
   return state.index;
 }
 
@@ -858,31 +1060,41 @@ async function analyzeArchive(args: Args): Promise<QueueItem> {
   return analyze(path).item;
 }
 
-/** A skin installed from `root` into UserSkins/<folder>. */
-function installedSkin(root: MockSkinRoot, id: string, folder: string): HangarSkin {
-  const skin: HangarSkin = {
-    id,
-    folder,
-    name: folder,
-    vehicle: { ...root.vehicle },
-    origin: /^template_/i.test(folder) ? 'mine' : 'imported',
-    sizeBytes: root.sizeBytes,
-    active: true,
-    installedAt: stamp(Date.now()),
-  };
+/**
+ * What the scan finds in a freshly installed `root` (missing textures), and its `read_textures`
+ * rows remembered under the skin's id.
+ */
+function settle(skin: HangarSkin, root: MockSkinRoot): HangarSkin {
   if (root.missing.length > 0) {
     skin.attention = root.missing.map((file) => ({ kind: 'missingTexture', message: `${file} is missing`, file }));
   }
-  state.textures.set(id, root.textures);
+  state.textures.set(skin.id, root.textures);
   return skin;
+}
+
+/** A skin installed from `root` into UserSkins/<folder>. */
+function installedSkin(root: MockSkinRoot, id: string, folder: string): HangarSkin {
+  return settle(
+    {
+      id,
+      folder,
+      name: folder,
+      vehicle: { ...root.vehicle },
+      origin: /^template_/i.test(folder) ? 'mine' : 'imported',
+      sizeBytes: root.sizeBytes,
+      active: true,
+      installedAt: stamp(Date.now()),
+    },
+    root,
+  );
 }
 
 /**
  * Replace: the installed version goes to a backup (ephemeral while backups are off) and the new
- * one takes its place in the index under the same id, so collections keep it. A folder the
- * index didn't know is adopted first, as `import_skins` would.
+ * one, `build(id)`, takes its place in the index under the same id, so collections keep it. A
+ * folder the index didn't know is adopted first, as `import_skins` would.
  */
-function replaceSkin(clash: HangarSkin, root: MockSkinRoot): { skin: HangarSkin; backupId: string } {
+function replaceSkin(clash: HangarSkin, build: (id: string) => HangarSkin): { skin: HangarSkin; backupId: string } {
   let old = clash;
   if (old.id.startsWith('disk:')) {
     state.diskOnly = state.diskOnly.filter((s) => s !== clash);
@@ -898,7 +1110,7 @@ function replaceSkin(clash: HangarSkin, root: MockSkinRoot): { skin: HangarSkin;
     reason: 'replace',
   };
   state.backups.push({ backup, skin: { ...old }, wasActive: old.active, ephemeral: !state.settings.backups });
-  const skin = installedSkin(root, old.id, root.folder);
+  const skin = build(old.id);
   state.index = state.index.map((s) => (s === old ? skin : s));
   return { skin, backupId: backup.id };
 }
@@ -920,7 +1132,7 @@ function finishInstall(stored: StoredQueueItem, root: MockSkinRoot, installId: s
   let skin: HangarSkin;
   let backupId: string | undefined;
   if (clash && policy === 'replace') {
-    ({ skin, backupId } = replaceSkin(clash, root));
+    ({ skin, backupId } = replaceSkin(clash, (id) => installedSkin(root, id, root.folder)));
   } else {
     const taken = (name: string) => installedAt(state, name) !== undefined;
     skin = installedSkin(root, newId('s'), clash ? uniqueName(root.folder, taken) : root.folder);
@@ -1023,24 +1235,36 @@ function undoReplace(args: Args): HangarSkin {
   return skin;
 }
 
-/** Exactly one of `skinId` (an installed or not-yet-imported skin) and `queueId`. */
+/**
+ * Exactly one of `skinId` (an installed or not-yet-imported skin), `queueId` and `wtliveId` (a
+ * post's archive, read from WT Live).
+ */
 function readTextures(args: Args): TextureInfo[] {
   const skinId = optStr('read_textures', args, 'skinId');
   const queueId = optStr('read_textures', args, 'queueId');
-  if (skinId !== undefined && queueId === undefined) {
+  const wtliveId = optStr('read_textures', args, 'wtliveId');
+  if ([skinId, queueId, wtliveId].filter((id) => id !== undefined).length !== 1) {
+    fail('invalidInput', 'Pass exactly one of a skin id, a queue id or a WT Live id');
+  }
+  if (skinId !== undefined) {
     prepare();
     const skin =
       [...state.index, ...state.diskOnly].find((s) => s.id === skinId) ?? fail('notFound', 'Skin not found', skinId);
     return state.textures.get(skinId) ?? hangarTextures(skin);
   }
-  if (queueId !== undefined && skinId === undefined) {
+  if (queueId !== undefined) {
     const { item, roots } = findQueued(queueId);
     if (item.status === 'error') fail('unsupported', item.error ?? UNSUPPORTED_ARCHIVES, item.path);
     // Several skins inside: each row names its folder.
     if (roots.length > 1) return roots.flatMap((r) => r.textures.map((t) => ({ ...t, file: `${r.folder}/${t.file}` })));
     return roots[0]?.textures ?? [];
   }
-  return fail('invalidInput', 'Textures need either a skin or a queue item');
+  // The post's archive, before installing it (a WT Live call).
+  const id = requiredPostId(wtliveId ?? '');
+  return reported(() => {
+    reachWtLive();
+    return postRoot(findPost(id)).textures;
+  });
 }
 
 /**
@@ -1066,6 +1290,354 @@ function startWatcher(): void {
   });
 }
 
+// ── WT Live (M5) ────────────────────────────────────────────────────────────
+
+const NATIONS: readonly Nation[] = ['USA', 'GER', 'USSR', 'GBR', 'JPN', 'CHN', 'ITA', 'FRA', 'SWE', 'ISR', 'UNK'];
+const VEHICLE_TYPES: readonly VehicleType[] = ['ground', 'air', 'heli', 'naval'];
+const CATEGORIES: readonly Category[] = ['Historical', 'Semi-historical', 'Fictional', 'Camouflage', 'Other'];
+const SORT_ORDERS: readonly SortOrder[] = ['downloads', 'likes', 'newest', 'name'];
+const INSTALL_MODES: readonly InstallMode[] = ['normal', 'temporary'];
+const FOLLOW_KINDS: readonly FollowKind[] = ['vehicle', 'author'];
+
+/** Results per `wtlive_search` page. */
+const PAGE_SIZE = 60;
+
+/** Under the offline switch (read on every call), anything that needs WT Live rejects `network`. */
+function reachWtLive(): void {
+  if (readFlag('offline')) fail('network', "WT Live can't be reached");
+}
+
+/**
+ * Runs a WT Live call and emits `net://status` from its outcome, like the Rust `reported`:
+ * success → online, `network` → offline; any other error (a blank id, an unknown post, a
+ * conflict) says nothing about reaching WT Live.
+ */
+function reported<T>(run: () => T): T {
+  try {
+    const result = run();
+    mockEmit(EVENTS.netStatus, { online: true } satisfies NetStatus);
+    return result;
+  } catch (error) {
+    if ((error as Partial<AppError> | null)?.code === 'network') {
+      mockEmit(EVENTS.netStatus, { online: false } satisfies NetStatus);
+    }
+    throw error;
+  }
+}
+
+/** A WT Live id, trimmed; blank → `invalidInput` before anything else happens (`required_id`). */
+function requiredPostId(id: string): string {
+  return id.trim() || fail('invalidInput', 'Pass the id of a WT Live skin');
+}
+
+function findPost(id: string): WtLiveSkin {
+  return state.catalog.find((s) => s.id === id) ?? fail('notFound', 'This skin is no longer on WT Live', id);
+}
+
+/** `SearchParams` as serde reads them: optional fields may be missing or null; anything malformed is a bad argument. */
+function searchParams(args: Args): SearchParams {
+  const cmd = 'wtlive_search';
+  const raw = args.params;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return badArg(cmd, 'params');
+  const params = raw as Args;
+  const text = <T extends string>(key: string, allowed?: readonly T[]): T | undefined => {
+    const value = params[key];
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'string' || (allowed && !allowed.includes(value as T))) return badArg(cmd, 'params');
+    return value as T;
+  };
+  const sort = text('sort', SORT_ORDERS) ?? badArg(cmd, 'params');
+  const page = params.page;
+  if (typeof page !== 'number' || !Number.isInteger(page) || page < 0) return badArg(cmd, 'params');
+  return {
+    q: text('q'),
+    nation: text('nation', NATIONS),
+    type: text('type', VEHICLE_TYPES),
+    class: text('class'),
+    vehicle: text('vehicle'),
+    category: text('category', CATEGORIES),
+    sort,
+    page,
+  };
+}
+
+type PostOrder = (a: WtLiveSkin, b: WtLiveSkin) => number;
+const descending =
+  (pick: (skin: WtLiveSkin) => number): PostOrder =>
+  (a, b) =>
+    pick(b) - pick(a);
+/** Ties keep catalog order (the sort is stable). */
+const SORTS: Record<SortOrder, PostOrder> = {
+  downloads: descending((s) => s.downloads),
+  likes: descending((s) => s.likes),
+  newest: descending((s) => Date.parse(s.postedAt)),
+  name: (a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }),
+};
+
+/** Trimmed and lower-cased; blank means no filter. */
+function needle(value: string | undefined): string | undefined {
+  return value?.trim().toLowerCase() || undefined;
+}
+
+/** `wtlive_search`: the filters combine (AND), then the sort, then page `page` of 60. */
+function search(args: Args): SearchResult {
+  const params = searchParams(args);
+  return reported(() => {
+    reachWtLive();
+    const q = needle(params.q);
+    const klass = needle(params.class);
+    const code = needle(params.vehicle);
+    const found = state.catalog
+      .filter(
+        (s) =>
+          (!q || [s.name, s.vehicle.name, s.author.name].some((field) => field.toLowerCase().includes(q))) &&
+          (!params.nation || s.vehicle.nation === params.nation) &&
+          (!params.type || s.vehicle.type === params.type) &&
+          (!klass || s.vehicle.class.toLowerCase() === klass) &&
+          (!code || s.vehicle.code.toLowerCase() === code) &&
+          (!params.category || s.category === params.category),
+      )
+      .sort(SORTS[params.sort]);
+    const start = params.page * PAGE_SIZE;
+    const items = found.slice(start, start + PAGE_SIZE);
+    return { items, total: found.length, tookMs: 12 + items.length };
+  });
+}
+
+/** The post page: the listing entry plus the files in its archive. */
+function wtlivePost(args: Args): WtLiveSkin {
+  const id = requiredPostId(str('wtlive_post', args, 'id'));
+  return reported(() => {
+    reachWtLive();
+    const skin = findPost(id);
+    return { ...skin, files: postFiles(skin) };
+  });
+}
+
+/**
+ * New posts for the asked vehicle codes and author ids that are followed, each counted from its
+ * own entry's `lastSeenAt` (ids not followed are left out), newest first, marked new. With the
+ * seeds: Night Ops Matte and Baltic Winter (Leopard 2A6, Kessler_Wolf), Ace of Spades
+ * (Skyhook_Dan); after `following_mark_seen`, nothing until something newer is posted.
+ */
+function followingNew(args: Args): WtLiveSkin[] {
+  const asked = (key: string) => new Set(strList('wtlive_following_new', args, key).map((id) => id.trim()));
+  const vehicles = asked('vehicles');
+  const authors = asked('authors');
+  return reported(() => {
+    reachWtLive();
+    const since = (kind: FollowKind, id: string) => {
+      const entry = state.following.find((f) => f.kind === kind && f.id === id);
+      return entry && (kind === 'vehicle' ? vehicles : authors).has(id) ? Date.parse(entry.lastSeenAt) : undefined;
+    };
+    const isFresh = (s: WtLiveSkin) => {
+      const posted = Date.parse(s.postedAt);
+      const after = (seen: number | undefined) => seen !== undefined && posted > seen;
+      return after(since('vehicle', s.vehicle.code)) || after(since('author', s.author.id));
+    };
+    return state.catalog
+      .filter(isFresh)
+      .sort(SORTS.newest)
+      .map((s) => ({ ...s, isNew: true }));
+  });
+}
+
+/** Days per month, February of a leap year included (`time::month_len`). */
+function monthLength(year: number, month: number): number {
+  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$/;
+
+/** RFC 3339 as `time::parse_rfc3339` reads it: date, `T` (or a space), time, an optional fraction, `Z` or `±HH:MM`. */
+function isRfc3339(value: string): boolean {
+  const parts = value.match(RFC3339);
+  if (!parts) return false;
+  // Groups 1–6: date and time; 7–8: the offset's hours and minutes (absent with `Z`).
+  const n = (group: number) => Number(parts[group] ?? 0);
+  const month = n(2);
+  return (
+    month >= 1 &&
+    month <= 12 &&
+    n(3) >= 1 &&
+    n(3) <= monthLength(n(1), month) &&
+    n(4) <= 23 &&
+    n(5) <= 59 &&
+    n(6) <= 60 &&
+    n(7) <= 23 &&
+    n(8) <= 59
+  );
+}
+
+/**
+ * Follows (seen now; following again only refreshes the name) or unfollows (nothing followed:
+ * nothing changes); returns the whole list. With `lastSeenAt`, a follow stores that time, new or
+ * already followed (the Undo of an unfollow). Blank id or name, or a lastSeenAt that isn't
+ * RFC 3339 (even with an unfollow) → `invalidInput`, in that order.
+ */
+function followingSet(args: Args): FollowEntry[] {
+  const cmd = 'following_set';
+  const kind = str(cmd, args, 'kind') as FollowKind;
+  if (!FOLLOW_KINDS.includes(kind)) return badArg(cmd, 'kind');
+  const id = str(cmd, args, 'id').trim();
+  const name = str(cmd, args, 'name').trim();
+  const follow = bool(cmd, args, 'follow');
+  const lastSeenAt = optStr(cmd, args, 'lastSeenAt')?.trim();
+  if (!id) fail('invalidInput', 'Pass the id of the vehicle or author to follow');
+  if (!name) fail('invalidInput', 'Pass the name of the vehicle or author to follow');
+  if (lastSeenAt !== undefined && !isRfc3339(lastSeenAt)) fail('invalidInput', 'Not an RFC 3339 time', lastSeenAt);
+  const existing = state.following.find((f) => f.kind === kind && f.id === id);
+  if (!follow) {
+    state.following = state.following.filter((f) => f !== existing);
+  } else if (existing) {
+    existing.name = name;
+    if (lastSeenAt !== undefined) existing.lastSeenAt = lastSeenAt;
+  } else {
+    state.following.push({ kind, id, name, lastSeenAt: lastSeenAt ?? stamp(Date.now()) });
+  }
+  return state.following;
+}
+
+/** Everything followed counts as seen now (the Following tab's "N new" resets). */
+function followingMarkSeen(): FollowEntry[] {
+  const now = stamp(Date.now());
+  state.following = state.following.map((f) => ({ ...f, lastSeenAt: now }));
+  return state.following;
+}
+
+/** How long a WT Live install takes from `{ installId }` to `done` (× the time scale). */
+const WT_INSTALL_MS = 3000;
+/** `install://progress` before `done`, by the prototype's `stepOf`: [share of WT_INSTALL_MS, step, pct]. */
+const WT_INSTALL_STEPS: [number, InstallStep, number][] = [
+  [0, 'download', 0],
+  [0.08, 'download', 8],
+  [0.16, 'download', 16],
+  [0.24, 'download', 24],
+  [0.32, 'download', 32],
+  [0.4, 'download', 40],
+  [0.48, 'extract', 52],
+  [0.56, 'extract', 64],
+  [0.64, 'extract', 75],
+  [0.74, 'verify', 84],
+  [0.84, 'verify', 90],
+  [0.94, 'verify', 96],
+];
+
+/**
+ * `install_from_wtlive`: checks and starts the download, answers `{ installId }`, then reports
+ * through `install://progress` (rules in the header).
+ */
+function installFromWtLive(args: Args): InstallStarted {
+  const cmd = 'install_from_wtlive';
+  const skinId = str(cmd, args, 'skinId');
+  const mode = str(cmd, args, 'mode') as InstallMode;
+  if (!INSTALL_MODES.includes(mode)) return badArg(cmd, 'mode');
+  const conflict = optStr(cmd, args, 'conflict') as ConflictPolicy | undefined;
+  if (conflict !== undefined && !CONFLICT_POLICIES.includes(conflict)) return badArg(cmd, 'conflict');
+  const id = requiredPostId(skinId);
+  return reported(() => {
+    reachWtLive();
+    prepare();
+    const post = findPost(id);
+    if (state.wtInstalling.has(post.id)) fail('invalidInput', 'This skin is already installing', post.id);
+    const installed = state.index.find((s) => s.sourceId === post.id && !s.temporary);
+    const policy = installed ? (conflict ?? state.settings.conflictPolicy) : undefined;
+    if (policy === 'ask') fail('conflict', 'This skin is already installed', installed?.folder);
+    const installId = newId('i');
+    if (policy === 'skip') {
+      // Nothing to do: the installed version stays.
+      later(0, () => emitProgress({ installId, step: 'done', pct: 100, message: 'skipped' }));
+      return { installId };
+    }
+    state.wtInstalling.add(post.id);
+    for (const [share, step, pct] of WT_INSTALL_STEPS) {
+      later(share * WT_INSTALL_MS, () => emitProgress({ installId, step, pct }));
+    }
+    const replaceId = policy === 'replace' ? installed?.id : undefined;
+    later(WT_INSTALL_MS, () => finishWtLiveInstall(post, installId, mode, replaceId, policy === 'copy'));
+    return { installId };
+  });
+}
+
+/** End of a WT Live install: the post's folder moves into UserSkins and joins the index. */
+function finishWtLiveInstall(
+  post: WtLiveSkin,
+  installId: string,
+  mode: InstallMode,
+  replaceId: string | undefined,
+  copy: boolean,
+): void {
+  state.wtInstalling.delete(post.id);
+  const root = postRoot(post, 'the skin folder');
+  const build = (id: string, folder: string, name = post.name): HangarSkin =>
+    settle(
+      {
+        id,
+        folder,
+        name,
+        vehicle: { ...post.vehicle },
+        origin: 'wtlive',
+        author: { ...post.author },
+        sizeBytes: post.sizeBytes,
+        active: true,
+        installedAt: stamp(Date.now()),
+        sourceId: post.id,
+        ...(mode === 'temporary' ? { temporary: true } : {}),
+      },
+      root,
+    );
+  // Deleted meanwhile: nothing left to replace, so it installs like a new one.
+  const replaced = state.index.find((s) => s.id === replaceId && !s.temporary);
+  const tried = state.index.find((s) => s.sourceId === post.id && s.temporary);
+  let skin: HangarSkin;
+  let backupId: string | undefined;
+  if (replaced) {
+    ({ skin, backupId } = replaceSkin(replaced, (id) => build(id, replaced.folder)));
+    // Discard puts the replaced version back.
+    if (mode === 'temporary') state.triedBackups.set(skin.id, backupId);
+  } else if (tried && !copy) {
+    // The post was being tried: the new install takes over that skin and its folder.
+    skin = build(tried.id, tried.folder);
+    state.index = state.index.map((s) => (s === tried ? skin : s));
+    if (mode === 'normal') state.triedBackups.delete(skin.id);
+  } else {
+    const taken = (name: string) => installedAt(state, name) !== undefined;
+    const sameName = (name: string) => state.index.some((s) => s.sourceId === post.id && s.name === name);
+    skin = build(newId('s'), uniqueName(postFolder(post), taken), copy ? uniqueName(post.name, sameName) : post.name);
+    state.index.push(skin);
+  }
+  emitProgress({ installId, step: 'done', pct: 100, skinId: skin.id, backupId });
+}
+
+/**
+ * Try in game → Keep (the skin stays, `temporary` cleared) or Discard (removed without a backup,
+ * and a version it replaced comes back from its backup: the game files are as before).
+ * `skinId` is the WT Live id. Local: works offline.
+ */
+function finalizeTry(args: Args): HangarSkin | null {
+  const skinId = requiredPostId(str('finalize_try', args, 'skinId'));
+  const keep = bool('finalize_try', args, 'keep');
+  prepare();
+  const tried =
+    state.index.find((s) => s.sourceId === skinId && s.temporary) ??
+    fail('notFound', 'This skin isn’t being tried in game', skinId);
+  const replacedBackup = state.triedBackups.get(tried.id);
+  state.triedBackups.delete(tried.id);
+  if (keep) {
+    delete tried.temporary;
+    return tried;
+  }
+  if (replacedBackup && state.backups.some((b) => b.backup.id === replacedBackup)) {
+    undoReplace({ skinId: tried.id, backupId: replacedBackup });
+  } else {
+    state.index = state.index.filter((s) => s !== tried);
+    state.textures.delete(tried.id);
+    dropDanglingMembers();
+  }
+  return null;
+}
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 const COMMANDS: Record<string, (args: Args) => unknown> = {
@@ -1077,7 +1649,7 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   import_skins: importSkins,
   get_hangar: () => {
     purgeExpired();
-    return state.index;
+    return hasGameFolder() ? state.index : [];
   },
   set_skin_active: setSkinActive,
   delete_skins: deleteSkins,
@@ -1102,6 +1674,14 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   read_textures: readTextures,
   watch_folder: watchFolder,
   clear_backups: clearBackups,
+  wtlive_search: search,
+  wtlive_post: wtlivePost,
+  wtlive_following_new: followingNew,
+  install_from_wtlive: installFromWtLive,
+  finalize_try: finalizeTry,
+  following_list: () => state.following,
+  following_set: followingSet,
+  following_mark_seen: followingMarkSeen,
 };
 
 /** Answers `cmd` like the Rust backend would, after a short simulated delay. */
@@ -1110,5 +1690,11 @@ export async function mockCall<T>(cmd: string, args: Record<string, unknown>): P
   await pause();
   const handler = Object.hasOwn(COMMANDS, cmd) ? COMMANDS[cmd] : undefined;
   if (!handler) return fail('noBackend', `"${cmd}" needs the desktop app`);
-  return wire((await handler(input)) as T);
+  followGameRoot();
+  try {
+    return wire((await handler(input)) as T);
+  } finally {
+    // `set_settings` may have saved another game folder.
+    followGameRoot();
+  }
 }

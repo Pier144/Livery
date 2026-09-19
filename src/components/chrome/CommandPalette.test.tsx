@@ -1,7 +1,11 @@
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createQueryClient } from '@/queries/client';
+import { WTLIVE_KEY } from '@/queries/wtlive';
+import { useExplore } from '@/store/explore';
 import { useUi } from '@/store/ui';
+import type { SearchResult, WtLiveSkin } from '@/types';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
 import { CommandPalette } from './CommandPalette';
@@ -12,8 +16,53 @@ const input = () => screen.getByRole('combobox', { name: 'Command' });
 const options = () => within(screen.getByRole('listbox')).queryAllByRole('option');
 const selected = () => options().find((o) => o.getAttribute('aria-selected') === 'true');
 
+const wtSkin = (id: string, name: string): WtLiveSkin => ({
+  id,
+  name,
+  vehicle: { code: 'germ_leopard_2a6', name: 'Leopard 2A6', nation: 'GER', type: 'ground', class: 'MBT' },
+  author: { id: 'kessler_wolf', name: 'Kessler_Wolf', url: 'https://example.invalid' },
+  category: 'Historical',
+  downloads: 1,
+  likes: 1,
+  postedAt: '2026-04-18T10:00:00Z',
+  sizeBytes: 1,
+  images: [],
+  postUrl: '',
+  downloadUrl: '',
+});
+
 describe('CommandPalette', () => {
-  beforeEach(() => resetStores());
+  beforeEach(() => {
+    resetStores();
+  });
+
+  it('a vehicle result opens Explore filtered by that vehicle', async () => {
+    const user = userEvent.setup();
+    act(() => useUi.getState().go('hangar'));
+    renderWithProviders(<CommandPalette />);
+    open();
+    await user.keyboard('ariete{Enter}');
+    expect(useUi.getState().screen).toBe('explore');
+    expect(useExplore.getState()).toMatchObject({ tab: 'explore', vehicle: 'it_c1_ariete' });
+  });
+
+  it('skin results come from the cached WT Live results and open the Skin detail', async () => {
+    const user = userEvent.setup();
+    const client = createQueryClient();
+    const page: SearchResult = { items: [wtSkin('s4', 'Bundeswehr Flecktarn'), wtSkin('s14', 'Baltic Winter')], total: 2, tookMs: 20 };
+    client.setQueryData([...WTLIVE_KEY, 'search-pages', { sort: 'downloads' }], { pages: [page], pageParams: [0] });
+    renderWithProviders(<CommandPalette />, { client });
+    open();
+    await user.keyboard('leopard');
+    expect(options().map((o) => o.textContent)).toEqual([
+      'SkinBundeswehr FlecktarnLeopard 2A6 · Kessler_Wolf',
+      'SkinBaltic WinterLeopard 2A6 · Kessler_Wolf',
+      'VehicleLeopard 2A6germ_leopard_2a6',
+    ]);
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(useUi.getState()).toMatchObject({ screen: 'detail', detailSkinId: 's14' });
+    expect(useUi.getState().palette.open).toBe(false);
+  });
 
   it('renders only while open', () => {
     renderWithProviders(<CommandPalette />);
