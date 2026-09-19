@@ -1,0 +1,3 @@
+replace_tex{
+  from:t="bf109_body_c*"; to:t="bf109_c";
+}

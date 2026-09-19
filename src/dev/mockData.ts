@@ -1,12 +1,21 @@
 // Seed data for the in-browser mock backend (`pnpm dev:mock`). Dev only: reached solely through
 // the dynamic import of `@/dev/mockBackend` behind `MOCK_BACKEND`, so it never ships.
 //
-// Mirrors the prototype's sample hangar and collections (Livery Prototype.dc.html, lines 604-622)
-// in the shapes of src/types.ts. Every builder returns fresh objects, so resetting the mock
-// never shares state with an earlier run.
+// Mirrors the prototype's sample hangar, collections and install queue (Livery Prototype.dc.html,
+// lines 604-626) and its Textures tab (lines 687-696) in the shapes of src/types.ts. Every
+// builder returns fresh objects, so resetting the mock never shares state with an earlier run.
 
 import { vehicles } from '@/data/vehicles';
-import type { Author, Backup, Collection, HangarSkin, Vehicle } from '@/types';
+import type {
+  Author,
+  Backup,
+  Collection,
+  FileEntry,
+  HangarSkin,
+  TextureInfo,
+  Vehicle,
+  VehicleType,
+} from '@/types';
 
 const MB = 1024 * 1024;
 const KB = 1024;
@@ -385,4 +394,239 @@ export function seedManyHangar(total = 1000): HangarSkin[] {
     });
   });
   return [...base, ...extra];
+}
+
+// ── Install queue & textures (M4) ───────────────────────────────────────────
+
+/** The folder watching uses when Settings has none (the prototype's "Show folder" path). */
+export const MOCK_DOWNLOADS = 'C:\\Users\\you\\Downloads';
+
+interface TextureSpec {
+  side: number;
+  format: string;
+  mb: number;
+}
+
+/** Header facts per texture file, as the prototype's Textures tab lists them. */
+const TEXTURE_SPECS: Record<string, TextureSpec> = {
+  'hull_c.dds': { side: 4096, format: 'BC7', mb: 21.3 },
+  'hull_n.dds': { side: 4096, format: 'BC5', mb: 21.3 },
+  'turret_c.dds': { side: 4096, format: 'BC7', mb: 21.3 },
+  'turret_n.dds': { side: 4096, format: 'BC5', mb: 21.3 },
+  'tracks_c.dds': { side: 2048, format: 'BC7', mb: 5.3 },
+  'fuselage_c.dds': { side: 4096, format: 'BC7', mb: 21.3 },
+  'fuselage_n.dds': { side: 4096, format: 'BC5', mb: 21.3 },
+  'wings_c.dds': { side: 4096, format: 'BC7', mb: 21.3 },
+  'cockpit_c.tga': { side: 1024, format: 'RGBA8', mb: 4.2 },
+};
+/** Any other texture name. */
+const PLAIN_TEXTURE: TextureSpec = { side: 2048, format: 'BC7', mb: 5.3 };
+/** 8192² BC7 with mipmaps (the prototype's heavy example). */
+const HEAVY_TEXTURE: TextureSpec = { side: 8192, format: 'BC7', mb: 85.3 };
+const BLK_BYTES = 2 * KB;
+
+/** English fallbacks, as the Rust `textures` module words them (the UI localizes its own). */
+export const HEAVY_TEXTURE_WARNING = 'Very heavy texture (8192²). Load times may suffer.';
+function missingWarning(blk: string): string {
+  return `Referenced in ${blk} but not in the skin folder.`;
+}
+
+/** Every texture a complete skin ships (prototype Textures tab). */
+export function fullTextureSet(type: VehicleType): string[] {
+  return type === 'ground'
+    ? ['hull_c.dds', 'hull_n.dds', 'turret_c.dds', 'turret_n.dds', 'tracks_c.dds']
+    : ['fuselage_c.dds', 'fuselage_n.dds', 'wings_c.dds', 'cockpit_c.tga'];
+}
+
+/** What a typical download ships: four textures and the blk ("5 files · 4 textures", prototype). */
+function downloadTextureSet(type: VehicleType): string[] {
+  return type === 'ground'
+    ? ['hull_c.dds', 'hull_n.dds', 'turret_c.dds', 'tracks_c.dds']
+    : ['fuselage_c.dds', 'fuselage_n.dds', 'wings_c.dds', 'cockpit_c.tga'];
+}
+
+/** One skin root inside a dropped folder: a folder holding `<vehicle>.blk` and its textures. */
+export interface MockSkinRoot {
+  vehicle: Vehicle;
+  /** The root's folder name, which becomes the folder inside UserSkins. */
+  folder: string;
+  /** Paths relative to the dropped folder, `/`-separated. */
+  files: FileEntry[];
+  /** `read_textures` rows, relative to the root: textures first, then the blk. */
+  textures: TextureInfo[];
+  /** Textures the blk references that aren't there (the scan's `missingTexture`). */
+  missing: string[];
+  sizeBytes: number;
+}
+
+interface RootSpec {
+  vehicle: Vehicle;
+  folder: string;
+  /** Where the root sits inside the dropped folder (`'<folder>/'`); '' when it is the dropped folder. */
+  prefix?: string;
+  /** Textures the blk references, present or not. */
+  textures: string[];
+  /** The one texture saved at 8192². */
+  heavy?: string;
+  /** Referenced textures the folder lacks. */
+  missing?: string[];
+  /** No blk at all. */
+  noBlk?: boolean;
+  /** Other files shipped along (readme, previews). */
+  extras?: FileEntry[];
+}
+
+export function skinRoot(spec: RootSpec): MockSkinRoot {
+  const blk = spec.noBlk || !spec.vehicle.code ? undefined : `${spec.vehicle.code}.blk`;
+  const missing = spec.missing ?? [];
+  const prefix = spec.prefix ?? '';
+  const textures: TextureInfo[] = spec.textures.map((file) => {
+    if (missing.includes(file)) return { file, warning: missingWarning(blk ?? 'the blk'), missing: true };
+    const heavy = file === spec.heavy;
+    const { side, format, mb } = heavy ? HEAVY_TEXTURE : (TEXTURE_SPECS[file] ?? PLAIN_TEXTURE);
+    const info: TextureInfo = { file, width: side, height: side, format, sizeBytes: Math.round(mb * MB) };
+    return heavy ? { ...info, warning: HEAVY_TEXTURE_WARNING } : info;
+  });
+  const files: FileEntry[] = [
+    ...(blk ? [{ path: prefix + blk, sizeBytes: BLK_BYTES }] : []),
+    ...textures.filter((t) => !t.missing).map((t) => ({ path: prefix + t.file, sizeBytes: t.sizeBytes ?? 0 })),
+    ...(spec.extras ?? []).map((f) => ({ path: prefix + f.path, sizeBytes: f.sizeBytes })),
+  ];
+  if (blk) textures.push({ file: blk, format: 'BLK', sizeBytes: BLK_BYTES });
+  return {
+    vehicle: { ...spec.vehicle },
+    folder: spec.folder,
+    files,
+    textures,
+    missing: [...missing],
+    sizeBytes: files.reduce((sum, f) => sum + f.sizeBytes, 0),
+  };
+}
+
+/** Words that point at a vehicle when a folder name doesn't contain its code. */
+const VEHICLE_WORDS: [RegExp, string][] = [
+  [/tiger/i, 'germ_pzkpfw_VI_ausf_b_tiger_IIH'],
+  [/leopard|leo_?2/i, 'germ_leopard_2a6'],
+  [/spitfire/i, 'spitfire_mk9c'],
+  [/t[-_ ]?34/i, 'ussr_t_34_85'],
+  [/abrams|m1a2/i, 'us_m1a2_sep'],
+  [/ariete/i, 'it_c1_ariete'],
+  [/phantom|f[-_ ]?4e?(?![a-z0-9])/i, 'f_4e'],
+  [/bf[-_ ]?109|messerschmitt/i, 'bf-109g-6'],
+  [/su[-_ ]?27|flanker/i, 'su_27'],
+];
+
+/** A stable number for a name (vehicle fallback, archive sizes). */
+export function nameHash(name: string): number {
+  let hash = 0;
+  for (const ch of name.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return hash;
+}
+
+/** The vehicle a folder name points at: its code, a telling word, or a stable pick from the catalog. */
+export function guessVehicle(name: string): Vehicle {
+  const lower = name.toLowerCase();
+  const byCode = vehicles.find((v) => lower.includes(v.code.toLowerCase()));
+  if (byCode) return { ...byCode };
+  const byWord = VEHICLE_WORDS.find(([pattern]) => pattern.test(name));
+  if (byWord) return vehicle(byWord[1]);
+  const picked = vehicles[nameHash(name) % vehicles.length];
+  if (!picked) throw new Error('mock data: src/data/vehicles.json is empty');
+  return { ...picked };
+}
+
+/** "unknown_pack": three skins for three aircraft, 140 MB in all (prototype). */
+function packRoots(): MockSkinRoot[] {
+  const textures = ['fuselage_c.dds', 'wings_c.dds', 'cockpit_c.tga'];
+  const roots: [string, string][] = [
+    ['su_27', 'su_27_Flanker_Splinter'],
+    ['f_4e', 'f_4e_Aggressor_Grey'],
+    ['bf-109g-6', 'bf-109g-6_Winter_1943'],
+  ];
+  return roots.map(([code, folder]) => skinRoot({ vehicle: vehicle(code), folder, prefix: `${folder}/`, textures }));
+}
+
+/**
+ * What a dropped folder named `name` holds: three skin roots when the name contains "pack",
+ * otherwise one skin (the folder itself) for `vehicleHint`, or the vehicle its name suggests.
+ */
+export function sourceRoots(name: string, vehicleHint?: Vehicle): MockSkinRoot[] {
+  if (/pack/i.test(name)) return packRoots();
+  const found = vehicleHint?.code ? { ...vehicleHint } : guessVehicle(name);
+  return [skinRoot({ vehicle: found, folder: name, textures: downloadTextureSet(found.type) })];
+}
+
+/** A queue item at start: where it was dropped from and what it holds. */
+export interface QueueSeed {
+  id: string;
+  path: string;
+  roots: MockSkinRoot[];
+}
+
+/**
+ * The prototype's queue as skin folders in Downloads: a newer Flecktarn whose skin folder is
+ * the installed h_s4's (conflict), a Spitfire ready to go ("6 files · 2 textures"; its blk also
+ * references a cockpit texture it lacks), and a pack with three skins (needs a look).
+ */
+export function seedQueue(): QueueSeed[] {
+  const flecktarn = 'germ_leopard_2a6_Kessler_Wolf';
+  return [
+    {
+      id: 'q1',
+      path: `${MOCK_DOWNLOADS}\\leopard2a6_flecktarn_v3`,
+      roots: [
+        skinRoot({
+          vehicle: vehicle('germ_leopard_2a6'),
+          folder: flecktarn,
+          prefix: `${flecktarn}/`,
+          textures: ['hull_c.dds', 'turret_c.dds', 'tracks_c.dds'],
+          extras: [{ path: 'preview.jpg', sizeBytes: size(4, 96) }],
+        }),
+      ],
+    },
+    {
+      id: 'q2',
+      path: `${MOCK_DOWNLOADS}\\spitfire_mk9_raf_no_611`,
+      roots: [
+        skinRoot({
+          vehicle: vehicle('spitfire_mk9c'),
+          folder: 'spitfire_mk9_raf_no_611',
+          textures: ['fuselage_c.dds', 'wings_c.dds', 'cockpit_c.tga'],
+          missing: ['cockpit_c.tga'],
+          extras: [
+            { path: 'readme.txt', sizeBytes: 3 * KB },
+            { path: 'preview_1.jpg', sizeBytes: 412 * KB },
+            { path: 'preview_2.jpg', sizeBytes: 388 * KB },
+          ],
+        }),
+      ],
+    },
+    { id: 'q3', path: `${MOCK_DOWNLOADS}\\unknown_pack`, roots: packRoots() },
+  ];
+}
+
+/** `?watch=1`: the folder that shows up in the watched folder after load (the prototype's drop). */
+export const WATCHED_FOLDER = 'tiger2_h_ambush_winter';
+
+/** Skins whose hull texture is saved at 8192² (Textures warning). */
+const HEAVY_SKINS = new Set(['h1']);
+
+/**
+ * `read_textures` for a skin the mock didn't install itself: the full set for its vehicle type;
+ * the textures its attention list calls missing are missing; h1's first texture is heavy; no
+ * blk when the scan found none.
+ */
+export function hangarTextures(skin: HangarSkin): TextureInfo[] {
+  const full = fullTextureSet(skin.vehicle.type);
+  const missing = (skin.attention ?? [])
+    .filter((a) => a.kind === 'missingTexture')
+    .flatMap((a) => (a.file ? [a.file] : []));
+  return skinRoot({
+    vehicle: skin.vehicle,
+    folder: skin.folder,
+    textures: [...full, ...missing.filter((f) => !full.includes(f))],
+    heavy: HEAVY_SKINS.has(skin.id) ? full[0] : undefined,
+    missing,
+    noBlk: skin.attention?.some((a) => a.kind === 'noBlk'),
+  }).textures;
 }

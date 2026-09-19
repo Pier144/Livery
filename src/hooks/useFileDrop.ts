@@ -14,9 +14,9 @@ function setActive(active: boolean) {
 /**
  * Routes a drop:
  * - a folder drop handler is registered (First run asking for the game folder) → it gets every path, folders included;
- * - otherwise archives join the install queue as "Analyzing archive…" and the app jumps to the queue —
- *   except during First run, which stays put and confirms with a toast (the sidebar badge is hidden there);
- * - a drop with no ZIP/RAR/7z in it only gets a toast.
+ * - otherwise every path joins the install queue as "Analyzing…" (archives, skin folders — the backend
+ *   decides; the queue drops what isn't a skin with one toast) and the app jumps to the queue —
+ *   except during First run, which stays put and confirms with a toast (the sidebar badge is hidden there).
  */
 export function handleDroppedPaths(paths: string[]) {
   if (paths.length === 0) return;
@@ -26,8 +26,8 @@ export function handleDroppedPaths(paths: string[]) {
     return;
   }
   const accepted = useQueue.getState().addPaths(paths);
-  if (accepted.length === 0) toast(i18n.t('common.drop.unsupported'));
-  else if (ui.screen === 'firstRun') toast(i18n.t('common.drop.queued', { count: accepted.length }));
+  if (accepted.length === 0) return;
+  if (ui.screen === 'firstRun') toast(i18n.t('common.drop.queued', { count: accepted.length }));
   else ui.go('queue');
 }
 

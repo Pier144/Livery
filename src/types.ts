@@ -88,8 +88,13 @@ export interface QueueItem {
   vehicle?: Vehicle;
   /** needsLook */
   candidates?: Vehicle[];
-  /** HangarSkin.id */
+  /**
+   * Who already uses the target folder: a HangarSkin.id, `disk:<folder>` (on disk, not in the library)
+   * or `queue:<queueId>` (another queued item installs under the same name).
+   */
   conflictWith?: string;
+  /** Folder name it will be installed as inside UserSkins. */
+  targetFolder?: string;
   files?: FileEntry[];
   textureCount?: number;
   blkOk?: boolean;
@@ -100,10 +105,26 @@ export interface QueueItem {
 export type InstallStep = 'download' | 'extract' | 'verify' | 'done' | 'error';
 export interface InstallProgress {
   installId: string;
+  queueId?: string;
   step: InstallStep;
   pct: number;
   message?: string;
+  /** done: the installed skin. */
+  skinId?: string;
+  /** done after a Replace: backup of the previous version (drives Undo). */
+  backupId?: string;
 }
+export interface InstallStarted {
+  installId: string;
+}
+
+/** Backend events (`listen`). */
+export const EVENTS = {
+  installProgress: 'install://progress',
+  queueAdded: 'queue://added',
+  hangarChanged: 'hangar://changed',
+  netStatus: 'net://status',
+} as const;
 export type ConflictPolicy = 'ask' | 'replace' | 'copy' | 'skip';
 export type GameSource = 'steam' | 'standalone' | 'custom';
 export type Language = 'en' | 'it' | 'de' | 'ru' | 'fr';

@@ -21,6 +21,8 @@ describe('DropOverlay', () => {
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent(en.common.drop.title);
     expect(status).toHaveTextContent(en.common.drop.formats);
+    // Skin folders install too (archives wait for their unpacking libraries).
+    expect(en.common.drop.formats).toBe('ZIP · RAR · 7Z · FOLDER');
     act(() => useUi.getState().setDragActive(false));
     expect(screen.queryByText(en.common.drop.title)).not.toBeInTheDocument();
   });

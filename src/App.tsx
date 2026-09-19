@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/chrome/Sidebar';
 import { TitleBar } from '@/components/chrome/TitleBar';
 import { Toaster } from '@/components/chrome/Toaster';
 import { useFileDrop } from '@/hooks/useFileDrop';
+import { useInstallEvents } from '@/hooks/useInstallEvents';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
 import { useSettings } from '@/queries/settings';
@@ -52,6 +53,7 @@ function useBootScreen(): boolean {
 export function App() {
   useKeyboardShortcuts();
   useFileDrop();
+  useInstallEvents();
   useLanguageSync();
   const booted = useBootScreen();
   const { t } = useTranslation();

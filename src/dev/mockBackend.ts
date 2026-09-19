@@ -13,49 +13,86 @@
 // folder name is taken comes back as "<folder> (2)". Arguments and results go through JSON like
 // Tauri's IPC, so `undefined` fields are dropped exactly as they would be. Errors reject with
 // `{ code, message, detail? }`. State lives in memory and resets on reload. Each command answers
-// after 80–250 ms.
+// after 80–250 ms (`analyze_archive` takes three times as long, so "Analyzing…" shows).
+//
+// Install queue (M4). Only skin folders install for now; `analyze_archive` looks at the last
+// segment of the path:
+//   *.zip / *.rar / *.7z   an `error` item: unpacking needs a library that isn't approved yet
+//                          (installing it rejects `unsupported` with the same message)
+//   "notaskin"             rejects invalidInput "Not a skin folder or archive"
+//   contains "pack"        `needsLook`: three skin folders inside (Su-27, F-4E, Bf 109 G-6)
+//   an installed folder    `conflict` with that skin, e.g. "germ_leopard_2a6_Kessler_Wolf"
+//   anything else          `ready`, installing as that folder; the vehicle is guessed from the name
+// Items are kept newest first, like the Install queue lists them. `install_from_archive` answers
+// `{ installId }` at once, then `install://progress` walks extract 0→80, verify →95 and `done`
+// (with `skinId`) over ~2 s; the skin joins the index at `done`. Picking a vehicle narrows a
+// needsLook item to that skin. A folder name already in use follows the `conflict` argument, or
+// Settings → Conflicts when it's omitted: ask → rejects `conflict`; replace → the installed
+// version goes to a backup (reason replace; the new version keeps its id, so collections stay)
+// and `done` carries `backupId` for `undo_replace`; copy → "<folder> (2)"; skip → `done` with
+// message "skipped", nothing installed, the item leaves the queue. `read_textures` lists headers
+// like the prototype's Textures tab: h1 has an 8192² hull (heavy), h3 lacks turret_c.dds, the
+// queued Spitfire lacks cockpit_c.tga. `watch_folder` saves watchFolder/autoInstall.
+// Events (`mockListen` / `mockEmit`) arrive asynchronously, each listener with its own JSON copy.
+// The queue starts with the prototype's three items: a conflict, a ready one, one to look at.
 //
 // Start-up switches — a query parameter, or a localStorage key set to "1" (then reload):
 //   ?onboarded=1  livery.mock.onboarded  skip First run: onboarded, Steam game folder saved
-//   ?empty=1      livery.mock.empty      empty library, no collections, no backups
+//   ?empty=1      livery.mock.empty      empty library, no collections, no backups, empty queue
 //   ?many=1       livery.mock.many       ~1,000 skins in the hangar (scroll performance check)
 //   ?notfound=1   livery.mock.notfound   detection finds nothing ("Can't find War Thunder"); a
 //                                        folder whose path contains "War Thunder" is accepted
+//   ?watch=1      livery.mock.watch      "Watch Downloads folder" starts on, and 3 s after load a
+//                                        new folder, tiger2_h_ambush_winter, arrives through
+//                                        `queue://added` (unless watching was turned off by then)
 // A query parameter wins over localStorage; `=0` turns a stored switch off for that load.
 // Without switches the app opens on First run (onboarded: false, no game folder), which saves the
 // Steam folder; until a folder is saved, commands that touch UserSkins fail like the real app
 // ("No game folder set").
 
 import { DEFAULT_SETTINGS } from '@/queries/settings';
-import type {
-  AppError,
-  Backup,
-  Collection,
-  CollectionsState,
-  ConflictPolicy,
-  DeleteResult,
-  DetectEvent,
-  DetectState,
-  ExportResult,
-  GameDetection,
-  GameSource,
-  HangarSkin,
-  Language,
-  Settings,
+import {
+  EVENTS,
+  type AppError,
+  type Backup,
+  type Collection,
+  type CollectionsState,
+  type ConflictPolicy,
+  type DeleteResult,
+  type DetectEvent,
+  type DetectState,
+  type ExportResult,
+  type GameDetection,
+  type GameSource,
+  type HangarSkin,
+  type InstallProgress,
+  type InstallStarted,
+  type InstallStep,
+  type Language,
+  type QueueItem,
+  type Settings,
+  type TextureInfo,
 } from '@/types';
 import {
+  MOCK_DOWNLOADS,
   MOCK_GAME,
+  WATCHED_FOLDER,
+  hangarTextures,
+  nameHash,
   seedBackups,
   seedCollections,
   seedDiskOnly,
   seedHangar,
   seedManyHangar,
+  seedQueue,
+  sourceRoots,
+  type MockSkinRoot,
   type StoredBackup,
 } from './mockData';
 
 // ── Start-up switches ───────────────────────────────────────────────────────
 
-type Flag = 'onboarded' | 'empty' | 'notfound' | 'many';
+type Flag = 'onboarded' | 'empty' | 'notfound' | 'many' | 'watch';
 
 function readFlag(name: Flag): boolean {
   try {
@@ -71,7 +108,80 @@ function readFlag(name: Flag): boolean {
   }
 }
 
+// ── Events ──────────────────────────────────────────────────────────────────
+
+type Handler = (payload: unknown) => void;
+/** One per `mockListen` call, so the same handler registered twice runs twice (like Tauri). */
+interface Subscription {
+  handler: Handler;
+}
+const subscriptions = new Map<string, Set<Subscription>>();
+
+/**
+ * Mock counterpart of Tauri's `listen`, used by src/lib/events.ts. Returns the unlisten
+ * function; calling it more than once is harmless.
+ */
+export function mockListen<T>(name: string, handler: (payload: T) => void): () => void {
+  const subscription: Subscription = { handler: handler as Handler };
+  const set = subscriptions.get(name) ?? new Set<Subscription>();
+  set.add(subscription);
+  subscriptions.set(name, set);
+  return () => {
+    const current = subscriptions.get(name);
+    if (!current?.delete(subscription)) return;
+    if (current.size === 0) subscriptions.delete(name);
+  };
+}
+
+/**
+ * Emits a backend event like Tauri does: the payload is serialized now (`undefined` → `null`,
+ * later changes to the object don't leak), every listener subscribed at this moment gets its own
+ * parsed copy in a later microtask, in emit order, unless it unlistened in between. A throwing
+ * listener is reported and doesn't stop the others.
+ */
+export function mockEmit(name: string, payload?: unknown): void {
+  const listeners = [...(subscriptions.get(name) ?? [])];
+  if (listeners.length === 0) return;
+  const json = JSON.stringify(payload ?? null);
+  queueMicrotask(() => {
+    for (const subscription of listeners) {
+      if (!subscriptions.get(name)?.has(subscription)) continue;
+      try {
+        subscription.handler(JSON.parse(json));
+      } catch (error) {
+        if (typeof reportError === 'function') reportError(error);
+        else console.error(error);
+      }
+    }
+  });
+}
+
+// ── Timers ──────────────────────────────────────────────────────────────────
+
+/** Background work (install progress, the watcher) waiting to run; a reset cancels it. */
+const timers = new Set<ReturnType<typeof setTimeout>>();
+let timeScale = 1;
+/** `?watch=1`: when the new folder shows up after load (declared here: start-up uses it). */
+const WATCH_DELAY_MS = 3000;
+
+/** Runs `task` after `ms` × the configured time scale, unless the mock was reset meanwhile. */
+function later(ms: number, task: () => void): void {
+  const owner = state;
+  const timer = setTimeout(() => {
+    timers.delete(timer);
+    if (state === owner) task();
+  }, ms * timeScale);
+  timers.add(timer);
+}
+
 // ── State ───────────────────────────────────────────────────────────────────
+
+/** A queue item plus what the mock found inside it (the Rust `QueueStore` keeps the same). */
+interface StoredQueueItem {
+  item: QueueItem;
+  /** Skin roots inside; several → needsLook. None for an archive it can't open. */
+  roots: MockSkinRoot[];
+}
 
 interface MockState {
   settings: Settings;
@@ -83,6 +193,10 @@ interface MockState {
   activeCollectionId?: string;
   /** In the order they were made (oldest first), like the Rust index. */
   backups: StoredBackup[];
+  /** The install queue, newest first. */
+  queue: StoredQueueItem[];
+  /** `read_textures` rows of skins the mock installed (the others are made up per vehicle). */
+  textures: Map<string, TextureInfo[]>;
   detectNothing: boolean;
   nextId: number;
 }
@@ -91,34 +205,50 @@ function createState(): MockState {
   const onboarded = readFlag('onboarded');
   const empty = readFlag('empty');
   const seeded = empty ? undefined : seedCollections();
-  return {
+  const created: MockState = {
     settings: {
       ...DEFAULT_SETTINGS,
       ...(onboarded
         ? { onboarded: true, gamePath: MOCK_GAME.path, gameSource: 'steam' as const, gameVersion: MOCK_GAME.version }
         : {}),
+      ...(readFlag('watch') ? { watchFolder: MOCK_DOWNLOADS, autoInstall: true } : {}),
     },
     index: empty ? [] : readFlag('many') ? seedManyHangar() : seedHangar(),
     diskOnly: seedDiskOnly(),
     collections: seeded?.collections ?? [],
     activeCollectionId: seeded?.activeCollectionId,
     backups: empty ? [] : seedBackups(Date.now()).reverse(),
+    queue: [],
+    textures: new Map(),
     detectNothing: readFlag('notfound'),
     nextId: 1,
   };
+  if (!empty) {
+    created.queue = seedQueue().map(({ id, path, roots }) => ({ item: describeSource(created, id, path, roots), roots }));
+  }
+  return created;
 }
 
 let state = createState();
 let latency: [number, number] = [80, 250];
+startWatcher();
 
-/** Back to the start-up state (switches are read again). For tests. */
+/** Back to the start-up state (switches are read again, pending work and listeners dropped). For tests. */
 export function resetMockBackend(): void {
+  for (const timer of timers) clearTimeout(timer);
+  timers.clear();
+  subscriptions.clear();
   state = createState();
+  startWatcher();
 }
 
-/** Tests pass `{ latency: [0, 0] }` so round-trips don't wait. */
-export function configureMockBackend(options: { latency?: [number, number] }): void {
+/**
+ * Tests pass `{ latency: [0, 0] }` so round-trips don't wait, and `timeScale: 0` so installs and
+ * the watcher run on the next tick instead of taking seconds.
+ */
+export function configureMockBackend(options: { latency?: [number, number]; timeScale?: number }): void {
   if (options.latency) latency = options.latency;
+  if (options.timeScale !== undefined) timeScale = Math.max(0, options.timeScale);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -628,6 +758,314 @@ function activateCollection(args: Args): HangarSkin[] {
   return state.index;
 }
 
+// ── Install queue (M4) ──────────────────────────────────────────────────────
+
+/** `ErrorCode::Unsupported` for archives until the unpacking crates are approved. */
+const UNSUPPORTED_ARCHIVES =
+  "ZIP, RAR and 7z archives can't be unpacked yet — this needs the unpacking library the author hasn't approved. Skin folders work today.";
+
+/** How long an install takes from `{ installId }` to `done` (× the time scale). */
+const INSTALL_MS = 2000;
+/** `install://progress` before `done`: [share of INSTALL_MS, step, pct]. */
+const INSTALL_STEPS: [number, InstallStep, number][] = [
+  [0, 'extract', 0],
+  [0.12, 'extract', 16],
+  [0.24, 'extract', 32],
+  [0.36, 'extract', 48],
+  [0.48, 'extract', 64],
+  [0.6, 'extract', 80],
+  [0.75, 'verify', 88],
+  [0.9, 'verify', 95],
+];
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
+
+/** Last path segment, trailing separators ignored. */
+function lastSegment(path: string): string {
+  return path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? '';
+}
+
+/**
+ * The skin whose folder is `folder` (case-insensitive): an indexed one (active first, then
+ * inactive, whose folder would clash on activation) or a folder the index doesn't know.
+ */
+function installedAt(st: MockState, folder: string): HangarSkin | undefined {
+  const key = folderKey(folder);
+  const same = (s: HangarSkin) => folderKey(s.folder) === key;
+  return st.index.find((s) => s.active && same(s)) ?? st.index.find(same) ?? st.diskOnly.find(same);
+}
+
+/** The queue item for a folder holding `roots`, as the Rust analysis reports it. */
+function describeSource(st: MockState, id: string, path: string, roots: MockSkinRoot[]): QueueItem {
+  const files = roots.flatMap((r) => r.files);
+  const textureCount = files.filter((f) => /\.(dds|tga)$/i.test(f.path)).length;
+  const base: QueueItem = {
+    id,
+    path,
+    fileName: lastSegment(path),
+    sizeBytes: files.reduce((sum, f) => sum + f.sizeBytes, 0),
+    status: 'ready',
+    files,
+    textureCount,
+    blkOk: true,
+  };
+  const [root] = roots;
+  if (!root || roots.length > 1) {
+    return {
+      ...base,
+      status: 'needsLook',
+      candidates: roots.map((r) => ({ ...r.vehicle })),
+      note: `Can’t detect the vehicle: ${roots.length} folders inside. Pick one to continue.`,
+    };
+  }
+  const single: QueueItem = { ...base, vehicle: { ...root.vehicle }, targetFolder: root.folder };
+  const clash = installedAt(st, root.folder);
+  if (clash) {
+    return { ...single, status: 'conflict', conflictWith: clash.id, note: `Same folder name as “${clash.name}” (installed)` };
+  }
+  const blk = `${root.vehicle.code}.blk`;
+  return { ...single, note: `${plural(files.length, 'file')} · ${plural(textureCount, 'texture')} · ${blk} ok` };
+}
+
+function findQueued(queueId: string): StoredQueueItem {
+  return state.queue.find((q) => q.item.id === queueId) ?? fail('notFound', 'This item is no longer in the queue', queueId);
+}
+
+/** Looks inside a dropped or watched folder (rules in the header) and queues it, newest first. */
+function analyze(path: string): StoredQueueItem {
+  const name = lastSegment(path);
+  if (!name || name.toLowerCase() === 'notaskin') fail('invalidInput', 'Not a skin folder or archive', path);
+  const id = newId('q');
+  let stored: StoredQueueItem;
+  if (/\.(zip|rar|7z)$/i.test(name)) {
+    // Only the file's size is known without unpacking it.
+    const sizeBytes = (20 + (nameHash(name) % 120)) * 1024 * 1024;
+    stored = { item: { id, path, fileName: name, sizeBytes, status: 'error', error: UNSUPPORTED_ARCHIVES }, roots: [] };
+  } else {
+    // A folder named like an installed skin holds a version of that skin (same vehicle).
+    const roots = sourceRoots(name, installedAt(state, name)?.vehicle);
+    stored = { item: describeSource(state, id, path, roots), roots };
+  }
+  state.queue.unshift(stored);
+  return stored;
+}
+
+async function analyzeArchive(args: Args): Promise<QueueItem> {
+  const path = str('analyze_archive', args, 'path').trim();
+  await pause(2);
+  return analyze(path).item;
+}
+
+/** A skin installed from `root` into UserSkins/<folder>. */
+function installedSkin(root: MockSkinRoot, id: string, folder: string): HangarSkin {
+  const skin: HangarSkin = {
+    id,
+    folder,
+    name: folder,
+    vehicle: { ...root.vehicle },
+    origin: /^template_/i.test(folder) ? 'mine' : 'imported',
+    sizeBytes: root.sizeBytes,
+    active: true,
+    installedAt: stamp(Date.now()),
+  };
+  if (root.missing.length > 0) {
+    skin.attention = root.missing.map((file) => ({ kind: 'missingTexture', message: `${file} is missing`, file }));
+  }
+  state.textures.set(id, root.textures);
+  return skin;
+}
+
+/**
+ * Replace: the installed version goes to a backup (ephemeral while backups are off) and the new
+ * one takes its place in the index under the same id, so collections keep it. A folder the
+ * index didn't know is adopted first, as `import_skins` would.
+ */
+function replaceSkin(clash: HangarSkin, root: MockSkinRoot): { skin: HangarSkin; backupId: string } {
+  let old = clash;
+  if (old.id.startsWith('disk:')) {
+    state.diskOnly = state.diskOnly.filter((s) => s !== clash);
+    old = { ...clash, id: newId('s') };
+    state.index.push(old);
+  }
+  const backup: Backup = {
+    id: newId('b'),
+    skinId: old.id,
+    name: old.name,
+    sizeBytes: old.sizeBytes,
+    createdAt: stamp(Date.now()),
+    reason: 'replace',
+  };
+  state.backups.push({ backup, skin: { ...old }, wasActive: old.active, ephemeral: !state.settings.backups });
+  const skin = installedSkin(root, old.id, root.folder);
+  state.index = state.index.map((s) => (s === old ? skin : s));
+  return { skin, backupId: backup.id };
+}
+
+function emitProgress(progress: InstallProgress): void {
+  mockEmit(EVENTS.installProgress, progress);
+}
+
+/** End of an install: the folder moves into UserSkins (atomically, in the real app). */
+function finishInstall(stored: StoredQueueItem, root: MockSkinRoot, installId: string, policy?: 'replace' | 'copy'): void {
+  const queueId = stored.item.id;
+  const clash = installedAt(state, root.folder);
+  if (clash && !policy) {
+    // Another install took the folder meanwhile: nothing is installed, the item turns into a conflict.
+    stored.item = describeSource(state, queueId, stored.item.path, stored.roots);
+    emitProgress({ installId, queueId, step: 'error', pct: 95, message: 'Another skin folder already has this name' });
+    return;
+  }
+  let skin: HangarSkin;
+  let backupId: string | undefined;
+  if (clash && policy === 'replace') {
+    ({ skin, backupId } = replaceSkin(clash, root));
+  } else {
+    const taken = (name: string) => installedAt(state, name) !== undefined;
+    skin = installedSkin(root, newId('s'), clash ? uniqueName(root.folder, taken) : root.folder);
+    state.index.push(skin);
+  }
+  stored.item = { ...stored.item, status: 'done', targetFolder: skin.folder };
+  emitProgress({ installId, queueId, step: 'done', pct: 100, skinId: skin.id, backupId });
+}
+
+/** The skin root to install: the only one, or the one for `vehicleCode` (needsLook). */
+function pickRoot(stored: StoredQueueItem, vehicleCode: string | undefined): MockSkinRoot {
+  const { roots, item } = stored;
+  if (vehicleCode === undefined) {
+    if (roots.length > 1) fail('invalidInput', 'Pick a vehicle first', item.id);
+    return roots[0] ?? fail('invalidInput', 'Not a skin folder or archive', item.path);
+  }
+  return roots.find((r) => r.vehicle.code === vehicleCode) ?? fail('invalidInput', "That vehicle isn't in this folder", vehicleCode);
+}
+
+/**
+ * `install_from_archive`: checks and starts the install, answers `{ installId }`, then reports
+ * through `install://progress` (see the header for conflicts).
+ */
+function installFromArchive(args: Args): InstallStarted {
+  const cmd = 'install_from_archive';
+  const queueId = str(cmd, args, 'queueId');
+  const vehicleCode = optStr(cmd, args, 'vehicleCode');
+  const conflict = optStr(cmd, args, 'conflict');
+  if (conflict !== undefined && !CONFLICT_POLICIES.includes(conflict as ConflictPolicy)) return badArg(cmd, 'conflict');
+  prepare();
+  const stored = findQueued(queueId);
+  const { item } = stored;
+  if (item.status === 'error') fail('unsupported', item.error ?? UNSUPPORTED_ARCHIVES, item.path);
+  if (item.status === 'installing') fail('invalidInput', 'This item is already installing', queueId);
+  if (item.status === 'done') fail('invalidInput', 'This item is already installed', queueId);
+  const root = pickRoot(stored, vehicleCode);
+  if (stored.roots.length > 1) {
+    // The pick is final: the item becomes that one skin (ready, or a conflict).
+    stored.roots = [root];
+    stored.item = describeSource(state, queueId, item.path, stored.roots);
+  }
+  const clash = installedAt(state, root.folder);
+  const policy = clash ? ((conflict as ConflictPolicy | undefined) ?? state.settings.conflictPolicy) : undefined;
+  if (policy === 'ask') {
+    stored.item = describeSource(state, queueId, item.path, stored.roots);
+    fail('conflict', 'This skin is already installed', root.folder);
+  }
+  const installId = newId('i');
+  if (policy === 'skip') {
+    // Nothing to do: the installed version stays and the item leaves the queue.
+    state.queue = state.queue.filter((q) => q !== stored);
+    later(0, () => emitProgress({ installId, queueId, step: 'done', pct: 100, message: 'skipped' }));
+    return { installId };
+  }
+  stored.item = { ...stored.item, status: 'installing' };
+  for (const [share, step, pct] of INSTALL_STEPS) {
+    later(share * INSTALL_MS, () => emitProgress({ installId, queueId, step, pct }));
+  }
+  later(INSTALL_MS, () => finishInstall(stored, root, installId, policy));
+  return { installId };
+}
+
+/** Unknown ids are ignored; an item that is installing stays until it's done. */
+function removeQueueItem(args: Args): null {
+  const queueId = str('remove_queue_item', args, 'queueId');
+  const stored = state.queue.find((q) => q.item.id === queueId);
+  if (!stored) return null;
+  if (stored.item.status === 'installing') fail('invalidInput', 'Wait for the install to finish', queueId);
+  state.queue = state.queue.filter((q) => q !== stored);
+  return null;
+}
+
+/**
+ * Undo for "Replace, keep a backup": the new version is removed for good and the backed-up one
+ * comes back where it was (active or inactive) with its id; `<folder> (2)` if the name is taken
+ * by something else. The backup is used up.
+ */
+function undoReplace(args: Args): HangarSkin {
+  const skinId = str('undo_replace', args, 'skinId');
+  const backupId = str('undo_replace', args, 'backupId');
+  prepare([backupId]);
+  const record = state.backups.find((b) => b.backup.id === backupId);
+  if (!record) return fail('notFound', 'This backup is no longer available', backupId);
+  if (record.backup.reason !== 'replace' || record.backup.skinId !== skinId) {
+    fail('invalidInput', "This backup isn't an older version of that skin", backupId);
+  }
+  const newer = state.index.find((s) => s.id === skinId);
+  const taken = (name: string) =>
+    [...state.index, ...state.diskOnly].some((s) => s !== newer && folderKey(s.folder) === folderKey(name));
+  const folder = uniqueName(record.skin.folder, taken);
+  const skin: HangarSkin = { ...record.skin, active: record.wasActive };
+  if (folder !== skin.folder) {
+    skin.name = `${skin.name}${folder.slice(skin.folder.length)}`;
+    skin.folder = folder;
+  }
+  if (newer) state.index = state.index.map((s) => (s === newer ? skin : s));
+  else state.index.push(skin);
+  state.backups = state.backups.filter((b) => b !== record);
+  state.textures.delete(skinId);
+  return skin;
+}
+
+/** Exactly one of `skinId` (an installed or not-yet-imported skin) and `queueId`. */
+function readTextures(args: Args): TextureInfo[] {
+  const skinId = optStr('read_textures', args, 'skinId');
+  const queueId = optStr('read_textures', args, 'queueId');
+  if (skinId !== undefined && queueId === undefined) {
+    prepare();
+    const skin =
+      [...state.index, ...state.diskOnly].find((s) => s.id === skinId) ?? fail('notFound', 'Skin not found', skinId);
+    return state.textures.get(skinId) ?? hangarTextures(skin);
+  }
+  if (queueId !== undefined && skinId === undefined) {
+    const { item, roots } = findQueued(queueId);
+    if (item.status === 'error') fail('unsupported', item.error ?? UNSUPPORTED_ARCHIVES, item.path);
+    // Several skins inside: each row names its folder.
+    if (roots.length > 1) return roots.flatMap((r) => r.textures.map((t) => ({ ...t, file: `${r.folder}/${t.file}` })));
+    return roots[0]?.textures ?? [];
+  }
+  return fail('invalidInput', 'Textures need either a skin or a queue item');
+}
+
+/**
+ * `watch_folder`: turns watching on or off (`autoInstall`) for `path`; without one, the folder
+ * already set, else Downloads. Returns the settings.
+ */
+function watchFolder(args: Args): Settings {
+  const path = optStr('watch_folder', args, 'path')?.trim();
+  const enabled = bool('watch_folder', args, 'enabled');
+  if (path === '') fail('invalidInput', "The watched folder can't be found", path);
+  const folder = path ?? state.settings.watchFolder ?? MOCK_DOWNLOADS;
+  state.settings = { ...state.settings, watchFolder: folder, autoInstall: enabled };
+  return state.settings;
+}
+
+/** `?watch=1`: a new skin folder lands in the watched folder a few seconds after load. */
+function startWatcher(): void {
+  if (!readFlag('watch')) return;
+  later(WATCH_DELAY_MS, () => {
+    if (!state.settings.autoInstall) return; // watching was turned off meanwhile
+    const { item } = analyze(`${state.settings.watchFolder ?? MOCK_DOWNLOADS}\\${WATCHED_FOLDER}`);
+    mockEmit(EVENTS.queueAdded, item);
+  });
+}
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 const COMMANDS: Record<string, (args: Args) => unknown> = {
@@ -656,6 +1094,13 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   collections_set_skins: setCollectionSkins,
   activate_collection: activateCollection,
   list_backups: listBackups,
+  analyze_archive: analyzeArchive,
+  install_from_archive: installFromArchive,
+  list_queue: () => state.queue.map((q) => q.item),
+  remove_queue_item: removeQueueItem,
+  undo_replace: undoReplace,
+  read_textures: readTextures,
+  watch_folder: watchFolder,
   clear_backups: clearBackups,
 };
 

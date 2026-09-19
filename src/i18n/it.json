@@ -73,9 +73,8 @@
     },
     "drop": {
       "title": "Rilascia per aggiungere alla coda di installazione",
-      "formats": "ZIP · RAR · 7Z",
+      "formats": "ZIP · RAR · 7Z · CARTELLA",
       "analyzing": "Analisi dell'archivio…",
-      "unsupported": "Si possono aggiungere solo archivi ZIP, RAR e 7z",
       "queued_one": "{{count}} archivio aggiunto alla coda di installazione",
       "queued_other": "{{count}} archivi aggiunti alla coda di installazione"
     },
@@ -312,7 +311,106 @@
   "queue": {
     "title": "Coda di installazione",
     "dropZone": "Trascina archivi ZIP, RAR o 7z in qualsiasi punto della finestra",
-    "browse": "oppure fai clic per sfogliare"
+    "browse": "oppure fai clic per sfogliare",
+    "browseTitle": "Aggiungi archivi di skin",
+    "browseFilter": "Archivi di skin",
+    "chooseFolder": "Scegli una cartella di skin",
+    "foldersOnlyNote": "L’estrazione di ZIP, RAR e 7z arriverà con un aggiornamento. Le cartelle di skin si installano già.",
+    "empty": "La coda è vuota.",
+    "list": "Elementi in coda",
+    "meta": {
+      "items_one": "{{count}} archivio",
+      "items_other": "{{count}} archivi",
+      "ready_one": "{{count}} pronto",
+      "ready_other": "{{count}} pronti"
+    },
+    "clearDone": "Rimuovi installati",
+    "installReady_one": "Installa {{count}} pronto",
+    "installReady_other": "Installa {{count}} pronti",
+    "status": {
+      "analyzing": "Analisi",
+      "ready": "Pronto",
+      "conflict": "Conflitto",
+      "needsLook": "Da controllare",
+      "installing": "Installazione",
+      "done": "Installato",
+      "error": "Errore"
+    },
+    "note": {
+      "files_one": "{{count}} file",
+      "files_other": "{{count}} file",
+      "textures_one": "{{count}} texture",
+      "textures_other": "{{count}} texture",
+      "analyzing": "Analisi in corso…",
+      "blkOk": "skin.blk ok",
+      "blkBad": "skin.blk ha problemi",
+      "conflict": "Stesso nome di cartella di “{{installed}}” (installata)",
+      "conflictQueued": "Stesso nome di cartella di “{{installed}}” (in coda)",
+      "needsLook_one": "Impossibile riconoscere il veicolo. Sceglilo per continuare.",
+      "needsLook_other": "Impossibile riconoscere il veicolo: dentro ci sono {{count}} cartelle. Scegline una per continuare.",
+      "installed": "Ora è nel tuo hangar",
+      "error": "Qualcosa è andato storto."
+    },
+    "action": {
+      "install": "Installa",
+      "resolve": "Risolvi",
+      "pickVehicle": "Scegli veicolo",
+      "installed": "Installato",
+      "remove": "Rimuovi {{name}} dalla coda"
+    },
+    "progress": {
+      "label": "Installazione di {{name}}",
+      "extract": "Estrai",
+      "verify": "Verifica",
+      "done": "Fatto",
+      "extracting": "Estrazione {{pct}}%",
+      "verifying": "Verifica {{pct}}%"
+    },
+    "watch": {
+      "title": "Controlla la cartella Download",
+      "helper": "I nuovi archivi di skin si installano da soli.",
+      "showFolder": "Mostra cartella",
+      "hideFolder": "Nascondi cartella",
+      "defaultFolder": "Download (predefinita)",
+      "change": "Cambia",
+      "pickTitle": "Scegli la cartella da controllare"
+    },
+    "legend": {
+      "title": "Cosa significano gli stati",
+      "ready": "veicolo riconosciuto, i file sono a posto.",
+      "conflict": "è già installata una skin con la stessa cartella.",
+      "needsLook": "non si capisce per quale veicolo sia.",
+      "done": "è nel tuo hangar e nel gioco.",
+      "error": "non si può installare; la riga spiega perché."
+    },
+    "conflict": {
+      "title": "Questa skin è già installata",
+      "body": "<file>{{file}}</file> usa la stessa cartella di “{{installed}}” su {{vehicle}}.",
+      "bodyNoVehicle": "<file>{{file}}</file> usa la stessa cartella di “{{installed}}”.",
+      "replace": "Sostituisci, conserva un backup",
+      "replaceHelp": "La versione precedente va nei backup. Puoi annullare.",
+      "copy": "Installa come copia",
+      "copyHelp": "Restano entrambe le versioni. La nuova avrà “(2)” nel nome.",
+      "skip": "Salta",
+      "skipHelp": "Lascia la versione installata così com’è.",
+      "footer": "Cambia l’impostazione predefinita in Impostazioni → Conflitti"
+    },
+    "toast": {
+      "notSkin_one": "“{{name}}” non è un archivio o una cartella di skin",
+      "notSkin_other": "{{count}} elementi non sono archivi o cartelle di skin",
+      "installed": "“{{name}}” installata",
+      "installedMany_one": "{{count}} skin installata",
+      "installedMany_other": "{{count}} skin installate",
+      "replaced": "“{{name}}” sostituita · backup conservato",
+      "replacedPlain": "“{{name}}” sostituita",
+      "restored": "Ripristinata la versione precedente",
+      "copied": "Installata come copia",
+      "skipped": "Saltata. Non è cambiato nulla."
+    },
+    "announce": {
+      "done": "{{name}}: installato",
+      "error": "Impossibile installare {{name}}. {{message}}"
+    }
   },
   "settings": {
     "title": "Impostazioni"
