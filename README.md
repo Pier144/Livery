@@ -120,3 +120,7 @@ NSIS installer, per user, English and Italian; code signing is prepared but off.
 - [`DESIGN_NOTES.md`](DESIGN_NOTES.md): every decision taken during implementation that the handoff left open, plus tokens and copy added.
 - [`HANDOFF.md`](HANDOFF.md): current status, next steps, pending dependency approvals and gotchas. Read it first when you pick the project up.
 - [`CLAUDE.md`](CLAUDE.md): stack and conventions.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The fonts shipped in `src/assets/fonts` keep their own licence (SIL OFL 1.1, the texts are next to them and inside the app under Settings → About).
