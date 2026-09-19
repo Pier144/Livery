@@ -71,7 +71,10 @@ mod tests {
     fn serializes_to_code_message_detail() {
         let e = AppError::new(ErrorCode::InvalidInput, "Not a game folder").with_detail("C:\\x");
         let json = serde_json::to_value(&e).unwrap();
-        assert_eq!(json, serde_json::json!({ "code": "invalidInput", "message": "Not a game folder", "detail": "C:\\x" }));
+        assert_eq!(
+            json,
+            serde_json::json!({ "code": "invalidInput", "message": "Not a game folder", "detail": "C:\\x" })
+        );
     }
 
     #[test]

@@ -1,0 +1,11 @@
+/* A hand-written skin blk: semicolons, single quotes,
+   block comments and one-line blocks. */
+name:t='Winter "whitewash"'; // single quotes keep the double ones
+replace_tex{ from:t="hull_c*"; to:t='hull_c_snow.dds'; } replace_tex { from:t="turret_c*" ; to:t="turret_c_snow" }
+set_tex
+{
+  // the brace may sit on its own line
+  from:t="camo_skin_tex*"; to:t="camo ~"alpine~" ~~1.dds"; param:t="camo_skin_tex"
+}
+empty{}
+nested{ inner{ deeper{ flag:b=yes } } }

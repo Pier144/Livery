@@ -1,0 +1,15 @@
+// Hand-written KeyValues that exercises the parser's tolerance (not a real Steam file).
+"Root"
+{
+    // a comment on its own line
+    "quoted"    "has \"quotes\" and a \\ backslash" // trailing comment
+    bare_key    bare_value
+    "path"      "D:\Games\Unescaped"
+    "escapes"   "tab\there\nnewline"
+    "platform"  "win" [$WIN32]
+    "empty"     ""
+    "Nested" { "deep" { "deeper" "yes" } }
+    "dup"       "first"
+    "dup"       "second"
+    url         http://example.com/a//b
+}

@@ -3,7 +3,8 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createQueryClient } from '@/queries/client';
-import { HANGAR_SUMMARY_KEY } from '@/queries/hangar';
+import { HANGAR_KEY } from '@/queries/hangar';
+import type { HangarSkin } from '@/types';
 import { DEFAULT_SETTINGS } from '@/queries/settings';
 import { useQueue } from '@/store/queue';
 import { useUi } from '@/store/ui';
@@ -104,8 +105,13 @@ describe('Sidebar', () => {
   it('shows the game source and the hangar summary', async () => {
     const client = createQueryClient();
     client.setQueryData(['settings'], { ...DEFAULT_SETTINGS, gameSource: 'steam' });
-    client.setQueryDefaults(HANGAR_SUMMARY_KEY, { staleTime: Infinity });
-    client.setQueryData(HANGAR_SUMMARY_KEY, { count: 214, sizeBytes: 3.8 * 1024 ** 3 });
+    client.setQueryDefaults(HANGAR_KEY, { staleTime: Infinity });
+    // 214 skins adding up to 3.8 GB; only the count and sizeBytes matter to the summary.
+    const each = (3.8 * 1024 ** 3) / 214;
+    client.setQueryData(
+      HANGAR_KEY,
+      Array.from({ length: 214 }, (_, i) => ({ id: `h${i}`, sizeBytes: each }) as HangarSkin),
+    );
     render(
       <QueryClientProvider client={client}>
         <Sidebar />

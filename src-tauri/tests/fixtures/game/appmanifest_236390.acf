@@ -1,0 +1,55 @@
+"AppState"
+{
+	"appid"		"236390"
+	"universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"War Thunder"
+	"StateFlags"		"4"
+	"installdir"		"War Thunder"
+	"lastupdated"		"1789740416"
+	"LastPlayed"		"1789804369"
+	"SizeOnDisk"		"92103948348"
+	"StagingSize"		"0"
+	"buildid"		"25391798"
+	"LastOwner"		"0"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"499178544"
+	"BytesDownloaded"		"499178544"
+	"BytesToStage"		"1190694848"
+	"BytesStaged"		"1190694848"
+	"TargetBuildID"		"25391798"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"236394"
+		{
+			"manifest"		"4060612900596731260"
+			"size"		"1817741860"
+		}
+		"236391"
+		{
+			"manifest"		"3592340598849289217"
+			"size"		"90286206508"
+		}
+	}
+	"InstallScripts"
+	{
+		"236394"		"wt_firewall.vdf"
+	}
+	"SharedDepots"
+	{
+		"228989"		"228980"
+		"228990"		"228980"
+	}
+	"UserConfig"
+	{
+		"language"		"italian"
+	}
+	"MountedConfig"
+	{
+		"language"		"italian"
+	}
+}

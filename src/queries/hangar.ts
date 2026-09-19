@@ -1,20 +1,27 @@
 import { useQuery } from '@tanstack/react-query';
+import { call, isTauri } from '@/lib/tauri';
+import type { AppError, HangarSkin } from '@/types';
 
 export interface HangarSummary {
   count: number;
   sizeBytes: number;
 }
 
-export const HANGAR_SUMMARY_KEY = ['hangar', 'summary'] as const;
+/** Invalidate after anything that changes the index (import, install, delete…). */
+export const HANGAR_KEY = ['hangar'] as const;
 
-const EMPTY: HangarSummary = { count: 0, sizeBytes: 0 };
+const NONE: HangarSkin[] = [];
+
+/** Skins in My Hangar (`get_hangar`, from the library index). Empty outside Tauri. */
+export function useHangar() {
+  return useQuery<HangarSkin[], AppError>({
+    queryKey: HANGAR_KEY,
+    queryFn: () => (isTauri() ? call<HangarSkin[]>('get_hangar') : Promise.resolve(NONE)),
+  });
+}
 
 /** Installed-skin count and total size on disk (sidebar status card). Zero while loading. */
 export function useHangarSummary(): HangarSummary {
-  const { data } = useQuery<HangarSummary>({
-    queryKey: HANGAR_SUMMARY_KEY,
-    // TODO(M3): derive from the `get_hangar` command (skin count + summed sizeBytes).
-    queryFn: () => Promise.resolve(EMPTY),
-  });
-  return data ?? EMPTY;
+  const { data = NONE } = useHangar();
+  return { count: data.length, sizeBytes: data.reduce((sum, s) => sum + s.sizeBytes, 0) };
 }

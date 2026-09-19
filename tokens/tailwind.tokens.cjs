@@ -1,9 +1,10 @@
 // Spread into tailwind.config: theme: { extend: { ...require('./tokens/tailwind.tokens.cjs') } }
 module.exports = {
   colors: {
-    bg: { 0: '#0f1012', 1: '#111214', 2: '#131416', 3: '#18191c', 4: '#1f2024', 5: '#26272c', hover: '#1c1d21', input: '#17181b', chip: '#1b1c20', status: '#141518', scrim: 'rgba(19,20,22,.85)', skel: '#222327' },
+    bg: { 0: '#0f1012', 1: '#111214', 2: '#131416', 3: '#18191c', 4: '#1f2024', 5: '#26272c', hover: '#1c1d21', input: '#17181b', chip: '#1b1c20', status: '#141518', scrim: 'rgba(19,20,22,.85)', skel: '#222327', tile: '#1a1b1e' },
     line: { 1: '#1f2024', 2: '#26272c', 3: '#2e2f35', 4: '#3a3b41', mark: '#4a4c54', grid: '#1c1d21' },
-    ink: { 1: '#ececee', 2: '#c9cbd1', 3: '#9a9ca3', 4: '#7c7e86', 5: '#6b6d74' },
+    // ink-4 is #80828a (handoff: #7c7e86) so small text meets 4.5:1 on bg-3 and inputs too (DESIGN_NOTES).
+    ink: { 1: '#ececee', 2: '#c9cbd1', 3: '#9a9ca3', 4: '#80828a', 5: '#6b6d74' },
     amber: { DEFAULT: 'oklch(0.78 0.16 70)', hover: 'oklch(0.85 0.14 75)', 10: 'oklch(0.78 0.16 70 / .10)', 35: 'oklch(0.78 0.16 70 / .35)', 50: 'oklch(0.78 0.16 70 / .50)', 60: 'oklch(0.78 0.16 70 / .60)' },
     danger: { DEFAULT: 'oklch(0.75 0.15 25)', 8: 'oklch(0.75 0.15 25 / .08)', 40: 'oklch(0.75 0.15 25 / .40)', close: 'oklch(0.55 0.18 25)' },
     onAmber: '#131416',
@@ -35,6 +36,12 @@ module.exports = {
     grid: 'linear-gradient(#1c1d21 1px, transparent 1px), linear-gradient(90deg, #1c1d21 1px, transparent 1px)',
     placeholder: 'repeating-linear-gradient(135deg,#1e1f23 0 10px,#232428 10px 20px)',
     shimmer: 'linear-gradient(90deg,#1c1d21 25%,#232428 50%,#1c1d21 75%)',
+    // Small stripes: First run import thumbs (6px) and atlas tiles (5px).
+    'placeholder-thumb': 'repeating-linear-gradient(135deg,#1e1f23 0 6px,#26272c 6px 12px)',
+    'placeholder-tile': 'repeating-linear-gradient(135deg,#1e1f23 0 5px,#26272c 5px 10px)',
+    // First run technical drawing: hatched top face and the sweeping scanline.
+    hatch: 'repeating-linear-gradient(45deg,transparent 0 9px,oklch(0.78 0.16 70 / .18) 9px 10px)',
+    scanline: 'linear-gradient(90deg,transparent,oklch(0.78 0.16 70 / .5),transparent)',
   },
   backgroundSize: { grid: '28px 28px', shimmer: '200% 100%' },
   backgroundPosition: { grid: '-1px -1px' },
@@ -45,6 +52,17 @@ module.exports = {
     toastIn: { from: { opacity: '0', transform: 'translateY(4px)' }, to: { opacity: '1', transform: 'none' } },
     spinBox: { from: { transform: 'rotateX(-22deg) rotateY(0)' }, to: { transform: 'rotateX(-22deg) rotateY(360deg)' } },
     scan: { from: { transform: 'translateY(0)' }, to: { transform: 'translateY(300px)' } },
+    draw: { from: { strokeDashoffset: '600' }, to: { strokeDashoffset: '0' } },
   },
-  animation: { shimmer: 'shimmer 1.4s linear infinite', pulse6: 'pulse6 1.2s ease-in-out infinite', toastIn: 'toastIn 200ms ease-out', spinBox: 'spinBox 28s linear infinite', scan: 'scan 7s linear infinite' },
+  animation: {
+    shimmer: 'shimmer 1.4s linear infinite',
+    pulse6: 'pulse6 1.2s ease-in-out infinite',
+    toastIn: 'toastIn 200ms ease-out',
+    spinBox: 'spinBox 28s linear infinite',
+    scan: 'scan 7s linear infinite',
+    // First run drawing; per-element delays come from [animation-delay:…] utilities.
+    draw: 'draw 1.6s ease both',
+    'label-in': 'toastIn .8s ease both',
+    'tile-in': 'toastIn .6s ease both',
+  },
 };

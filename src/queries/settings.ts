@@ -10,14 +10,15 @@ export const DEFAULT_SETTINGS: Settings = {
   language: 'en',
   autoUpdate: true,
   startWithWindows: false,
+  onboarded: false,
 };
 
-const KEY = ['settings'] as const;
+export const SETTINGS_KEY = ['settings'] as const;
 
 /** Settings from `<appData>/settings.json`; defaults when running outside Tauri (browser dev, tests). */
 export function useSettings() {
   return useQuery<Settings, AppError>({
-    queryKey: KEY,
+    queryKey: SETTINGS_KEY,
     queryFn: () => (isTauri() ? call<Settings>('get_settings') : Promise.resolve(DEFAULT_SETTINGS)),
     staleTime: Infinity,
   });
@@ -29,7 +30,7 @@ export function useUpdateSettings() {
     mutationFn: (patch) =>
       isTauri()
         ? call<Settings>('set_settings', { patch })
-        : Promise.resolve({ ...(qc.getQueryData<Settings>(KEY) ?? DEFAULT_SETTINGS), ...patch }),
-    onSuccess: (settings) => qc.setQueryData(KEY, settings),
+        : Promise.resolve({ ...(qc.getQueryData<Settings>(SETTINGS_KEY) ?? DEFAULT_SETTINGS), ...patch }),
+    onSuccess: (settings) => qc.setQueryData(SETTINGS_KEY, settings),
   });
 }

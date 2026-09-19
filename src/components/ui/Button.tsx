@@ -22,9 +22,12 @@ const sizes: Record<Size, string> = {
   28: 'h-ctl px-2.5 text-meta',
   30: 'h-btn px-3 text-meta',
   32: 'h-8 px-3.5 text-meta',
-  34: 'h-[34px] px-4 text-body',
+  34: 'h-[34px] text-body',
   36: 'h-btn-lg px-4 text-body',
 };
+
+/** At 34px the prototype pads primary buttons 16px and bordered ones 14px. */
+const padding34: Record<Variant, string> = { primary: 'px-4', secondary: 'px-3.5', ghost: 'px-3.5' };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 34, className, type = 'button', ...rest },
@@ -38,6 +41,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         'inline-flex flex-none items-center justify-center gap-2 whitespace-nowrap rounded-ctl leading-none motion-safe:transition-colors motion-safe:duration-120 disabled:opacity-50',
         variants[variant],
         sizes[size],
+        size === 34 && padding34[variant],
         className,
       )}
       {...rest}

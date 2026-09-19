@@ -72,10 +72,93 @@
       "title": "Rilascia per aggiungere alla coda di installazione",
       "formats": "ZIP · RAR · 7Z",
       "analyzing": "Analisi dell'archivio…",
-      "unsupported": "Si possono aggiungere solo archivi ZIP, RAR e 7z"
+      "unsupported": "Si possono aggiungere solo archivi ZIP, RAR e 7z",
+      "queued_one": "{{count}} archivio aggiunto alla coda di installazione",
+      "queued_other": "{{count}} archivi aggiunti alla coda di installazione"
     },
     "toasts": {
       "region": "Notifiche"
+    }
+  },
+  "firstRun": {
+    "label": "Primo avvio",
+    "steps": {
+      "label": "Passaggi di configurazione",
+      "detect": "01 RILEVA",
+      "confirm": "02 CONFERMA",
+      "import": "03 IMPORTA"
+    },
+    "detect": {
+      "title": "Sto cercando War Thunder",
+      "body": "Controllo i percorsi abituali. Ci vuole un attimo.",
+      "progress": "Avanzamento del rilevamento",
+      "sources": {
+        "steam": "Libreria Steam",
+        "standalone": "Launcher standalone",
+        "custom": "Percorso personalizzato"
+      },
+      "state": {
+        "queued": "in coda",
+        "checking": "controllo…",
+        "found": "trovato",
+        "notFound": "non trovato",
+        "notInstalled": "non installato",
+        "skipped": "saltato"
+      },
+      "doneFound": "Rilevamento completato. War Thunder trovato: {{source}}.",
+      "doneNotFound": "Rilevamento completato. War Thunder non è stato trovato nei percorsi abituali."
+    },
+    "found": {
+      "title": "War Thunder trovato",
+      "body": "Livery installerà le skin in questa copia del gioco.",
+      "game": "War Thunder",
+      "meta_one": "Versione {{version}} · {{count}} skin già in UserSkins",
+      "meta_other": "Versione {{version}} · {{count}} skin già in UserSkins",
+      "metaNoVersion_one": "{{count}} skin già in UserSkins",
+      "metaNoVersion_other": "{{count}} skin già in UserSkins",
+      "use": "Usa questa installazione",
+      "other": "Scegli un'altra cartella"
+    },
+    "notFound": {
+      "title": "Non trovo War Thunder",
+      "body": "Scegli la cartella in cui è installato il gioco. Livery cerca al suo interno la cartella UserSkins.",
+      "choose": "Scegli la cartella del gioco",
+      "drop": "oppure trascinala qui",
+      "pickerTitle": "Scegli la cartella di War Thunder",
+      "invalid": "Questa cartella non sembra War Thunder. Scegli quella che contiene launcher.exe o UserSkins.",
+      "dropOverlay": "Rilascia la cartella di War Thunder",
+      "dropFormats": "CARTELLA",
+      "skip": "Salta per ora",
+      "back": "Indietro"
+    },
+    "import": {
+      "title": "Skin già sul disco",
+      "body": "Livery ha trovato delle skin nella cartella UserSkins. Aggiungile a Il mio hangar per gestirle da qui.",
+      "stats": {
+        "skins": "skin",
+        "vehicles": "veicoli",
+        "attention": "da controllare"
+      },
+      "tag": {
+        "ok": "ok",
+        "mine": "creata da te",
+        "attention": "da controllare"
+      },
+      "more": "+ altre {{count}}",
+      "import": "Importa e continua",
+      "skip": "Salta l'importazione",
+      "scanFailed": "Impossibile leggere la cartella UserSkins."
+    },
+    "toast": {
+      "imported_one": "{{count}} skin aggiunta a Il mio hangar",
+      "imported_other": "{{count}} skin aggiunte a Il mio hangar",
+      "gameSet": "Cartella del gioco impostata",
+      "later": "Potrai impostare la cartella del gioco più tardi nelle Impostazioni"
+    },
+    "anim": {
+      "hull": "SCAFO 200 × 120 × 110",
+      "sheet": "TAVOLA 00 · RILEVAMENTO INSTALLAZIONE",
+      "unofficial": "STRUMENTO NON UFFICIALE"
     }
   },
   "explore": {
@@ -86,7 +169,14 @@
     "title": "Il mio hangar",
     "emptyTitle": "Non c'è ancora niente",
     "emptyBody": "Installa una skin da Esplora, oppure trascina uno ZIP in qualsiasi punto della finestra.",
-    "emptyAction": "Sfoglia WT Live"
+    "emptyAction": "Sfoglia WT Live",
+    "attention": {
+      "missingTexture": "manca {{file}}",
+      "unknownBlkBlock": "{{file}} contiene un blocco sconosciuto",
+      "partialExtract": "l'archivio è stato estratto solo in parte",
+      "noBlk": "manca il file .blk, il gioco non può usarla",
+      "unreadableBlk": "impossibile leggere {{file}}"
+    }
   },
   "collections": {
     "title": "Collezioni"

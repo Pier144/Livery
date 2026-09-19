@@ -43,6 +43,23 @@ describe('DropOverlay', () => {
     expect(screen.getByText(en.common.drop.formats)).toHaveClass('font-mono', 'text-mono-sm', 'text-ink-3');
   });
 
+  it('asks for the game folder while a folder drop handler is registered', () => {
+    renderWithProviders(<DropOverlay />);
+    act(() => {
+      useUi.getState().setFolderDrop(() => {});
+      useUi.getState().setDragActive(true);
+    });
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent(en.firstRun.notFound.dropOverlay);
+    expect(status).toHaveTextContent(en.firstRun.notFound.dropFormats);
+    expect(status).not.toHaveTextContent(en.common.drop.title);
+    expect(screen.getByText(en.firstRun.notFound.dropOverlay)).toHaveClass('text-title');
+    expect(screen.getByText(en.firstRun.notFound.dropFormats)).toHaveClass('font-mono', 'text-mono-sm', 'text-ink-3');
+    // Handler gone (e.g. First run moved on): the queue copy comes back.
+    act(() => useUi.getState().setFolderDrop(null));
+    expect(status).toHaveTextContent(en.common.drop.title);
+  });
+
   it('has no serious accessibility violations', async () => {
     const { container } = renderWithProviders(<DropOverlay />);
     act(() => useUi.getState().setDragActive(true));
