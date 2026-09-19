@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#131416;color:#ececee;font-family:Geist,system-ui,sans-serif}a{color:oklch(0.78 0.16 70)}a:hover{color:oklch(0.85 0.14 75)}@keyframes lv-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}</style></helmet>
+<div style="max-width:1180px;margin:0 auto;padding:48px 40px 80px;display:flex;flex-direction:column;gap:56px;background-image:linear-gradient(#1c1d21 1px,transparent 1px),linear-gradient(90deg,#1c1d21 1px,transparent 1px);background-size:28px 28px;background-position:-1px -1px">
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.78 0.16 70);box-shadow:0 0 8px oklch(0.78 0.16 70 / .6)"></span><span style="font:600 12px Geist;letter-spacing:.14em">LIVERY</span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em">DESIGN SYSTEM · SHEET 00</span></div>
+    <div style="font:500 32px/1.15 Geist;letter-spacing:-.01em">Cockpit + drawing sheet</div>
+    <div style="font:14px/1.55 Geist;color:#9a9ca3;max-width:640px">Dark graphite, one amber accent used only for state and action. Skin screenshots are the subject; the interface is the frame. Technical data is always monospace. A faint 28px ruled grid sits behind content areas.</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #222327;padding-bottom:8px"><span style="font:500 16px Geist">01 Color</span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">Tailwind tokens in handoff</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">
+      <sc-for list="{{ colors }}" as="c" hint-placeholder-count="12">
+      <div style="border:1px solid #26272c;border-radius:6px;overflow:hidden;background:#18191c"><div style="height:56px;background:{{ c.value }}"></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font:500 12px Geist">{{ c.name }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86">{{ c.value }}</span><span style="font:10px Geist;color:#6b6d74">{{ c.use }}</span></div></div>
+      </sc-for>
+    </div>
+    <div style="font:12px/1.5 Geist;color:#9a9ca3;max-width:720px">Amber is the only chromatic accent: active nav, selected filter, progress, installed state, attention. Destructive uses <span style="color:oklch(0.75 0.15 25)">oklch(0.75 0.15 25)</span> on text only. Text on amber is always ink (#131416) — 9.6:1. Body text #ececee on #131416 — 14.8:1; secondary #9a9ca3 — 6.6:1; tertiary #7c7e86 — 4.5:1 (minimum for 11px mono labels).</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #222327;padding-bottom:8px"><span style="font:500 16px Geist">02 Typography</span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">Geist · IBM Plex Mono</span></div>
+    <div style="border:1px solid #26272c;border-radius:8px;background:#18191c;overflow:hidden">
+      <sc-for list="{{ type }}" as="t" hint-placeholder-count="8">
+      <div style="display:grid;grid-template-columns:200px minmax(0,1fr) 220px;gap:20px;align-items:center;padding:12px 16px;border-bottom:1px solid #1c1d21"><span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.06em">{{ t.token }}</span><span style="font:{{ t.css }};color:{{ t.color }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.sample }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">{{ t.css }}</span></div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #222327;padding-bottom:8px"><span style="font:500 16px Geist">03 Spacing, radius, elevation</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div style="border:1px solid #26272c;border-radius:8px;background:#18191c;padding:16px;display:flex;flex-direction:column;gap:10px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">SPACE · 4px base</span>
+        <sc-for list="{{ space }}" as="s" hint-placeholder-count="7"><div style="display:flex;align-items:center;gap:12px"><span style="font:10px 'IBM Plex Mono',monospace;color:#9a9ca3;min-width:40px">{{ s.name }}</span><span style="height:12px;width:{{ s.px }}px;background:oklch(0.78 0.16 70 / .6)"></span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">{{ s.px }}px</span></div></sc-for>
+      </div>
+      <div style="border:1px solid #26272c;border-radius:8px;background:#18191c;padding:16px;display:flex;flex-direction:column;gap:10px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">RADIUS</span>
+        <div style="display:flex;gap:12px;align-items:flex-end"><div style="width:48px;height:48px;border:1px solid #3a3b41;border-radius:3px;display:flex;align-items:flex-end;justify-content:center;padding:4px;font:9px 'IBM Plex Mono',monospace;color:#7c7e86">3 tag</div><div style="width:48px;height:48px;border:1px solid #3a3b41;border-radius:4px;display:flex;align-items:flex-end;justify-content:center;padding:4px;font:9px 'IBM Plex Mono',monospace;color:#7c7e86">4 menu</div><div style="width:48px;height:48px;border:1px solid #3a3b41;border-radius:6px;display:flex;align-items:flex-end;justify-content:center;padding:4px;font:9px 'IBM Plex Mono',monospace;color:#7c7e86">6 btn</div><div style="width:48px;height:48px;border:1px solid #3a3b41;border-radius:8px;display:flex;align-items:flex-end;justify-content:center;padding:4px;font:9px 'IBM Plex Mono',monospace;color:#7c7e86">8 card</div><div style="width:48px;height:48px;border:1px solid #3a3b41;border-radius:10px;display:flex;align-items:flex-end;justify-content:center;padding:4px;font:9px 'IBM Plex Mono',monospace;color:#7c7e86">10 dlg</div></div>
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em;margin-top:8px">HAIRLINES</span>
+        <div style="font:12px/1.5 Geist;color:#9a9ca3">Borders are 1px: #1f2024 structural, #26272c cards, #2e2f35 controls, #3a3b41 hover/dialog. Corner marks on imagery: 9px, #4a4c54.</div>
+      </div>
+      <div style="border:1px solid #26272c;border-radius:8px;background:#18191c;padding:16px;display:flex;flex-direction:column;gap:10px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">ELEVATION</span>
+        <div style="display:flex;gap:12px"><div style="flex:1;height:56px;border-radius:6px;background:#18191c;border:1px solid #26272c;display:flex;align-items:center;justify-content:center;font:10px 'IBM Plex Mono',monospace;color:#7c7e86">0 · card</div><div style="flex:1;height:56px;border-radius:6px;background:#18191c;border:1px solid #2e2f35;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font:10px 'IBM Plex Mono',monospace;color:#7c7e86">1 · menu</div><div style="flex:1;height:56px;border-radius:6px;background:#18191c;border:1px solid #3a3b41;box-shadow:0 30px 80px rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;font:10px 'IBM Plex Mono',monospace;color:#7c7e86;white-space:nowrap">2 · dialog</div></div>
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em;margin-top:8px">MOTION</span>
+        <div style="font:12px/1.5 Geist;color:#9a9ca3">120ms border/color, 150–250ms transforms, ease-out. Progress bars linear. Everything under <span style="font:11px 'IBM Plex Mono',monospace">prefers-reduced-motion</span> stops; state changes stay instant.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #222327;padding-bottom:8px"><span style="font:500 16px Geist">04 Skin card states</span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">Explore · 16:9 image, 12px padding</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;align-items:start">
+      <sc-for list="{{ cardStates }}" as="cs" hint-placeholder-count="6">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">{{ cs.label }}</span>
+        <div style="position:relative;background:#18191c;border:1px solid {{ cs.border }};border-radius:8px;overflow:hidden;display:flex;flex-direction:column;box-shadow:{{ cs.shadow }};outline:{{ cs.outline }};outline-offset:2px">
+          <div style="aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#1e1f23 0 10px,#232428 10px 20px);display:flex;align-items:center;justify-content:center;position:relative"><span style="font:11px 'IBM Plex Mono',monospace;color:#6b6d74">screenshot</span><span style="position:absolute;top:8px;left:8px;font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;background:rgba(15,16,18,.85);padding:2px 6px;border-radius:4px">Historical</span><span style="position:absolute;bottom:6px;left:6px;width:9px;height:9px;border-bottom:1px solid #4a4c54;border-left:1px solid #4a4c54"></span><span style="position:absolute;bottom:6px;right:6px;width:9px;height:9px;border-bottom:1px solid #4a4c54;border-right:1px solid #4a4c54"></span></div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:7px">
+            <div style="font:500 14px/1.3 Geist">Bundeswehr Flecktarn</div>
+            <div style="display:flex;gap:6px;align-items:center;font:12px Geist;color:#9a9ca3"><span style="font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;border:1px solid #2e2f35;padding:1px 4px;border-radius:3px">GER</span>Leopard 2A6</div>
+            <div style="display:flex;justify-content:space-between;font:12px Geist;color:#9a9ca3"><span>by <span style="color:#c9cbd1">Kessler_Wolf</span></span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">42.8k dl</span></div>
+            <sc-if value="{{ cs.idle }}" hint-placeholder-val="{{ true }}"><div style="margin-top:4px;height:30px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:6px;background:{{ cs.btnBg }};border:1px solid {{ cs.btnBorder }};font:500 12px Geist;color:{{ cs.btnColor }};box-sizing:border-box">Install <span style="font:10px 'IBM Plex Mono',monospace;opacity:.7">52 MB</span></div></sc-if>
+            <sc-if value="{{ cs.installing }}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px;height:30px;display:flex;flex-direction:column;justify-content:center;gap:6px"><div style="height:3px;border-radius:2px;background:#26272c;overflow:hidden"><div style="height:100%;width:56%;background:oklch(0.78 0.16 70)"></div></div><div style="display:flex;justify-content:space-between;font:10px 'IBM Plex Mono',monospace;color:#6b6d74"><span style="color:#9a9ca3">Download ✓</span><span style="color:oklch(0.78 0.16 70)">Extracting 56%</span><span>Verify · Done</span></div></div></sc-if>
+            <sc-if value="{{ cs.installed }}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-radius:6px;background:oklch(0.78 0.16 70 / .1);border:1px solid oklch(0.78 0.16 70 / .35);font:500 12px Geist;color:oklch(0.78 0.16 70);box-sizing:border-box"><span>Installed ✓</span><span style="font:10px 'IBM Plex Mono',monospace;color:#9a9ca3">in Hangar</span></div></sc-if>
+            <sc-if value="{{ cs.error }}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-radius:6px;background:oklch(0.75 0.15 25 / .08);border:1px solid oklch(0.75 0.15 25 / .4);font:500 12px Geist;color:oklch(0.75 0.15 25);box-sizing:border-box"><span>Install failed</span><span style="font:500 12px Geist;color:#ececee;text-decoration:underline;text-underline-offset:3px">Retry</span></div><div style="font:11px Geist;color:#9a9ca3">Archive is corrupt (CRC mismatch).</div></sc-if>
+          </div>
+          
+        </div>
+      </div>
+      </sc-for>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">SKELETON</span>
+        <div style="background:#18191c;border:1px solid #26272c;border-radius:8px;overflow:hidden"><div style="aspect-ratio:16/9;background:linear-gradient(90deg,#1c1d21 25%,#232428 50%,#1c1d21 75%);background-size:200% 100%;animation:lv-shimmer 1.4s linear infinite"></div><div style="padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:12px;width:70%;border-radius:3px;background:#222327"></div><div style="height:10px;width:50%;border-radius:3px;background:#1f2024"></div><div style="height:10px;width:60%;border-radius:3px;background:#1f2024"></div><div style="height:30px;border-radius:6px;background:#1c1d21;margin-top:6px"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #222327;padding-bottom:8px"><span style="font:500 16px Geist">05 Controls</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="border:1px solid #26272c;border-radius:8px;background:#18191c;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">BUTTONS · 28 / 32 / 34px</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="height:34px;padding:0 16px;border-radius:6px;background:oklch(0.78 0.16 70);color:#131416;font:600 13px Geist;display:flex;align-items:center">Primary</span><span style="height:34px;padding:0 16px;border-radius:6px;background:oklch(0.85 0.14 75);color:#131416;font:600 13px Geist;display:flex;align-items:center">Hover</span><span style="height:34px;padding:0 16px;border-radius:6px;background:oklch(0.78 0.16 70 / .4);color:#131416;font:600 13px Geist;display:flex;align-items:center">Disabled</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="height:32px;padding:0 14px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 13px Geist;display:flex;align-items:center">Secondary</span><span style="height:32px;padding:0 14px;border-radius:6px;border:1px solid #3a3b41;background:#1f2024;color:#ececee;font:500 13px Geist;display:flex;align-items:center">Hover</span><span style="height:32px;padding:0 14px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:oklch(0.75 0.15 25);font:500 13px Geist;display:flex;align-items:center">Delete</span><span style="height:32px;padding:0 4px;color:#9a9ca3;font:13px Geist;display:flex;align-items:center;text-decoration:underline;text-underline-offset:3px">Ghost link</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="height:34px;padding:0 16px;border-radius:6px;background:oklch(0.78 0.16 70);color:#131416;font:600 13px Geist;display:flex;align-items:center;outline:2px solid oklch(0.78 0.16 70);outline-offset:2px">Focus ring</span><span style="font:11px Geist;color:#7c7e86">2px amber, 2px offset — visible on every interactive element</span></div>
+      </div>
+      <div style="border:1px solid #26272c;border-radius:8px;background:#18191c;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">FILTER CHIPS · 28px</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><span style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:#1b1c20;border:1px solid #2a2b30;font:12px Geist">Nation <span style="color:#9a9ca3">Any</span><span style="color:#6b6d74">▾</span></span><span style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:#1b1c20;border:1px solid oklch(0.78 0.16 70 / .6);font:12px Geist">Nation <span style="color:oklch(0.78 0.16 70)">Germany</span><span style="color:#6b6d74">▾</span></span><span style="height:28px;display:flex;border-radius:6px;background:#1b1c20;border:1px solid #2a2b30;overflow:hidden;font:500 12px Geist"><span style="display:flex;align-items:center;padding:0 10px;background:#26272c">Ground</span><span style="display:flex;align-items:center;padding:0 10px;border-left:1px solid #2a2b30;color:#9a9ca3">Air</span></span></div>
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">INPUT · TAGS · TOGGLE</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="height:28px;width:180px;padding:0 10px;border-radius:6px;background:#17181b;border:1px solid #2a2b30;font:12px Geist;color:#6b6d74;display:flex;align-items:center;box-sizing:border-box">Vehicle…</span><span style="height:28px;width:180px;padding:0 10px;border-radius:6px;background:#17181b;border:1px solid #2a2b30;outline:2px solid oklch(0.78 0.16 70);outline-offset:1px;font:12px Geist;color:#ececee;display:flex;align-items:center;box-sizing:border-box">Leop<span style="color:oklch(0.78 0.16 70)">|</span></span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;border:1px solid #2e2f35;padding:1px 4px;border-radius:3px">GER</span><span style="font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;background:rgba(15,16,18,.85);padding:2px 6px;border-radius:4px;letter-spacing:.04em">Historical</span><span style="font:500 10px 'IBM Plex Mono',monospace;color:#131416;background:oklch(0.78 0.16 70);padding:2px 6px;border-radius:4px">NEW</span><span style="font:500 10px 'IBM Plex Mono',monospace;color:#131416;background:oklch(0.78 0.16 70);border-radius:9px;padding:2px 6px">2</span><span style="font:500 10px 'IBM Plex Mono',monospace;color:oklch(0.78 0.16 70);border:1px solid oklch(0.78 0.16 70 / .5);border-radius:9px;padding:1px 6px">3 new</span><span style="width:34px;height:18px;border-radius:9px;background:#2e2f35;position:relative;display:inline-block"><span style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#131416"></span></span><span style="width:34px;height:18px;border-radius:9px;background:oklch(0.78 0.16 70);position:relative;display:inline-block"><span style="position:absolute;top:2px;left:16px;width:14px;height:14px;border-radius:50%;background:#131416"></span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #222327;padding-bottom:8px"><span style="font:500 16px Geist">06 Feedback</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">TOAST · 6s, Undo where destructive</span>
+        <div style="display:flex;align-items:center;gap:14px;padding:10px 12px 10px 14px;border-radius:8px;background:#1c1d21;border:1px solid #3a3b41;box-shadow:0 12px 32px rgba(0,0,0,.5);font:13px Geist;max-width:420px"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.78 0.16 70)"></span><span style="flex:1">Deleted 3 skins</span><span style="height:26px;padding:0 10px;border-radius:5px;border:1px solid #3a3b41;background:#26272c;font:500 12px Geist;display:flex;align-items:center">Undo</span><span style="color:#7c7e86;font-size:14px">×</span></div>
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em;margin-top:6px">INLINE WARNING · amber, never red</span>
+        <div style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:6px;border:1px solid oklch(0.78 0.16 70 / .4);background:oklch(0.78 0.16 70 / .08);font:12px Geist;max-width:420px"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.78 0.16 70)"></span>1 file needs attention. The skin still installs.</div>
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em;margin-top:6px">STATUS DOTS</span>
+        <div style="display:flex;gap:18px;font:12px Geist;color:#9a9ca3"><span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.78 0.16 70)"></span>online / active / conflict</span><span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#c9cbd1"></span>ready</span><span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#6b6d74"></span>offline / pending</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em">EMPTY STATE · title, one line, one action</span>
+        <div style="border:1px solid #26272c;border-radius:8px;background:#18191c;padding:32px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center"><div style="font:500 18px Geist">No skins match</div><div style="font:13px/1.5 Geist;color:#9a9ca3">Try fewer filters, or search by vehicle code instead.</div><span style="height:32px;padding:0 14px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;font:500 12px Geist;display:flex;align-items:center;margin-top:4px">Clear all filters</span></div>
+        <span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86;letter-spacing:.08em;margin-top:6px">SPEC TABLE · mono, hairline rows</span>
+        <div style="border:1px solid #26272c;border-radius:8px;overflow:hidden;background:#18191c;font:12px 'IBM Plex Mono',monospace;color:#c9cbd1"><div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:8px 14px;border-bottom:1px solid #222327;font-size:10px;color:#6b6d74;letter-spacing:.08em"><span>FILE</span><span>RESOLUTION</span><span>FORMAT</span><span style="text-align:right">SIZE</span></div><div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:9px 14px;border-bottom:1px solid #1c1d21"><span>hull_c.dds</span><span>4096×4096</span><span>BC7</span><span style="text-align:right">21.3 MB</span></div><div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:9px 14px"><span style="color:oklch(0.78 0.16 70)">turret_c.dds</span><span>—</span><span>—</span><span style="text-align:right;color:oklch(0.78 0.16 70)">missing</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script data-dc-script data-props='{"$preview":{"width":1260,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const colors = [
+      ['bg-0', '#0f1012', 'title bar'], ['bg-1', '#111214', 'sidebar, panels'], ['bg-2', '#131416', 'canvas'], ['bg-3', '#18191c', 'cards'], ['bg-4', '#1f2024', 'controls'], ['bg-5', '#26272c', 'pressed / segment'],
+      ['line-1', '#1f2024', 'structural'], ['line-2', '#26272c', 'cards'], ['line-3', '#2e2f35', 'controls'], ['line-4', '#3a3b41', 'hover, dialogs'],
+      ['ink-1', '#ececee', 'primary text'], ['ink-2', '#c9cbd1', 'emphasised meta'], ['ink-3', '#9a9ca3', 'secondary'], ['ink-4', '#7c7e86', 'mono labels'], ['ink-5', '#6b6d74', 'hints, disabled'],
+      ['amber', 'oklch(0.78 0.16 70)', 'the one accent'], ['amber-hover', 'oklch(0.85 0.14 75)', 'primary hover'], ['amber-10', 'oklch(0.78 0.16 70 / .1)', 'installed fill'], ['danger', 'oklch(0.75 0.15 25)', 'destructive text only'], ['grid', '#1c1d21', '28px ruled background']
+    ].map(c => ({ name: c[0], value: c[1], use: c[2] }));
+    const type = [
+      ['display', '500 30px/1.15 Geist', 'Looking for War Thunder', '#ececee'], ['title', '500 20px/1.2 Geist', 'Historical only', '#ececee'], ['heading', '500 16px/1.3 Geist', 'Skin detail', '#ececee'], ['card-title', '500 14px/1.3 Geist', 'Bundeswehr Flecktarn', '#ececee'],
+      ['body', '400 13px/1.5 Geist', 'Livery installs the skin temporarily. Look at it in the game, then decide.', '#c9cbd1'], ['meta', '400 12px/1.4 Geist', 'by Kessler_Wolf · Leopard 2A6', '#9a9ca3'], ['label', "500 12px/1 Geist", 'Install · Keep · Discard', '#ececee'],
+      ['mono-data', "400 12px/1.4 'IBM Plex Mono'", 'germ_leopard_2a6 · 4096×4096 · BC7 · 21.3 MB', '#c9cbd1'], ['mono-label', "400 10px/1 'IBM Plex Mono'", 'SHEET 01 · 1,284 RESULTS · 24 MS', '#7c7e86'], ['brand', "600 12px/1 Geist", 'LIVERY', '#ececee']
+    ].map(t => ({ token: t[0], css: t[1], sample: t[2], color: t[3] }));
+    const space = [['s-1', 4], ['s-2', 8], ['s-3', 12], ['s-4', 16], ['s-5', 20], ['s-6', 24], ['s-7', 28], ['s-8', 40]].map(s => ({ name: s[0], px: s[1] }));
+    const cardStates = [
+      { label: 'DEFAULT', border: '#26272c', shadow: 'none', idle: true, btnBg: '#1f2024', btnBorder: '#2e2f35', btnColor: '#ececee' },
+      { label: 'HOVER', border: 'oklch(0.78 0.16 70)', shadow: '0 8px 24px rgba(0,0,0,.45)', idle: true, btnBg: 'oklch(0.78 0.16 70)', btnBorder: 'oklch(0.78 0.16 70)', btnColor: '#131416' },
+      { label: 'FOCUS (keyboard)', border: '#26272c', shadow: 'none', idle: true, btnBg: '#1f2024', btnBorder: '#2e2f35', btnColor: '#ececee', outline: '2px solid oklch(0.78 0.16 70)' },
+      { label: 'INSTALLING', border: '#26272c', shadow: 'none', installing: true },
+      { label: 'INSTALLED', border: '#26272c', shadow: 'none', installed: true },
+      { label: 'ERROR', border: 'oklch(0.75 0.15 25 / .5)', shadow: 'none', error: true }
+    ];
+    cardStates.forEach(c => { if (!c.outline) c.outline = "none"; });
+    return { colors, type, space, cardStates };
+  }
+}
+</script>
+</x-dc>
+</body>
+</html>

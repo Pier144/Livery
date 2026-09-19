@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#0b0b0c;font-family:Geist,system-ui,sans-serif}a{color:oklch(0.78 0.16 70)}a:hover{color:oklch(0.85 0.14 75)}input{font-family:inherit}input:focus{outline:2px solid oklch(0.78 0.16 70);outline-offset:1px}button:focus-visible{outline:2px solid oklch(0.78 0.16 70);outline-offset:2px}@keyframes lv-spin{from{transform:rotateX(-22deg) rotateY(0deg)}to{transform:rotateX(-22deg) rotateY(360deg)}}@keyframes lv-draw{from{stroke-dashoffset:600}to{stroke-dashoffset:0}}@keyframes lv-fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}@keyframes lv-scan{from{transform:translateY(0)}to{transform:translateY(300px)}}@keyframes lv-pulse{0%,100%{opacity:1}50%{opacity:.35}}@keyframes lv-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}@media (prefers-reduced-motion:reduce){[data-anim]{animation:none!important}}[data-rm="true"] [data-anim]{animation:none!important}</style></helmet>
+<div data-rm="{{ rm }}" style="min-height:100vh;background:#0b0b0c;display:flex;align-items:flex-start;justify-content:center;padding:24px;box-sizing:border-box">
+<div style="flex:none;width:{{ W }}px;height:{{ H }}px;position:relative;overflow:hidden;border-radius:8px;background:#131416;color:#ececee;font-family:Geist,system-ui,sans-serif;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.6);border:1px solid #222327;box-sizing:border-box" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}">
+
+  <div style="height:38px;flex:none;background:#0f1012;border-bottom:1px solid #222327;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 12px">
+    <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.78 0.16 70);box-shadow:0 0 8px oklch(0.78 0.16 70 / .6)"></span><span style="font:600 12px/1 Geist;letter-spacing:.14em">LIVERY</span><sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}"><span style="font:10px 'IBM Plex Mono',monospace;color:#9a9ca3;border:1px solid #2e2f35;border-radius:3px;padding:1px 6px;margin-left:6px">OFFLINE · library only</span></sc-if></div>
+    <button onClick="{{ openPalette }}" style="display:flex;align-items:center;gap:10px;width:420px;height:26px;padding:0 10px;background:#17181b;border:1px solid #26272c;border-radius:6px;color:#7c7e86;font:12px Geist;cursor:pointer;text-align:left" style-hover="border-color:#3a3b41;color:#9a9ca3"><span style="flex:1">Search skins, vehicles, authors</span><span style="font:10px 'IBM Plex Mono',monospace;color:#9a9ca3;border:1px solid #2e2f35;border-radius:3px;padding:1px 5px">Ctrl K</span></button>
+    <div style="display:flex;justify-content:flex-end;gap:4px;font:13px system-ui;color:#7c7e86"><span style="width:34px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px" style-hover="background:#1c1d21;color:#ececee">—</span><span style="width:34px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px" style-hover="background:#1c1d21;color:#ececee">☐</span><span style="width:34px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px" style-hover="background:oklch(0.55 0.18 25);color:#fff">✕</span></div>
+  </div>
+
+  <sc-if value="{{ isFirstRun }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="First run" style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);background-image:linear-gradient(#1c1d21 1px,transparent 1px),linear-gradient(90deg,#1c1d21 1px,transparent 1px);background-size:28px 28px;background-position:-1px -1px">
+    <div style="display:flex;flex-direction:column;justify-content:center;padding:0 72px;gap:28px;max-width:620px;box-sizing:border-box">
+      <div style="display:flex;gap:8px;font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em"><span style="color:{{ frC0 }}">01 DETECT</span><span>·</span><span style="color:{{ frC1 }}">02 CONFIRM</span><span>·</span><span style="color:{{ frC2 }}">03 IMPORT</span></div>
+
+      <sc-if value="{{ fr0 }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 30px/1.15 Geist;letter-spacing:-.01em">Looking for War Thunder</div><div style="font:14px/1.5 Geist;color:#9a9ca3">Checking the usual places. This takes a second.</div></div>
+        <div style="display:flex;flex-direction:column;border:1px solid #26272c;border-radius:8px;background:#18191c;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #222327;font:13px Geist"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.78 0.16 70)"></span><span style="flex:1">Steam library</span><span style="font:11px 'IBM Plex Mono',monospace;color:{{ detColor0 }}">{{ det0 }}</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #222327;font:13px Geist;color:#c9cbd1"><span data-anim="1" style="width:6px;height:6px;border-radius:50%;background:#6b6d74;animation:lv-pulse 1.2s ease-in-out infinite"></span><span style="flex:1">Standalone launcher</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">{{ det1 }}</span></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;font:13px Geist;color:#c9cbd1"><span style="width:6px;height:6px;border-radius:50%;background:#3a3b41"></span><span style="flex:1">Custom location</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">{{ det2 }}</span></div>
+        </div>
+        <div style="height:2px;background:#222327;border-radius:1px;overflow:hidden"><div style="height:100%;background:oklch(0.78 0.16 70);width:{{ detPct }}%;transition:width .3s"></div></div>
+      </sc-if>
+
+      <sc-if value="{{ fr1found }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 30px/1.15 Geist;letter-spacing:-.01em">Found War Thunder</div><div style="font:14px/1.5 Geist;color:#9a9ca3">Livery will install skins into this copy of the game.</div></div>
+        <div style="border:1px solid oklch(0.78 0.16 70 / .5);border-radius:8px;background:#18191c;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:500 15px Geist">War Thunder</span><span style="font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;border:1px solid #2e2f35;border-radius:3px;padding:1px 6px">STEAM</span></div>
+          <div style="font:12px Geist;color:#9a9ca3">Version 2.49 · 9 skins already in UserSkins</div>
+          <sc-if value="{{ frShowPath }}" hint-placeholder-val="{{ false }}"><div style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;word-break:break-all">C:\Program Files (x86)\Steam\steamapps\common\War Thunder\UserSkins</div></sc-if>
+          <button onClick="{{ frTogglePath }}" style="align-self:flex-start;background:none;border:0;padding:0;font:12px Geist;color:#9a9ca3;cursor:pointer;text-decoration:underline;text-underline-offset:3px" style-hover="color:#ececee">{{ frPathLabel }}</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button onClick="{{ frConfirm }}" style="height:34px;padding:0 16px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 13px Geist;cursor:pointer" style-hover="filter:brightness(1.08)">Use this install</button>
+          <button onClick="{{ frNotFound }}" style="height:34px;padding:0 14px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 13px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Choose another folder</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ fr1notFound }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 30px/1.15 Geist;letter-spacing:-.01em">Can't find War Thunder</div><div style="font:14px/1.5 Geist;color:#9a9ca3">Pick the folder where the game is installed. Livery looks for the UserSkins folder inside it.</div></div>
+        <button onClick="{{ frPickFolder }}" style="border:1px dashed #3a3b41;border-radius:8px;background:#17181b;padding:26px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;color:#ececee" style-hover="border-color:oklch(0.78 0.16 70);background:#18191c"><span style="font:500 14px Geist">Choose game folder</span><span style="font:12px Geist;color:#7c7e86">or drop it here</span></button>
+        <div style="display:flex;gap:14px;align-items:center">
+          <button onClick="{{ frSkip }}" style="background:none;border:0;padding:0;font:13px Geist;color:#9a9ca3;cursor:pointer;text-decoration:underline;text-underline-offset:3px" style-hover="color:#ececee">Skip for now</button>
+          <button onClick="{{ frBackFound }}" style="background:none;border:0;padding:0;font:13px Geist;color:#9a9ca3;cursor:pointer;text-decoration:underline;text-underline-offset:3px" style-hover="color:#ececee">Back</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ fr2 }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 30px/1.15 Geist;letter-spacing:-.01em">Skins already on disk</div><div style="font:14px/1.5 Geist;color:#9a9ca3">Livery found skins in your UserSkins folder. Add them to My Hangar to manage them here.</div></div>
+        <div style="border:1px solid #26272c;border-radius:8px;background:#18191c;overflow:hidden">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #222327">
+            <div style="padding:12px 14px;border-right:1px solid #222327"><div style="font:500 22px Geist">{{ importCount }}</div><div style="font:11px Geist;color:#9a9ca3">skins</div></div>
+            <div style="padding:12px 14px;border-right:1px solid #222327"><div style="font:500 22px Geist">{{ importVehicles }}</div><div style="font:11px Geist;color:#9a9ca3">vehicles</div></div>
+            <div style="padding:12px 14px"><div style="font:500 22px Geist;color:oklch(0.78 0.16 70)">{{ importAttention }}</div><div style="font:11px Geist;color:#9a9ca3">need attention</div></div>
+          </div>
+          <div style="display:flex;flex-direction:column">
+            <sc-for list="{{ importPreview }}" as="it" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #1c1d21;font:12px Geist"><span style="width:36px;height:22px;border-radius:3px;background:repeating-linear-gradient(135deg,#1e1f23 0 6px,#26272c 6px 12px)"></span><span style="flex:1;color:#ececee">{{ it.name }}</span><span style="color:#9a9ca3">{{ it.vehicle }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:{{ it.tagColor }};min-width:90px;text-align:right">{{ it.tag }}</span></div>
+            </sc-for>
+            <div style="padding:8px 14px;font:11px 'IBM Plex Mono',monospace;color:#6b6d74">{{ importMore }}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button onClick="{{ frImport }}" style="height:34px;padding:0 16px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 13px Geist;cursor:pointer" style-hover="filter:brightness(1.08)">Import and continue</button>
+          <button onClick="{{ frSkipImport }}" style="height:34px;padding:0 14px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 13px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Skip import</button>
+        </div>
+      </sc-if>
+    </div>
+    <div style="position:relative;overflow:hidden;border-left:1px solid #1c1d21;display:flex;align-items:center;justify-content:center">{{ frAnim }}</div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;min-height:0">
+    <sc-if value="{{ sidebarOpen }}" hint-placeholder-val="{{ true }}">
+    <div style="width:216px;flex:none;background:#111214;border-right:1px solid #1f2024;display:flex;flex-direction:column;padding:14px 10px 12px;gap:2px">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+        <button onClick="{{ n.go }}" style="display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:6px;background:{{ n.bg }};color:{{ n.color }};font:500 13px Geist;border:0;border-left:2px solid {{ n.bar }};cursor:pointer;text-align:left;width:100%" style-hover="background:#1c1d21;color:#ececee"><span style="flex:1">{{ n.label }}</span><sc-if value="{{ n.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="font:500 10px 'IBM Plex Mono',monospace;color:#131416;background:oklch(0.78 0.16 70);border-radius:9px;padding:2px 6px">{{ n.badge }}</span></sc-if><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">{{ n.key }}</span></button>
+      </sc-for>
+      <div style="flex:1"></div>
+      <div style="border:1px solid #1f2024;border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:6px;background:#141518">
+        <div style="display:flex;justify-content:space-between;font:12px Geist;color:#c9cbd1"><span>War Thunder</span><span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86">{{ gameSource }}</span></div>
+        <div style="display:flex;align-items:center;gap:6px;font:11px 'IBM Plex Mono',monospace;color:#9a9ca3"><span style="width:6px;height:6px;border-radius:50%;background:{{ liveDot }}"></span>{{ liveText }}</div>
+        <div style="font:11px 'IBM Plex Mono',monospace;color:#6b6d74">Hangar {{ hangarCount }} · {{ hangarSize }}</div>
+      </div>
+      <button onClick="{{ toggleSidebar }}" style="background:none;border:0;font:11px Geist;color:#6b6d74;padding:8px 10px 0;text-align:left;cursor:pointer" style-hover="color:#c9cbd1">Collapse sidebar <span style="font:10px 'IBM Plex Mono',monospace">[</span></button>
+    </div>
+    </sc-if>
+    <sc-if value="{{ sidebarClosed }}" hint-placeholder-val="{{ false }}">
+    <div style="width:56px;flex:none;background:#111214;border-right:1px solid #1f2024;display:flex;flex-direction:column;align-items:center;padding:14px 0 12px;gap:4px">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+        <button onClick="{{ n.go }}" title="{{ n.label }}" style="width:36px;height:34px;border-radius:6px;background:{{ n.bg }};color:{{ n.color }};font:500 12px 'IBM Plex Mono',monospace;border:0;cursor:pointer;position:relative" style-hover="background:#1c1d21;color:#ececee">{{ n.initial }}<sc-if value="{{ n.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:oklch(0.78 0.16 70)"></span></sc-if></button>
+      </sc-for>
+      <div style="flex:1"></div>
+      <span title="{{ liveText }}" style="width:6px;height:6px;border-radius:50%;background:{{ liveDot }};margin-bottom:10px"></span>
+      <button onClick="{{ toggleSidebar }}" style="background:none;border:0;font:11px 'IBM Plex Mono',monospace;color:#6b6d74;cursor:pointer" style-hover="color:#c9cbd1">]</button>
+    </div>
+    </sc-if>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background-image:linear-gradient(#1c1d21 1px,transparent 1px),linear-gradient(90deg,#1c1d21 1px,transparent 1px);background-size:28px 28px;background-position:-1px -1px">
+      <sc-if value="{{ isExplore }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Explore" onClick="{{ closeMenus }}" style="flex:1;min-height:0;display:flex;flex-direction:column;padding:18px 24px 0;gap:14px">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid #222327">
+    <div style="display:flex;gap:22px">
+      <button onClick="{{ setTabExplore }}" style="background:none;border:0;cursor:pointer;font:500 14px Geist;color:{{ tabExploreColor }};padding:6px 0 10px;border-bottom:2px solid {{ tabExploreBar }};margin-bottom:-1px">Explore</button>
+      <button onClick="{{ setTabFollowing }}" style="background:none;border:0;cursor:pointer;display:flex;align-items:center;gap:8px;font:500 14px Geist;color:{{ tabFollowingColor }};padding:6px 0 10px;border-bottom:2px solid {{ tabFollowingBar }};margin-bottom:-1px">Following <span style="font:500 10px 'IBM Plex Mono',monospace;color:oklch(0.78 0.16 70);border:1px solid oklch(0.78 0.16 70 / .5);border-radius:9px;padding:1px 6px;white-space:nowrap">{{ freshCount }}</span></button>
+    </div>
+    <div style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;padding-bottom:10px;letter-spacing:.04em">{{ resultsText }}</div>
+  </div>
+  <sc-if value="{{ tabExplore }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative">
+    <div style="position:relative"><button onClick="{{ toggleNation }}" style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:#1b1c20;border:1px solid {{ nationBorder }};font:12px Geist;color:#ececee;cursor:pointer" style-hover="border-color:#3a3b41">Nation <span style="color:{{ nationColor }}">{{ nationLabel }}</span><span style="color:#6b6d74">▾</span></button>
+      <sc-if value="{{ nationMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:32px;left:0;z-index:20;min-width:160px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer;display:flex;justify-content:space-between" style-hover="background:#1f2024">{{ m.label }}<sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="color:oklch(0.78 0.16 70)">✓</span></sc-if></button></sc-for></div></sc-if></div>
+    <div style="height:28px;display:flex;align-items:stretch;border-radius:6px;background:#1b1c20;border:1px solid #2a2b30;overflow:hidden;font:12px Geist">
+      <sc-for list="{{ typeOpts }}" as="t" hint-placeholder-count="5"><button onClick="{{ t.pick }}" style="display:flex;align-items:center;padding:0 10px;border:0;border-left:1px solid #2a2b30;background:{{ t.bg }};color:{{ t.color }};font:500 12px Geist;cursor:pointer" style-hover="color:#ececee">{{ t.label }}</button></sc-for>
+    </div>
+    <div style="position:relative"><button onClick="{{ toggleClass }}" style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:#1b1c20;border:1px solid {{ classBorder }};font:12px Geist;color:#ececee;cursor:pointer" style-hover="border-color:#3a3b41">Class <span style="color:{{ classColor }}">{{ classLabel }}</span><span style="color:#6b6d74">▾</span></button>
+      <sc-if value="{{ classMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:32px;left:0;z-index:20;min-width:170px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer;display:flex;justify-content:space-between" style-hover="background:#1f2024">{{ m.label }}<sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="color:oklch(0.78 0.16 70)">✓</span></sc-if></button></sc-for></div></sc-if></div>
+    <div style="position:relative"><input value="{{ vehicleVal }}" onChange="{{ setVehicle }}" onFocus="{{ vFocusOn }}" onBlur="{{ vFocusOff }}" placeholder="Vehicle…" aria-label="Vehicle" style="height:28px;width:200px;padding:0 10px;border-radius:6px;background:#17181b;border:1px solid #2a2b30;font:12px Geist;color:#ececee;box-sizing:border-box">
+      <sc-if value="{{ hasVSugg }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:32px;left:0;z-index:20;min-width:260px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ vSugg }}" as="m" hint-placeholder-count="3"><button onMouseDown="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer;display:flex;justify-content:space-between;gap:12px" style-hover="background:#1f2024">{{ m.label }}<span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">{{ m.code }}</span></button></sc-for></div></sc-if></div>
+    <div style="position:relative"><button onClick="{{ toggleCat }}" style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:#1b1c20;border:1px solid {{ catBorder }};font:12px Geist;color:#ececee;cursor:pointer" style-hover="border-color:#3a3b41">Category <span style="color:{{ catColor }}">{{ catLabel }}</span><span style="color:#6b6d74">▾</span></button>
+      <sc-if value="{{ catMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:32px;left:0;z-index:20;min-width:170px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer;display:flex;justify-content:space-between" style-hover="background:#1f2024">{{ m.label }}<sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="color:oklch(0.78 0.16 70)">✓</span></sc-if></button></sc-for></div></sc-if></div>
+    <div style="margin-left:auto;position:relative"><button onClick="{{ toggleSort }}" style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:none;border:0;font:12px Geist;color:#9a9ca3;cursor:pointer;white-space:nowrap" style-hover="color:#ececee">Sort <span style="color:#ececee">{{ sortLabel }}</span><span style="color:#6b6d74">▾</span></button>
+      <sc-if value="{{ sortMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:32px;right:0;z-index:20;min-width:170px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer;display:flex;justify-content:space-between" style-hover="background:#1f2024">{{ m.label }}<sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="color:oklch(0.78 0.16 70)">✓</span></sc-if></button></sc-for></div></sc-if></div>
+  </div>
+  <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;gap:8px;align-items:center;font:11px 'IBM Plex Mono',monospace;color:#7c7e86;flex-wrap:wrap">{{ activeCount }} <span style="color:#2e2f35">|</span> <sc-for list="{{ activeFilters }}" as="f" hint-placeholder-count="2"><button onClick="{{ f.remove }}" style="background:none;border:0;padding:0;font:11px 'IBM Plex Mono',monospace;color:#c9cbd1;cursor:pointer" style-hover="color:oklch(0.78 0.16 70)">{{ f.label }} ×</button></sc-for><button onClick="{{ clearAll }}" style="background:none;border:0;padding:0;margin-left:6px;font:11px 'IBM Plex Mono',monospace;color:oklch(0.78 0.16 70);cursor:pointer">Clear all</button></div>
+  </sc-if>
+  <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;overflow:hidden;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));grid-auto-rows:max-content;gap:16px;align-content:start">
+    <sc-for list="{{ skeleton }}" as="i" hint-placeholder-count="8"><div style="background:#18191c;border:1px solid #26272c;border-radius:8px;overflow:hidden"><div data-anim="1" style="aspect-ratio:16/9;background:linear-gradient(90deg,#1c1d21 25%,#232428 50%,#1c1d21 75%);background-size:200% 100%;animation:lv-shimmer 1.4s linear infinite"></div><div style="padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:12px;width:70%;border-radius:3px;background:#222327"></div><div style="height:10px;width:50%;border-radius:3px;background:#1f2024"></div><div style="height:30px;border-radius:6px;background:#1c1d21;margin-top:6px"></div></div></div></sc-for>
+  </div>
+  </sc-if>
+  <sc-if value="{{ exploreOffline }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center"><div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;max-width:380px"><span style="width:10px;height:10px;border-radius:50%;background:#6b6d74"></span><div style="font:500 18px Geist">WT Live can't be reached</div><div style="font:13px/1.5 Geist;color:#9a9ca3">Your library works as usual. Browsing and installing from WT Live will resume when you're back online.</div><div style="display:flex;gap:10px;margin-top:4px"><button onClick="{{ goHangar }}" style="height:32px;padding:0 14px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 12px Geist;cursor:pointer">Open My Hangar</button><button onClick="{{ retry }}" style="height:32px;padding:0 14px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer">Retry</button></div></div></div>
+  </sc-if>
+  <sc-if value="{{ noCards }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center"><div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;max-width:380px"><div style="font:500 18px Geist">No skins match</div><div style="font:13px/1.5 Geist;color:#9a9ca3">Try fewer filters, or search by vehicle code instead.</div><button onClick="{{ clearAll }}" style="height:32px;padding:0 14px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer;margin-top:4px">Clear all filters</button></div></div>
+  </sc-if>
+  <sc-if value="{{ hasCards }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));grid-auto-rows:max-content;gap:16px;align-content:start;padding-bottom:24px">
+    <sc-for list="{{ cards }}" as="skin" hint-placeholder-count="8">
+    <div role="button" tabindex="0" onClick="{{ skin.open }}" style="position:relative;background:#18191c;border:1px solid #26272c;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;transition:border-color .12s,box-shadow .12s" style-hover="border-color:oklch(0.78 0.16 70);box-shadow:0 8px 24px rgba(0,0,0,.45)">
+      <div style="aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#1e1f23 0 10px,#232428 10px 20px);display:flex;align-items:center;justify-content:center;position:relative">
+        <span style="font:11px 'IBM Plex Mono',monospace;color:#6b6d74">screenshot · {{ skin.vehicle }}</span>
+        <span style="position:absolute;top:8px;left:8px;font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;background:rgba(15,16,18,.85);padding:2px 6px;border-radius:4px;letter-spacing:.04em">{{ skin.category }}</span>
+        <sc-if value="{{ skin.isNew }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:8px;right:8px;font:500 10px 'IBM Plex Mono',monospace;color:#131416;background:oklch(0.78 0.16 70);padding:2px 6px;border-radius:4px;letter-spacing:.04em">NEW</span></sc-if>
+        <span style="position:absolute;bottom:6px;left:6px;width:9px;height:9px;border-bottom:1px solid #4a4c54;border-left:1px solid #4a4c54"></span><span style="position:absolute;bottom:6px;right:6px;width:9px;height:9px;border-bottom:1px solid #4a4c54;border-right:1px solid #4a4c54"></span>
+      </div>
+      <div style="padding:12px;display:flex;flex-direction:column;gap:7px">
+        <div style="font:500 14px/1.3 Geist;color:#ececee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ skin.name }}</div>
+        <div style="display:flex;gap:6px;align-items:center;font:12px Geist;color:#9a9ca3;min-width:0"><span style="font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;border:1px solid #2e2f35;padding:1px 4px;border-radius:3px;flex:none">{{ skin.nc }}</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ skin.vehicle }}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span style="font:12px Geist;color:#9a9ca3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">by <span style="color:#c9cbd1">{{ skin.author }}</span></span>
+          <span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;white-space:nowrap">{{ skin.dl }} dl · {{ skin.likes }} likes</span>
+        </div>
+        <sc-if value="{{ skin.idle }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ skin.install }}" style="margin-top:4px;height:30px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:6px;background:#1f2024;border:1px solid #2e2f35;font:500 12px Geist;color:#ececee;cursor:pointer;width:100%" style-hover="background:oklch(0.78 0.16 70);border-color:oklch(0.78 0.16 70);color:#131416">Install <span style="font:10px 'IBM Plex Mono',monospace;opacity:.7">{{ skin.size }}</span></button>
+        </sc-if>
+        <sc-if value="{{ skin.installing }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:4px;display:flex;flex-direction:column;gap:6px;height:30px;justify-content:center" aria-live="polite">
+            <div style="height:3px;border-radius:2px;background:#26272c;overflow:hidden"><div style="height:100%;width:{{ skin.pct }}%;background:oklch(0.78 0.16 70);transition:width .1s linear"></div></div>
+            <div style="display:flex;justify-content:space-between;gap:8px;font:10px 'IBM Plex Mono',monospace;color:#6b6d74"><span style="color:#9a9ca3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ skin.stepsDone }}</span><span style="color:oklch(0.78 0.16 70);white-space:nowrap">{{ skin.stepNow }}</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ skin.stepsNext }}</span></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ skin.installed }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:4px;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-radius:6px;background:oklch(0.78 0.16 70 / .1);border:1px solid oklch(0.78 0.16 70 / .35);font:500 12px Geist;color:oklch(0.78 0.16 70);box-sizing:border-box"><span>Installed ✓</span><span style="font:10px 'IBM Plex Mono',monospace;color:#9a9ca3">in Hangar</span></div>
+        </sc-if>
+      </div>
+    </div>
+    </sc-for>
+  </div>
+  </sc-if>
+  </sc-if>
+  <sc-if value="{{ tabFollowing }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:280px minmax(0,1fr);gap:24px;padding-bottom:24px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em;padding:4px 0">FOLLOWING · {{ follows.length }}</div>
+      <sc-for list="{{ follows }}" as="f" hint-placeholder-count="4">
+      <button onClick="{{ f.open }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:6px;background:#18191c;border:1px solid #26272c;cursor:pointer;text-align:left" style-hover="border-color:#3a3b41"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font:500 13px Geist;color:#ececee">{{ f.name }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.kind }} · {{ f.sub }}</span></div><sc-if value="{{ f.hasFresh }}" hint-placeholder-val="{{ false }}"><span style="font:500 10px 'IBM Plex Mono',monospace;color:#131416;background:oklch(0.78 0.16 70);border-radius:9px;padding:2px 6px">{{ f.freshLabel }}</span></sc-if></button>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em;padding:4px 0">NEW FROM PEOPLE AND VEHICLES YOU FOLLOW</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));grid-auto-rows:max-content;gap:16px">
+        <sc-for list="{{ freshSkins }}" as="skin" hint-placeholder-count="4">
+        <div role="button" tabindex="0" onClick="{{ skin.open }}" style="background:#18191c;border:1px solid #26272c;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer" style-hover="border-color:oklch(0.78 0.16 70)">
+          <div style="aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#1e1f23 0 10px,#232428 10px 20px);display:flex;align-items:center;justify-content:center;position:relative"><span style="font:11px 'IBM Plex Mono',monospace;color:#6b6d74">screenshot · {{ skin.vehicle }}</span><span style="position:absolute;top:8px;right:8px;font:500 10px 'IBM Plex Mono',monospace;color:#131416;background:oklch(0.78 0.16 70);padding:2px 6px;border-radius:4px">NEW</span></div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:6px"><div style="font:500 14px Geist;color:#ececee">{{ skin.name }}</div><div style="font:12px Geist;color:#9a9ca3">{{ skin.vehicle }} · by <span style="color:#c9cbd1">{{ skin.author }}</span> · {{ skin.posted }}</div></div>
+        </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Skin detail" onClick="{{ closeMenus }}" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden">
+  <div style="display:flex;align-items:center;gap:14px;padding:12px 24px;border-bottom:1px solid #222327;background:rgba(19,20,22,.7)">
+    <button onClick="{{ back }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">← Explore</button>
+    <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:12px"><span style="font:500 16px Geist;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.name }}</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">{{ d.code }}</span></div>
+    <div style="display:flex;gap:4px">
+      <sc-for list="{{ dTabs }}" as="t" hint-placeholder-count="3"><button onClick="{{ t.pick }}" style="height:28px;padding:0 12px;background:none;border:0;border-bottom:2px solid {{ t.bar }};font:500 13px Geist;color:{{ t.color }};cursor:pointer" style-hover="color:#ececee">{{ t.label }}</button></sc-for>
+    </div>
+  </div>
+  <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px">
+    <div style="min-width:0;display:flex;flex-direction:column;overflow:hidden">
+      <sc-if value="{{ dGallery }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:20px 24px;gap:12px">
+        <sc-if value="{{ notCompare }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;min-height:0;position:relative;border:1px solid #26272c;border-radius:8px;overflow:hidden;background:repeating-linear-gradient(135deg,#1a1b1e 0 14px,#202125 14px 28px);display:flex;align-items:center;justify-content:center">
+          <div style="transform:{{ zoomScale }};transition:transform .25s;font:12px 'IBM Plex Mono',monospace;color:#7c7e86">screenshot · {{ d.vehicle }} · {{ gLabel }} view</div>
+          <span style="position:absolute;top:10px;left:10px;width:12px;height:12px;border-top:1px solid #4a4c54;border-left:1px solid #4a4c54"></span><span style="position:absolute;bottom:10px;right:10px;width:12px;height:12px;border-bottom:1px solid #4a4c54;border-right:1px solid #4a4c54"></span>
+          <span style="position:absolute;top:10px;right:12px;font:10px 'IBM Plex Mono',monospace;color:#9a9ca3;letter-spacing:.06em">{{ gCount }}</span>
+          <div style="position:absolute;bottom:12px;left:12px;display:flex;gap:6px">
+            <button onClick="{{ toggleZoom }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:rgba(15,16,18,.9);color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">{{ zoomLabel }}</button>
+            <sc-if value="{{ canCompare }}" hint-placeholder-val="{{ true }}"><button onClick="{{ toggleCompare }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:rgba(15,16,18,.9);color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Compare</button></sc-if>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <sc-for list="{{ thumbs }}" as="t" hint-placeholder-count="4"><button onClick="{{ t.pick }}" style="width:120px;height:68px;border-radius:6px;border:1px solid {{ t.border }};background:repeating-linear-gradient(135deg,#1e1f23 0 8px,#232428 8px 16px);cursor:pointer;font:10px 'IBM Plex Mono',monospace;color:#9a9ca3" style-hover="border-color:#4a4c54">{{ t.label }}</button></sc-for>
+        </div>
+        </sc-if>
+        <sc-if value="{{ compare }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="position:relative;border:1px solid oklch(0.78 0.16 70 / .6);border-radius:8px;background:repeating-linear-gradient(135deg,#1a1b1e 0 14px,#202125 14px 28px);display:flex;align-items:center;justify-content:center"><span style="font:12px 'IBM Plex Mono',monospace;color:#7c7e86">screenshot · {{ d.name }}</span><span style="position:absolute;top:10px;left:10px;font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;background:rgba(15,16,18,.85);padding:2px 6px;border-radius:4px">A · {{ d.name }}</span></div>
+          <div style="position:relative;border:1px solid #26272c;border-radius:8px;background:repeating-linear-gradient(45deg,#1a1b1e 0 14px,#202125 14px 28px);display:flex;align-items:center;justify-content:center"><span style="font:12px 'IBM Plex Mono',monospace;color:#7c7e86">screenshot · {{ cmpName }}</span><span style="position:absolute;top:10px;left:10px;font:10px 'IBM Plex Mono',monospace;color:#c9cbd1;background:rgba(15,16,18,.85);padding:2px 6px;border-radius:4px">B · {{ cmpName }} · by {{ cmpAuthor }}</span></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.06em">COMPARE WITH · same vehicle</span>
+          <sc-for list="{{ cmpOptions }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="height:26px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:{{ o.color }};font:12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">{{ o.label }}</button></sc-for>
+          <button onClick="{{ toggleCompare }}" style="margin-left:auto;height:26px;padding:0 10px;border-radius:6px;border:0;background:none;color:#9a9ca3;font:12px Geist;cursor:pointer;text-decoration:underline;text-underline-offset:3px" style-hover="color:#ececee">Exit compare</button>
+        </div>
+        </sc-if>
+      </div>
+      </sc-if>
+      <sc-if value="{{ dTextures }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:20px 24px;gap:14px;overflow:auto">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font:500 15px Geist">Textures in the archive</div><div style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">{{ tex.length }} files · {{ texTotal }}</div></div>
+        <sc-if value="{{ hasTexWarn }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:6px;border:1px solid oklch(0.78 0.16 70 / .4);background:oklch(0.78 0.16 70 / .08);font:12px Geist;color:#ececee"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.78 0.16 70)"></span>{{ texWarnCount }} file(s) need attention. The skin still installs; the game may skip the affected part.</div></sc-if>
+        <div style="border:1px solid #26272c;border-radius:8px;overflow:hidden;background:#18191c">
+          <div style="display:grid;grid-template-columns:minmax(0,2fr) 1fr 1fr 1fr;padding:8px 14px;border-bottom:1px solid #222327;font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em"><span>FILE</span><span>RESOLUTION</span><span>FORMAT</span><span style="text-align:right">SIZE</span></div>
+          <sc-for list="{{ tex }}" as="t" hint-placeholder-count="5">
+          <div style="border-bottom:1px solid #1c1d21">
+            <div style="display:grid;grid-template-columns:minmax(0,2fr) 1fr 1fr 1fr;padding:10px 14px;font:12px 'IBM Plex Mono',monospace;color:#c9cbd1;align-items:center"><span style="display:flex;align-items:center;gap:10px;min-width:0"><span style="width:28px;height:28px;border-radius:3px;flex:none;background:repeating-linear-gradient(135deg,#1e1f23 0 4px,#26272c 4px 8px);border:1px solid #2e2f35"></span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ t.color }}">{{ t.file }}</span></span><span>{{ t.res }}</span><span>{{ t.fmt }}</span><span style="text-align:right;color:{{ t.color }}">{{ t.size }}</span></div>
+            <sc-if value="{{ t.hasWarn }}" hint-placeholder-val="{{ false }}"><div style="padding:0 14px 10px 52px;font:12px Geist;color:oklch(0.78 0.16 70)">{{ t.warn }}</div></sc-if>
+          </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+      <sc-if value="{{ dTry }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:20px 24px">
+        <div style="width:100%;max-width:560px;display:flex;flex-direction:column;gap:20px">
+          <sc-if value="{{ tryIdle }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="font:500 22px Geist">Try it before you keep it</div><div style="font:13px/1.55 Geist;color:#9a9ca3">Livery installs the skin temporarily. Look at it in the game, then decide. Nothing is added to My Hangar until you press Keep.</div></div>
+            <div style="display:flex;flex-direction:column;border:1px solid #26272c;border-radius:8px;background:#18191c;overflow:hidden">
+              <div style="display:flex;gap:12px;padding:12px 14px;border-bottom:1px solid #222327;font:13px Geist"><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;min-width:20px">01</span><span style="color:#c9cbd1">Livery copies the files into UserSkins</span></div>
+              <div style="display:flex;gap:12px;padding:12px 14px;border-bottom:1px solid #222327;font:13px Geist"><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;min-width:20px">02</span><span style="color:#c9cbd1">In War Thunder, open the vehicle’s Customisation and press the <b style="color:#ececee;font-weight:500">refresh</b> button</span></div>
+              <div style="display:flex;gap:12px;padding:12px 14px;font:13px Geist"><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;min-width:20px">03</span><span style="color:#c9cbd1">Come back and choose Keep or Discard</span></div>
+            </div>
+            <button onClick="{{ tryStart }}" style="align-self:flex-start;height:34px;padding:0 16px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 13px Geist;cursor:pointer" style-hover="filter:brightness(1.08)">Try in game · {{ d.size }}</button>
+          </sc-if>
+          <sc-if value="{{ tryInstalling }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="font:500 22px Geist">Installing temporarily…</div><div style="font:13px/1.55 Geist;color:#9a9ca3">Downloading and extracting {{ d.size }}.</div></div>
+            <div style="height:3px;border-radius:2px;background:#26272c;overflow:hidden"><div data-anim="1" style="height:100%;width:40%;background:oklch(0.78 0.16 70);animation:lv-shimmer 1.2s linear infinite;background-image:linear-gradient(90deg,oklch(0.78 0.16 70),oklch(0.85 0.14 75),oklch(0.78 0.16 70));background-size:200% 100%"></div></div>
+          </sc-if>
+          <sc-if value="{{ tryActive }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;align-items:center;gap:10px"><span data-anim="1" style="width:8px;height:8px;border-radius:50%;background:oklch(0.78 0.16 70);animation:lv-pulse 1.6s ease-in-out infinite"></span><span style="font:500 22px Geist">Skin is in the game</span></div><div style="font:13px/1.55 Geist;color:#9a9ca3">Open <b style="color:#ececee;font-weight:500">{{ d.vehicle }}</b> → Customisation → press <b style="color:#ececee;font-weight:500">refresh</b>, then select “{{ d.name }}”.</div></div>
+            <div style="border:1px solid oklch(0.78 0.16 70 / .4);border-radius:8px;background:oklch(0.78 0.16 70 / .06);padding:14px 16px;display:flex;flex-direction:column;gap:6px"><div style="font:10px 'IBM Plex Mono',monospace;color:#9a9ca3;letter-spacing:.08em">TEMPORARY · WILL BE REMOVED ON DISCARD</div><div style="font:12px 'IBM Plex Mono',monospace;color:#c9cbd1">UserSkins/{{ d.code }}_{{ d.author }}/</div></div>
+            <div style="display:flex;gap:10px"><button onClick="{{ tryKeep }}" style="height:34px;padding:0 18px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 13px Geist;cursor:pointer" style-hover="filter:brightness(1.08)">Keep</button><button onClick="{{ tryDiscard }}" style="height:34px;padding:0 14px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 13px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Discard</button></div>
+          </sc-if>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+    <div style="border-left:1px solid #222327;background:#111214;display:flex;flex-direction:column;gap:18px;padding:20px 20px;overflow:auto">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em">AUTHOR</div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="width:34px;height:34px;border-radius:50%;background:#26272c;border:1px solid #2e2f35;display:flex;align-items:center;justify-content:center;font:500 12px Geist;color:#c9cbd1">{{ d.author.0 }}</span><div style="flex:1;min-width:0;display:flex;flex-direction:column"><span style="font:500 14px Geist;color:#ececee">{{ d.author }}</span><span style="font:11px Geist;color:#7c7e86">on WT Live</span></div><button onClick="{{ follow }}" style="height:26px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Follow</button></div>
+        <button onClick="{{ openPost }}" style="text-align:left;background:none;border:0;padding:0;font:12px Geist;color:oklch(0.78 0.16 70);cursor:pointer;text-decoration:underline;text-underline-offset:3px">Open original post ↗</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em">VEHICLE</div>
+        <button onClick="{{ openVehicle }}" style="text-align:left;background:#18191c;border:1px solid #26272c;border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;cursor:pointer" style-hover="border-color:#3a3b41"><span style="font:500 13px Geist;color:#ececee">{{ d.vehicle }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86">{{ d.code }} · {{ d.nation }} · {{ d.klass }}</span></button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#222327;border:1px solid #222327;border-radius:6px;overflow:hidden">
+        <div style="background:#18191c;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em">DOWNLOADS</span><span style="font:500 15px Geist">{{ d.dlFull }}</span></div>
+        <div style="background:#18191c;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em">LIKES</span><span style="font:500 15px Geist">{{ d.likesFull }}</span></div>
+        <div style="background:#18191c;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em">CATEGORY</span><span style="font:13px Geist">{{ d.category }}</span></div>
+        <div style="background:#18191c;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em">POSTED</span><span style="font:13px Geist">{{ d.posted }}</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em"><span>FILES INCLUDED</span><span>{{ fileCount }} · {{ d.size }}</span></div>
+        <div style="display:flex;flex-direction:column;gap:4px;font:11px 'IBM Plex Mono',monospace;color:#9a9ca3"><sc-for list="{{ files }}" as="f" hint-placeholder-count="5"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f }}</span></sc-for></div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;position:relative">
+        <sc-if value="{{ d.idle }}" hint-placeholder-val="{{ true }}"><button onClick="{{ d.install }}" style="height:36px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 13px Geist;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="filter:brightness(1.08)">Install <span style="font:11px 'IBM Plex Mono',monospace;opacity:.75">{{ d.size }}</span></button></sc-if>
+        <sc-if value="{{ d.installing }}" hint-placeholder-val="{{ false }}"><div style="height:36px;display:flex;flex-direction:column;justify-content:center;gap:6px"><div style="height:3px;border-radius:2px;background:#26272c;overflow:hidden"><div style="height:100%;width:{{ d.pct }}%;background:oklch(0.78 0.16 70)"></div></div><div style="display:flex;justify-content:space-between;font:10px 'IBM Plex Mono',monospace;color:#6b6d74"><span style="color:#9a9ca3">{{ d.stepsDone }}</span><span style="color:oklch(0.78 0.16 70)">{{ d.stepNow }}</span></div></div></sc-if>
+        <sc-if value="{{ d.installed }}" hint-placeholder-val="{{ false }}"><div style="height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-radius:6px;background:oklch(0.78 0.16 70 / .1);border:1px solid oklch(0.78 0.16 70 / .35);font:500 13px Geist;color:oklch(0.78 0.16 70);box-sizing:border-box"><span>Installed ✓</span><span style="font:10px 'IBM Plex Mono',monospace;color:#9a9ca3">in Hangar</span></div></sc-if>
+        <button onClick="{{ toggleColMenu }}" style="height:32px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Add to collection ▾</button>
+        <sc-if value="{{ colMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;bottom:38px;left:0;right:0;z-index:20;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ colOptions }}" as="c" hint-placeholder-count="3"><button onClick="{{ c.pick }}" style="text-align:left;background:none;border:0;padding:8px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer" style-hover="background:#1f2024">{{ c.label }}</button></sc-for></div></sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isHangar }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="My Hangar" onClick="{{ closeMenus }}" style="flex:1;min-height:0;display:flex;flex-direction:column;padding:18px 24px 0;gap:14px">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid #222327;padding-bottom:10px">
+    <div style="display:flex;align-items:baseline;gap:16px"><span style="font:500 14px Geist">My Hangar</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">{{ hangarCount }} skins · {{ hangarActive }} active · {{ hangarSize }} on disk</span></div>
+    <sc-if value="{{ hasAttention }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;font:11px 'IBM Plex Mono',monospace;color:oklch(0.78 0.16 70)"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.78 0.16 70)"></span>{{ hangarAttention }} need attention</span></sc-if>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div style="position:relative;display:flex;align-items:center"><input value="{{ hqVal }}" onChange="{{ setHq }}" placeholder="Search your skins…" aria-label="Search hangar" style="height:28px;width:260px;padding:0 10px;border-radius:6px;background:#17181b;border:1px solid #2a2b30;font:12px Geist;color:#ececee;box-sizing:border-box"></div>
+    <div style="position:relative"><button onClick="{{ hToggleNation }}" style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:#1b1c20;border:1px solid #2a2b30;font:12px Geist;color:{{ hNationColor }};cursor:pointer" style-hover="border-color:#3a3b41">{{ hNationLabel }}<span style="color:#6b6d74">▾</span></button><sc-if value="{{ hNationMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:32px;left:0;z-index:20;min-width:150px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ hMenuItems }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer;display:flex;justify-content:space-between" style-hover="background:#1f2024">{{ m.label }}<sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="color:oklch(0.78 0.16 70)">✓</span></sc-if></button></sc-for></div></sc-if></div>
+    <div style="position:relative"><button onClick="{{ hToggleType }}" style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:#1b1c20;border:1px solid #2a2b30;font:12px Geist;color:{{ hTypeColor }};cursor:pointer" style-hover="border-color:#3a3b41">{{ hTypeLabel }}<span style="color:#6b6d74">▾</span></button><sc-if value="{{ hTypeMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:32px;left:0;z-index:20;min-width:150px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ hMenuItems }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer;display:flex;justify-content:space-between" style-hover="background:#1f2024">{{ m.label }}<sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="color:oklch(0.78 0.16 70)">✓</span></sc-if></button></sc-for></div></sc-if></div>
+    <div style="position:relative"><button onClick="{{ hToggleOrigin }}" style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px;background:#1b1c20;border:1px solid #2a2b30;font:12px Geist;color:{{ hOriginColor }};cursor:pointer" style-hover="border-color:#3a3b41">{{ hOriginLabel }}<span style="color:#6b6d74">▾</span></button><sc-if value="{{ hOriginMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:32px;left:0;z-index:20;min-width:150px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ hMenuItems }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer;display:flex;justify-content:space-between" style-hover="background:#1f2024">{{ m.label }}<sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="color:oklch(0.78 0.16 70)">✓</span></sc-if></button></sc-for></div></sc-if></div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <button onClick="{{ selectAll }}" style="height:28px;padding:0 10px;border-radius:6px;background:none;border:0;font:12px Geist;color:#9a9ca3;cursor:pointer" style-hover="color:#ececee">Select all</button>
+      <div style="height:28px;display:flex;border-radius:6px;background:#1b1c20;border:1px solid #2a2b30;overflow:hidden"><button onClick="{{ setGrid }}" aria-label="Grid view" style="width:34px;border:0;background:{{ gridBg }};color:#ececee;font:11px 'IBM Plex Mono',monospace;cursor:pointer">▦</button><button onClick="{{ setList }}" aria-label="List view" style="width:34px;border:0;border-left:1px solid #2a2b30;background:{{ listBg }};color:#ececee;font:11px 'IBM Plex Mono',monospace;cursor:pointer">☰</button></div>
+    </div>
+  </div>
+  <sc-if value="{{ noGroups }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center"><div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;max-width:380px"><div style="font:500 18px Geist">Nothing here yet</div><div style="font:13px/1.5 Geist;color:#9a9ca3">Install a skin from Explore, or drop a ZIP anywhere in this window.</div><button onClick="{{ goExplore }}" style="height:32px;padding:0 14px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 12px Geist;cursor:pointer;margin-top:4px">Browse WT Live</button></div></div>
+  </sc-if>
+  <sc-if value="{{ hasGroups }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:22px;padding-bottom:80px">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:baseline;gap:10px;position:sticky;top:0;background:#131416;padding:4px 0;z-index:1"><span style="font:500 13px Geist;color:#ececee">{{ g.vehicle }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">{{ g.code }}</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;margin-left:auto">{{ g.count }}</span></div>
+      <sc-if value="{{ hGrid }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));grid-auto-rows:max-content;gap:12px">
+        <sc-for list="{{ g.items }}" as="h" hint-placeholder-count="2">
+        <div role="button" tabindex="0" onClick="{{ h.open }}" style="position:relative;background:{{ h.bg }};border:1px solid {{ h.border }};border-radius:8px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer" style-hover="border-color:#4a4c54">
+          <div style="aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#1e1f23 0 10px,#232428 10px 20px);display:flex;align-items:center;justify-content:center;position:relative"><span style="font:11px 'IBM Plex Mono',monospace;color:#6b6d74">screenshot</span>
+            <button onClick="{{ h.toggleSel }}" aria-label="Select" style="position:absolute;top:8px;left:8px;width:18px;height:18px;border-radius:4px;border:1px solid {{ h.checkBorder }};background:{{ h.checkBg }};color:#131416;font:600 11px Geist;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">{{ h.check }}</button>
+            <sc-if value="{{ h.hasAttention }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:8px;right:8px;font:500 10px 'IBM Plex Mono',monospace;color:#131416;background:oklch(0.78 0.16 70);padding:2px 6px;border-radius:4px">NEEDS ATTENTION</span></sc-if>
+          </div>
+          <div style="padding:10px 12px;display:flex;flex-direction:column;gap:5px">
+            <div style="font:500 13px Geist;color:#ececee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.name }}</div>
+            <div style="display:flex;justify-content:space-between;font:11px Geist;color:#9a9ca3"><span style="color:{{ h.originColor }}">{{ h.origin }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86">{{ h.sizeLabel }}</span></div>
+            <sc-if value="{{ h.hasAttention }}" hint-placeholder-val="{{ false }}"><div style="font:11px Geist;color:oklch(0.78 0.16 70)">{{ h.attention }}</div></sc-if>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px"><button onClick="{{ h.toggleActive }}" style="height:24px;padding:0 8px;border-radius:5px;border:1px solid #2e2f35;background:#1f2024;color:{{ h.statusColor }};font:500 11px Geist;cursor:pointer" style-hover="border-color:#3a3b41">{{ h.statusLabel }}</button><sc-if value="{{ h.hasAttention }}" hint-placeholder-val="{{ false }}"><button onClick="{{ h.fix }}" style="background:none;border:0;padding:0;font:11px Geist;color:#9a9ca3;cursor:pointer;text-decoration:underline;text-underline-offset:3px" style-hover="color:#ececee">Re-check</button></sc-if></div>
+          </div>
+        </div>
+        </sc-for>
+      </div>
+      </sc-if>
+      <sc-if value="{{ hList }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #26272c;border-radius:8px;overflow:hidden;background:#18191c">
+        <sc-for list="{{ g.items }}" as="h" hint-placeholder-count="2">
+        <div role="button" tabindex="0" onClick="{{ h.open }}" style="display:grid;grid-template-columns:28px 44px minmax(0,2fr) 1fr 1fr 80px 80px;gap:12px;align-items:center;padding:8px 12px;border-bottom:1px solid #1c1d21;background:{{ h.bg }};cursor:pointer" style-hover="background:#1c1d21">
+          <button onClick="{{ h.toggleSel }}" aria-label="Select" style="width:18px;height:18px;border-radius:4px;border:1px solid {{ h.checkBorder }};background:{{ h.checkBg }};color:#131416;font:600 11px Geist;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">{{ h.check }}</button>
+          <span style="width:44px;height:26px;border-radius:3px;background:repeating-linear-gradient(135deg,#1e1f23 0 6px,#26272c 6px 12px)"></span>
+          <span style="min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font:500 13px Geist;color:#ececee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.name }}</span><sc-if value="{{ h.hasAttention }}" hint-placeholder-val="{{ false }}"><span style="font:11px Geist;color:oklch(0.78 0.16 70)">{{ h.attention }}</span></sc-if></span>
+          <span style="font:12px Geist;color:{{ h.originColor }}">{{ h.origin }}</span>
+          <span style="font:12px Geist;color:#9a9ca3">{{ h.author }}</span>
+          <span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;text-align:right">{{ h.sizeLabel }}</span>
+          <button onClick="{{ h.toggleActive }}" style="height:24px;padding:0 8px;border-radius:5px;border:1px solid #2e2f35;background:#1f2024;color:{{ h.statusColor }};font:500 11px Geist;cursor:pointer" style-hover="border-color:#3a3b41">{{ h.statusLabel }}</button>
+        </div>
+        </sc-for>
+      </div>
+      </sc-if>
+    </div>
+    </sc-for>
+  </div>
+  </sc-if>
+  <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:6px;padding:8px 8px 8px 14px;border-radius:8px;background:#18191c;border:1px solid #3a3b41;box-shadow:0 16px 40px rgba(0,0,0,.6)">
+    <span style="font:500 12px Geist;color:#ececee;margin-right:8px">{{ selLabel }}</span>
+    <button onClick="{{ bulkEnable }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Activate</button>
+    <button onClick="{{ bulkDisable }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Deactivate</button>
+    <div style="position:relative"><button onClick="{{ toggleMoveCol }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Move to collection ▾</button>
+      <sc-if value="{{ moveColMenu }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;bottom:34px;left:0;z-index:20;min-width:180px;background:#18191c;border:1px solid #2e2f35;border-radius:6px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column"><sc-for list="{{ hMenuItems }}" as="m" hint-placeholder-count="3"><button onClick="{{ m.pick }}" style="text-align:left;background:none;border:0;padding:7px 10px;border-radius:4px;font:12px Geist;color:#ececee;cursor:pointer" style-hover="background:#1f2024">{{ m.label }}</button></sc-for></div></sc-if></div>
+    <button onClick="{{ bulkExport }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Export</button>
+    <button onClick="{{ bulkDelete }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:oklch(0.75 0.15 25);font:500 12px Geist;cursor:pointer" style-hover="border-color:oklch(0.75 0.15 25)">Delete</button>
+    <button onClick="{{ clearSel }}" aria-label="Clear selection" style="height:28px;width:28px;border-radius:6px;border:0;background:none;color:#9a9ca3;font:14px Geist;cursor:pointer" style-hover="color:#ececee">×</button>
+  </div>
+  </sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isCollections }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Collections" style="flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(0,1fr);overflow:hidden">
+  <div style="border-right:1px solid #222327;display:flex;flex-direction:column;padding:18px 20px;gap:12px;overflow:auto">
+    <div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font:500 14px Geist">Collections</span><button onClick="{{ newCol }}" style="height:26px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">+ New</button></div>
+    <div style="font:12px/1.5 Geist;color:#9a9ca3">Activate a collection to use only its skins in the game. Others stay installed, just inactive.</div>
+    <sc-for list="{{ cols }}" as="c" hint-placeholder-count="3">
+    <div role="button" tabindex="0" onClick="{{ c.pick }}" style="background:#18191c;border:1px solid {{ c.border }};border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;cursor:pointer" style-hover="border-color:#4a4c54">
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:500 14px Geist;color:#ececee">{{ c.name }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:{{ c.badgeColor }};letter-spacing:.06em">{{ c.badge }}</span></div>
+      <div style="font:12px Geist;color:#9a9ca3">{{ c.desc }}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">{{ c.count }}</span><sc-if value="{{ c.active }}" hint-placeholder-val="{{ false }}"><span style="font:500 11px Geist;color:oklch(0.78 0.16 70)">In use</span></sc-if><sc-if value="{{ c.active }}" hint-placeholder-val="{{ false }}"></sc-if></div>
+    </div>
+    </sc-for>
+  </div>
+  <sc-if value="{{ hasOpenCol }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;flex-direction:column;padding:18px 24px;gap:14px;overflow:auto;min-width:0">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;border-bottom:1px solid #222327;padding-bottom:14px">
+      <div style="display:flex;flex-direction:column;gap:4px"><span style="font:500 20px Geist">{{ openCol.name }}</span><span style="font:12px Geist;color:#9a9ca3">{{ openCol.desc }}</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">{{ openCol.count }} skins · {{ openCol.size }}</span></div>
+      <sc-if value="{{ openCol.isActive }}" hint-placeholder-val="{{ true }}"><div style="height:32px;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:6px;background:oklch(0.78 0.16 70 / .1);border:1px solid oklch(0.78 0.16 70 / .35);font:500 12px Geist;color:oklch(0.78 0.16 70)">Active in game ✓</div></sc-if>
+      <sc-if value="{{ openCol.isActive }}" hint-placeholder-val="{{ true }}"></sc-if>
+    </div>
+    <sc-if value="{{ openCol.isActive }}" hint-placeholder-val="{{ true }}"></sc-if>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));grid-auto-rows:max-content;gap:12px">
+      <sc-for list="{{ openCol.items }}" as="h" hint-placeholder-count="4">
+      <div style="background:#18191c;border:1px solid #26272c;border-radius:8px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="aspect-ratio:16/9;background:repeating-linear-gradient(135deg,#1e1f23 0 10px,#232428 10px 20px);display:flex;align-items:center;justify-content:center"><span style="font:11px 'IBM Plex Mono',monospace;color:#6b6d74">screenshot</span></div>
+        <div style="padding:10px 12px;display:flex;flex-direction:column;gap:4px"><div style="font:500 13px Geist;color:#ececee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.name }}</div><div style="display:flex;justify-content:space-between;align-items:center"><span style="font:11px Geist;color:#9a9ca3">{{ h.vehicle }}</span><button onClick="{{ h.remove }}" style="background:none;border:0;padding:0;font:11px Geist;color:#7c7e86;cursor:pointer" style-hover="color:#ececee">Remove</button></div></div>
+      </div>
+      </sc-for>
+      <div style="border:1px dashed #2e2f35;border-radius:8px;min-height:120px;display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;font:12px/1.5 Geist;color:#6b6d74">Add skins from My Hangar<br>(select → Move to collection)</div>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isQueue }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Install queue" style="flex:1;min-height:0;display:flex;flex-direction:column;padding:18px 24px 0;gap:14px;overflow:hidden">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid #222327;padding-bottom:10px">
+    <div style="display:flex;align-items:baseline;gap:16px"><span style="font:500 14px Geist">Install queue</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">{{ queue.length }} archives · {{ readyCount }} ready</span></div>
+    <div style="display:flex;gap:8px"><sc-if value="{{ hasDone }}" hint-placeholder-val="{{ false }}"><button onClick="{{ clearDone }}" style="height:28px;padding:0 10px;border-radius:6px;border:0;background:none;color:#9a9ca3;font:12px Geist;cursor:pointer" style-hover="color:#ececee">Clear installed</button></sc-if><sc-if value="{{ hasReady }}" hint-placeholder-val="{{ true }}"><button onClick="{{ installReady }}" style="height:28px;padding:0 12px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 12px Geist;cursor:pointer" style-hover="filter:brightness(1.08)">Install {{ readyCount }} ready</button></sc-if></div>
+  </div>
+  <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;overflow:hidden">
+    <div style="display:flex;flex-direction:column;gap:10px;overflow:auto;padding-bottom:24px">
+      <button onClick="{{ simulateDrop }}" style="border:1px dashed #3a3b41;border-radius:8px;background:rgba(23,24,27,.6);padding:18px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:#ececee" style-hover="border-color:oklch(0.78 0.16 70)"><span style="font:500 13px Geist">Drop ZIP, RAR or 7z archives anywhere in the window</span><span style="font:11px 'IBM Plex Mono',monospace;color:#6b6d74">or click to browse</span></button>
+      <sc-if value="{{ queueEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:40px;text-align:center;font:13px Geist;color:#7c7e86">Queue is empty.</div></sc-if>
+      <sc-for list="{{ queue }}" as="x" hint-placeholder-count="3">
+      <div style="background:#18191c;border:1px solid #26272c;border-radius:8px;padding:12px 14px;display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:14px;align-items:center">
+        <span style="width:8px;height:8px;border-radius:50%;background:{{ x.dotColor }}"></span>
+        <div style="min-width:0;display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;align-items:baseline;gap:10px;min-width:0"><span style="font:12px 'IBM Plex Mono',monospace;color:#ececee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ x.file }}</span><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74">{{ x.size }}</span></div>
+          <div style="font:12px Geist;color:#9a9ca3"><span style="color:{{ x.statusColor }};font-weight:500">{{ x.statusLabel }}</span> · <sc-if value="{{ x.hasVehicle }}" hint-placeholder-val="{{ true }}"><span style="color:#c9cbd1">{{ x.vehicle }}</span> · </sc-if>{{ x.note }}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <sc-if value="{{ x.ready }}" hint-placeholder-val="{{ true }}"><button onClick="{{ x.install }}" style="height:28px;padding:0 12px;border-radius:6px;border:0;background:oklch(0.78 0.16 70);color:#131416;font:600 12px Geist;cursor:pointer" style-hover="filter:brightness(1.08)">Install</button></sc-if>
+          <sc-if value="{{ x.conflictS }}" hint-placeholder-val="{{ false }}"><button onClick="{{ x.resolve }}" style="height:28px;padding:0 12px;border-radius:6px;border:1px solid oklch(0.78 0.16 70 / .6);background:oklch(0.78 0.16 70 / .1);color:oklch(0.78 0.16 70);font:500 12px Geist;cursor:pointer" style-hover="background:oklch(0.78 0.16 70 / .18)">Resolve</button></sc-if>
+          <sc-if value="{{ x.verify }}" hint-placeholder-val="{{ false }}"><button onClick="{{ x.pickVehicle }}" style="height:28px;padding:0 12px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:#3a3b41">Pick vehicle</button></sc-if>
+          <sc-if value="{{ x.done }}" hint-placeholder-val="{{ false }}"><span style="height:28px;display:flex;align-items:center;font:500 12px Geist;color:oklch(0.78 0.16 70);padding:0 6px">Installed ✓</span></sc-if>
+          <button onClick="{{ x.remove }}" aria-label="Remove from queue" style="height:28px;width:28px;border-radius:6px;border:0;background:none;color:#7c7e86;font:14px Geist;cursor:pointer" style-hover="color:#ececee;background:#1f2024">×</button>
+        </div>
+      </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="background:#18191c;border:1px solid #26272c;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:500 13px Geist">Watch Downloads folder</span><span style="font:11px/1.4 Geist;color:#9a9ca3">New skin archives install automatically.</span></div><button role="switch" aria-checked="{{ autoInstall }}" onClick="{{ toggleAuto }}" style="width:34px;height:18px;border-radius:9px;border:0;background:{{ autoBg }};position:relative;cursor:pointer;flex:none;padding:0"><span style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#131416;transform:{{ autoKnob }};transition:transform .15s"></span></button></div>
+        <button onClick="{{ toggleDl }}" style="text-align:left;background:none;border:0;padding:0;font:12px Geist;color:#9a9ca3;cursor:pointer;text-decoration:underline;text-underline-offset:3px" style-hover="color:#ececee">{{ dlLabel }}</button>
+        <sc-if value="{{ showDl }}" hint-placeholder-val="{{ false }}"><div style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86;word-break:break-all">C:\Users\you\Downloads</div></sc-if>
+      </div>
+      <div style="background:#18191c;border:1px solid #26272c;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.08em">WHAT THE STATES MEAN</div>
+        <div style="display:flex;gap:10px;font:12px/1.4 Geist;color:#9a9ca3"><span style="width:8px;height:8px;border-radius:50%;background:#c9cbd1;flex:none;margin-top:4px"></span><span><b style="color:#ececee;font-weight:500">Ready</b> — vehicle detected, files look good.</span></div>
+        <div style="display:flex;gap:10px;font:12px/1.4 Geist;color:#9a9ca3"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.78 0.16 70);flex:none;margin-top:4px"></span><span><b style="color:#ececee;font-weight:500">Conflict</b> — a skin with the same folder is installed.</span></div>
+        <div style="display:flex;gap:10px;font:12px/1.4 Geist;color:#9a9ca3"><span style="width:8px;height:8px;border-radius:50%;background:#6b6d74;flex:none;margin-top:4px"></span><span><b style="color:#ececee;font-weight:500">Needs a look</b> — can’t tell which vehicle it’s for.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Settings" style="flex:1;min-height:0;display:grid;grid-template-columns:200px minmax(0,1fr);overflow:hidden">
+  <div style="border-right:1px solid #222327;padding:18px 12px;display:flex;flex-direction:column;gap:2px">
+    <sc-for list="{{ secs }}" as="x" hint-placeholder-count="7"><button onClick="{{ x.pick }}" style="text-align:left;height:32px;padding:0 10px;border-radius:6px;border:0;background:{{ x.bg }};color:{{ x.color }};font:500 13px Geist;cursor:pointer" style-hover="background:#1c1d21;color:#ececee">{{ x.label }}</button></sc-for>
+  </div>
+  <div style="padding:24px 32px;overflow:auto;display:flex;flex-direction:column;gap:20px;max-width:640px">
+    <sc-if value="{{ secGeneral }}" hint-placeholder-val="{{ true }}">
+      <div style="font:500 20px Geist">General</div>
+      <div style="display:flex;flex-direction:column;border:1px solid #26272c;border-radius:8px;background:#18191c;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid #222327"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">Start with Windows</span><span style="font:11px Geist;color:#9a9ca3">Watch folders and follow updates in the background.</span></div><button role="switch" aria-checked="true" style="width:34px;height:18px;border-radius:9px;border:0;background:oklch(0.78 0.16 70);position:relative;cursor:pointer;flex:none;padding:0"><span style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#131416;transform:translateX(16px)"></span></button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid #222327"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">Reduce motion</span><span style="font:11px Geist;color:#9a9ca3">Follows your Windows setting by default.</span></div><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">System</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">Keyboard shortcuts</span><span style="font:11px Geist;color:#9a9ca3">Ctrl K search · 1–5 sections · [ ] sidebar · Esc close</span></div></div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ secGame }}" hint-placeholder-val="{{ false }}">
+      <div style="font:500 20px Geist">Game</div>
+      <div style="display:flex;flex-direction:column;border:1px solid #26272c;border-radius:8px;background:#18191c;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid #222327"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">War Thunder · Steam</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">C:\Program Files (x86)\Steam\steamapps\common\War Thunder</span></div><button onClick="{{ changeGame }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer;flex:none" style-hover="border-color:#3a3b41">Change</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">Watched folder</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">C:\Users\you\Downloads</span></div><button style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer;flex:none" style-hover="border-color:#3a3b41">Change</button></div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ secConflicts }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="font:500 20px Geist">Conflicts</div><div style="font:13px/1.5 Geist;color:#9a9ca3">What to do when an archive has the same folder as an installed skin.</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ policies }}" as="p" hint-placeholder-count="4"><button onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;border:1px solid {{ p.border }};background:#18191c;color:#ececee;font:13px Geist;cursor:pointer;text-align:left" style-hover="border-color:#4a4c54"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #3a3b41;display:flex;align-items:center;justify-content:center;flex:none"><span style="width:8px;height:8px;border-radius:50%;background:{{ p.dot }}"></span></span>{{ p.label }}</button></sc-for></div>
+    </sc-if>
+    <sc-if value="{{ secBackups }}" hint-placeholder-val="{{ false }}">
+      <div style="font:500 20px Geist">Backups</div>
+      <div style="display:flex;flex-direction:column;border:1px solid #26272c;border-radius:8px;background:#18191c;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid #222327"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">Keep a backup when replacing or deleting</span><span style="font:11px Geist;color:#9a9ca3">Lets you undo for 30 days.</span></div><button role="switch" aria-checked="{{ backups }}" onClick="{{ toggleBackups }}" style="width:34px;height:18px;border-radius:9px;border:0;background:{{ backupsBg }};position:relative;cursor:pointer;flex:none;padding:0"><span style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#131416;transform:{{ backupsKnob }};transition:transform .15s"></span></button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">Backups on disk</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">3 items · 148 MB</span></div><button style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer;flex:none" style-hover="border-color:#3a3b41">Clear</button></div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ secLanguage }}" hint-placeholder-val="{{ false }}">
+      <div style="font:500 20px Geist">Language</div>
+      <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ langs }}" as="p" hint-placeholder-count="5"><button onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;border:1px solid {{ p.border }};background:#18191c;color:#ececee;font:13px Geist;cursor:pointer;text-align:left" style-hover="border-color:#4a4c54"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #3a3b41;display:flex;align-items:center;justify-content:center;flex:none"><span style="width:8px;height:8px;border-radius:50%;background:{{ p.dot }}"></span></span>{{ p.label }}</button></sc-for></div>
+    </sc-if>
+    <sc-if value="{{ secUpdates }}" hint-placeholder-val="{{ false }}">
+      <div style="font:500 20px Geist">Updates</div>
+      <div style="display:flex;flex-direction:column;border:1px solid #26272c;border-radius:8px;background:#18191c;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid #222327"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">Livery 0.1.0</span><span style="font:11px Geist;color:#9a9ca3">You're up to date.</span></div><button onClick="{{ checkUpdates }}" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;font:500 12px Geist;cursor:pointer;flex:none" style-hover="border-color:#3a3b41">Check now</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px"><div style="display:flex;flex-direction:column;gap:2px"><span style="font:13px Geist">Install updates automatically</span></div><button role="switch" aria-checked="true" style="width:34px;height:18px;border-radius:9px;border:0;background:oklch(0.78 0.16 70);position:relative;cursor:pointer;flex:none;padding:0"><span style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#131416;transform:translateX(16px)"></span></button></div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ secAbout }}" hint-placeholder-val="{{ false }}">
+      <div style="font:500 20px Geist">About</div>
+      <div style="display:flex;flex-direction:column;gap:14px;font:13px/1.6 Geist;color:#c9cbd1">
+        <div style="display:flex;align-items:center;gap:12px"><span style="width:10px;height:10px;border-radius:50%;background:oklch(0.78 0.16 70);box-shadow:0 0 10px oklch(0.78 0.16 70 / .6)"></span><span style="font:600 14px Geist;letter-spacing:.14em">LIVERY</span><span style="font:11px 'IBM Plex Mono',monospace;color:#7c7e86">0.1.0 · Windows x64</span></div>
+        <div>A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.</div>
+        <div style="padding:12px 14px;border:1px solid #26272c;border-radius:8px;background:#18191c;color:#9a9ca3">Unofficial tool, not affiliated with Gaijin Entertainment.</div>
+        <div style="display:flex;gap:16px;font:12px Geist"><a href="#" style="color:oklch(0.78 0.16 70)">Source code</a><a href="#" style="color:oklch(0.78 0.16 70)">Report a problem</a><a href="#" style="color:oklch(0.78 0.16 70)">Licenses</a></div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+    </div>
+  </div>
+  </sc-if>
+  <sc-if value="{{ paletteOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closePalette }}" style="position:absolute;inset:0;z-index:50;background:rgba(11,11,12,.6);display:flex;justify-content:center;padding-top:120px">
+  <div role="dialog" aria-label="Command palette" onClick="{{ stop }}" style="width:560px;align-self:flex-start;background:#18191c;border:1px solid #3a3b41;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.7);overflow:hidden;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid #26272c"><span style="font:12px 'IBM Plex Mono',monospace;color:oklch(0.78 0.16 70)">&gt;</span><input ref="{{ pRef }}" value="{{ pq }}" onChange="{{ setPq }}" onKeyDown="{{ pKey }}" placeholder="Jump to a vehicle, skin or action…" aria-label="Command" style="flex:1;height:46px;background:none;border:0;outline:none;font:14px Geist;color:#ececee"><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;border:1px solid #2e2f35;border-radius:3px;padding:1px 5px">Esc</span></div>
+    <div style="display:flex;flex-direction:column;padding:6px" role="listbox">
+      <sc-for list="{{ pItems }}" as="p" hint-placeholder-count="6"><button role="option" aria-selected="{{ p.active }}" onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:6px;border:0;background:{{ p.bg }};cursor:pointer;text-align:left" style-hover="background:#1c1d21"><span style="font:10px 'IBM Plex Mono',monospace;color:#6b6d74;letter-spacing:.06em;min-width:56px">{{ p.kind }}</span><span style="flex:1;font:13px Geist;color:#ececee">{{ p.label }}</span><span style="font:11px 'IBM Plex Mono',monospace;color:{{ p.hintColor }}">{{ p.hint }}</span></button></sc-for>
+      <sc-if value="{{ pEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:16px;text-align:center;font:12px Geist;color:#7c7e86">No matches</div></sc-if>
+    </div>
+    <div style="display:flex;gap:14px;padding:8px 14px;border-top:1px solid #26272c;font:10px 'IBM Plex Mono',monospace;color:#6b6d74"><span>↑↓ navigate</span><span>↵ open</span><span>Ctrl K close</span></div>
+  </div>
+</div>
+</sc-if>
+<sc-if value="{{ conflictOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeConflict }}" style="position:absolute;inset:0;z-index:50;background:rgba(11,11,12,.6);display:flex;align-items:center;justify-content:center">
+  <div role="dialog" aria-label="Resolve conflict" onClick="{{ stop }}" style="width:520px;background:#18191c;border:1px solid #3a3b41;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.7);padding:22px 24px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.78 0.16 70)"></span><span style="font:500 18px Geist">This skin is already installed</span></div><div style="font:13px/1.5 Geist;color:#9a9ca3"><span style="font:12px 'IBM Plex Mono',monospace;color:#c9cbd1">{{ conflictItem.file }}</span> uses the same folder as “Bundeswehr Flecktarn” on {{ conflictItem.vehicle }}.</div></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button onClick="{{ resReplace }}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;border:1px solid oklch(0.78 0.16 70 / .6);background:oklch(0.78 0.16 70 / .08);color:#ececee;cursor:pointer;text-align:left" style-hover="background:oklch(0.78 0.16 70 / .14)"><span style="display:flex;flex-direction:column;gap:2px"><span style="font:500 13px Geist">Replace, keep a backup</span><span style="font:11px Geist;color:#9a9ca3">The old version goes to Backups. Undo available.</span></span><span style="font:10px 'IBM Plex Mono',monospace;color:#7c7e86">↵</span></button>
+      <button onClick="{{ resCopy }}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;cursor:pointer;text-align:left" style-hover="border-color:#4a4c54"><span style="display:flex;flex-direction:column;gap:2px"><span style="font:500 13px Geist">Install as a copy</span><span style="font:11px Geist;color:#9a9ca3">Both versions stay. The new one gets “(2)” in its name.</span></span></button>
+      <button onClick="{{ resSkip }}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;border:1px solid #2e2f35;background:#1f2024;color:#ececee;cursor:pointer;text-align:left" style-hover="border-color:#4a4c54"><span style="display:flex;flex-direction:column;gap:2px"><span style="font:500 13px Geist">Skip</span><span style="font:11px Geist;color:#9a9ca3">Leave the installed version as it is.</span></span></button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:11px Geist;color:#6b6d74">Change the default in Settings → Conflicts</span><button onClick="{{ closeConflict }}" style="height:28px;padding:0 10px;border-radius:6px;border:0;background:none;color:#9a9ca3;font:12px Geist;cursor:pointer" style-hover="color:#ececee">Cancel</button></div>
+  </div>
+</div>
+</sc-if>
+<sc-if value="{{ dragOver }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:8px;z-index:60;border:2px dashed oklch(0.78 0.16 70);border-radius:10px;background:rgba(19,20,22,.85);display:flex;align-items:center;justify-content:center;pointer-events:none"><div style="display:flex;flex-direction:column;align-items:center;gap:6px"><span style="font:500 20px Geist">Drop to add to the install queue</span><span style="font:11px 'IBM Plex Mono',monospace;color:#9a9ca3">ZIP · RAR · 7Z</span></div></div>
+</sc-if>
+<div style="position:absolute;right:20px;bottom:20px;z-index:70;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none" aria-live="polite">
+  <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
+  <div data-anim="1" style="pointer-events:auto;display:flex;align-items:center;gap:14px;padding:10px 12px 10px 14px;border-radius:8px;background:#1c1d21;border:1px solid #3a3b41;box-shadow:0 12px 32px rgba(0,0,0,.5);font:13px Geist;color:#ececee;animation:lv-fade .2s ease both;max-width:420px"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.78 0.16 70);flex:none"></span><span style="flex:1">{{ t.text }}</span><sc-if value="{{ t.hasUndo }}" hint-placeholder-val="{{ false }}"><button onClick="{{ t.doUndo }}" style="height:26px;padding:0 10px;border-radius:5px;border:1px solid #3a3b41;background:#26272c;color:#ececee;font:500 12px Geist;cursor:pointer" style-hover="border-color:oklch(0.78 0.16 70)">Undo</button></sc-if><button onClick="{{ t.dismiss }}" aria-label="Dismiss" style="height:26px;width:26px;border-radius:5px;border:0;background:none;color:#7c7e86;font:14px Geist;cursor:pointer" style-hover="color:#ececee">×</button></div>
+  </sc-for>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;windowSize&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;1100×700&quot;,&quot;1440×900&quot;,&quot;1920×1080&quot;],&quot;default&quot;:&quot;1440×900&quot;,&quot;tsType&quot;:&quot;'1100×700'|'1440×900'|'1920×1080'&quot;,&quot;section&quot;:&quot;Window&quot;},&quot;offline&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;State&quot;},&quot;reduceMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;State&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'firstRun', fr: { step: 0, notFound: false, showPath: false, det: 0 },
+    sidebar: true, palette: false, pq: '', pIdx: 0,
+    tab: 'explore', q: '', nation: 'All', type: 'All', klass: 'All', vehicle: '', vFocus: false, category: 'All', sort: 'Most downloaded', menu: null, loading: true,
+    installs: {}, installed: { s6: true, s4: true, s8: true },
+    sel: null, dtab: 'gallery', zoom: false, compare: false, cmpId: null, tryState: 'idle', gIdx: 0,
+    hView: 'grid', hq: '', hNation: 'All', hType: 'All', hOrigin: 'All', hSel: {}, hMenu: null,
+    hangar: null, collections: null, activeCol: 'c1', openCol: 'c1',
+    queue: null, autoInstall: false, showDl: false, conflict: null,
+    ssec: 'General', conflictPolicy: 'Ask every time', backups: true, lang: 'English', updates: 'Automatic',
+    toasts: [], trash: null, toastId: 0, qId: 10
+  };
+  CATALOG = [
+    ['s1','Schwarzwald Ambush','Tiger II (H)','germ_pzkpfw_VI_ausf_b_tiger_IIH','Germany','GER','Ground','Heavy tank','Historical','Kessler_Wolf',24120,1932,48,'12 Jun 2026',0],
+    ['s2',"Winter '44 Whitewash",'T-34-85','ussr_t_34_85','USSR','USSR','Ground','Medium tank','Historical','RedOak_Petrov',18702,1204,36,'3 Jul 2026',0],
+    ['s3','Desert Storm Tan','M1A2 SEP','us_m1a2_sep','USA','USA','Ground','MBT','Semi-historical','ironclad_mia',31244,2410,61,'21 May 2026',0],
+    ['s4','Bundeswehr Flecktarn','Leopard 2A6','germ_leopard_2a6','Germany','GER','Ground','MBT','Historical','Kessler_Wolf',42806,3115,52,'18 Apr 2026',0],
+    ['s5','Tricolore Parade','Ariete','it_c1_ariete','Italy','ITA','Ground','MBT','Fictional','Vesuvio_Skins',6318,512,44,'10 Sep 2026',1],
+    ['s6','SEA Camo, 388th TFW','F-4E Phantom II','f_4e','USA','USA','Air','Strike aircraft','Historical','Skyhook_Dan',27533,1870,29,'2 Mar 2026',0],
+    ['s7','JG 52 Yellow Nose','Bf 109 G-6','bf-109g-6','Germany','GER','Air','Fighter','Historical','Erla_Works',15911,1102,18,'14 Feb 2026',0],
+    ['s8','D-Day Invasion Stripes','Spitfire Mk IX','spitfire_mk9c','Britain','GBR','Air','Fighter','Historical','Merlin_Mod',22048,1655,21,'6 Jun 2026',0],
+    ['s9','Russian Knights Blue','Su-27','su_27','USSR','USSR','Air','Fighter','Semi-historical','Flanker_Ivan',38417,2908,73,'20 Jan 2026',0],
+    ['s10','Rust & Mud','T-34-85','ussr_t_34_85','USSR','USSR','Ground','Medium tank','Historical','RedOak_Petrov',9806,640,35,'28 Aug 2026',0],
+    ['s11','Night Ops Matte','Leopard 2A6','germ_leopard_2a6','Germany','GER','Ground','MBT','Fictional','nachtjaeger',11230,903,50,'14 Sep 2026',1],
+    ['s12','Ace of Spades','F-4E Phantom II','f_4e','USA','USA','Air','Strike aircraft','Fictional','Skyhook_Dan',7402,588,27,'12 Sep 2026',1],
+    ['s13','Kursk Dust','Tiger II (H)','germ_pzkpfw_VI_ausf_b_tiger_IIH','Germany','GER','Ground','Heavy tank','Semi-historical','Panzerlack',13480,998,47,'25 Jul 2026',0],
+    ['s14','Baltic Winter','Leopard 2A6','germ_leopard_2a6','Germany','GER','Ground','MBT','Historical','Kessler_Wolf',19950,1420,53,'15 Sep 2026',1],
+    ['s15','Late-war Grey','Bf 109 G-6','bf-109g-6','Germany','GER','Air','Fighter','Historical','Erla_Works',8760,611,17,'5 May 2026',0],
+    ['s16','Ukrainian Digital','Su-27','su_27','USSR','USSR','Air','Fighter','Fictional','Flanker_Ivan',21133,1700,70,'1 Aug 2026',0]
+  ].map(r => ({ id: r[0], name: r[1], vehicle: r[2], code: r[3], nation: r[4], nc: r[5], type: r[6], klass: r[7], category: r[8], author: r[9], dln: r[10], likesn: r[11], sizeMB: r[12], posted: r[13], isNew: !!r[14] }));
+  FOLLOWS = [{ kind: 'Vehicle', name: 'Leopard 2A6', sub: 'germ_leopard_2a6', fresh: 2 }, { kind: 'Author', name: 'Kessler_Wolf', sub: '14 skins on WT Live', fresh: 1 }, { kind: 'Author', name: 'Skyhook_Dan', sub: '9 skins on WT Live', fresh: 1 }, { kind: 'Vehicle', name: 'Spitfire Mk IX', sub: 'spitfire_mk9c', fresh: 0 }];
+  initialHangar() {
+    const c = id => { const k = this.CATALOG.find(x => x.id === id); return { id: 'h_' + id, skinId: id, name: k.name, vehicle: k.vehicle, code: k.code, nation: k.nation, type: k.type, origin: 'WT Live', size: k.sizeMB, author: k.author, active: true, attention: '' }; };
+    const m = (id, name, vehicle, code, nation, type, origin, size, active, attention, author) => ({ id, name, vehicle, code, nation, type, origin, size, active, attention, author: author || 'Unknown' });
+    return [c('s6'), c('s4'), c('s8'),
+      m('h1', 'Panzer Grey 1943', 'Tiger II (H)', 'germ_pzkpfw_VI_ausf_b_tiger_IIH', 'Germany', 'Ground', 'Imported', 46, true, ''),
+      m('h2', 'Factory Olive', 'T-34-85', 'ussr_t_34_85', 'USSR', 'Ground', 'Imported', 33, true, ''),
+      m('h3', 'Berlin 1945', 'T-34-85', 'ussr_t_34_85', 'USSR', 'Ground', 'Imported', 31, false, 'turret_c.dds is missing'),
+      m('h4', 'My Test Camo', 'Leopard 2A6', 'germ_leopard_2a6', 'Germany', 'Ground', 'Mine', 12, true, 'skin.blk has an unknown block', 'you'),
+      m('h5', 'Aggressor Splinter', 'F-4E Phantom II', 'f_4e', 'USA', 'Air', 'Imported', 30, true, ''),
+      m('h6', 'Battle of Britain', 'Spitfire Mk IX', 'spitfire_mk9c', 'Britain', 'Air', 'Imported', 20, true, ''),
+      m('h7', 'Blue Angels Tribute', 'F-4E Phantom II', 'f_4e', 'USA', 'Air', 'Mine', 28, false, '', 'you'),
+      m('h8', 'Ariete Desert', 'Ariete', 'it_c1_ariete', 'Italy', 'Ground', 'Imported', 40, true, ''),
+      m('h9', 'Flanker Sea Grey', 'Su-27', 'su_27', 'USSR', 'Air', 'Imported', 22, false, 'archive was only partially extracted')];
+  }
+  initialCollections() {
+    return [{ id: 'c1', name: 'Historical only', desc: 'Period-accurate liveries for realistic battles', items: ['h_s6', 'h_s4', 'h_s8', 'h1', 'h2', 'h6', 'h8'] },
+      { id: 'c2', name: 'Screenshots', desc: 'High-contrast skins that read well in replays', items: ['h_s4', 'h5', 'h7'] },
+      { id: 'c3', name: 'Fictional fun', desc: 'Anything goes', items: ['h7', 'h4'] }];
+  }
+  initialQueue() {
+    return [{ id: 'q1', file: 'leopard2a6_flecktarn_v3.zip', size: '52 MB', vehicle: 'Leopard 2A6', code: 'germ_leopard_2a6', status: 'conflict', note: 'Same folder name as “Bundeswehr Flecktarn” (installed)' },
+      { id: 'q2', file: 'spitfire_mk9_raf_no_611.7z', size: '22 MB', vehicle: 'Spitfire Mk IX', code: 'spitfire_mk9c', status: 'ready', note: '6 files · 2 textures · skin.blk ok' },
+      { id: 'q3', file: 'unknown_pack.rar', size: '140 MB', vehicle: '—', code: '', status: 'verify', note: 'Can’t detect the vehicle: 3 folders inside. Pick one to continue.' }];
+  }
+  componentDidMount() {
+    this.setState({ hangar: this.initialHangar(), collections: this.initialCollections(), queue: this.initialQueue() });
+    this.pRef = React.createRef();
+    this.keyH = e => {
+      const tag = (e.target.tagName || '').toLowerCase(); const inInput = tag === 'input' || tag === 'textarea';
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); this.setState(s => ({ palette: !s.palette, pq: '', pIdx: 0 })); return; }
+      if (e.key === 'Escape') { this.setState({ palette: false, menu: null, hMenu: null, conflict: null, zoom: false }); return; }
+      if (inInput || this.state.screen === 'firstRun') return;
+      if (e.key === '[' || e.key === ']') this.setState(s => ({ sidebar: !s.sidebar }));
+      const map = { 1: 'explore', 2: 'hangar', 3: 'collections', 4: 'queue', 5: 'settings' };
+      if (map[e.key]) this.go(map[e.key]);
+    };
+    window.addEventListener('keydown', this.keyH);
+    this.detTimer = setInterval(() => this.setState(s => {
+      if (s.screen !== 'firstRun' || s.fr.step !== 0) return null;
+      const det = Math.min(100, s.fr.det + 4);
+      if (det >= 100) { clearInterval(this.detTimer); return { fr: { ...s.fr, det, step: 1 } }; }
+      return { fr: { ...s.fr, det } };
+    }), 60);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.keyH); clearInterval(this.detTimer); }
+  componentDidUpdate(pp, ps) { if (this.state.palette && !ps.palette && this.pRef.current) this.pRef.current.focus(); }
+  go(screen) {
+    this.setState({ screen, palette: false, menu: null, hMenu: null });
+    if (screen === 'explore' && this.state.loading) setTimeout(() => this.setState({ loading: false }), 700);
+  }
+  toast(text, undo) {
+    const id = this.state.toastId + 1;
+    this.setState(s => ({ toasts: [...s.toasts, { id, text, undo }], toastId: id }));
+    setTimeout(() => this.setState(s => ({ toasts: s.toasts.filter(t => t.id !== id) })), 6000);
+  }
+  dismissToast(id) { this.setState(s => ({ toasts: s.toasts.filter(t => t.id !== id) })); }
+  startInstall(id) {
+    if (this.state.installs[id] || this.state.installed[id]) return;
+    this.setState(s => ({ installs: { ...s.installs, [id]: 0 } }));
+    const t = setInterval(() => this.setState(s => {
+      const p = (s.installs[id] ?? 0) + 3;
+      if (p >= 100) {
+        clearInterval(t);
+        const k = this.CATALOG.find(x => x.id === id);
+        const { [id]: _, ...rest } = s.installs;
+        const already = s.hangar.some(h => h.id === 'h_' + id);
+        const hangar = already ? s.hangar : [...s.hangar, { id: 'h_' + id, skinId: id, name: k.name, vehicle: k.vehicle, code: k.code, nation: k.nation, type: k.type, origin: 'WT Live', size: k.sizeMB, author: k.author, active: true, attention: '' }];
+        setTimeout(() => this.toast(`Installed “${k.name}”`, null), 0);
+        return { installs: rest, installed: { ...s.installed, [id]: true }, hangar };
+      }
+      return { installs: { ...s.installs, [id]: p } };
+    }), 75);
+  }
+  stepOf(p) { return p < 40 ? ['', 'Downloading', 'Extract · Verify · Done'] : p < 75 ? ['Download ✓', 'Extracting', 'Verify · Done'] : p < 96 ? ['Download ✓ · Extract ✓', 'Verifying', 'Done'] : ['Download ✓ · Extract ✓ · Verify ✓', 'Done', '']; }
+  fmt(n) { return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n); }
+  full(n) { return n.toLocaleString('en-US'); }
+  card(k) {
+    const s = this.state, p = s.installs[k.id], installing = p !== undefined, installed = !!s.installed[k.id];
+    const st = installing ? this.stepOf(p) : ['', '', ''];
+    return { ...k, dl: this.fmt(k.dln), likes: this.fmt(k.likesn), dlFull: this.full(k.dln), likesFull: this.full(k.likesn), size: k.sizeMB + ' MB', idle: !installing && !installed, installing, installed, pct: p ?? 0, stepsDone: st[0], stepNow: st[1] + (installing && p < 96 ? ' ' + p + '%' : ''), stepsNext: st[2],
+      install: e => { e.stopPropagation(); this.startInstall(k.id); }, open: () => this.openSkin(k.id) };
+  }
+  openSkin(id) { this.setState({ screen: 'detail', sel: id, dtab: 'gallery', zoom: false, compare: false, cmpId: null, tryState: 'idle', gIdx: 0, palette: false, menu: null }); }
+  textures(k) {
+    const g = k.type === 'Ground';
+    const base = g ? [['hull_c.dds', 4096, 'BC7', 21.3], ['hull_n.dds', 4096, 'BC5', 21.3], ['turret_c.dds', 4096, 'BC7', 21.3], ['turret_n.dds', 4096, 'BC5', 21.3], ['tracks_c.dds', 2048, 'BC7', 5.3]] : [['fuselage_c.dds', 4096, 'BC7', 21.3], ['fuselage_n.dds', 4096, 'BC5', 21.3], ['wings_c.dds', 4096, 'BC7', 21.3], ['cockpit_c.tga', 1024, 'RGBA8', 4.2]];
+    return base.map((t, i) => {
+      let res = t[1], mb = t[3], warn = '';
+      if (k.id === 's3' && i === 0) { res = 8192; mb = 85.3; warn = 'Very heavy texture (8192²). Load times may suffer.'; }
+      if (k.id === 's5' && i === 3) { warn = 'Referenced in skin.blk but not in the archive.'; mb = 0; }
+      return { file: t[0], res: mb ? `${res}×${res}` : '—', fmt: mb ? t[2] : '—', size: mb ? mb.toFixed(1) + ' MB' : 'missing', warn, hasWarn: !!warn, color: warn ? 'oklch(0.78 0.16 70)' : '#c9cbd1' };
+    }).concat([{ file: k.code + '.blk', res: '—', fmt: 'BLK', size: '2 KB', warn: '', hasWarn: false, color: '#c9cbd1' }]);
+  }
+  frAnim(rm) {
+    const h = React.createElement, A = 'oklch(0.78 0.16 70)';
+    const face = (w, hh, t, extra) => h('div', { style: { position: 'absolute', left: '50%', top: '50%', width: w, height: hh, marginLeft: -w / 2, marginTop: -hh / 2, border: '1px solid ' + A, opacity: .75, transform: t, boxSizing: 'border-box', ...(extra || {}) } });
+    const box = (w, hh, d, y, hatch) => h('div', { style: { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', transformStyle: 'preserve-3d', transform: `translateY(${y}px)` } },
+      face(w, hh, `translateZ(${d / 2}px)`), face(w, hh, `rotateY(180deg) translateZ(${d / 2}px)`), face(d, hh, `rotateY(-90deg) translateZ(${w / 2}px)`), face(d, hh, `rotateY(90deg) translateZ(${w / 2}px)`),
+      face(w, d, `rotateX(90deg) translateZ(${hh / 2}px)`, hatch ? { backgroundImage: 'repeating-linear-gradient(45deg,transparent 0 9px,oklch(0.78 0.16 70 / .18) 9px 10px)' } : {}), face(w, d, `rotateX(-90deg) translateZ(${hh / 2}px)`));
+    const label = (x, y, txt, delay) => h('text', { x, y, fill: '#7c7e86', fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, 'data-anim': '1', style: { animation: `lv-fade .8s ease ${delay}s both` } }, txt);
+    const line = (x1, y1, x2, y2, delay) => h('line', { x1, y1, x2, y2, stroke: '#4a4c54', strokeWidth: 1, strokeDasharray: 600, 'data-anim': '1', style: { animation: `lv-draw 1.6s ease ${delay}s both` } });
+    const tile = (i, name) => h('div', { key: i, 'data-anim': '1', style: { width: 44, height: 44, border: '1px solid #3a3b41', background: i % 3 === 1 ? 'repeating-linear-gradient(135deg,#1e1f23 0 5px,#26272c 5px 10px)' : '#1a1b1e', display: 'flex', alignItems: 'flex-end', padding: 3, boxSizing: 'border-box', font: "8px 'IBM Plex Mono',monospace", color: '#6b6d74', animation: `lv-fade .6s ease ${1.2 + i * .18}s both` } }, name);
+    return h('div', { style: { position: 'relative', width: 560, height: 560 } },
+      h('svg', { width: 560, height: 560, style: { position: 'absolute', inset: 0 } },
+        line(120, 90, 440, 90, .2), line(120, 84, 120, 96, .4), line(440, 84, 440, 96, .4), label(250, 80, 'HULL 200 × 120 × 110', .9),
+        line(480, 140, 480, 400, .5), line(474, 140, 486, 140, .7), line(474, 400, 486, 400, .7), label(490, 275, '110', 1.1),
+        line(60, 470, 500, 470, .3), label(60, 490, 'SHEET 00 · DETECTING INSTALL', 1.3), label(392, 490, 'UNOFFICIAL TOOL', 1.5),
+        h('circle', { cx: 280, cy: 270, r: 3, fill: A }), h('line', { x1: 268, y1: 270, x2: 292, y2: 270, stroke: A, strokeWidth: 1 }), h('line', { x1: 280, y1: 258, x2: 280, y2: 282, stroke: A, strokeWidth: 1 })),
+      h('div', { style: { position: 'absolute', left: 80, top: 100, width: 400, height: 340, perspective: 900 } },
+        h('div', { 'data-anim': '1', style: { position: 'absolute', inset: 0, transformStyle: 'preserve-3d', animation: 'lv-spin 28s linear infinite', transform: 'rotateX(-22deg)' } }, box(200, 110, 120, 30, true), box(96, 52, 80, -52, false))),
+      h('div', { 'data-anim': '1', style: { position: 'absolute', left: 80, top: 100, width: 400, height: 1, background: 'linear-gradient(90deg,transparent,oklch(0.78 0.16 70 / .5),transparent)', animation: 'lv-scan 7s linear infinite' } }),
+      h('div', { style: { position: 'absolute', left: 60, top: 500, display: 'flex', gap: 6 } }, ['hull_c', 'hull_n', 'turret_c', 'turret_n', 'tracks_c', 'skin.blk'].map((n, i) => tile(i, n))));
+  }
+  renderVals() {
+    const s = this.state, P = this.props, A = 'oklch(0.78 0.16 70)';
+    const size = P.windowSize ?? '1440×900'; const [W, H] = size.split('×').map(Number);
+    const offline = P.offline ?? false, rm = P.reduceMotion ?? false;
+    const hangar = s.hangar || [], collections = s.collections || [], queue = s.queue || [];
+    const set = o => () => this.setState(o);
+    // first run
+    const fr = s.fr, importItems = hangar.filter(h => h.origin !== 'WT Live');
+    const frVals = {
+      isFirstRun: s.screen === 'firstRun', fr0: fr.step === 0, fr1found: fr.step === 1 && !fr.notFound, fr1notFound: fr.step === 1 && fr.notFound, fr2: fr.step === 2,
+      frC0: fr.step === 0 ? A : '#9a9ca3', frC1: fr.step === 1 ? A : '#6b6d74', frC2: fr.step === 2 ? A : '#6b6d74',
+      det0: fr.det > 30 ? 'found' : 'checking…', detColor0: fr.det > 30 ? A : '#7c7e86', det1: fr.det > 70 ? 'not installed' : fr.det > 30 ? 'checking…' : 'queued', det2: 'skipped', detPct: fr.det,
+      frShowPath: fr.showPath, frPathLabel: fr.showPath ? 'Hide path' : 'Show path', frTogglePath: () => this.setState({ fr: { ...fr, showPath: !fr.showPath } }),
+      frConfirm: () => this.setState({ fr: { ...fr, step: 2 } }), frNotFound: () => this.setState({ fr: { ...fr, notFound: true } }), frBackFound: () => this.setState({ fr: { ...fr, notFound: false } }),
+      frPickFolder: () => { this.setState({ fr: { ...fr, notFound: false, step: 2 } }); this.toast('Game folder set', null); }, frSkip: () => { this.go('explore'); this.toast('You can set the game folder later in Settings', null); },
+      importCount: importItems.length, importVehicles: new Set(importItems.map(i => i.vehicle)).size, importAttention: importItems.filter(i => i.attention).length,
+      importPreview: importItems.slice(0, 5).map(i => ({ name: i.name, vehicle: i.vehicle, tag: i.attention ? 'needs attention' : i.origin === 'Mine' ? 'created by you' : 'ok', tagColor: i.attention ? A : '#6b6d74' })),
+      importMore: `+ ${Math.max(0, importItems.length - 5)} more`,
+      frImport: () => { this.go('explore'); this.toast(`${importItems.length} skins added to My Hangar`, null); },
+      frSkipImport: () => { this.setState({ hangar: hangar.filter(h => h.origin === 'WT Live') }); this.go('explore'); },
+      frAnim: this.frAnim(rm)
+    };
+    // nav
+    const navDef = [['explore', 'Explore', '1'], ['hangar', 'My Hangar', '2'], ['collections', 'Collections', '3'], ['queue', 'Install queue', '4'], ['settings', 'Settings', ',']];
+    const cur = s.screen === 'detail' ? 'explore' : s.screen;
+    const pendingQ = queue.filter(q => q.status !== 'done').length;
+    const nav = navDef.map(([id, label, key]) => ({ id, label, key, initial: label[0], go: () => this.go(id), active: cur === id, bg: cur === id ? '#1c1d21' : 'transparent', color: cur === id ? '#ececee' : '#9a9ca3', bar: cur === id ? A : 'transparent', hasBadge: id === 'queue' && pendingQ > 0, badge: pendingQ }));
+    const hangarGB = (hangar.reduce((a, h) => a + h.size, 0) / 1024).toFixed(1) + ' GB';
+    // explore
+    const nations = ['All', 'Germany', 'USSR', 'USA', 'Italy', 'Britain'], types = ['All', 'Ground', 'Air', 'Helicopters', 'Naval'], classes = ['All', 'Heavy tank', 'Medium tank', 'MBT', 'Fighter', 'Strike aircraft'], cats = ['All', 'Historical', 'Semi-historical', 'Fictional'], sorts = ['Most downloaded', 'Most liked', 'Newest', 'Name A–Z'];
+    const q = s.q.toLowerCase(), v = s.vehicle.toLowerCase();
+    let list = this.CATALOG.filter(k => (s.nation === 'All' || k.nation === s.nation) && (s.type === 'All' || k.type === s.type) && (s.klass === 'All' || k.klass === s.klass) && (s.category === 'All' || k.category === s.category) && (!v || k.vehicle.toLowerCase().includes(v) || k.code.includes(v)) && (!q || k.name.toLowerCase().includes(q) || k.vehicle.toLowerCase().includes(q) || k.author.toLowerCase().includes(q)));
+    list.sort((a, b) => s.sort === 'Most liked' ? b.likesn - a.likesn : s.sort === 'Newest' ? (b.isNew - a.isNew) || b.dln - a.dln : s.sort === 'Name A–Z' ? a.name.localeCompare(b.name) : b.dln - a.dln);
+    const cards = list.map(k => this.card(k));
+    const menuFor = (name, opts, key) => opts.map(o => ({ label: o, active: s[key] === o, pick: () => this.setState({ [key]: o, menu: null }) }));
+    const menuItems = s.menu === 'nation' ? menuFor('nation', nations, 'nation') : s.menu === 'class' ? menuFor('class', classes, 'klass') : s.menu === 'category' ? menuFor('category', cats, 'category') : s.menu === 'sort' ? menuFor('sort', sorts, 'sort') : [];
+    const toggleMenu = m => e => { e.stopPropagation(); this.setState({ menu: s.menu === m ? null : m, hMenu: null }); };
+    const active = [];
+    if (s.nation !== 'All') active.push({ label: s.nation, remove: set({ nation: 'All' }) });
+    if (s.type !== 'All') active.push({ label: s.type, remove: set({ type: 'All' }) });
+    if (s.klass !== 'All') active.push({ label: s.klass, remove: set({ klass: 'All' }) });
+    if (s.vehicle) active.push({ label: s.vehicle, remove: set({ vehicle: '' }) });
+    if (s.category !== 'All') active.push({ label: s.category, remove: set({ category: 'All' }) });
+    if (s.q) active.push({ label: '“' + s.q + '”', remove: set({ q: '' }) });
+    const vehicles = [...new Set(this.CATALOG.map(k => k.vehicle))];
+    const vSugg = s.vFocus && s.vehicle && !vehicles.some(x => x.toLowerCase() === v) ? vehicles.filter(x => x.toLowerCase().includes(v)).slice(0, 6).map(x => ({ label: x, code: this.CATALOG.find(k => k.vehicle === x).code, pick: () => this.setState({ vehicle: x, vFocus: false }) })) : [];
+    const freshSkins = this.CATALOG.filter(k => k.isNew).map(k => this.card(k));
+    const explore = {
+      isExplore: s.screen === 'explore', tabExplore: s.tab === 'explore', tabFollowing: s.tab === 'following', setTabExplore: set({ tab: 'explore' }), setTabFollowing: set({ tab: 'following' }),
+      tabExploreColor: s.tab === 'explore' ? '#ececee' : '#9a9ca3', tabExploreBar: s.tab === 'explore' ? A : 'transparent', tabFollowingColor: s.tab === 'following' ? '#ececee' : '#9a9ca3', tabFollowingBar: s.tab === 'following' ? A : 'transparent',
+      freshCount: this.FOLLOWS.reduce((a, f) => a + f.fresh, 0) + ' new',
+      resultsText: `${this.full(list.length)} results · ${12 + list.length} ms`, cards, hasCards: cards.length > 0 && !s.loading && !offline, noCards: cards.length === 0 && !s.loading && !offline, loading: s.loading && !offline, exploreOffline: offline,
+      skeleton: [1, 2, 3, 4, 5, 6, 7, 8], clearAll: set({ nation: 'All', type: 'All', klass: 'All', vehicle: '', category: 'All', q: '' }),
+      nationLabel: s.nation === 'All' ? 'Any' : s.nation, nationColor: s.nation === 'All' ? '#9a9ca3' : A, nationBorder: s.nation === 'All' ? '#2a2b30' : 'oklch(0.78 0.16 70 / .6)', toggleNation: toggleMenu('nation'), nationMenu: s.menu === 'nation',
+      classLabel: s.klass === 'All' ? 'Any' : s.klass, classColor: s.klass === 'All' ? '#9a9ca3' : A, classBorder: s.klass === 'All' ? '#2a2b30' : 'oklch(0.78 0.16 70 / .6)', toggleClass: toggleMenu('class'), classMenu: s.menu === 'class',
+      catLabel: s.category === 'All' ? 'Any' : s.category, catColor: s.category === 'All' ? '#9a9ca3' : A, catBorder: s.category === 'All' ? '#2a2b30' : 'oklch(0.78 0.16 70 / .6)', toggleCat: toggleMenu('category'), catMenu: s.menu === 'category',
+      sortLabel: s.sort, toggleSort: toggleMenu('sort'), sortMenu: s.menu === 'sort', menuItems,
+      typeOpts: types.map(t => ({ label: t === 'All' ? 'All types' : t, active: s.type === t, bg: s.type === t ? '#26272c' : 'transparent', color: s.type === t ? '#ececee' : '#9a9ca3', pick: set({ type: t }) })),
+      activeFilters: active, hasActive: active.length > 0, activeCount: active.length + (active.length === 1 ? ' filter' : ' filters combined'),
+      vehicleVal: s.vehicle, setVehicle: e => this.setState({ vehicle: e.target.value, vFocus: true }), vFocusOn: () => this.setState({ vFocus: true }), vFocusOff: () => setTimeout(() => this.setState({ vFocus: false }), 150), vSugg, hasVSugg: vSugg.length > 0,
+      follows: this.FOLLOWS.map(f => ({ ...f, hasFresh: f.fresh > 0, freshLabel: f.fresh + ' new', open: () => f.kind === 'Vehicle' ? this.setState({ tab: 'explore', vehicle: f.name, nation: 'All', type: 'All', klass: 'All', category: 'All' }) : this.setState({ tab: 'explore', q: f.name, vehicle: '' }) })),
+      freshSkins,
+      retry: () => this.toast('Still offline. Your library is fully available.', null), goHangar: () => this.go('hangar')
+    };
+    // detail
+    const k = this.CATALOG.find(x => x.id === s.sel) || this.CATALOG[0];
+    const d = this.card(k), sameVehicle = this.CATALOG.filter(x => x.vehicle === k.vehicle && x.id !== k.id);
+    const cmp = this.CATALOG.find(x => x.id === s.cmpId) || sameVehicle[0];
+    const tex = this.textures(k);
+    const detail = {
+      isDetail: s.screen === 'detail', d, back: () => this.go('explore'),
+      dTabs: ['gallery', 'textures', 'try'].map(t => ({ id: t, label: t === 'gallery' ? 'Gallery' : t === 'textures' ? 'Textures' : 'Try in game', color: s.dtab === t ? '#ececee' : '#9a9ca3', bar: s.dtab === t ? A : 'transparent', pick: set({ dtab: t }) })),
+      dGallery: s.dtab === 'gallery', dTextures: s.dtab === 'textures', dTry: s.dtab === 'try',
+      thumbs: [0, 1, 2, 3].map(i => ({ label: ['Front', 'Side', 'Rear', 'Detail'][i], active: s.gIdx === i, border: s.gIdx === i ? A : '#26272c', pick: set({ gIdx: i }) })), gLabel: ['Front', 'Side', 'Rear', 'Detail'][s.gIdx], gCount: `${s.gIdx + 1} / 4`,
+      zoom: s.zoom, toggleZoom: set({ zoom: !s.zoom }), zoomLabel: s.zoom ? 'Zoom out' : 'Zoom in', zoomScale: s.zoom ? 'scale(1.6)' : 'scale(1)',
+      compare: s.compare, notCompare: !s.compare, toggleCompare: set({ compare: !s.compare, zoom: false }), compareLabel: s.compare ? 'Exit compare' : 'Compare', canCompare: sameVehicle.length > 0,
+      cmpName: cmp ? cmp.name : '—', cmpAuthor: cmp ? cmp.author : '', cmpOptions: sameVehicle.map(x => ({ label: x.name, active: cmp && cmp.id === x.id, color: cmp && cmp.id === x.id ? A : '#9a9ca3', pick: set({ cmpId: x.id }) })),
+      tex, texTotal: tex.reduce((a, t) => a + (parseFloat(t.size) || 0), 0).toFixed(1) + ' MB', texWarnCount: tex.filter(t => t.hasWarn).length, hasTexWarn: tex.some(t => t.hasWarn),
+      files: tex.map(t => t.file).concat(['preview.jpg']), fileCount: tex.length + 1,
+      tryIdle: s.tryState === 'idle', tryInstalling: s.tryState === 'installing', tryActive: s.tryState === 'active',
+      tryStart: () => { this.setState({ tryState: 'installing' }); setTimeout(() => this.setState({ tryState: 'active' }), 1300); },
+      tryKeep: () => { this.setState({ tryState: 'idle' }); this.startInstall(k.id); this.toast(`Kept “${k.name}” — it’s in My Hangar`, null); },
+      tryDiscard: () => { this.setState({ tryState: 'idle' }); this.toast(`Discarded “${k.name}”. Game files restored.`, null); },
+      colMenu: s.menu === 'collection', toggleColMenu: toggleMenu('collection'),
+      colOptions: collections.map(c => ({ label: c.name, pick: () => { this.setState(st => ({ collections: st.collections.map(x => x.id === c.id && !x.items.includes('h_' + k.id) ? { ...x, items: [...x.items, 'h_' + k.id] } : x), menu: null })); this.toast(`Added to “${c.name}”`, null); } })),
+      openPost: () => this.toast('Opens the original WT Live post in your browser', null), follow: () => this.toast(`Following ${k.author}`, null), openVehicle: () => { this.setState({ vehicle: k.vehicle, nation: 'All', type: 'All', klass: 'All', category: 'All', q: '', tab: 'explore' }); this.go('explore'); }
+    };
+    // hangar
+    const hq = s.hq.toLowerCase();
+    const hItems = hangar.filter(h => (s.hNation === 'All' || h.nation === s.hNation) && (s.hType === 'All' || h.type === s.hType) && (s.hOrigin === 'All' || h.origin === s.hOrigin) && (!hq || h.name.toLowerCase().includes(hq) || h.vehicle.toLowerCase().includes(hq) || h.code.includes(hq)));
+    const groupsMap = {}; hItems.forEach(h => { (groupsMap[h.vehicle] = groupsMap[h.vehicle] || []).push(h); });
+    const mapH = h => ({ ...h, sizeLabel: h.size + ' MB', selected: !!s.hSel[h.id], hasAttention: !!h.attention, statusLabel: h.active ? 'Active' : 'Inactive', statusColor: h.active ? A : '#7c7e86', originColor: h.origin === 'Mine' ? A : '#9a9ca3', border: s.hSel[h.id] ? A : '#26272c', bg: s.hSel[h.id] ? '#1c1d21' : '#18191c', checkBg: s.hSel[h.id] ? A : 'transparent', checkBorder: s.hSel[h.id] ? A : '#3a3b41', check: s.hSel[h.id] ? '✓' : '',
+      toggleSel: e => { e.stopPropagation(); this.setState(st => ({ hSel: { ...st.hSel, [h.id]: !st.hSel[h.id] } })); },
+      toggleActive: e => { e.stopPropagation(); this.setState(st => ({ hangar: st.hangar.map(x => x.id === h.id ? { ...x, active: !x.active } : x) })); },
+      open: () => h.skinId ? this.openSkin(h.skinId) : this.toast('Local skins open in the texture viewer (next step)', null),
+      fix: e => { e.stopPropagation(); this.toast(`Re-checking “${h.name}”…`, null); } });
+    const groups = Object.keys(groupsMap).map(vh => ({ vehicle: vh, code: groupsMap[vh][0].code, count: groupsMap[vh].length + (groupsMap[vh].length === 1 ? ' skin' : ' skins'), items: groupsMap[vh].map(mapH) }));
+    const selIds = Object.keys(s.hSel).filter(id => s.hSel[id]);
+    const hMenuFor = (opts, key) => opts.map(o => ({ label: o, active: s[key] === o, pick: () => this.setState({ [key]: o, hMenu: null }) }));
+    const hMenuItems = s.hMenu === 'nation' ? hMenuFor(nations, 'hNation') : s.hMenu === 'type' ? hMenuFor(['All', 'Ground', 'Air'], 'hType') : s.hMenu === 'origin' ? hMenuFor(['All', 'WT Live', 'Imported', 'Mine'], 'hOrigin') : s.hMenu === 'moveCol' ? collections.map(c => ({ label: c.name, active: false, pick: () => { this.setState(st => ({ collections: st.collections.map(x => x.id === c.id ? { ...x, items: [...new Set([...x.items, ...selIds])] } : x), hMenu: null, hSel: {} })); this.toast(`${selIds.length} skins moved to “${c.name}”`, null); } })) : [];
+    const hToggle = m => e => { e.stopPropagation(); this.setState({ hMenu: s.hMenu === m ? null : m, menu: null }); };
+    const hangarVals = {
+      isHangar: s.screen === 'hangar', groups, hasGroups: groups.length > 0, noGroups: groups.length === 0, hangarCount: hangar.length, hangarSize: hangarGB, hangarActive: hangar.filter(h => h.active).length, hangarAttention: hangar.filter(h => h.attention).length, hasAttention: hangar.some(h => h.attention),
+      hqVal: s.hq, setHq: e => this.setState({ hq: e.target.value }), clearHq: set({ hq: '' }),
+      hGrid: s.hView === 'grid', hList: s.hView === 'list', setGrid: set({ hView: 'grid' }), setList: set({ hView: 'list' }), gridBg: s.hView === 'grid' ? '#26272c' : 'transparent', listBg: s.hView === 'list' ? '#26272c' : 'transparent',
+      hNationLabel: s.hNation === 'All' ? 'Nation' : s.hNation, hNationColor: s.hNation === 'All' ? '#9a9ca3' : A, hNationMenu: s.hMenu === 'nation', hToggleNation: hToggle('nation'),
+      hTypeLabel: s.hType === 'All' ? 'Type' : s.hType, hTypeColor: s.hType === 'All' ? '#9a9ca3' : A, hTypeMenu: s.hMenu === 'type', hToggleType: hToggle('type'),
+      hOriginLabel: s.hOrigin === 'All' ? 'Origin' : s.hOrigin, hOriginColor: s.hOrigin === 'All' ? '#9a9ca3' : A, hOriginMenu: s.hMenu === 'origin', hToggleOrigin: hToggle('origin'),
+      hMenuItems, moveColMenu: s.hMenu === 'moveCol', toggleMoveCol: hToggle('moveCol'),
+      selCount: selIds.length, hasSel: selIds.length > 0, selLabel: selIds.length + (selIds.length === 1 ? ' skin selected' : ' skins selected'), clearSel: set({ hSel: {} }),
+      selectAll: () => this.setState({ hSel: Object.fromEntries(hItems.map(h => [h.id, true])) }),
+      bulkEnable: () => { this.setState(st => ({ hangar: st.hangar.map(x => s.hSel[x.id] ? { ...x, active: true } : x), hSel: {} })); this.toast(`${selIds.length} skins activated`, null); },
+      bulkDisable: () => { this.setState(st => ({ hangar: st.hangar.map(x => s.hSel[x.id] ? { ...x, active: false } : x), hSel: {} })); this.toast(`${selIds.length} skins deactivated`, null); },
+      bulkExport: () => this.toast(`Exporting ${selIds.length} skins as ZIP…`, null),
+      bulkDelete: () => { const removed = hangar.filter(x => s.hSel[x.id]); const installed = { ...s.installed }; removed.forEach(r => { if (r.skinId) delete installed[r.skinId]; }); this.setState({ hangar: hangar.filter(x => !s.hSel[x.id]), hSel: {}, installed, trash: removed }); this.toast(`Deleted ${removed.length} ${removed.length === 1 ? 'skin' : 'skins'}`, () => { this.setState(st => { const inst = { ...st.installed }; removed.forEach(r => { if (r.skinId) inst[r.skinId] = true; }); return { hangar: [...st.hangar, ...removed], installed: inst }; }); }); },
+      goExplore: () => this.go('explore')
+    };
+    // collections
+    const colVals = {
+      isCollections: s.screen === 'collections',
+      cols: collections.map(c => ({ ...c, count: c.items.length + (c.items.length === 1 ? ' skin' : ' skins'), active: s.activeCol === c.id, open: s.openCol === c.id, border: s.openCol === c.id ? A : '#26272c', badge: s.activeCol === c.id ? 'Active' : '', badgeColor: s.activeCol === c.id ? A : '#6b6d74', pick: set({ openCol: c.id }),
+        activate: e => { e.stopPropagation(); this.setState(st => ({ activeCol: c.id, hangar: st.hangar.map(h => ({ ...h, active: c.items.includes(h.id) })) })); this.toast(`“${c.name}” activated · ${c.items.length} skins`, null); } })),
+      openCol: (() => { const c = collections.find(x => x.id === s.openCol) || collections[0]; if (!c) return null; const items = c.items.map(id => hangar.find(h => h.id === id)).filter(Boolean); return { ...c, isActive: s.activeCol === c.id, count: items.length, items: items.map(h => ({ ...h, sizeLabel: h.size + ' MB', remove: () => this.setState(st => ({ collections: st.collections.map(x => x.id === c.id ? { ...x, items: x.items.filter(i => i !== h.id) } : x) })) })), size: (items.reduce((a, h) => a + h.size, 0)) + ' MB',
+        activate: () => { this.setState(st => ({ activeCol: c.id, hangar: st.hangar.map(h => ({ ...h, active: c.items.includes(h.id) })) })); this.toast(`“${c.name}” activated · ${items.length} skins`, null); } }; })(),
+      hasOpenCol: collections.length > 0,
+      newCol: () => { const id = 'c' + (collections.length + 1); this.setState(st => ({ collections: [...st.collections, { id, name: 'New collection', desc: 'Add skins from My Hangar', items: [] }], openCol: id })); }
+    };
+    // queue
+    const conflictItem = queue.find(x => x.id === s.conflict);
+    const queueVals = {
+      isQueue: s.screen === 'queue', queue: queue.map(x => ({ ...x, ready: x.status === 'ready', conflictS: x.status === 'conflict', verify: x.status === 'verify', done: x.status === 'done', hasVehicle: x.vehicle !== '—',
+        statusLabel: x.status === 'ready' ? 'Ready' : x.status === 'conflict' ? 'Conflict' : x.status === 'verify' ? 'Needs a look' : 'Installed', statusColor: x.status === 'ready' ? '#c9cbd1' : x.status === 'conflict' ? A : x.status === 'verify' ? '#9a9ca3' : A, dotColor: x.status === 'ready' ? '#c9cbd1' : x.status === 'conflict' ? A : x.status === 'verify' ? '#6b6d74' : A,
+        resolve: () => this.setState({ conflict: x.id }), install: () => { this.setState(st => ({ queue: st.queue.map(y => y.id === x.id ? { ...y, status: 'done' } : y) })); this.toast(`Installed “${x.file}”`, null); },
+        pickVehicle: () => { this.setState(st => ({ queue: st.queue.map(y => y.id === x.id ? { ...y, status: 'ready', vehicle: 'Su-27', code: 'su_27', note: '3 skins detected · will install as 3 entries' } : y) })); },
+        remove: () => this.setState(st => ({ queue: st.queue.filter(y => y.id !== x.id) })) })),
+      queueEmpty: queue.length === 0, readyCount: queue.filter(x => x.status === 'ready').length, hasReady: queue.some(x => x.status === 'ready'),
+      installReady: () => { const n = queue.filter(x => x.status === 'ready').length; this.setState(st => ({ queue: st.queue.map(y => y.status === 'ready' ? { ...y, status: 'done' } : y) })); this.toast(`Installed ${n} ${n === 1 ? 'archive' : 'archives'}`, null); },
+      clearDone: () => this.setState(st => ({ queue: st.queue.filter(y => y.status !== 'done') })), hasDone: queue.some(x => x.status === 'done'),
+      autoInstall: s.autoInstall, toggleAuto: set({ autoInstall: !s.autoInstall }), autoBg: s.autoInstall ? A : '#2e2f35', autoKnob: s.autoInstall ? 'translateX(16px)' : 'translateX(0)',
+      showDl: s.showDl, toggleDl: set({ showDl: !s.showDl }), dlLabel: s.showDl ? 'Hide folder' : 'Show folder',
+      simulateDrop: () => this.addDropped(['tiger2_h_ambush_winter.zip']),
+      conflictOpen: !!conflictItem, conflictItem: conflictItem || { file: '', vehicle: '', note: '' },
+      closeConflict: set({ conflict: null }),
+      resSkip: () => { this.setState(st => ({ queue: st.queue.filter(y => y.id !== s.conflict), conflict: null })); this.toast('Skipped. Nothing changed.', null); },
+      resReplace: () => { const item = conflictItem; this.setState(st => ({ queue: st.queue.map(y => y.id === s.conflict ? { ...y, status: 'done' } : y), conflict: null })); this.toast(`Replaced “Bundeswehr Flecktarn” · backup kept`, () => this.toast('Restored the previous version', null)); },
+      resCopy: () => { this.setState(st => ({ queue: st.queue.map(y => y.id === s.conflict ? { ...y, status: 'done', file: y.file.replace('.zip', ' (2).zip') } : y), conflict: null })); this.toast('Installed as a copy', null); }
+    };
+    // settings
+    const secs = ['General', 'Game', 'Conflicts', 'Backups', 'Language', 'Updates', 'About'];
+    const settings = {
+      isSettings: s.screen === 'settings', secs: secs.map(x => ({ label: x, active: s.ssec === x, bg: s.ssec === x ? '#1c1d21' : 'transparent', color: s.ssec === x ? '#ececee' : '#9a9ca3', pick: set({ ssec: x }) })),
+      secGeneral: s.ssec === 'General', secGame: s.ssec === 'Game', secConflicts: s.ssec === 'Conflicts', secBackups: s.ssec === 'Backups', secLanguage: s.ssec === 'Language', secUpdates: s.ssec === 'Updates', secAbout: s.ssec === 'About',
+      policies: ['Ask every time', 'Replace and keep a backup', 'Install as a copy', 'Skip'].map(p => ({ label: p, active: s.conflictPolicy === p, border: s.conflictPolicy === p ? A : '#2e2f35', dot: s.conflictPolicy === p ? A : 'transparent', pick: set({ conflictPolicy: p }) })),
+      langs: ['English', 'Italiano', 'Deutsch', 'Русский', 'Français'].map(l => ({ label: l, active: s.lang === l, border: s.lang === l ? A : '#2e2f35', dot: s.lang === l ? A : 'transparent', pick: set({ lang: l }) })),
+      backups: s.backups, toggleBackups: set({ backups: !s.backups }), backupsBg: s.backups ? A : '#2e2f35', backupsKnob: s.backups ? 'translateX(16px)' : 'translateX(0)',
+      sidebarPref: s.sidebar, changeGame: set({ screen: 'firstRun', fr: { step: 1, notFound: true, showPath: false, det: 100 } }), checkUpdates: () => this.toast('Livery 0.1.0 is up to date', null)
+    };
+    // palette
+    const pq = s.pq.toLowerCase();
+    const acts = [['Go to Explore', 'explore'], ['Go to My Hangar', 'hangar'], ['Go to Collections', 'collections'], ['Open Install queue', 'queue'], ['Open Settings', 'settings']].map(([l, sc]) => ({ label: l, hint: 'Action', kind: 'action', pick: () => this.go(sc) }));
+    const pVeh = vehicles.map(vh => ({ label: vh, hint: this.CATALOG.find(k => k.vehicle === vh).code, kind: 'Vehicle', pick: () => { this.setState({ vehicle: vh, nation: 'All', type: 'All', klass: 'All', category: 'All', q: '', tab: 'explore' }); this.go('explore'); } }));
+    const pSk = this.CATALOG.map(k => ({ label: k.name, hint: k.vehicle + ' · ' + k.author, kind: 'Skin', pick: () => this.openSkin(k.id) }));
+    const pAll = (pq ? [...pSk, ...pVeh, ...acts].filter(x => x.label.toLowerCase().includes(pq) || x.hint.toLowerCase().includes(pq)) : [...acts, ...pVeh.slice(0, 4)]).slice(0, 9);
+    const pIdx = Math.min(s.pIdx, Math.max(0, pAll.length - 1));
+    const palette = {
+      paletteOpen: s.palette, openPalette: () => this.setState({ palette: true, pq: '', pIdx: 0 }), closePalette: set({ palette: false }), stop: e => e.stopPropagation(), pRef: this.pRef, pq: s.pq,
+      setPq: e => this.setState({ pq: e.target.value, pIdx: 0 }),
+      pKey: e => { if (e.key === 'ArrowDown') { e.preventDefault(); this.setState({ pIdx: Math.min(pIdx + 1, pAll.length - 1) }); } else if (e.key === 'ArrowUp') { e.preventDefault(); this.setState({ pIdx: Math.max(pIdx - 1, 0) }); } else if (e.key === 'Enter' && pAll[pIdx]) pAll[pIdx].pick(); },
+      pItems: pAll.map((x, i) => ({ ...x, active: i === pIdx, bg: i === pIdx ? '#1c1d21' : 'transparent', hintColor: x.kind === 'Vehicle' ? '#9a9ca3' : '#7c7e86', isVehicle: x.kind === 'Vehicle' })), pEmpty: pAll.length === 0
+    };
+    return {
+      W, H, rm: String(rm), offline, isApp: s.screen !== 'firstRun', sidebarOpen: s.sidebar, sidebarClosed: !s.sidebar, toggleSidebar: set({ sidebar: !s.sidebar }), nav,
+      gameSource: 'STEAM', liveDot: offline ? '#6b6d74' : A, liveText: offline ? 'WT Live offline' : 'WT Live online · 2,318 skins',
+      onDragOver: e => { e.preventDefault(); if (!s.dragOver) this.setState({ dragOver: true }); }, onDragLeave: e => { if (!e.currentTarget.contains(e.relatedTarget)) this.setState({ dragOver: false }); },
+      onDrop: e => { e.preventDefault(); const names = Array.from(e.dataTransfer?.files || []).map(f => f.name).filter(n => /\.(zip|rar|7z)$/i.test(n)); this.setState({ dragOver: false }); this.addDropped(names.length ? names : ['dropped_archive.zip']); },
+      dragOver: s.dragOver, closeMenus: () => { if (s.menu || s.hMenu) this.setState({ menu: null, hMenu: null }); },
+      toasts: s.toasts.map(t => ({ ...t, hasUndo: !!t.undo, doUndo: () => { t.undo(); this.dismissToast(t.id); }, dismiss: () => this.dismissToast(t.id) })),
+      ...frVals, ...explore, ...detail, ...hangarVals, ...colVals, ...queueVals, ...settings, ...palette
+    };
+  }
+  addDropped(names) {
+    const items = names.map((n, i) => ({ id: 'q' + (this.state.qId + i), file: n, size: (30 + i * 7) + ' MB', vehicle: '—', code: '', status: 'verify', note: 'Analyzing archive…' }));
+    this.setState(s => ({ queue: [...items, ...s.queue], qId: s.qId + names.length, screen: s.screen === 'firstRun' ? s.screen : 'queue' }));
+    setTimeout(() => this.setState(s => ({ queue: s.queue.map(y => items.some(i => i.id === y.id) ? { ...y, status: 'ready', vehicle: 'Tiger II (H)', code: 'germ_pzkpfw_VI_ausf_b_tiger_IIH', note: '5 files · 4 textures · skin.blk ok' } : y) })), 1100);
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Livery app icon: amber dot on graphite. Amber = oklch(0.78 0.16 70) ≈ #F7A224 (resvg has no oklch). -->
+  <defs>
+    <radialGradient id="glow" cx="512" cy="512" r="330" gradientUnits="userSpaceOnUse">
+      <stop offset="0.35" stop-color="#F7A224" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#F7A224" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tile"><rect x="64" y="64" width="896" height="896" rx="200"/></clipPath>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#131416"/>
+  <g clip-path="url(#tile)" stroke="#1f2024" stroke-width="6">
+    <path d="M64 232H960M64 400H960M64 568H960M64 736H960M232 64V960M400 64V960M568 64V960M736 64V960"/>
+  </g>
+  <rect x="68" y="68" width="888" height="888" rx="196" fill="none" stroke="#2e2f35" stroke-width="8"/>
+  <circle cx="512" cy="512" r="330" fill="url(#glow)"/>
+  <circle cx="512" cy="512" r="150" fill="#F7A224"/>
+</svg>

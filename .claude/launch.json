@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "prototype",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve-handoff.mjs"],
+      "port": 4599
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "--port", "1430", "--strictPort"],
+      "port": 1430
+    }
+  ]
+}
