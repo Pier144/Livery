@@ -1,11 +1,21 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { create } from 'zustand';
+import i18n from '@/i18n';
 import { listenEvent } from '@/lib/events';
 import { toAppError } from '@/lib/tauri';
 import { HANGAR_KEY, useHangar } from '@/queries/hangar';
 import { installFromWtLive } from '@/queries/wtlive';
-import { EVENTS, type ConflictPolicy, type InstallMode, type InstallProgress, type InstallStep, type WtLiveSkin } from '@/types';
+import { toast } from '@/store/toasts';
+import {
+  EVENTS,
+  type ConflictPolicy,
+  type HangarSkin,
+  type InstallMode,
+  type InstallProgress,
+  type InstallStep,
+  type WtLiveSkin,
+} from '@/types';
 
 /** A WT Live install in flight (or failed), keyed by WT Live skin id. */
 export interface WtInstall {
@@ -27,6 +37,8 @@ interface InstallsState {
   start: (skinId: string, mode?: InstallMode, conflict?: ConflictPolicy) => Promise<void>;
   /** Returns the skin id the event belonged to (undefined: not a WT Live install). */
   apply: (event: InstallProgress) => string | undefined;
+  /** Stops tracking a finished install, once the hangar shows it. */
+  finish: (skinId: string) => void;
   clear: (skinId: string) => void;
 }
 
@@ -42,7 +54,7 @@ export const useInstalls = create<InstallsState>()((set, get) => ({
   byInstallId: {},
   start: async (skinId, mode = 'normal', conflict) => {
     const current = get().bySkin[skinId];
-    if (current && current.step !== 'error' && current.step !== 'done') return;
+    if (current && current.step !== 'error') return;
     set((s) => ({ bySkin: { ...s.bySkin, [skinId]: { installId: '', mode, step: 'download', pct: 0 } } }));
     try {
       const { installId } = await installFromWtLive(skinId, mode, conflict);
@@ -61,22 +73,31 @@ export const useInstalls = create<InstallsState>()((set, get) => ({
     set((s) => {
       const prev = s.bySkin[skinId];
       if (!prev) return s;
-      if (event.step === 'done') {
-        // Installed: the hangar (sourceId) now says so; nothing left to track.
-        return { bySkin: without(s.bySkin, skinId), byInstallId: without(s.byInstallId, event.installId) };
-      }
+      // 'done' stays tracked until the hangar refetch lands (see useWtLiveInstallEvents), or the
+      // card would flash back to Install in between.
       const next: WtInstall =
         event.step === 'error'
           ? { ...prev, step: 'error', error: event.message ?? prev.error, pct: event.pct }
-          : { ...prev, step: event.step, pct: Math.max(prev.pct, event.pct) };
+          : event.step === 'done'
+            ? { ...prev, step: 'done', pct: 100 }
+            : { ...prev, step: event.step, pct: Math.max(prev.pct, event.pct) };
       return { bySkin: { ...s.bySkin, [skinId]: next } };
     });
     return skinId;
   },
+  finish: (skinId) =>
+    set((s) => ({
+      bySkin: without(s.bySkin, skinId),
+      byInstallId: Object.fromEntries(Object.entries(s.byInstallId).filter(([, id]) => id !== skinId)),
+    })),
   clear: (skinId) => set((s) => ({ bySkin: without(s.bySkin, skinId) })),
 }));
 
-/** Routes `install://progress` to WT Live installs; mounted once in App (the queue has its own hook). */
+/**
+ * Routes `install://progress` to WT Live installs; mounted once in App (the queue has its own hook).
+ * On `done` it refetches the hangar, then stops tracking and toasts "Installed “name”" (README
+ * Interactions: "on Done, skin joins My Hangar and toasts"). Try in game has its own UI: no toast.
+ */
 export function useWtLiveInstallEvents() {
   const qc = useQueryClient();
   useEffect(() => {
@@ -84,7 +105,17 @@ export function useWtLiveInstallEvents() {
     let unlisten: (() => void) | undefined;
     void listenEvent<InstallProgress>(EVENTS.installProgress, (event) => {
       const skinId = useInstalls.getState().apply(event);
-      if (skinId && event.step === 'done') void qc.invalidateQueries({ queryKey: HANGAR_KEY });
+      if (!skinId || event.step !== 'done') return;
+      const mode = useInstalls.getState().bySkin[skinId]?.mode;
+      void qc
+        .invalidateQueries({ queryKey: HANGAR_KEY })
+        .catch(() => undefined)
+        .then(() => {
+          useInstalls.getState().finish(skinId);
+          if (mode === 'temporary') return;
+          const skin = qc.getQueryData<HangarSkin[]>(HANGAR_KEY)?.find((h) => h.sourceId === skinId);
+          toast(skin ? i18n.t('common.installed.toast', { name: skin.name }) : i18n.t('common.installed.toastPlain'));
+        });
     })
       .then((fn) => {
         if (disposed) fn();
@@ -104,19 +135,25 @@ export type WtInstallState =
   | { kind: 'installed'; temporary: boolean }
   | { kind: 'error'; message: string; code?: string };
 
-/** Card / side-panel install state for a WT Live skin: hangar (by sourceId) + in-flight installs. */
+/**
+ * Card / side-panel install state for a WT Live skin: hangar (by sourceId, temporary installs
+ * included) + in-flight installs. A finished install reads 'installing' at 100% until the hangar
+ * refetch shows it, then 'installed'.
+ */
 export function useWtLiveInstall(skin: Pick<WtLiveSkin, 'id'>): { state: WtInstallState; install: (conflict?: ConflictPolicy) => void } {
-  const { data: hangar } = useHangar();
+  const { data: hangar } = useHangar({ includeTemporary: true });
   const track = useInstalls((s) => s.bySkin[skin.id]);
   const start = useInstalls((s) => s.start);
   const installed = hangar?.find((h) => h.sourceId === skin.id);
   const state: WtInstallState =
     track && track.step === 'error'
       ? { kind: 'error', message: track.error ?? '', code: track.errorCode }
-      : track
+      : track && track.step !== 'done'
         ? { kind: 'installing', step: track.step, pct: track.pct }
         : installed
           ? { kind: 'installed', temporary: installed.temporary === true }
-          : { kind: 'idle' };
+          : track
+            ? { kind: 'installing', step: 'done', pct: 100 }
+            : { kind: 'idle' };
   return { state, install: (conflict) => void start(skin.id, 'normal', conflict) };
 }

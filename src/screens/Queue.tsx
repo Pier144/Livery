@@ -37,7 +37,8 @@ export function Queue() {
   const installs = useQueue((s) => s.installs);
   const batchRunning = useQueue((s) => s.batchRunning);
   const conflictDialogId = useQueue((s) => s.conflictDialogId);
-  const { data: hangar } = useHangar();
+  // A temporary (Try in game) skin still occupies its folder.
+  const { data: hangar } = useHangar({ includeTemporary: true });
   const { data: settings } = useSettings();
   const policy = settings?.conflictPolicy ?? 'ask';
 

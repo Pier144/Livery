@@ -1,4 +1,4 @@
-import { isTauri, MOCK_BACKEND } from '@/lib/tauri';
+import { isTauri } from '@/lib/tauri';
 
 /**
  * Subscribes to a backend event (`install://progress`, `queue://added`, `hangar://changed`…).
@@ -10,7 +10,8 @@ export async function listenEvent<T>(name: string, handler: (payload: T) => void
     const { listen } = await import('@tauri-apps/api/event');
     return listen<T>(name, (e) => handler(e.payload));
   }
-  if (MOCK_BACKEND) {
+  // The env check is inline (not `MOCK_BACKEND`) so the production build drops the mock chunk.
+  if (import.meta.env.VITE_MOCK_BACKEND === '1') {
     const { mockListen } = await import('@/dev/mockBackend');
     return mockListen<T>(name, handler);
   }

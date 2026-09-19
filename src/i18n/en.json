@@ -14,6 +14,10 @@
     "any": "Any",
     "all": "All",
     "clear": "Clear",
+    "installed": {
+      "toast": "Installed “{{name}}”",
+      "toastPlain": "Installed. It’s in My Hangar now."
+    },
     "titlebar": {
       "offline": "OFFLINE · library only",
       "search": "Search skins, vehicles, authors",

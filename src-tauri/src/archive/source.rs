@@ -16,7 +16,7 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 /// `unsupported` message for ZIP / RAR / 7z until their unpacking crates are approved.
-pub const UNSUPPORTED_ARCHIVES: &str = "ZIP, RAR and 7z archives can't be unpacked yet â€” this needs the unpacking library the author hasn't approved. Skin folders work today.";
+pub const UNSUPPORTED_ARCHIVES: &str = "ZIP, RAR and 7z archives can't be unpacked yet: this needs the unpacking library the author hasn't approved. Skin folders work today.";
 
 /// `invalidInput` message for a path that is neither a folder nor a known archive.
 pub const NOT_A_SOURCE: &str = "Not a skin folder or archive";

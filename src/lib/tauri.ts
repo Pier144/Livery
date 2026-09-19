@@ -32,9 +32,12 @@ export function hasBackend(): boolean {
 /** Typed `invoke` that always rejects with an `AppError`. */
 export async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) {
-    if (!MOCK_BACKEND) throw { code: 'noBackend', message: `"${cmd}" needs the desktop app` } satisfies AppError;
-    const { mockCall } = await import('@/dev/mockBackend');
-    return mockCall<T>(cmd, args ?? {});
+    // The env check is inline (not `MOCK_BACKEND`) so the production build drops the mock chunk.
+    if (import.meta.env.VITE_MOCK_BACKEND === '1') {
+      const { mockCall } = await import('@/dev/mockBackend');
+      return mockCall<T>(cmd, args ?? {});
+    }
+    throw { code: 'noBackend', message: `"${cmd}" needs the desktop app` } satisfies AppError;
   }
   try {
     return await invoke<T>(cmd, args);

@@ -762,7 +762,7 @@ function activateCollection(args: Args): HangarSkin[] {
 
 /** `ErrorCode::Unsupported` for archives until the unpacking crates are approved. */
 const UNSUPPORTED_ARCHIVES =
-  "ZIP, RAR and 7z archives can't be unpacked yet — this needs the unpacking library the author hasn't approved. Skin folders work today.";
+  "ZIP, RAR and 7z archives can't be unpacked yet: this needs the unpacking library the author hasn't approved. Skin folders work today.";
 
 /** How long an install takes from `{ installId }` to `done` (× the time scale). */
 const INSTALL_MS = 2000;

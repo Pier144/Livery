@@ -25,7 +25,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Format version written to `library.json`.
 pub const INDEX_VERSION: u32 = 2;
 
-/// A skin folder kept aside by a delete (or, later, a replace), with what Undo needs to put it
+/// A skin folder kept aside by a delete or a replace, with what Undo needs to put it
 /// back exactly as it was.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
