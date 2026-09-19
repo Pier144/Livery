@@ -21,9 +21,21 @@ export function toAppError(e: unknown): AppError {
   return { code: 'internal', message: String(e) };
 }
 
+/** `pnpm dev:mock`: in a plain browser, commands go to the in-memory mock backend (src/dev/mockBackend.ts). */
+export const MOCK_BACKEND = import.meta.env.VITE_MOCK_BACKEND === '1';
+
+/** Something answers commands: the Tauri app, or the dev mock backend. */
+export function hasBackend(): boolean {
+  return isTauri() || MOCK_BACKEND;
+}
+
 /** Typed `invoke` that always rejects with an `AppError`. */
 export async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (!isTauri()) throw { code: 'noBackend', message: `"${cmd}" needs the desktop app` } satisfies AppError;
+  if (!isTauri()) {
+    if (!MOCK_BACKEND) throw { code: 'noBackend', message: `"${cmd}" needs the desktop app` } satisfies AppError;
+    const { mockCall } = await import('@/dev/mockBackend');
+    return mockCall<T>(cmd, args ?? {});
+  }
   try {
     return await invoke<T>(cmd, args);
   } catch (e) {

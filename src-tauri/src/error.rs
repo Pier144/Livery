@@ -11,6 +11,8 @@ pub enum ErrorCode {
     NotFound,
     Parse,
     InvalidInput,
+    /// The target already exists (e.g. a folder name clash when activating or restoring).
+    Conflict,
     Network,
     Internal,
 }

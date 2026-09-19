@@ -11,6 +11,9 @@
     "hidePath": "Nascondi percorso",
     "comingIn": "In arrivo con {{milestone}}",
     "loading": "Caricamento",
+    "any": "Qualsiasi",
+    "all": "Tutti",
+    "clear": "Cancella",
     "titlebar": {
       "offline": "OFFLINE · solo libreria",
       "search": "Cerca skin, veicoli, autori",
@@ -176,10 +179,135 @@
       "partialExtract": "l'archivio è stato estratto solo in parte",
       "noBlk": "manca il file .blk, il gioco non può usarla",
       "unreadableBlk": "impossibile leggere {{file}}"
+    },
+    "unknownVehicle": "Veicolo sconosciuto",
+    "stats": {
+      "skins_one": "{{count, number}} skin",
+      "skins_other": "{{count, number}} skin",
+      "active_one": "{{count, number}} attiva",
+      "active_other": "{{count, number}} attive",
+      "size": "{{size}} su disco",
+      "attention_one": "{{count, number}} da controllare",
+      "attention_other": "{{count, number}} da controllare"
+    },
+    "search": "Cerca tra le tue skin…",
+    "searchLabel": "Cerca nel mio hangar",
+    "filters": {
+      "nation": "Nazione",
+      "type": "Tipo",
+      "origin": "Origine",
+      "anyNation": "Tutte le nazioni",
+      "anyType": "Tutti i tipi",
+      "anyOrigin": "Tutte le origini"
+    },
+    "nation": {
+      "USA": "USA",
+      "GER": "Germania",
+      "USSR": "URSS",
+      "GBR": "Gran Bretagna",
+      "JPN": "Giappone",
+      "CHN": "Cina",
+      "ITA": "Italia",
+      "FRA": "Francia",
+      "SWE": "Svezia",
+      "ISR": "Israele",
+      "UNK": "Sconosciuta"
+    },
+    "type": {
+      "ground": "Terrestri",
+      "air": "Aerei",
+      "heli": "Elicotteri",
+      "naval": "Navali"
+    },
+    "origin": {
+      "wtlive": "WT Live",
+      "imported": "Importata",
+      "mine": "Mia"
+    },
+    "selectAll": "Seleziona tutto",
+    "clearSelection": "Deseleziona tutto",
+    "view": {
+      "label": "Vista",
+      "grid": "Vista a griglia",
+      "list": "Vista a elenco"
+    },
+    "skins": "Le tue skin",
+    "groupCount_one": "{{count, number}} skin",
+    "groupCount_other": "{{count, number}} skin",
+    "card": {
+      "select": "Seleziona {{name}}",
+      "needsAttention": "DA CONTROLLARE",
+      "active": "Attiva",
+      "inactive": "Inattiva",
+      "recheck": "Ricontrolla",
+      "attentionMore": "{{message}} +{{count}}",
+      "authorYou": "tu",
+      "noAuthor": "—"
+    },
+    "noResultsTitle": "Nessuna skin corrisponde",
+    "noResultsBody": "Prova con meno filtri, oppure cerca per codice del veicolo.",
+    "clearFilters": "Azzera i filtri",
+    "loadErrorTitle": "Impossibile leggere il mio hangar",
+    "bulk": {
+      "label": "Skin selezionate",
+      "selected_one": "{{count, number}} skin selezionata",
+      "selected_other": "{{count, number}} skin selezionate",
+      "activate": "Attiva",
+      "deactivate": "Disattiva",
+      "move": "Sposta in una collezione",
+      "noCollections": "Ancora nessuna collezione",
+      "export": "Esporta",
+      "exportTitle": "Scegli dove esportare le skin",
+      "delete": "Elimina"
+    },
+    "toast": {
+      "activated_one": "{{count, number}} skin attivata",
+      "activated_other": "{{count, number}} skin attivate",
+      "deactivated_one": "{{count, number}} skin disattivata",
+      "deactivated_other": "{{count, number}} skin disattivate",
+      "deleted_one": "{{count, number}} skin eliminata",
+      "deleted_other": "{{count, number}} skin eliminate",
+      "restored_one": "{{count, number}} skin ripristinata",
+      "restored_other": "{{count, number}} skin ripristinate",
+      "moved_one": "{{count, number}} skin spostata in “{{collection}}”",
+      "moved_other": "{{count, number}} skin spostate in “{{collection}}”",
+      "exported_one": "{{count, number}} skin esportata in “{{folder}}”",
+      "exported_other": "{{count, number}} skin esportate in “{{folder}}”",
+      "recheckOk": "“{{name}}” ora è a posto",
+      "recheckStill": "“{{name}}” va ancora controllata",
+      "recheckGone": "“{{name}}” non è più in UserSkins"
     }
   },
   "collections": {
-    "title": "Collezioni"
+    "title": "Collezioni",
+    "new": "Nuova",
+    "newCollection": "Nuova collezione",
+    "newName": "Nuova collezione",
+    "helper": "Attiva una collezione per usare in gioco solo le sue skin. Le altre restano installate, solo inattive.",
+    "activeBadge": "Attiva",
+    "inUse": "In uso",
+    "count_one": "{{count}} skin",
+    "count_other": "{{count}} skin",
+    "meta_one": "{{count}} skin · {{size}}",
+    "meta_other": "{{count}} skin · {{size}}",
+    "nameLabel": "Nome della collezione",
+    "descriptionLabel": "Descrizione della collezione",
+    "addDescription": "Aggiungi una descrizione",
+    "activeInGame": "Attiva in gioco",
+    "activate": "Attiva",
+    "delete": "Elimina collezione",
+    "members": "Skin in “{{name}}”",
+    "remove": "Rimuovi",
+    "removeLabel": "Rimuovi “{{name}}” da questa collezione",
+    "addFromHangar": "Aggiungi skin dal mio hangar\n(seleziona → Sposta in una collezione)",
+    "emptyTitle": "Ancora nessuna collezione",
+    "loadFailed": "Impossibile caricare le collezioni",
+    "toast": {
+      "activated_one": "“{{name}}” attivata · {{count}} skin",
+      "activated_other": "“{{name}}” attivata · {{count}} skin",
+      "deleted": "“{{name}}” eliminata",
+      "removed": "Rimossa da “{{name}}”"
+    }
   },
   "queue": {
     "title": "Coda di installazione",

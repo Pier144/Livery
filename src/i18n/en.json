@@ -11,6 +11,9 @@
     "hidePath": "Hide path",
     "comingIn": "Coming in {{milestone}}",
     "loading": "Loading",
+    "any": "Any",
+    "all": "All",
+    "clear": "Clear",
     "titlebar": {
       "offline": "OFFLINE · library only",
       "search": "Search skins, vehicles, authors",
@@ -176,10 +179,135 @@
       "partialExtract": "archive was only partially extracted",
       "noBlk": "no .blk file, so the game can't use it",
       "unreadableBlk": "{{file}} can't be read"
+    },
+    "unknownVehicle": "Unknown vehicle",
+    "stats": {
+      "skins_one": "{{count, number}} skin",
+      "skins_other": "{{count, number}} skins",
+      "active_one": "{{count, number}} active",
+      "active_other": "{{count, number}} active",
+      "size": "{{size}} on disk",
+      "attention_one": "{{count, number}} needs attention",
+      "attention_other": "{{count, number}} need attention"
+    },
+    "search": "Search your skins…",
+    "searchLabel": "Search My Hangar",
+    "filters": {
+      "nation": "Nation",
+      "type": "Type",
+      "origin": "Origin",
+      "anyNation": "All nations",
+      "anyType": "All types",
+      "anyOrigin": "All origins"
+    },
+    "nation": {
+      "USA": "USA",
+      "GER": "Germany",
+      "USSR": "USSR",
+      "GBR": "Great Britain",
+      "JPN": "Japan",
+      "CHN": "China",
+      "ITA": "Italy",
+      "FRA": "France",
+      "SWE": "Sweden",
+      "ISR": "Israel",
+      "UNK": "Unknown"
+    },
+    "type": {
+      "ground": "Ground",
+      "air": "Air",
+      "heli": "Helicopters",
+      "naval": "Naval"
+    },
+    "origin": {
+      "wtlive": "WT Live",
+      "imported": "Imported",
+      "mine": "Mine"
+    },
+    "selectAll": "Select all",
+    "clearSelection": "Clear selection",
+    "view": {
+      "label": "View",
+      "grid": "Grid view",
+      "list": "List view"
+    },
+    "skins": "Your skins",
+    "groupCount_one": "{{count, number}} skin",
+    "groupCount_other": "{{count, number}} skins",
+    "card": {
+      "select": "Select {{name}}",
+      "needsAttention": "NEEDS ATTENTION",
+      "active": "Active",
+      "inactive": "Inactive",
+      "recheck": "Re-check",
+      "attentionMore": "{{message}} +{{count}}",
+      "authorYou": "you",
+      "noAuthor": "—"
+    },
+    "noResultsTitle": "No skins match",
+    "noResultsBody": "Try fewer filters, or search by vehicle code instead.",
+    "clearFilters": "Clear filters",
+    "loadErrorTitle": "Couldn't read My Hangar",
+    "bulk": {
+      "label": "Selected skins",
+      "selected_one": "{{count, number}} skin selected",
+      "selected_other": "{{count, number}} skins selected",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "move": "Move to collection",
+      "noCollections": "No collections yet",
+      "export": "Export",
+      "exportTitle": "Choose where to export the skins",
+      "delete": "Delete"
+    },
+    "toast": {
+      "activated_one": "{{count, number}} skin activated",
+      "activated_other": "{{count, number}} skins activated",
+      "deactivated_one": "{{count, number}} skin deactivated",
+      "deactivated_other": "{{count, number}} skins deactivated",
+      "deleted_one": "Deleted {{count, number}} skin",
+      "deleted_other": "Deleted {{count, number}} skins",
+      "restored_one": "Restored {{count, number}} skin",
+      "restored_other": "Restored {{count, number}} skins",
+      "moved_one": "{{count, number}} skin moved to “{{collection}}”",
+      "moved_other": "{{count, number}} skins moved to “{{collection}}”",
+      "exported_one": "Exported {{count, number}} skin to “{{folder}}”",
+      "exported_other": "Exported {{count, number}} skins to “{{folder}}”",
+      "recheckOk": "“{{name}}” looks fine now",
+      "recheckStill": "“{{name}}” still needs attention",
+      "recheckGone": "“{{name}}” is no longer in UserSkins"
     }
   },
   "collections": {
-    "title": "Collections"
+    "title": "Collections",
+    "new": "New",
+    "newCollection": "New collection",
+    "newName": "New collection",
+    "helper": "Activate a collection to use only its skins in the game. Others stay installed, just inactive.",
+    "activeBadge": "Active",
+    "inUse": "In use",
+    "count_one": "{{count}} skin",
+    "count_other": "{{count}} skins",
+    "meta_one": "{{count}} skin · {{size}}",
+    "meta_other": "{{count}} skins · {{size}}",
+    "nameLabel": "Collection name",
+    "descriptionLabel": "Collection description",
+    "addDescription": "Add a description",
+    "activeInGame": "Active in game",
+    "activate": "Activate",
+    "delete": "Delete collection",
+    "members": "Skins in “{{name}}”",
+    "remove": "Remove",
+    "removeLabel": "Remove “{{name}}” from this collection",
+    "addFromHangar": "Add skins from My Hangar\n(select → Move to collection)",
+    "emptyTitle": "No collections yet",
+    "loadFailed": "Couldn't load your collections",
+    "toast": {
+      "activated_one": "“{{name}}” activated · {{count}} skin",
+      "activated_other": "“{{name}}” activated · {{count}} skins",
+      "deleted": "Deleted “{{name}}”",
+      "removed": "Removed from “{{name}}”"
+    }
   },
   "queue": {
     "title": "Install queue",

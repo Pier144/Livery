@@ -12,6 +12,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["exec", "vite", "--port", "1430", "--strictPort"],
       "port": 1430
+    },
+    {
+      "name": "mock",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "--mode", "mock", "--port", "1431", "--strictPort"],
+      "port": 1431
     }
   ]
 }

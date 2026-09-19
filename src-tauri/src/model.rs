@@ -300,3 +300,61 @@ pub struct HangarSkin {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub temporary: bool,
 }
+
+// ── Backups & collections (M3) ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BackupReason {
+    Replace,
+    Delete,
+}
+
+/// A skin folder kept aside before a delete or replace; drives Undo and Settings → Backups.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Backup {
+    pub id: String,
+    /// `HangarSkin.id` of the skin it came from.
+    pub skin_id: String,
+    pub name: String,
+    pub size_bytes: u64,
+    /// RFC 3339 UTC timestamp.
+    pub created_at: String,
+    pub reason: BackupReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Collection {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub skin_ids: Vec<String>,
+    /// RFC 3339 UTC timestamp.
+    pub created_at: String,
+}
+
+/// `collections_list` and friends: every collection plus the one activated last.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CollectionsState {
+    pub collections: Vec<Collection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_collection_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteResult {
+    /// One backup per deleted skin, in the same order; pass them to `restore_backups` to undo.
+    pub backup_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportResult {
+    pub exported: u32,
+    pub dest: String,
+}

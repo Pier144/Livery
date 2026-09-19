@@ -22,6 +22,10 @@ pub const PARTIAL_MARKER: &str = ".livery-partial";
 /// Id prefix of a skin found on disk but not in the index yet.
 pub const DISK_ID_PREFIX: &str = "disk:";
 
+/// Id prefix of a skin found in Livery's inactive folder but not in the index
+/// (`/` can't be part of a folder name, so these never collide with `disk:<folder>`).
+pub const INACTIVE_ID_PREFIX: &str = "disk:inactive/";
+
 /// Root blocks the game understands in a skin `.blk`.
 const KNOWN_ROOT_BLOCKS: [&str; 2] = ["replace_tex", "set_tex"];
 
@@ -46,6 +50,17 @@ pub fn scan_dir(user_skins: &Path) -> AppResult<Vec<HangarSkin>> {
     Ok(skins)
 }
 
+/// Every skin folder in Livery's inactive folder (`UserSkins/.livery/inactive`), like
+/// `scan_dir` but marked inactive.
+pub fn scan_inactive_dir(inactive: &Path) -> AppResult<Vec<HangarSkin>> {
+    Ok(scan_dir(inactive)?.into_iter().map(mark_inactive).collect())
+}
+
+/// A scanned skin that sits in the inactive folder: `active: false`, `disk:inactive/<folder>` id.
+pub fn mark_inactive(skin: HangarSkin) -> HangarSkin {
+    HangarSkin { id: format!("{INACTIVE_ID_PREFIX}{}", skin.folder), active: false, ..skin }
+}
+
 /// One skin folder, or `None` when `dir` is not one (missing, not a directory, hidden name).
 /// The id is `disk:<folder>` until the index assigns one.
 pub fn scan_skin(dir: &Path) -> Option<HangarSkin> {
@@ -66,7 +81,7 @@ pub fn scan_skin(dir: &Path) -> Option<HangarSkin> {
         origin,
         author: None,
         size_bytes: contents.size,
-        // Inactive skins are an M3 feature; everything in UserSkins is active for now.
+        // A folder in UserSkins is active; `mark_inactive` flips skins found in the inactive folder.
         active: true,
         installed_at: time::rfc3339_utc(modified),
         source_id: None,

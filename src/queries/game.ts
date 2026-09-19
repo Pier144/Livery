@@ -18,6 +18,12 @@ const BROWSER_EVENTS: DetectEvent[] = [
  */
 export async function detectGame(onEvent: (event: DetectEvent) => void): Promise<GameDetection> {
   if (!isTauri()) {
+    // `pnpm dev:mock`: the mock hands over its events directly (there is no Tauri event bus).
+    // The env check is inline (not `MOCK_BACKEND`) so the production build drops the mock chunk.
+    if (import.meta.env.VITE_MOCK_BACKEND === '1') {
+      const { mockDetectGame } = await import('@/dev/mockBackend');
+      return mockDetectGame(onEvent);
+    }
     BROWSER_EVENTS.forEach(onEvent);
     return { found: false, existingSkins: 0 };
   }

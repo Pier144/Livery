@@ -1,8 +1,64 @@
 //! RFC 3339 formatting against known dates (checked with `date -u -d @<secs>`), leap years
 //! included.
 
-use livery_lib::library::time::{civil_from_days, format_unix_secs, rfc3339_utc};
+use livery_lib::library::time::{
+    civil_from_days, days_from_civil, format_unix_secs, parse_rfc3339, rfc3339_utc, unix_secs,
+};
 use std::time::{Duration, UNIX_EPOCH};
+
+#[test]
+fn parse_reads_back_what_format_writes() {
+    for secs in [0, -1, 951_782_400, 1_789_832_245, 4_107_542_400, 253_402_300_799, -62_167_219_200] {
+        assert_eq!(parse_rfc3339(&format_unix_secs(secs)), Some(secs), "{secs}");
+    }
+    // Every day for a few years, at an odd time of day.
+    for day in (-800..800).map(|d| d * 3) {
+        let secs = day * 86_400 + 45_296;
+        assert_eq!(parse_rfc3339(&format_unix_secs(secs)), Some(secs));
+    }
+}
+
+#[test]
+fn parse_accepts_fractions_and_offsets() {
+    let base = 1_789_832_245;
+    assert_eq!(parse_rfc3339("2026-09-19T15:37:25.999Z"), Some(base), "the fraction is dropped");
+    assert_eq!(parse_rfc3339("2026-09-19t15:37:25z"), Some(base));
+    assert_eq!(parse_rfc3339("2026-09-19T17:37:25+02:00"), Some(base));
+    assert_eq!(parse_rfc3339("2026-09-19T10:07:25-05:30"), Some(base));
+}
+
+#[test]
+fn parse_rejects_what_is_not_rfc3339() {
+    for bad in [
+        "",
+        "yesterday",
+        "2026-09-19",
+        "2026-09-19T15:37:25",
+        "2026-13-01T00:00:00Z",
+        "2026-02-29T00:00:00Z",
+        "2026-04-31T00:00:00Z",
+        "2026-09-19T24:00:00Z",
+        "2026-09-19T15:60:00Z",
+        "2026-09-19T15:37:25.Z",
+        "2026-09-19T15:37:25+2:00",
+        "2026-09-19T15:37:25+24:00",
+        "+026-09-19T15:37:25Z",
+        "2026-09-19T15:37:25Zjunk",
+        "2026-09-19T15:37:2\u{e9}Z",
+    ] {
+        assert_eq!(parse_rfc3339(bad), None, "{bad:?}");
+    }
+    assert_eq!(parse_rfc3339("2024-02-29T00:00:00Z"), Some(1_709_164_800), "leap day");
+}
+
+#[test]
+fn days_from_civil_inverts_civil_from_days() {
+    for days in (-150_000..150_000).step_by(7) {
+        let (y, m, d) = civil_from_days(days);
+        assert_eq!(days_from_civil(y, m, d), days);
+    }
+    assert_eq!(unix_secs(UNIX_EPOCH - Duration::from_millis(1)), -1);
+}
 
 #[test]
 fn known_instants() {
