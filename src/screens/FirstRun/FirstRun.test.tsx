@@ -417,3 +417,69 @@ describe('FirstRun · import', () => {
     expect(calls('scan_user_skins')).toHaveLength(2);
   });
 });
+
+describe('FirstRun · from Settings (choose entry)', () => {
+  const fromSettings = () => {
+    act(() => useUi.getState().startFirstRun({ step: 'choose', returnTo: 'settings' }));
+    settings = { ...DEFAULT_SETTINGS, onboarded: true, gamePath: STEAM_PATH, gameSource: 'steam' };
+  };
+
+  it('opens straight on the folder picker, without detecting, and returns to Settings', async () => {
+    fromSettings();
+    const custom: GameDetection = { found: true, source: 'custom', path: 'E:\WT', existingSkins: 0 };
+    fakeBackend({ setGamePath: () => custom });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const { container } = renderWithProviders(<FirstRun />, { settings });
+
+    expect(screen.getByRole('heading', { name: "Can't find War Thunder" })).toHaveFocus();
+    expect(useUi.getState().folderDrop).toBeTypeOf('function');
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(calls('detect_game')).toHaveLength(0);
+    expect(screen.getByRole('heading', { name: "Can't find War Thunder" })).toBeInTheDocument();
+    expect(await seriousViolations(container)).toEqual([]);
+
+    backend.open.mockResolvedValueOnce('E:\WT');
+    await user.click(screen.getByRole('button', { name: /Choose game folder/ }));
+    await vi.waitFor(() => expect(useUi.getState().screen).toBe('settings'));
+    expect(calls('set_game_path')).toEqual([['set_game_path', { path: 'E:\WT' }]]);
+    expect(messages()).toEqual(['Game folder set']);
+  });
+
+  it('offers "Back to Settings" instead of "Skip for now" and "Back"', () => {
+    fromSettings();
+    fakeBackend({});
+    renderWithProviders(<FirstRun />, { settings });
+    expect(screen.getByRole('button', { name: 'Back to Settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Skip for now' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+  });
+
+  it('"Back to Settings" cancels: no detection, no settings write, no toast', async () => {
+    fromSettings();
+    fakeBackend({});
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithProviders(<FirstRun />, { settings });
+    await user.click(screen.getByRole('button', { name: 'Back to Settings' }));
+    expect(useUi.getState().screen).toBe('settings');
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(calls('detect_game')).toHaveLength(0);
+    expect(calls('set_game_path')).toHaveLength(0);
+    expect(calls('set_settings')).toHaveLength(0);
+    expect(messages()).toEqual([]);
+  });
+
+  it('a picked folder with skins goes on to Import, then back to Settings', async () => {
+    fromSettings();
+    fakeBackend({});
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithProviders(<FirstRun />, { settings });
+
+    backend.open.mockResolvedValueOnce(STEAM_PATH);
+    await user.click(screen.getByRole('button', { name: /Choose game folder/ }));
+    await screen.findByText('+ 2 more');
+    await user.click(screen.getByRole('button', { name: 'Import and continue' }));
+    await vi.waitFor(() => expect(useUi.getState().screen).toBe('settings'));
+    expect(calls('detect_game')).toHaveLength(0);
+    expect(messages()).toEqual(['Game folder set', '7 skins added to My Hangar']);
+  });
+});

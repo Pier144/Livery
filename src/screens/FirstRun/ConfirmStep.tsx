@@ -8,7 +8,7 @@ import type { GameDetection } from '@/types';
 import { shortVersion, type ConfirmView } from './firstRunMachine';
 import { StepIntro } from './StepTracker';
 
-/** 13px underlined text button ("Skip for now", "Back"). */
+/** 13px underlined text button ("Skip for now", "Back", "Back to Settings"). */
 const TEXT_LINK =
   'text-body leading-[normal] text-ink-3 underline underline-offset-[3px] hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120';
 /** Controls stay focusable while an action runs; clicks are ignored instead. */
@@ -30,6 +30,11 @@ interface ConfirmStepProps {
   onFolder: (path: string) => void;
   onSkip: () => void;
   onBack: () => void;
+  /**
+   * Set when Settings opened First run (Settings → Game → Change): the not-found view then offers a
+   * single "Back to Settings" (cancel: nothing changes) instead of "Skip for now" and "Back".
+   */
+  onCancel?: () => void;
 }
 
 /** 02 CONFIRM: the detected install, or a folder picker when nothing was found. */
@@ -82,7 +87,7 @@ function FoundView({ detection, showPath, busy, headingRef, onTogglePath, onUse,
   );
 }
 
-function NotFoundView({ invalidFolder, busy, headingRef, onFolder, onSkip, onBack }: ConfirmStepProps) {
+function NotFoundView({ invalidFolder, busy, headingRef, onFolder, onSkip, onBack, onCancel }: ConfirmStepProps) {
   const { t } = useTranslation();
   const errorId = useId();
   // Window drops and the dialog both land on the latest handler.
@@ -130,12 +135,20 @@ function NotFoundView({ invalidFolder, busy, headingRef, onFolder, onSkip, onBac
         </p>
       )}
       <div className="flex items-center gap-3.5">
-        <button type="button" onClick={onSkip} aria-disabled={busy || undefined} className={`${TEXT_LINK} ${BUSY}`}>
-          {t('firstRun.notFound.skip')}
-        </button>
-        <button type="button" onClick={onBack} aria-disabled={busy || undefined} className={`${TEXT_LINK} ${BUSY}`}>
-          {t('firstRun.notFound.back')}
-        </button>
+        {onCancel ? (
+          <button type="button" onClick={onCancel} aria-disabled={busy || undefined} className={`${TEXT_LINK} ${BUSY}`}>
+            {t('firstRun.notFound.backToSettings')}
+          </button>
+        ) : (
+          <>
+            <button type="button" onClick={onSkip} aria-disabled={busy || undefined} className={`${TEXT_LINK} ${BUSY}`}>
+              {t('firstRun.notFound.skip')}
+            </button>
+            <button type="button" onClick={onBack} aria-disabled={busy || undefined} className={`${TEXT_LINK} ${BUSY}`}>
+              {t('firstRun.notFound.back')}
+            </button>
+          </>
+        )}
       </div>
     </>
   );

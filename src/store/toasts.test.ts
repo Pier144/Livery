@@ -137,3 +137,89 @@ describe('toast undo guards', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe('toast onExpire (deferred commit)', () => {
+  const setup = () => {
+    const undo = vi.fn();
+    const commit = vi.fn();
+    const id = toast.undoable('Cleared 3 backups', undo, commit);
+    return { undo, commit, id };
+  };
+
+  it('runs once when the toast times out', () => {
+    const { commit, undo } = setup();
+    vi.advanceTimersByTime(TOAST_DURATION_MS - 1);
+    expect(commit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(commit).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(TOAST_DURATION_MS * 3);
+    useToasts.getState().clear();
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(undo).not.toHaveBeenCalled();
+  });
+
+  it('runs once when the toast is dismissed, even if dismissed again', () => {
+    const { commit, id } = setup();
+    toast.dismiss(id);
+    toast.dismiss(id);
+    vi.advanceTimersByTime(TOAST_DURATION_MS);
+    expect(commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs once when the toast is pushed out of the full stack', () => {
+    const { commit } = setup();
+    for (let i = 0; i < 3; i++) toast(`t${i}`);
+    expect(commit).not.toHaveBeenCalled();
+    toast('the fifth');
+    expect(commit).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(TOAST_DURATION_MS);
+    expect(commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs once on clear(), paused or not', () => {
+    const { commit, id } = setup();
+    useToasts.getState().pause(id);
+    useToasts.getState().clear();
+    useToasts.getState().clear();
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('never runs after Undo (button or Ctrl+Z), whatever happens next', async () => {
+    const first = setup();
+    await useToasts.getState().undo(first.id);
+    const second = setup();
+    expect(useToasts.getState().undoLatest()).toBe(true);
+    await Promise.resolve();
+    toast.dismiss(first.id);
+    toast.dismiss(second.id);
+    vi.advanceTimersByTime(TOAST_DURATION_MS * 2);
+    useToasts.getState().clear();
+    expect(first.undo).toHaveBeenCalledTimes(1);
+    expect(second.undo).toHaveBeenCalledTimes(1);
+    expect(first.commit).not.toHaveBeenCalled();
+    expect(second.commit).not.toHaveBeenCalled();
+  });
+
+  it('keeps the stack working when the callback throws or rejects', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const a = toast.undoable('a', vi.fn(), () => {
+      throw new Error('boom');
+    });
+    const b = toast.undoable('b', vi.fn(), () => Promise.reject(new Error('later')));
+    toast.dismiss(a);
+    toast.dismiss(b);
+    expect(ids()).toEqual([]);
+    await Promise.resolve();
+    expect(error).toHaveBeenCalledTimes(2);
+    error.mockRestore();
+  });
+
+  it('lets the callback push a toast while the stack changes', () => {
+    toast.undoable('Cleared 3 backups', vi.fn(), () => {
+      toast('Could not clear the backups');
+    });
+    vi.advanceTimersByTime(TOAST_DURATION_MS);
+    expect(useToasts.getState().toasts.map((t) => t.message)).toEqual(['Could not clear the backups']);
+  });
+});

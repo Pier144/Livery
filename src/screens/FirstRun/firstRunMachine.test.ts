@@ -3,6 +3,7 @@ import type { DetectEvent, GameDetection, HangarSkin, Vehicle } from '@/types';
 import {
   INITIAL_FIRST_RUN,
   firstRunReducer,
+  initialFirstRun,
   importSummary,
   importTag,
   rowState,
@@ -197,5 +198,33 @@ describe('helpers', () => {
     expect(importTag(skin('a', 'v', { origin: 'mine', attention }))).toBe('attention');
     expect(importTag(skin('b', 'v', { origin: 'mine' }))).toBe('mine');
     expect(importTag(skin('c', 'v', { attention: [] }))).toBe('ok');
+  });
+});
+
+describe('entry (Settings → Game → Change)', () => {
+  it('starts the onboarding on Detect', () => {
+    expect(initialFirstRun('detect')).toBe(INITIAL_FIRST_RUN);
+  });
+
+  it('starts a choose entry on the not-found view, without detecting', () => {
+    const s = initialFirstRun('choose');
+    expect(s).toMatchObject({ step: 'confirm', view: 'notFound', runId: 0, detection: null });
+    expect(stepIndex(s.step)).toBe(1);
+    // Ticks and late detection answers change nothing there.
+    expect(run([...ticks(ALL), { type: 'detectDone', detection: STEAM }], s)).toEqual(s);
+  });
+
+  // The screen shows "Back to Settings" instead of "Back" on a choose entry; the reducer itself
+  // still treats a not-found view without a detection like the onboarding's.
+  it('"Back" with no detection yet looks for the game, then offers what it found', () => {
+    let s = run([{ type: 'back' }], initialFirstRun('choose'));
+    expect(s).toMatchObject({ step: 'detect', runId: 1, progress: 0 });
+    s = run([ev('steam', 'found'), ev('standalone', 'notFound'), ev('custom', 'skipped'), { type: 'detectDone', detection: STEAM }, ...ticks(ALL)], s);
+    expect(s).toMatchObject({ step: 'confirm', view: 'found' });
+  });
+
+  it('a folder picked from a choose entry can go on to Import', () => {
+    const s = run([{ type: 'folderSubmitted' }, { type: 'toImport' }], initialFirstRun('choose'));
+    expect(s.step).toBe('import');
   });
 });

@@ -17,6 +17,8 @@ export interface SegmentedControlProps<V extends string> {
   value: V;
   options: readonly Segment<V>[];
   onChange: (value: V) => void;
+  /** Id(s) of text describing the whole group (e.g. a setting's helper line). */
+  'aria-describedby'?: string;
   className?: string;
 }
 
@@ -24,7 +26,14 @@ export interface SegmentedControlProps<V extends string> {
  * 28px segmented control as a WAI-ARIA radio group: one tab stop (the checked segment);
  * ←/→ (and ↑/↓) move and select with wrap-around, Home/End jump to the ends.
  */
-export function SegmentedControl<V extends string>({ label, value, options, onChange, className }: SegmentedControlProps<V>) {
+export function SegmentedControl<V extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  'aria-describedby': describedBy,
+  className,
+}: SegmentedControlProps<V>) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   refs.current.length = options.length;
 
@@ -78,6 +87,7 @@ export function SegmentedControl<V extends string>({ label, value, options, onCh
     <div
       role="radiogroup"
       aria-label={label}
+      aria-describedby={describedBy}
       className={cn('flex h-ctl flex-none items-stretch overflow-hidden rounded-ctl border border-line-3 bg-bg-chip', className)}
     >
       {options.map((option, i) => {

@@ -22,6 +22,15 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const SETTINGS_KEY = ['settings'] as const;
 
+/** Mutation scope of every settings patch (run one at a time, in order). */
+export const SETTINGS_SCOPE = 'settings';
+
+/**
+ * Kept backups (`list_backups`), Settings → Backups. Declared here so queries that change the
+ * backups (a new game folder) can invalidate them without importing a screen.
+ */
+export const BACKUPS_KEY = ['backups'] as const;
+
 /**
  * Settings from `<appData>/settings.json` (or the `pnpm dev:mock` backend); defaults when nothing
  * answers commands (plain browser dev, tests).
@@ -34,9 +43,16 @@ export function useSettings() {
   });
 }
 
+/**
+ * Saves a partial update (`set_settings`); the answer (the whole settings) replaces the query
+ * data. Patches share one mutation scope, so they reach the backend one after another in the
+ * order they were made: `set_settings` runs on a background thread, and two in flight at once
+ * could otherwise be answered out of order and leave the older settings in the cache.
+ */
 export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation<Settings, AppError, Partial<Settings>>({
+    scope: { id: SETTINGS_SCOPE },
     mutationFn: (patch) =>
       hasBackend()
         ? call<Settings>('set_settings', { patch })

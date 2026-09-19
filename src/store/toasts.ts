@@ -8,6 +8,12 @@ export interface Toast {
   message: string;
   /** Present for undoable toasts; the backend keeps a backup until the toast expires. */
   onUndo?: () => void | Promise<void>;
+  /**
+   * Undoable toasts only: runs exactly once when the toast leaves without Undo (timeout, ×, pushed out
+   * of the full stack, `clear()`), never after Undo. Commits a change that was deferred for the Undo
+   * window (Settings → Backups → Clear).
+   */
+  onExpire?: () => void | Promise<void>;
 }
 
 interface ToastState {
@@ -33,6 +39,17 @@ type Timer =
 let nextId = 1;
 const timers = new Map<number, Timer>();
 
+/** Runs a departed toast's `onExpire`. Errors are the callback's to handle; they never break the stack. */
+function expire(t: Toast) {
+  if (!t.onExpire) return;
+  try {
+    const result = t.onExpire();
+    if (result instanceof Promise) result.catch((e: unknown) => console.error('toast onExpire failed', e));
+  } catch (e) {
+    console.error('toast onExpire failed', e);
+  }
+}
+
 function stopTimer(id: number) {
   const t = timers.get(id);
   if (t?.kind === 'running') clearTimeout(t.handle);
@@ -52,21 +69,28 @@ export const useToasts = create<ToastState>()((set, get) => ({
   push: (t) => {
     const id = nextId++;
     const toasts = [...get().toasts, { ...t, id }];
-    // Oldest toasts fall off when the stack is full.
-    toasts.slice(0, Math.max(0, toasts.length - MAX_TOASTS)).forEach((d) => stopTimer(d.id));
+    // Oldest toasts fall off when the stack is full (their Undo window closes).
+    const evicted = toasts.slice(0, Math.max(0, toasts.length - MAX_TOASTS));
+    evicted.forEach((d) => stopTimer(d.id));
     set({ toasts: toasts.slice(-MAX_TOASTS) });
     startTimer(id, TOAST_DURATION_MS);
+    evicted.forEach(expire);
     return id;
   },
   dismiss: (id) => {
+    const t = get().toasts.find((x) => x.id === id);
     stopTimer(id);
-    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+    if (!t) return;
+    set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) }));
+    expire(t);
   },
   undo: async (id) => {
     const t = get().toasts.find((x) => x.id === id);
     // Gone means already undone, dismissed or expired (backup window closed): never undo twice or late.
     if (!t) return;
-    get().dismiss(id);
+    // Removed without `onExpire`: the deferred change is cancelled, not committed.
+    stopTimer(id);
+    set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) }));
     await t.onUndo?.();
   },
   undoLatest: () => {
@@ -87,16 +111,21 @@ export const useToasts = create<ToastState>()((set, get) => ({
     startTimer(id, t.remaining);
   },
   clear: () => {
+    const gone = get().toasts;
     [...timers.keys()].forEach(stopTimer);
     set({ toasts: [] });
+    gone.forEach(expire);
   },
 }));
 
 /**
  * `toast('Installed “X”')` for plain notices;
- * `toast.undoable('Deleted 3 skins', restore)` for anything the user can regret.
+ * `toast.undoable('Deleted 3 skins', restore)` for anything the user can regret;
+ * `toast.undoable('Cleared 3 backups', show, commit)` defers a permanent change until the Undo window
+ * closes (`commit` runs once when the toast leaves without Undo).
  */
 export const toast = Object.assign((message: string) => useToasts.getState().push({ message }), {
-  undoable: (message: string, onUndo: () => void | Promise<void>) => useToasts.getState().push({ message, onUndo }),
+  undoable: (message: string, onUndo: () => void | Promise<void>, onExpire?: () => void | Promise<void>) =>
+    useToasts.getState().push(onExpire ? { message, onUndo, onExpire } : { message, onUndo }),
   dismiss: (id: number) => useToasts.getState().dismiss(id),
 });
