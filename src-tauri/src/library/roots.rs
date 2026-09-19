@@ -71,7 +71,11 @@ impl Libraries {
         let path = self.index_path(game_root);
         self.migrate_legacy(&path);
         let store = Arc::new(LibraryStore::load_for_root(path, root::display_path(game_root)));
-        tracing::info!(skins = store.all().len(), "library index loaded for the game folder");
+        tracing::info!(
+            skins = store.all().len(),
+            read_only = store.is_read_only(),
+            "library index loaded for the game folder"
+        );
         loaded.insert(key, Arc::clone(&store));
         store
     }
@@ -87,7 +91,9 @@ impl Libraries {
     /// folder tree); if that fails, a copy, and the legacy file is renamed `library.json.migrated`
     /// so it isn't migrated again. Failures are logged: the index then starts empty.
     fn migrate_legacy(&self, path: &Path) {
-        if path.exists() || !self.legacy.is_file() || self.holds_an_index() {
+        // `try_exists`, not `exists`: an index whose metadata can't be read (permissions) counts
+        // as there, so the legacy file is never renamed over it (a rename replaces on Windows).
+        if !matches!(path.try_exists(), Ok(false)) || !self.legacy.is_file() || self.holds_an_index() {
             return;
         }
         if let Err(e) = fs::create_dir_all(&self.dir) {

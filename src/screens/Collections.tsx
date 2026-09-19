@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { errorText } from '@/lib/errors';
 import { useCollections } from '@/queries/collections';
 import { useHangar } from '@/queries/hangar';
 import { resolveOpenCollection, useCollectionsUi } from '@/store/collections';
@@ -54,9 +55,12 @@ export function Collections() {
     const error = collectionsQuery.error ?? hangarQuery.error;
     return (
       <section aria-label={t('collections.title')} className="flex h-full flex-col">
+        <h1 tabIndex={-1} className="sr-only">
+          {t('collections.title')}
+        </h1>
         <EmptyState
           title={t('collections.loadFailed')}
-          body={error?.message}
+          body={error ? errorText(error, t) : undefined}
           primary={{
             label: t('common.retry'),
             onClick: () => {
@@ -74,7 +78,9 @@ export function Collections() {
   if (!loading && state.collections.length === 0) {
     return (
       <section aria-label={t('collections.title')} className="flex h-full flex-col">
-        <h1 className="sr-only">{t('collections.title')}</h1>
+        <h1 tabIndex={-1} className="sr-only">
+          {t('collections.title')}
+        </h1>
         <div ref={emptyRef} className="flex flex-1">
           <EmptyState
             title={t('collections.emptyTitle')}

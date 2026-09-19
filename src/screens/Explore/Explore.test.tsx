@@ -2,6 +2,8 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { vehicles } from '@/data/vehicles';
+import i18n from '@/i18n';
+import itJson from '@/i18n/it.json';
 import { createQueryClient } from '@/queries/client';
 import { mockLayout } from '@/screens/Hangar/testLayout';
 import { useExplore } from '@/store/explore';
@@ -11,7 +13,9 @@ import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
 import { EVENTS, type AppError, type HangarSkin, type SearchParams, type SearchResult, type WtLiveSkin } from '@/types';
+import { useScreenFocus } from '@/hooks/useScreenFocus';
 import { Explore } from '../Explore';
+import { installErrorText } from './CardAction';
 
 type Args = Record<string, unknown>;
 
@@ -224,6 +228,9 @@ describe('Explore', () => {
     expect(input).toHaveAttribute('aria-expanded', 'true');
     await user.keyboard('{ArrowDown}');
     expect(input).toHaveAttribute('aria-activedescendant', within(listbox).getAllByRole('option')[1]?.id);
+    // The code is ink-3 on the highlighted option (bg-4, where ink-4 is 4.25:1), ink-4 elsewhere.
+    expect(within(listbox).getByText('germ_leopard_2a6')).toHaveClass('text-ink-3');
+    expect(within(listbox).getByText('germ_pzkpfw_VI_ausf_b_tiger_IIH')).toHaveClass('text-ink-4');
 
     const onWindowKey = vi.fn();
     window.addEventListener('keydown', onWindowKey);
@@ -494,6 +501,14 @@ describe('Explore', () => {
     expect(scroller.parentElement).not.toHaveAttribute('aria-busy');
   });
 
+  it('has a level-one heading, and each card title is a heading screen readers can jump through', async () => {
+    renderExplore();
+    await screen.findByRole('group', { name: 'Schwarzwald Ambush' });
+    expect(screen.getByRole('heading', { level: 1, name: 'Explore' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(CATALOG.map((s) => s.name));
+    expect(within(card('Tricolore Parade')).getByRole('heading', { level: 2 })).toHaveTextContent('Tricolore Parade');
+  });
+
   it('has no serious axe violations: grid, an open menu, suggestions, and card states', async () => {
     const user = userEvent.setup();
     const { container } = renderExplore();
@@ -513,5 +528,87 @@ describe('Explore', () => {
     await within(card('Desert Storm Tan')).findByRole('button', { name: 'Install as a copy' });
     await user.click(within(card('Schwarzwald Ambush')).getByRole('button', { name: 'Install 48 MB' }));
     expect(await seriousViolations(container)).toEqual([]);
+  });
+});
+
+describe('installErrorText', () => {
+  it('explains its own codes, else shows the backend message in the UI language', async () => {
+    const t = i18n.t;
+    expect(installErrorText(t, 'network', 'x')).toBe("WT Live can't be reached. Check your connection, then retry.");
+    expect(installErrorText(t, 'io', 'Could not copy the skin files')).toBe('Could not copy the skin files');
+    expect(installErrorText(t, undefined, ' ')).toBe('Install failed');
+    await i18n.changeLanguage('it');
+    try {
+      expect(installErrorText(t, 'io', 'Could not copy the skin files')).toBe('Impossibile copiare i file della skin');
+      expect(installErrorText(t, 'io', 'Disk full')).toBe(itJson.common.errors.io);
+      expect(installErrorText(t, 'conflict', 'x')).toBe(itJson.explore.card.errors.conflict);
+    } finally {
+      await i18n.changeLanguage('en');
+    }
+  });
+});
+
+describe('Explore · focus back from the Skin detail', () => {
+  /** App in miniature: Explore or a stand-in detail (its back button) in <main>, and the screen-focus hook. */
+  function RoundTrip() {
+    useWtLiveInstallEvents();
+    useScreenFocus();
+    const current = useUi((s) => s.screen);
+    return (
+      <main>
+        {current === 'detail' ? (
+          <button type="button" onClick={() => useUi.getState().leaveDetail()}>
+            Back to Explore
+          </button>
+        ) : (
+          <Explore />
+        )}
+      </main>
+    );
+  }
+
+  function renderRoundTrip(catalog: WtLiveSkin[]) {
+    fake = { catalog, hangar: [], tookMs: 24 };
+    installBackend();
+    return renderWithProviders(<RoundTrip />, { client: createQueryClient() });
+  }
+
+  const hitArea = (name: string) => within(card(name)).getByRole('button', { name });
+
+  it('Enter opens the detail; Back puts focus on the card that opened it', async () => {
+    const user = userEvent.setup();
+    renderRoundTrip(CATALOG);
+    await screen.findByRole('group', { name: 'Desert Storm Tan' });
+    hitArea('Desert Storm Tan').focus();
+    await user.keyboard('{Enter}');
+    expect(useUi.getState()).toMatchObject({ screen: 'detail', detailSkinId: 's3' });
+
+    await user.click(screen.getByRole('button', { name: 'Back to Explore' }));
+    expect(useUi.getState().screen).toBe('explore');
+    await waitFor(() => expect(hitArea('Desert Storm Tan')).toHaveFocus());
+    expect(useUi.getState().returnFocusSkin).toBeNull();
+  });
+
+  it('brings a card far down the virtual grid back into the window and focuses it', async () => {
+    const user = userEvent.setup();
+    const many = Array.from({ length: 60 }, (_, i) => post(`m${i}`, `Skin ${String(i).padStart(3, '0')}`, 'su_27', 'Flanker_Ivan'));
+    renderRoundTrip(many);
+    await screen.findByRole('group', { name: 'Skin 000' });
+    // Line 14 of 3 cards: far outside the 600px window (+ overscan) at the top.
+    expect(screen.queryByRole('group', { name: 'Skin 042' })).not.toBeInTheDocument();
+
+    act(() => useUi.getState().openSkin('m42'));
+    await user.click(screen.getByRole('button', { name: 'Back to Explore' }));
+    await waitFor(() => expect(hitArea('Skin 042')).toHaveFocus());
+  });
+
+  it('falls back to the Explore heading when the skin is not in the results', async () => {
+    const user = userEvent.setup();
+    renderRoundTrip(CATALOG);
+    await screen.findByRole('group', { name: 'Schwarzwald Ambush' });
+    // Opened from the palette with a skin these filters don't show.
+    act(() => useUi.getState().openSkin('elsewhere'));
+    await user.click(screen.getByRole('button', { name: 'Back to Explore' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Explore' })).toHaveFocus());
   });
 });

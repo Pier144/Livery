@@ -90,15 +90,33 @@ export function useSkinHint(skin: HangarSkin): string | undefined {
 }
 
 /**
+ * What a card's or row's full-area button needs besides its handlers: the key hint and the
+ * attention message (`attentionId` goes on the element showing it) in `aria-describedby`, and a
+ * tooltip with the name and the message, which a narrow row truncates (the hit area sits on top of
+ * the text, so the tooltip has to be its own).
+ */
+export function useSkinDescription(skin: HangarSkin, attention: string | null) {
+  const hint = useSkinHint(skin);
+  const attentionId = useId();
+  const describedBy = [hint, attention ? attentionId : undefined].filter(Boolean).join(' ') || undefined;
+  const title = attention ? `${skin.name}\n${attention}` : skin.name;
+  return { attentionId, describedBy, title };
+}
+
+/**
  * 24px Active/Inactive toggle (README: Active text amber). `Inactive` uses ink-3: ink-4 on bg-4 is
- * 4.2:1, under AA for 11px text.
+ * 4.2:1, under AA for 11px text. The visible text follows the state, so screen readers get a
+ * switch with a stable name ("Active in game, on / off") instead of a toggle button whose name
+ * flips ("Inactive, not pressed" read as a contradiction). The card's group names the skin.
  */
 export function ActiveToggle({ active, onToggle, className }: { active: boolean; onToggle: () => void; className?: string }) {
   const { t } = useTranslation();
   return (
     <button
       type="button"
-      aria-pressed={active}
+      role="switch"
+      aria-checked={active}
+      aria-label={t('hangar.card.activeToggle')}
       onClick={onToggle}
       className={cn(
         'relative z-[1] h-6 flex-none whitespace-nowrap rounded-[5px] border border-line-3 bg-bg-4 px-2 text-[11px] font-medium leading-none hover:border-line-4 motion-safe:transition-colors motion-safe:duration-120',

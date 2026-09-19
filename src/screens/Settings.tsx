@@ -71,7 +71,9 @@ export function Settings() {
 
   return (
     <div className="relative grid h-full min-h-0 grid-cols-[200px_minmax(0,1fr)]">
-      <h1 className="sr-only">{t('settings.title')}</h1>
+      <h1 tabIndex={-1} className="sr-only">
+        {t('settings.title')}
+      </h1>
       <div
         role="tablist"
         aria-orientation="vertical"

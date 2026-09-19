@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { errorText } from '@/lib/errors';
 import type { HangarSkin, InstallStep, QueueItem, QueueStatus } from '@/types';
 
 /**
@@ -103,7 +104,8 @@ export function rowLine(item: QueueItem, t: TFunction, installedName: string, co
     case 'done':
       return { label, vehicle, note: t('queue.note.installed') };
     case 'error':
-      return { label, vehicle, note: item.error || t('queue.note.error') };
+      // Rows keep only the backend's message (no code): known ones read in the UI language.
+      return { label, vehicle, note: item.error ? errorText({ message: item.error }, t) : t('queue.note.error') };
   }
 }
 

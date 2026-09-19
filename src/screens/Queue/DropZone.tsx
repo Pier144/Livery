@@ -1,6 +1,8 @@
 import type { OpenDialogOptions } from '@tauri-apps/plugin-dialog';
 import { forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
+import { errorText } from '@/lib/errors';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { toast } from '@/store/toasts';
 import { TEXT_LINK } from './controls';
@@ -20,7 +22,7 @@ async function pick(options: OpenDialogOptions): Promise<string[]> {
     if (picked === null) return [];
     return Array.isArray(picked) ? picked : [picked];
   } catch (e) {
-    toast(toAppError(e).message);
+    toast(errorText(toAppError(e), i18n.t));
     return [];
   }
 }

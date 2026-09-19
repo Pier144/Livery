@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { errorText } from '@/lib/errors';
 import { useHangar } from '@/queries/hangar';
 import { useSettings } from '@/queries/settings';
 import { useQueue } from '@/store/queue';
@@ -156,7 +157,10 @@ export function Queue() {
       if (was === item.status) return [];
       // New rows are announced only when they arrive failed (e.g. an archive that can't be unpacked yet).
       if (item.status === 'done' && was) return [t('queue.announce.done', { name: item.fileName })];
-      if (item.status === 'error') return [t('queue.announce.error', { name: item.fileName, message: item.error ?? '' })];
+      if (item.status === 'error') {
+        const message = item.error ? errorText({ message: item.error }, t) : '';
+        return [t('queue.announce.error', { name: item.fileName, message })];
+      }
       return [];
     });
     if (messages.length) setAnnouncement((a) => ({ text: messages.join(' '), seq: a.seq + 1 }));

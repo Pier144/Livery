@@ -6,9 +6,12 @@
 //! unfollow hands back): skins posted after it count as new. Writes are atomic (temp file, flush, rename); memory changes only once the file is
 //! written. Loading is tolerant, like the settings and the library index: a missing file is an
 //! empty list, a corrupt file is set aside as `following.json.bad`, and entries that don't
-//! parse are dropped (a copy of the original is kept as `following.json.bad`).
+//! parse are dropped (a copy of the original is kept as `following.json.bad`). A file that
+//! exists but can't be read (a sharing violation, permissions) is an empty list too, and the
+//! store turns read-only for the session: every change is refused, so the real list is never
+//! overwritten with an empty one.
 
-use crate::error::{AppError, AppResult, ErrorCode};
+use crate::error::{AppError, AppResult, ErrorCode, UnreadableFile};
 use crate::library::time::{now_rfc3339, parse_rfc3339};
 use crate::model::{FollowEntry, FollowKind};
 use serde::{Deserialize, Serialize};
@@ -32,6 +35,8 @@ pub const NOT_A_TIME: &str = "Not an RFC 3339 time";
 pub struct FollowingStore {
     path: PathBuf,
     entries: Mutex<Vec<FollowEntry>>,
+    /// Set when the file existed but couldn't be read at launch: every change is refused.
+    unreadable: Option<UnreadableFile>,
 }
 
 #[derive(Serialize)]
@@ -52,12 +57,20 @@ struct FileIn {
 impl FollowingStore {
     /// Loads the list (see the module doc for what a bad file does). Never writes the file.
     pub fn load(path: PathBuf) -> Self {
-        let entries = read_file(&path);
-        Self { path, entries: Mutex::new(entries) }
+        let (entries, unreadable) = match read_file(&path) {
+            Ok(entries) => (entries, None),
+            Err(unreadable) => (Vec::new(), Some(unreadable)),
+        };
+        Self { path, entries: Mutex::new(entries), unreadable }
     }
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Whether the file couldn't be read at launch, so nothing will be saved this session.
+    pub fn is_read_only(&self) -> bool {
+        self.unreadable.is_some()
     }
 
     /// Every followed vehicle and author, in the order they were followed.
@@ -153,12 +166,16 @@ impl FollowingStore {
         })
     }
 
-    /// Runs `edit` on a copy of the list; when the copy differs it is written, then kept.
+    /// Runs `edit` on a copy of the list; when the copy differs it is written, then kept. A
+    /// read-only store (see [`Self::load`]) refuses any change that would write, with `io`.
     fn change(&self, edit: impl FnOnce(&mut Vec<FollowEntry>)) -> AppResult<Vec<FollowEntry>> {
         let mut guard = self.lock();
         let mut next = guard.clone();
         edit(&mut next);
         if next != *guard {
+            if let Some(unreadable) = &self.unreadable {
+                return Err(unreadable.error());
+            }
             write_atomic(&self.path, &next)?;
             *guard = next;
         }
@@ -193,13 +210,15 @@ fn checked_time(now: &str) -> AppResult<&str> {
     }
 }
 
-fn read_file(path: &Path) -> Vec<FollowEntry> {
+/// The stored entries, or why the file that is there can't be read (see the module doc).
+fn read_file(path: &Path) -> Result<Vec<FollowEntry>, UnreadableFile> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => {
-            tracing::warn!(error = %e, "cannot read the Following list; starting empty");
-            return Vec::new();
+            tracing::warn!(error = %e, "cannot read the Following list; starting empty, read-only this session");
+            tracing::debug!(path = %path.display(), "Following list");
+            return Err(UnreadableFile::new(path, &e));
         }
     };
     let text = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&bytes);
@@ -208,7 +227,7 @@ fn read_file(path: &Path) -> Vec<FollowEntry> {
         Err(e) => {
             tracing::warn!(error = %e, "Following list is corrupt; set aside as following.json.bad");
             let _ = fs::rename(path, bad_path(path));
-            return Vec::new();
+            return Ok(Vec::new());
         }
     };
     if file.version > FOLLOWING_VERSION {
@@ -239,7 +258,7 @@ fn read_file(path: &Path) -> Vec<FollowEntry> {
         tracing::warn!(dropped, repaired, "Following list has unreadable entries; copy kept as following.json.bad");
         let _ = fs::copy(path, bad_path(path));
     }
-    entries
+    Ok(entries)
 }
 
 fn bad_path(path: &Path) -> PathBuf {

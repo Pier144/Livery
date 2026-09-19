@@ -95,6 +95,11 @@ describe('queueModel', () => {
       expect(headerMeta([item(), item({ id: 'q2', status: 'error' })], i18n.t)).toBe('2 archivi · 1 pronto');
       expect(detailsNote(item({ files: files(6), textureCount: 2, blkOk: true }), i18n.t)).toBe('6 file · 2 texture · skin.blk ok');
       expect(stepsView('verify', 80, i18n.t).now).toBe('Verifica 80%');
+      // Error rows keep only the backend's English message: known ones read in Italian.
+      expect(rowLine(item({ status: 'error', error: 'Not a skin folder or archive' }), i18n.t, '').note).toBe(
+        'Non è una cartella di skin né un archivio',
+      );
+      expect(rowLine(item({ status: 'error', error: 'Qualcosa è andato storto.' }), i18n.t, '').note).toBe('Qualcosa è andato storto.');
     } finally {
       await i18n.changeLanguage('en');
     }

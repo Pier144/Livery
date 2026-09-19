@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { useTranslation } from 'react-i18next';
 import { Kbd } from '@/components/ui/Kbd';
 import { vehicles } from '@/data/vehicles';
+import { focusScreenHeading } from '@/hooks/useScreenFocus';
 import { cn } from '@/lib/cn';
 import { cachedWtLiveSkins } from '@/screens/Explore/exploreModel';
 import { useExplore } from '@/store/explore';
@@ -33,10 +34,14 @@ function PalettePanel() {
 
   // Read during the first render, before the input takes focus.
   const [opener] = useState(() => document.activeElement);
+  // Set when the chosen result opened another screen or skin: focus goes to its heading instead.
+  const navigated = useRef(false);
   useEffect(() => {
     inputRef.current?.focus();
     return () => {
+      if (navigated.current) return;
       if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) opener.focus();
+      else focusScreenHeading();
     };
   }, [opener]);
 
@@ -52,9 +57,16 @@ function PalettePanel() {
   const activeItem = items[active];
 
   const runItem = (item: PaletteItem) => {
+    const before = useUi.getState();
     try {
       item.run();
     } finally {
+      const after = useUi.getState();
+      // A new screen (or another skin): its heading takes focus once it has rendered (useScreenFocus).
+      if (after.screen !== before.screen || after.detailSkinId !== before.detailSkinId) {
+        navigated.current = true;
+        after.focusHeading();
+      }
       closePalette();
     }
   };
@@ -126,39 +138,43 @@ function PalettePanel() {
             placeholder={t('common.palette.placeholder')}
             className="h-[46px] min-w-0 flex-1 border-0 bg-transparent font-sans text-[14px] text-ink-1 outline-none placeholder:text-ink-4"
           />
-          <Kbd tone="ink5">{t('common.palette.esc')}</Kbd>
+          <Kbd tone="ink4">{t('common.palette.esc')}</Kbd>
         </div>
         <div className="flex flex-col p-1.5">
           <div id={listboxId} role="listbox" aria-label={t('common.palette.results')} className="flex flex-col">
-            {items.map((item, i) => (
-              <div
-                key={item.id}
-                id={optionId(i)}
-                role="option"
-                aria-selected={i === active}
-                onClick={() => runItem(item)}
-                onMouseMove={() => {
-                  if (i !== active) setPaletteIndex(i);
-                }}
-                className={cn(
-                  'flex cursor-pointer items-center gap-3 rounded-ctl px-2.5 py-[9px] leading-[normal] hover:bg-bg-hover',
-                  i === active && 'bg-bg-hover',
-                )}
-              >
-                <span className="min-w-[56px] font-mono text-[10px] tracking-[.06em] text-ink-5">
-                  {t(`common.palette.kind.${item.kind}`)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] text-ink-1">{item.label}</span>
-                <span
+            {items.map((item, i) => {
+              const highlighted = i === active;
+              return (
+                <div
+                  key={item.id}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={highlighted}
+                  onClick={() => runItem(item)}
+                  onMouseMove={() => {
+                    if (!highlighted) setPaletteIndex(i);
+                  }}
                   className={cn(
-                    'flex-none font-mono text-[11px]',
-                    item.kind === 'vehicle' ? 'text-ink-3' : 'text-ink-4',
+                    'flex cursor-pointer items-center gap-3 rounded-ctl px-2.5 py-[9px] leading-[normal] hover:bg-bg-hover',
+                    highlighted && 'bg-bg-hover',
                   )}
                 >
-                  {item.hint}
-                </span>
-              </div>
-            ))}
+                  {/* The kind tells results apart, so it needs 4.5:1: ink-4 on bg-3, ink-3 on the highlighted bg-hover (docs/a11y.md). */}
+                  <span className={cn('min-w-[56px] font-mono text-[10px] tracking-[.06em]', highlighted ? 'text-ink-3' : 'text-ink-4')}>
+                    {t(`common.palette.kind.${item.kind}`)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-ink-1">{item.label}</span>
+                  <span
+                    className={cn(
+                      'flex-none font-mono text-[11px]',
+                      item.kind === 'vehicle' || highlighted ? 'text-ink-3' : 'text-ink-4',
+                    )}
+                  >
+                    {item.hint}
+                  </span>
+                </div>
+              );
+            })}
           </div>
           <div role="status">
             {items.length === 0 && (
@@ -166,7 +182,8 @@ function PalettePanel() {
             )}
           </div>
         </div>
-        <div className="flex gap-3.5 border-t border-line-2 px-3.5 py-2 font-mono text-[10px] leading-[normal] text-ink-5">
+        {/* ink-4, not ink-5: 10px text needs 4.5:1 on bg-3 (docs/a11y.md). */}
+        <div className="flex gap-3.5 border-t border-line-2 px-3.5 py-2 font-mono text-[10px] leading-[normal] text-ink-4">
           <span>{t('common.palette.hintNavigate')}</span>
           <span>{t('common.palette.hintOpen')}</span>
           <span>{t('common.palette.hintClose')}</span>

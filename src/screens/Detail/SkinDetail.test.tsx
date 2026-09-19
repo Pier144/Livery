@@ -1,6 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CommandPalette } from '@/components/chrome/CommandPalette';
 import i18n from '@/i18n';
 import { createQueryClient } from '@/queries/client';
 import { useDetail } from '@/store/detail';
@@ -188,10 +189,10 @@ function renderDetail(id = 's1') {
   return { ...view, user };
 }
 
-/** Rendered and loaded (the name heading is there). */
+/** Rendered and loaded (the tabs are there; the loading state has an h1 too). */
 async function renderLoaded(id = 's1') {
   const view = renderDetail(id);
-  await screen.findByRole('heading', { level: 1 });
+  await screen.findByRole('tablist');
   return view;
 }
 
@@ -229,11 +230,115 @@ describe('Skin detail · loading and offline', () => {
     expect(useUi.getState().screen).toBe('explore');
   });
 
+  it('puts focus on the page heading when it opens, then on the skin name once loaded', async () => {
+    // Opening from a card unmounts the card: focus would fall back to <body>.
+    expect(document.body).toHaveFocus();
+    renderDetail();
+    expect(screen.getByRole('heading', { level: 1, name: 'Skin detail' })).toHaveFocus();
+    const name = await screen.findByRole('heading', { level: 1, name: 'Schwarzwald Ambush' });
+    await waitFor(() => expect(name).toHaveFocus());
+    expect(name).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('puts focus on the heading of the offline state, and keeps it on the name after Retry', async () => {
+    fakeBackend({ fail: { wtlive_post: { code: 'network', message: 'WT Live can’t be reached' } } });
+    const { user } = renderDetail();
+    await screen.findByRole('heading', { name: 'WT Live can’t be reached' });
+    expect(screen.getByRole('heading', { level: 1, name: 'Skin detail' })).toHaveFocus();
+    db.fail = {};
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    const name = await screen.findByRole('heading', { level: 1, name: 'Schwarzwald Ambush' });
+    await waitFor(() => expect(name).toHaveFocus());
+  });
+
   it('opens My Hangar from the offline state (the build without HTTP answers unsupported)', async () => {
     fakeBackend({ fail: { wtlive_post: { code: 'unsupported', message: 'Not in this build' } } });
     const { user } = renderDetail();
     await user.click(await screen.findByRole('button', { name: 'Open My Hangar' }));
     expect(useUi.getState().screen).toBe('hangar');
+  });
+});
+
+/** The main area as App switches it, plus the palette (Ctrl+K opens skins from any screen). */
+function Shell() {
+  useWtLiveInstallEvents();
+  const current = useUi((s) => s.screen);
+  return (
+    <>
+      {current === 'detail' ? <SkinDetail /> : <p>{`screen:${current}`}</p>}
+      <CommandPalette />
+    </>
+  );
+}
+
+/** Opens the palette and runs the first result for `query`. */
+async function paletteOpen(user: ReturnType<typeof userEvent.setup>, query: string) {
+  act(() => useUi.getState().openPalette());
+  await user.type(screen.getByRole('combobox', { name: 'Command' }), `${query}{Enter}`);
+}
+
+describe('Skin detail · back button', () => {
+  it('goes back to My Hangar when the detail was opened there', async () => {
+    useUi.getState().go('hangar');
+    const { user } = await renderLoaded();
+    const back = screen.getByRole('button', { name: 'Back to My Hangar' });
+    expect(back).toHaveTextContent('My Hangar');
+    await user.click(back);
+    expect(useUi.getState().screen).toBe('hangar');
+  });
+
+  it('goes back to Explore when the detail was opened there, with its filters kept', async () => {
+    useExplore.setState({ nation: 'GER', q: 'tiger' });
+    const { user } = await renderLoaded();
+    const back = screen.getByRole('button', { name: 'Back to Explore' });
+    expect(back).toHaveTextContent('Explore');
+    await user.click(back);
+    expect(useUi.getState().screen).toBe('explore');
+    expect(useExplore.getState()).toMatchObject({ nation: 'GER', q: 'tiger' });
+  });
+
+  it('goes back to Collections after the palette opened skins there, one after the other', async () => {
+    const client = createQueryClient();
+    // Skins the palette can offer: already fetched.
+    for (const p of [S1, S13]) client.setQueryData(['wtlive', 'post', p.id], p);
+    const user = userEvent.setup();
+    useUi.getState().go('collections');
+    renderWithProviders(<Shell />, { client, settings: {} });
+
+    await paletteOpen(user, 'Kursk');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Kursk Dust' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Collections' })).toHaveTextContent('Collections');
+    // The palette hands focus to the page, not back to its opener.
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Kursk Dust' })).toHaveFocus());
+
+    // A second skin from the palette, inside the detail: back still leads to Collections.
+    await paletteOpen(user, 'Schwarzwald');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Schwarzwald Ambush' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Schwarzwald Ambush' })).toHaveFocus());
+    await user.click(screen.getByRole('button', { name: 'Back to Collections' }));
+    expect(useUi.getState().screen).toBe('collections');
+    expect(screen.getByText('screen:collections')).toBeInTheDocument();
+    // The screen it went back to focuses the skin's card when it shows one (useScreenFocus).
+    expect(useUi.getState().returnFocusSkin).toBe('s1');
+  });
+
+  it('keeps Escape for zoom and compare: it never leaves the detail', async () => {
+    useUi.getState().go('queue');
+    const { user } = await renderLoaded();
+    await user.keyboard('{Escape}');
+    expect(useUi.getState().screen).toBe('detail');
+    expect(screen.getByRole('button', { name: 'Back to Install queue' })).toHaveTextContent('Install queue');
+  });
+
+  it('names the section in Italian with the sidebar label', async () => {
+    await i18n.changeLanguage('it');
+    try {
+      useUi.getState().go('hangar');
+      await renderLoaded();
+      expect(screen.getByRole('button', { name: 'Torna alla sezione Il mio hangar' })).toHaveTextContent('Il mio hangar');
+    } finally {
+      await i18n.changeLanguage('en');
+    }
   });
 });
 
@@ -267,6 +372,8 @@ describe('Skin detail · gallery', () => {
     expect(radios.map((r) => r.tabIndex)).toEqual([0, -1, -1, -1]);
     expect(screen.getByText('1 / 4')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Schwarzwald Ambush, Front' })).toHaveTextContent('screenshot · Tiger II (H) · Front view');
+    // ink-3: ink-4 is 4.2–4.5:1 on the stage stripes.
+    expect(screen.getByRole('img', { name: 'Schwarzwald Ambush, Front' })).toHaveClass('text-ink-3');
 
     radios[0]!.focus();
     await user.keyboard('{ArrowRight}');

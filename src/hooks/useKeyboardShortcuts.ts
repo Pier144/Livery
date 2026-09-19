@@ -19,10 +19,17 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
 }
 
+/** A modal dialog other than the palette is open (conflict, licenses). */
+function modalDialogOpen(): boolean {
+  return document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]') !== null;
+}
+
 /**
  * Window-level shortcuts: Ctrl/Cmd+K palette, Esc close, Ctrl/Cmd+Z undo last toast, 1–5 sections, [ / ] sidebar.
  * Section and sidebar keys are ignored while typing, with modifiers held, and during First run
- * (no sidebar there; leaving it takes the screen's own actions, as in the prototype).
+ * (no sidebar there; leaving it takes the screen's own actions, as in the prototype). A section
+ * key moves focus to the new screen's heading (`useScreenFocus`, mounted in App).
+ * Ctrl/Cmd+K doesn't open the palette over a modal dialog: its actions would navigate under it.
  */
 export function useKeyboardShortcuts() {
   useEffect(() => {
@@ -30,7 +37,7 @@ export function useKeyboardShortcuts() {
       const ui = useUi.getState();
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        ui.togglePalette();
+        if (ui.palette.open || !modalDialogOpen()) ui.togglePalette();
         return;
       }
       if (e.key === 'Escape') {
@@ -53,7 +60,9 @@ export function useKeyboardShortcuts() {
       const section = SECTION_KEYS[e.key];
       if (section) {
         e.preventDefault();
+        if (section === ui.screen) return;
         ui.go(section);
+        ui.focusHeading();
       }
     };
     window.addEventListener('keydown', onKey);

@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
+import { errorText } from '@/lib/errors';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { useWatchFolder } from '@/queries/queue';
 import { useSettings } from '@/queries/settings';
@@ -34,7 +35,7 @@ export function WatchCard() {
     try {
       await watchFolder({ enabled: next });
     } catch (e) {
-      toast(toAppError(e).message);
+      toast(errorText(toAppError(e), t));
     } finally {
       if (token.current === mine) setPending(null);
     }
@@ -48,7 +49,7 @@ export function WatchCard() {
       const picked = await open({ directory: true, title: t('queue.watch.pickTitle'), defaultPath: settings?.watchFolder });
       path = typeof picked === 'string' ? picked : null;
     } catch (e) {
-      toast(toAppError(e).message);
+      toast(errorText(toAppError(e), t));
       return;
     }
     if (!path) return;
@@ -57,7 +58,7 @@ export function WatchCard() {
     try {
       await watchFolder({ path, enabled: true });
     } catch (e) {
-      toast(toAppError(e).message);
+      toast(errorText(toAppError(e), t));
     } finally {
       if (token.current === mine) setPending(null);
     }

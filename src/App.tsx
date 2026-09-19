@@ -10,6 +10,8 @@ import { useInstallEvents } from '@/hooks/useInstallEvents';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
+import { useScreenFocus } from '@/hooks/useScreenFocus';
+import { reportReadyAfterPaint } from '@/lib/startup';
 import { useWtLiveInstallEvents } from '@/store/installs';
 import { useSettings } from '@/queries/settings';
 import { useNetStatusEvents } from '@/queries/wtlive';
@@ -50,6 +52,8 @@ function useBootScreen(): boolean {
     // Unreadable settings: open the app rather than trap the user in First run.
     if (data && !data.onboarded && !data.gamePath) useUi.getState().go('firstRun');
     setBooted(true);
+    // Startup timing: tells the backend once the first screen has been painted.
+    reportReadyAfterPaint();
   }, [data, isError]);
 
   return booted;
@@ -63,6 +67,8 @@ export function App() {
   useNetStatusEvents();
   useLanguageSync();
   useReduceMotion();
+  // After the screens' own effects: focus the new screen's heading, or the card the detail came from.
+  useScreenFocus();
   const booted = useBootScreen();
   const { t } = useTranslation();
   const screen = useUi((s) => s.screen);

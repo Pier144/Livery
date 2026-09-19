@@ -54,6 +54,10 @@ export function Explore() {
 
   return (
     <ScreenFrame label={t('explore.title')}>
+      {/* The tabs name the screen visually; screen readers get a level-one heading (focus target, not a tab stop). */}
+      <h1 tabIndex={-1} className="sr-only">
+        {t('explore.title')}
+      </h1>
       <ExploreHeader tab={tab} onTab={setTab} newCount={fresh.data?.length ?? 0} meta={meta} tabId={tabId} panelId={panelId} />
       <div role="tabpanel" id={panelId(tab)} aria-labelledby={tabId(tab)} className="flex min-h-0 flex-1 flex-col gap-3.5">
         {tab === 'explore' ? <ExploreTabPanel search={search} params={params} /> : <Following />}

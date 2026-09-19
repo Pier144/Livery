@@ -70,7 +70,8 @@ export const SkinCard = memo(function SkinCard({ skin, onOpen }: SkinCardProps) 
       />
       <SkinImage skin={skin} />
       <div className="flex min-w-0 flex-col gap-[7px] p-3">
-        <div className="truncate text-card text-ink-1">{skin.name}</div>
+        {/* A heading, so screen-reader users can move from result to result. */}
+        <h2 className="truncate text-card text-ink-1">{skin.name}</h2>
         <div className="flex min-w-0 items-center gap-1.5 text-meta leading-[normal] text-ink-3">
           <span className="flex-none rounded-tag border border-line-3 px-1 py-px font-mono text-[10px] leading-[normal] text-ink-2">
             {skin.vehicle.nation}

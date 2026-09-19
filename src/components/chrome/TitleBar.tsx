@@ -63,7 +63,7 @@ function WindowButton({ label, icon: Icon, onClick, danger }: WindowButtonProps)
       onClick={onClick}
       className={cn(
         'flex h-[26px] w-[34px] items-center justify-center rounded-menu text-ink-4 motion-safe:transition-colors motion-safe:duration-120',
-        danger ? 'hover:bg-danger-close hover:text-white' : 'hover:bg-bg-hover hover:text-ink-1',
+        danger ? 'hover:bg-danger-close hover:text-ink-1' : 'hover:bg-bg-hover hover:text-ink-1',
       )}
     >
       <Icon size={14} strokeWidth={1.75} aria-hidden />

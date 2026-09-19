@@ -1,6 +1,8 @@
 import { act, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useScreenFocus } from '@/hooks/useScreenFocus';
 import { createQueryClient } from '@/queries/client';
 import { WTLIVE_KEY } from '@/queries/wtlive';
 import { useExplore } from '@/store/explore';
@@ -226,6 +228,83 @@ describe('CommandPalette', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
+  });
+
+  it('moves focus to the new screen’s heading after a result navigates, not back to the opener', async () => {
+    const user = userEvent.setup();
+    // App's shell in miniature: a heading per screen, the screen-focus hook and a persistent opener.
+    function Shell() {
+      useScreenFocus();
+      const current = useUi((s) => s.screen);
+      return (
+        <>
+          <button type="button" onClick={() => useUi.getState().openPalette()}>
+            Search
+          </button>
+          <main>
+            <h1 tabIndex={-1}>{`heading:${current}`}</h1>
+          </main>
+          <CommandPalette />
+        </>
+      );
+    }
+    renderWithProviders(<Shell />);
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await user.keyboard('settings{Enter}');
+    expect(useUi.getState().screen).toBe('settings');
+    expect(screen.getByRole('heading', { name: 'heading:settings' })).toHaveFocus();
+
+    // Same screen, nothing opened: Escape hands focus back to the opener as before.
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: 'Search' })).toHaveFocus();
+  });
+
+  it('falls back to the screen heading when the opener is gone', async () => {
+    const user = userEvent.setup();
+    function Shell() {
+      const [opener, setOpener] = useState(true);
+      return (
+        <>
+          {opener && (
+            <button type="button" onClick={() => useUi.getState().openPalette()}>
+              Search
+            </button>
+          )}
+          <main>
+            <h1 tabIndex={-1}>Explore</h1>
+          </main>
+          <button type="button" onClick={() => setOpener(false)}>
+            Drop opener
+          </button>
+          <CommandPalette />
+        </>
+      );
+    }
+    renderWithProviders(<Shell />);
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    act(() => screen.getByRole('button', { name: 'Drop opener' }).click());
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('heading', { name: 'Explore' })).toHaveFocus();
+  });
+
+  it('keeps the kind column and hints at 4.5:1: ink-4, and ink-3 on the highlighted row', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CommandPalette />);
+    open();
+    await user.keyboard('{ArrowDown}');
+    const [first, second] = options();
+    const kind = (o: HTMLElement | undefined) => o?.querySelector('span');
+    expect(second).toHaveAttribute('aria-selected', 'true');
+    expect(kind(second)).toHaveClass('text-ink-3');
+    expect(kind(first)).toHaveClass('text-ink-4');
+    expect(kind(first)).not.toHaveClass('text-ink-5');
+    // The shortcut hint of the highlighted action brightens too.
+    expect(within(second!).getByText('2')).toHaveClass('text-ink-3');
+    expect(within(first!).getByText('1')).toHaveClass('text-ink-4');
+    // Footer and Esc key cap: ink-4 on bg-3 (4.59:1), not ink-5 (3.4:1).
+    expect(screen.getByText('↑↓ navigate').parentElement).toHaveClass('text-ink-4');
+    expect(within(dialog()).getByText('Esc')).toHaveClass('text-ink-4');
   });
 
   it('has no serious axe violations with results and with no matches', async () => {

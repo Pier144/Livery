@@ -82,6 +82,7 @@ export function Sidebar({ liveSkinCount }: SidebarProps) {
   const { t } = useTranslation();
   const open = useUi((s) => s.sidebarOpen);
   const screen = useUi((s) => s.screen);
+  const detailFrom = useUi((s) => s.detailReturnTo);
   const online = useUi((s) => s.online);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const pending = useQueue(selectPendingCount);
@@ -108,8 +109,8 @@ export function Sidebar({ liveSkinCount }: SidebarProps) {
           key={item.id}
           {...item}
           collapsed={!open}
-          // The Skin detail belongs to Explore (prototype).
-          active={screen === item.id || (screen === 'detail' && item.id === 'explore')}
+          // The Skin detail belongs to the section it was opened from.
+          active={screen === item.id || (screen === 'detail' && item.id === detailFrom)}
           badge={item.id === 'queue' ? pending : 0}
           describedBy={badgeId}
         />

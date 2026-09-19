@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
 import { useHangar } from '@/queries/hangar';
 import { useHangarStore } from '@/store/hangar';
@@ -73,6 +74,8 @@ export function Hangar() {
     restoreFocus();
   }, [clear, restoreFocus]);
 
+  useBulkBarShortcut(selectedIds.length > 0, barRef, lastListFocus, selectAllRef);
+
   const loaded = query.data !== undefined;
   const empty = loaded && skins.length === 0;
 
@@ -123,7 +126,7 @@ export function Hangar() {
               query.isError ? (
                 <EmptyState
                   title={t('hangar.loadErrorTitle')}
-                  body={query.error.message}
+                  body={errorText(query.error, t)}
                   primary={{ label: t('common.retry'), onClick: () => void query.refetch() }}
                   className="h-full"
                 />
@@ -153,12 +156,44 @@ export function Hangar() {
           </div>
         </>
       )}
-      {/* Selection changes are announced (the bar itself appears silently). */}
+      {/* Selection changes are announced with the way to the bar (it appears silently, at the bottom). */}
       <div role="status" className="sr-only">
-        {selectedIds.length > 0 ? t('hangar.bulk.selected', { count: selectedIds.length }) : ''}
+        {selectedIds.length > 0 ? `${t('hangar.bulk.selected', { count: selectedIds.length })}. ${t('hangar.bulk.f6Hint')}` : ''}
       </div>
     </ScreenFrame>
   );
+}
+
+/**
+ * F6 (either direction, like moving between panes): while skins are selected, it moves focus from
+ * anywhere in My Hangar to the bulk bar's first control, and from the bar back to the last focused
+ * skin (or "Select all"). The bar comes before the list in the DOM, but it is drawn at the bottom:
+ * without this, a keyboard user deep in the grid has to Shift+Tab back through every card.
+ */
+function useBulkBarShortcut(
+  active: boolean,
+  barRef: RefObject<HTMLDivElement>,
+  lastListFocus: RefObject<HTMLElement | null>,
+  selectAllRef: RefObject<HTMLButtonElement>,
+) {
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'F6' || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      const bar = barRef.current;
+      // Not under the palette or a dialog.
+      if (!bar || document.querySelector('[aria-modal="true"]')) return;
+      e.preventDefault();
+      if (bar.contains(document.activeElement)) {
+        const last = lastListFocus.current;
+        (last?.isConnected ? last : selectAllRef.current)?.focus();
+      } else {
+        bar.querySelector<HTMLElement>('[data-bulk-control]')?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active, barRef, lastListFocus, selectAllRef]);
 }
 
 /** Loading: a header bar and eight shimmering cards in the Hangar grid (minmax 220, gap 12). */

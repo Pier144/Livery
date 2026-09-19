@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Menu, type MenuItem } from '@/components/ui/Menu';
 import { cn } from '@/lib/cn';
+import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
 import { call, toAppError } from '@/lib/tauri';
 import { useCollections, useSetCollectionSkins } from '@/queries/collections';
@@ -166,11 +167,11 @@ function FollowButton({ kind, id, name, small = false }: { kind: FollowKind; id:
             const args = lastSeenAt ? { kind, id, name, follow: true, lastSeenAt } : { kind, id, name, follow: true };
             qc.setQueryData(FOLLOWING_KEY, await call<FollowEntry[]>('following_set', args));
           } catch (e) {
-            toast(t('detail.follow.failed', { message: toAppError(e).message }));
+            toast(t('detail.follow.failed', { message: errorText(toAppError(e), t) }));
           }
         });
       },
-      (e: AppError) => toast(t('detail.follow.failed', { message: e.message })),
+      (e: AppError) => toast(t('detail.follow.failed', { message: errorText(e, t) })),
     );
   };
 
@@ -362,7 +363,7 @@ function InstallAction({ skin, install, track, onOpenTry }: InstallActionProps) 
             </span>
           </div>
           <p role="alert" className="text-[11px] leading-[1.4] text-ink-3">
-            {offline ? t('detail.install.offline') : state.message}
+            {offline ? t('detail.install.offline') : errorText({ code: state.code, message: state.message }, t)}
           </p>
         </div>
       );
@@ -417,7 +418,7 @@ function CollectionAction({ hangarSkin }: { hangarSkin: HangarSkin | undefined }
     }
     setSkins.mutateAsync({ id, add: [hangarSkin.id] }).then(
       () => toast(t('detail.collections.added', { name: collection.name })),
-      (e: AppError) => toast(t('detail.collections.failed', { message: e.message })),
+      (e: AppError) => toast(t('detail.collections.failed', { message: errorText(e, t) })),
     );
   };
 

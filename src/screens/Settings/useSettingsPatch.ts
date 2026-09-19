@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import { errorText } from '@/lib/errors';
 import { DEFAULT_SETTINGS, useSettings, useUpdateSettings } from '@/queries/settings';
 import { toast } from '@/store/toasts';
 import type { Settings } from '@/types';
@@ -8,10 +10,11 @@ import type { Settings } from '@/types';
  * save shows its message and the control falls back to the saved value.
  */
 export function useSettingsPatch() {
+  const { t } = useTranslation();
   const { data } = useSettings();
   const update = useUpdateSettings();
   const saved = data ?? DEFAULT_SETTINGS;
   const settings: Settings = update.isPending && update.variables ? { ...saved, ...update.variables } : saved;
-  const patch = (changes: Partial<Settings>) => update.mutate(changes, { onError: (e) => toast(e.message) });
+  const patch = (changes: Partial<Settings>) => update.mutate(changes, { onError: (e) => toast(errorText(e, t)) });
   return { settings, patch };
 }

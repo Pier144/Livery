@@ -35,7 +35,7 @@ const SECONDARY =
 /**
  * Floating bulk-action bar (README "Bulk bar"), shown while skins are selected. A `toolbar`: ←/→,
  * Home and End move between its controls; Escape clears the selection unless a menu is open (the
- * menu closes first).
+ * menu closes first). F6 jumps here from the list and back (My Hangar's `useBulkBarShortcut`).
  */
 export const BulkBar = forwardRef<HTMLDivElement, BulkBarProps>(function BulkBar(
   { count, busy, onActivate, onDeactivate, onMove, onExport, onDelete, onClear },
@@ -91,6 +91,7 @@ export const BulkBar = forwardRef<HTMLDivElement, BulkBarProps>(function BulkBar
       ref={ref}
       role="toolbar"
       aria-label={t('hangar.bulk.label')}
+      aria-keyshortcuts="F6"
       onKeyDown={onKeyDown}
       className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-card border border-line-4 bg-bg-3 py-2 pl-3.5 pr-2 shadow-dialog"
     >

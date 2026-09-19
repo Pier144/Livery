@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
+import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
 import { call, hasBackend, toAppError } from '@/lib/tauri';
 import { BACKUPS_KEY } from '@/queries/settings';
@@ -64,7 +65,7 @@ export function BackupsSection() {
           const gone = new Set(ids);
           qc.setQueryData<Backup[]>(BACKUPS_KEY, (list) => list?.filter((b) => !gone.has(b.id)));
         } catch (e) {
-          toast(toAppError(e).message);
+          toast(errorText(toAppError(e), t));
         } finally {
           useSettingsUi.setState({ clearingBackups: null });
           void qc.invalidateQueries({ queryKey: BACKUPS_KEY });

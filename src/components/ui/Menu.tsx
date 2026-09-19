@@ -17,7 +17,10 @@ export interface MenuItem {
   /** Passed to `onSelect`; in radio menus it is also compared with `value` to draw the check. */
   value: string;
   label: ReactNode;
-  /** Right-aligned secondary content, e.g. a mono code or a count. */
+  /**
+   * Right-aligned secondary content, e.g. a mono code or a count. The highlighted item is bg-4, where
+   * ink-4 is 4.25:1: brighten small hints with `group-hover:text-ink-3 group-focus-visible:text-ink-3`.
+   */
   hint?: ReactNode;
   /** Focusable (WAI-ARIA menu pattern) but not activatable. */
   disabled?: boolean;
@@ -305,8 +308,9 @@ export function Menu({
                 tabIndex={-1}
                 onClick={() => activate(item)}
                 className={cn(
-                  // `leading-[normal]` matches the prototype's `font:` shorthand (30px rows).
-                  'flex items-center justify-between gap-3 whitespace-nowrap rounded-menu px-2.5 py-[7px] text-left text-meta leading-[normal] focus-visible:-outline-offset-2',
+                  // `leading-[normal]` matches the prototype's `font:` shorthand (30px rows). `group`: a hint
+                  // can brighten on the highlighted bg-4 (`group-hover:` / `group-focus-visible:`).
+                  'group flex items-center justify-between gap-3 whitespace-nowrap rounded-menu px-2.5 py-[7px] text-left text-meta leading-[normal] focus-visible:-outline-offset-2',
                   item.disabled ? 'cursor-default text-ink-5' : 'text-ink-1 hover:bg-bg-4 focus-visible:bg-bg-4',
                 )}
               >

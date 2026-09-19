@@ -5,8 +5,10 @@ import { cn } from '@/lib/cn';
 const STEPS = ['detect', 'confirm', 'import'] as const;
 
 /**
- * "01 DETECT · 02 CONFIRM · 03 IMPORT": current step amber, past ink-3, future ink-5
- * (steps not reachable yet, like disabled text; the current one is also `aria-current`).
+ * "01 DETECT · 02 CONFIRM · 03 IMPORT": current step amber, past ink-3, future ink-4 (the current
+ * one is also `aria-current`). The README asks for ink-5 on future steps, but they are 10px text
+ * naming the steps: ink-5 is 3.57:1 on bg-2, ink-4 is 4.81:1 (docs/a11y.md; the same call as the
+ * Explore card's upcoming install steps). The separators stay ink-5: they are decoration.
  */
 export function StepTracker({ current }: { current: 0 | 1 | 2 }) {
   const { t } = useTranslation();
@@ -15,7 +17,7 @@ export function StepTracker({ current }: { current: 0 | 1 | 2 }) {
       {STEPS.map((step, i) => (
         <li key={step} aria-current={i === current ? 'step' : undefined} className="flex gap-2">
           {i > 0 && <span aria-hidden>·</span>}
-          <span className={cn(i === current ? 'text-amber' : i < current ? 'text-ink-3' : 'text-ink-5')}>
+          <span className={cn(i === current ? 'text-amber' : i < current ? 'text-ink-3' : 'text-ink-4')}>
             {t(`firstRun.steps.${step}`)}
           </span>
         </li>

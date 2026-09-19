@@ -1,0 +1,129 @@
+# Checks every push and pull request on the only release target (Windows).
+# Official actions only (actions/*); no third-party actions. See docs/release.md.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Node 24 still ships corepack (Node 25+ doesn't). pnpm is pinned to the version that wrote
+  # pnpm-lock.yaml; package.json has no "packageManager" field yet.
+  NODE_VERSION: '24'
+  PNPM_VERSION: '10.32.1'
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Frontend and Rust checks
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # ── Frontend ────────────────────────────────────────────────────────────
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable pnpm through corepack
+        run: |
+          corepack enable
+          corepack install --global "pnpm@${PNPM_VERSION}"
+          actual=$(pnpm --version)
+          if [ "${actual}" != "${PNPM_VERSION}" ]; then
+            echo "::error::pnpm ${actual} is active, expected ${PNPM_VERSION}."
+            exit 1
+          fi
+
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests (Vitest)
+        run: pnpm test
+
+      - name: i18n keys complete
+        run: pnpm i18n:check
+
+      - name: Build the frontend
+        run: pnpm build
+
+      # The in-memory mock backend (src/dev) must never ship: every dynamic import of it sits
+      # behind an inline `import.meta.env.VITE_MOCK_BACKEND === '1'` check (HANDOFF.md, Gotchas).
+      - name: No mock backend in dist/
+        run: |
+          found=0
+          if grep -rEl 'mockCall|mockListen|livery.mock|mockDetectGame' dist/; then found=1; fi
+          if find dist -iname '*mock*' | grep .; then found=1; fi
+          if [ "$found" -ne 0 ]; then
+            echo "::error::dist/ contains mock backend code (files listed above)."
+            exit 1
+          fi
+          echo "dist/ is clean."
+
+      # ── Rust ────────────────────────────────────────────────────────────────
+      # rustup is preinstalled on windows-latest; pin the components explicitly.
+      - name: Install the Rust toolchain
+        id: rust
+        run: |
+          rustup toolchain install stable --profile minimal -c clippy,rustfmt
+          rustup default stable
+          echo "version=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the cargo registry
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+
+      - name: Cache the Rust build
+        uses: actions/cache@v6
+        with:
+          path: src-tauri/target/
+          key: cargo-target-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-target-${{ runner.os }}-${{ steps.rust.outputs.version }}-
+
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --locked

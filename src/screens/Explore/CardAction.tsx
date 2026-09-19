@@ -2,12 +2,13 @@ import type { TFunction } from 'i18next';
 import { Check } from 'lucide-react';
 import { Fragment, useLayoutEffect, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
 import { useWtLiveInstall, type WtInstallState } from '@/store/installs';
 import type { WtLiveSkin } from '@/types';
 import { stepText, type StepName, type StepText } from './exploreModel';
 
-/** Error codes with their own explanation; anything else shows the backend's message. */
+/** Error codes with their own explanation; anything else shows the backend's message in the UI language (`errorText`). */
 const ERROR_KEYS = {
   network: 'explore.card.errors.network',
   unsupported: 'explore.card.errors.unavailable',
@@ -18,7 +19,8 @@ const ERROR_KEYS = {
 
 export function installErrorText(t: TFunction, code: string | undefined, message: string): string {
   const key = code !== undefined ? ERROR_KEYS[code as keyof typeof ERROR_KEYS] : undefined;
-  return key ? t(key) : message.trim() || t('explore.card.failed');
+  if (key) return t(key);
+  return message.trim() ? errorText({ code, message }, t) : t('explore.card.failed');
 }
 
 /** "Extracting 56%" / "Done": the current step as the progress bar's value text. */

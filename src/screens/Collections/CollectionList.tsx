@@ -28,7 +28,7 @@ export const CollectionList = forwardRef<HTMLUListElement, CollectionListProps>(
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-auto border-r border-line-2 px-5 py-4.5">
       <div className="flex items-center justify-between gap-3">
-        <h1 id={headingId} className="text-card">
+        <h1 id={headingId} tabIndex={-1} className="text-card outline-none">
           {t('collections.title')}
         </h1>
         <Button size={26} aria-label={t('collections.newCollection')} onClick={() => !creating && onNew()}>

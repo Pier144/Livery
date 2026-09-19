@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/chrome/Toaster';
+import { useScreenFocus } from '@/hooks/useScreenFocus';
 import i18n from '@/i18n';
 import { createQueryClient } from '@/queries/client';
 import { COLLECTIONS_KEY } from '@/queries/collections';
@@ -401,11 +402,14 @@ describe('My Hangar', () => {
   it('toggles a skin active (optimistically) through set_skin_active', async () => {
     const user = userEvent.setup();
     renderHangar();
-    const toggle = within(cardOf('Ambush')).getByRole('button', { name: 'Active' });
-    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    // A switch with a stable name; the visible text follows the state.
+    const toggle = within(cardOf('Ambush')).getByRole('switch', { name: 'Active in game' });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(toggle).toHaveTextContent('Active');
     await user.click(toggle);
     expect(calls('set_skin_active')).toEqual([{ ids: ['h3'], active: false }]);
-    await waitFor(() => expect(within(cardOf('Ambush')).getByRole('button', { name: 'Inactive' })).toHaveAttribute('aria-pressed', 'false'));
+    await waitFor(() => expect(within(cardOf('Ambush')).getByRole('switch', { name: 'Active in game' })).toHaveAttribute('aria-checked', 'false'));
+    expect(within(cardOf('Ambush')).getByRole('switch')).toHaveTextContent('Inactive');
     expect(screen.getByText('5 skins · 2 active · 50 MB on disk')).toBeInTheDocument();
     // The toggle doesn't select the card.
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
@@ -418,9 +422,9 @@ describe('My Hangar', () => {
       if (cmd === 'set_skin_active') throw { code: 'conflict', message: 'A skin folder with that name already exists' };
       return state.skins;
     });
-    await user.click(within(cardOf('Ambush')).getByRole('button', { name: 'Active' }));
+    await user.click(within(cardOf('Ambush')).getByRole('switch', { name: 'Active in game' }));
     await waitFor(() => expect(toastTexts()).toEqual(['A skin folder with that name already exists']));
-    expect(within(cardOf('Ambush')).getByRole('button', { name: 'Active' })).toBeInTheDocument();
+    expect(within(cardOf('Ambush')).getByRole('switch', { name: 'Active in game' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('bulk Activate / Deactivate update every selected skin and clear the selection', async () => {
@@ -608,6 +612,78 @@ describe('My Hangar', () => {
       const { container } = renderHangar();
       await user.click(screen.getByRole('radio', { name: 'List view' }));
       expect(await seriousViolations(container)).toEqual([]);
+    });
+
+    it('describes each skin’s attention message, and shows it in the tooltip too', async () => {
+      const user = userEvent.setup();
+      renderHangar();
+      const hint = 'Press Enter or Space to select it. Local skins have no skin page.';
+      expect(card('Winter whitewash')).toHaveAccessibleDescription(`${hint} turret_c.dds is missing`);
+      expect(card('Winter whitewash')).toHaveAttribute('title', 'Winter whitewash\nturret_c.dds is missing');
+      expect(card('Factory olive')).toHaveAccessibleDescription(hint);
+      expect(card('Factory olive')).toHaveAttribute('title', 'Factory olive');
+
+      expect(card('Desert tan')).toHaveAccessibleDescription(`${hint} germ_pzkpfw_VI_ausf_e_tiger.blk has an unknown block +1`);
+
+      // List rows truncate the message in a narrow window: same description and tooltip.
+      await user.click(screen.getByRole('radio', { name: 'List view' }));
+      expect(card('Winter whitewash')).toHaveAccessibleDescription(`${hint} turret_c.dds is missing`);
+      expect(card('Winter whitewash')).toHaveAttribute('title', 'Winter whitewash\nturret_c.dds is missing');
+      // The size brightens with the row's hover background (ink-4 is 4.39:1 on bg-hover).
+      expect(within(cardOf('Winter whitewash')).getByText('10 MB')).toHaveClass('text-ink-4', 'group-hover:text-ink-3');
+      expect(cardOf('Winter whitewash')).toHaveClass('group');
+    });
+
+    it('F6 jumps between the list and the bulk bar, which the status points to', async () => {
+      const user = userEvent.setup();
+      renderHangar();
+      await user.click(card('Ambush'));
+      expect(screen.getByRole('button', { name: 'Ambush' })).toHaveFocus();
+      expect(screen.getByRole('status', { name: '' })).toHaveTextContent('1 skin selected. Press F6 to reach the actions for the selection.');
+      expect(bar()).toHaveAttribute('aria-keyshortcuts', 'F6');
+
+      await user.keyboard('{F6}');
+      expect(within(bar()).getByRole('button', { name: 'Activate' })).toHaveFocus();
+      await user.keyboard('{ArrowRight}{F6}');
+      expect(screen.getByRole('button', { name: 'Ambush' })).toHaveFocus();
+
+      // From the search box too; with nothing selected F6 is left alone.
+      screen.getByRole('searchbox').focus();
+      await user.keyboard('{F6}');
+      expect(within(bar()).getByRole('button', { name: 'Activate' })).toHaveFocus();
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+      const focused = document.activeElement;
+      await user.keyboard('{F6}');
+      expect(document.activeElement).toBe(focused);
+    });
+
+    it('back from the Skin detail, the card of the WT Live post takes focus again', async () => {
+      const user = userEvent.setup();
+      const skins = SKINS.map((s) => (s.id === 'h3' ? { ...s, sourceId: 'wt-ambush' } : s));
+      state = { skins, collections: COLLECTIONS, backups: new Map() };
+      const client = createQueryClient();
+      client.setQueryData(HANGAR_KEY, skins);
+      client.setQueryData(COLLECTIONS_KEY, { collections: COLLECTIONS });
+      function ScreenFocus() {
+        useScreenFocus();
+        return null;
+      }
+      renderWithProviders(
+        <>
+          <Hangar />
+          <ScreenFocus />
+        </>,
+        { client },
+      );
+      expect(cardOf('Ambush')).toHaveAttribute('data-source-id', 'wt-ambush');
+      act(() => useUi.getState().go('hangar'));
+      await user.click(card('Ambush'));
+      expect(useUi.getState()).toMatchObject({ screen: 'detail', detailSkinId: 'wt-ambush', detailReturnTo: 'hangar' });
+      // In the app the card unmounts with My Hangar.
+      (document.activeElement as HTMLElement).blur();
+      act(() => useUi.getState().leaveDetail());
+      expect(screen.getByRole('button', { name: 'Ambush' })).toHaveFocus();
     });
 
     it('the bulk bar and its menu have no serious axe violations', async () => {
