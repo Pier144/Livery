@@ -34,9 +34,17 @@ pub fn run() {
     let clock = startup::StartupClock::new();
     // stdout (debug builds) now; the log file joins once the app data dir is known.
     logging::init();
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .manage(clock)
         .plugin(tauri_plugin_dialog::init())
+        // Links in the default browser and folders in the file manager. The capability allows only
+        // WT Live and Livery's own repository (src-tauri/capabilities/default.json).
+        .plugin(tauri_plugin_opener::init());
+    // Start with Windows. The plugin crate is desktop-only, and Livery registers the app with **no
+    // launch arguments**, so a Livery started by Windows opens exactly like one started by hand.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None));
+    builder
         .setup(|app| {
             let data_dir = startup::resolve_data_dir(std::env::var_os(startup::DATA_DIR_ENV), || {
                 app.path().app_data_dir().map_err(|e| {

@@ -9,6 +9,12 @@
     "cancel": "Cancel",
     "showPath": "Show path",
     "hidePath": "Hide path",
+    "showInExplorer": "Show in Explorer",
+    "explorerFailed": "Couldn’t open that folder in Explorer.",
+    "link": {
+      "copied": "Livery couldn’t open your browser, so the link is on the clipboard. Paste it there.",
+      "failed": "Couldn’t open the link: {{url}}"
+    },
     "comingIn": "Coming in {{milestone}}",
     "loading": "Loading",
     "any": "Any",
@@ -344,10 +350,9 @@
       "label": "Author",
       "onWtLive": "on WT Live",
       "openPost": "Open original post",
-      "openPostHint": "Copies the link: Livery can’t open the browser yet"
+      "openPostHint": "Opens the post on WT Live in your browser",
+      "openAuthor": "Open {{name}} on WT Live"
     },
-    "linkCopied": "Link to the original post copied. Livery can’t open the browser yet, so paste it there.",
-    "linkCopyFailed": "Couldn’t copy the link: {{url}}",
     "vehicle": {
       "label": "Vehicle",
       "open": "Show this vehicle’s skins in Explore",
@@ -399,6 +404,7 @@
       "inHangar": "in Hangar",
       "trying": "Trying in game",
       "tryingAction": "Keep or discard",
+      "folderHint": "Open the skin’s folder in Explorer",
       "failed": "Install failed",
       "asCopy": "Install as a copy",
       "offline": "WT Live can’t be reached. Try again when you’re back online."
@@ -787,7 +793,8 @@
     },
     "general": {
       "autostart": "Start with Windows",
-      "autostartPending": "Not available yet. It arrives in a later build.",
+      "autostartHelper": "Livery opens when you sign in to Windows.",
+      "autostartFailed": "Couldn’t change Start with Windows: {{message}}",
       "reduceMotion": "Reduce motion",
       "reduceMotionHelper": "Follows your Windows setting by default.",
       "motion": {
@@ -824,7 +831,8 @@
       "choose": "Choose",
       "watched": "Watched folder",
       "downloadsDefault": "Downloads (default)",
-      "watchPickTitle": "Choose the folder to watch"
+      "watchPickTitle": "Choose the folder to watch",
+      "explorerHint": "Open this folder in Explorer"
     },
     "conflicts": {
       "intro": "What to do when an archive has the same folder as an installed skin.",
@@ -868,9 +876,9 @@
       "description": "A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.",
       "links": "Links",
       "source": "Source code",
-      "sourcePending": "The source code isn’t public yet.",
+      "sourceHint": "Opens the Livery repository on GitHub",
       "report": "Report a problem",
-      "reportPending": "There’s no public place to report problems yet.",
+      "reportHint": "Opens the Livery issues page on GitHub",
       "licenses": "Licenses"
     },
     "licenses": {

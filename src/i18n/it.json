@@ -9,6 +9,12 @@
     "cancel": "Annulla",
     "showPath": "Mostra percorso",
     "hidePath": "Nascondi percorso",
+    "showInExplorer": "Apri in Esplora file",
+    "explorerFailed": "Impossibile aprire quella cartella in Esplora file.",
+    "link": {
+      "copied": "Livery non è riuscita ad aprire il browser: il link è negli appunti, incollalo lì.",
+      "failed": "Impossibile aprire il link: {{url}}"
+    },
     "comingIn": "In arrivo con {{milestone}}",
     "loading": "Caricamento",
     "any": "Qualsiasi",
@@ -344,10 +350,9 @@
       "label": "Autore",
       "onWtLive": "su WT Live",
       "openPost": "Apri il post originale",
-      "openPostHint": "Copia il link: Livery non può ancora aprire il browser"
+      "openPostHint": "Apre il post su WT Live nel browser",
+      "openAuthor": "Apri {{name}} su WT Live"
     },
-    "linkCopied": "Link al post originale copiato. Livery non può ancora aprire il browser: incollalo lì.",
-    "linkCopyFailed": "Impossibile copiare il link: {{url}}",
     "vehicle": {
       "label": "Veicolo",
       "open": "Mostra in Esplora le skin di questo veicolo",
@@ -399,6 +404,7 @@
       "inHangar": "nell’hangar",
       "trying": "In prova nel gioco",
       "tryingAction": "Tienila o scartala",
+      "folderHint": "Apri la cartella della skin in Esplora file",
       "failed": "Installazione non riuscita",
       "asCopy": "Installa come copia",
       "offline": "WT Live non è raggiungibile. Riprova quando torni online."
@@ -787,7 +793,8 @@
     },
     "general": {
       "autostart": "Avvia con Windows",
-      "autostartPending": "Non ancora disponibile. Arriverà in una versione successiva.",
+      "autostartHelper": "Livery si apre quando accedi a Windows.",
+      "autostartFailed": "Impossibile cambiare Avvia con Windows: {{message}}",
       "reduceMotion": "Riduci animazioni",
       "reduceMotionHelper": "Di norma segue l’impostazione di Windows.",
       "motion": {
@@ -824,7 +831,8 @@
       "choose": "Scegli",
       "watched": "Cartella controllata",
       "downloadsDefault": "Download (predefinita)",
-      "watchPickTitle": "Scegli la cartella da controllare"
+      "watchPickTitle": "Scegli la cartella da controllare",
+      "explorerHint": "Apri questa cartella in Esplora file"
     },
     "conflicts": {
       "intro": "Cosa fare quando un archivio usa la stessa cartella di una skin installata.",
@@ -868,9 +876,9 @@
       "description": "Un gestore di skin utente per War Thunder. Sfoglia WT Live, installa con un clic, tieni in ordine il tuo hangar.",
       "links": "Link",
       "source": "Codice sorgente",
-      "sourcePending": "Il codice sorgente non è ancora pubblico.",
+      "sourceHint": "Apre il repository di Livery su GitHub",
       "report": "Segnala un problema",
-      "reportPending": "Non c’è ancora un posto pubblico dove segnalare i problemi.",
+      "reportHint": "Apre la pagina dei problemi di Livery su GitHub",
       "licenses": "Licenze"
     },
     "licenses": {
