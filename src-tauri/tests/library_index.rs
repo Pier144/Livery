@@ -1,5 +1,6 @@
 //! Library index persistence (atomic JSON, tolerant load), idempotent import, scan merging,
 //! and the command cores (`user_skins_dir`, `scan_game`, `import_folders`) on temp folders.
+//! M3 behaviour (inactive folder, v2 index, prune) is in `library_hangar.rs`.
 
 use livery_lib::error::ErrorCode;
 use livery_lib::library::index::{new_id, INDEX_VERSION};
@@ -174,13 +175,29 @@ fn import_rejects_paths_and_skips_vanished_folders() {
     let tmp = TempDir::new("names");
     tmp.skin("Winter", "su_27", &[]);
     let store = LibraryStore::load(tmp.index_path());
-    for bad in ["", ".", "..", "../Winter", "a/b", "a\\b", "C:Winter"] {
+    // Hidden names (Livery's own `.livery` included) and names Windows would silently shorten
+    // ("...", "Winter.", "Winter ") could point at another folder, so they are refused too.
+    for bad in [
+        "",
+        ".",
+        "..",
+        "...",
+        ".livery",
+        ".hidden",
+        "../Winter",
+        "a/b",
+        "a\\b",
+        "C:Winter",
+        "Winter.",
+        "Winter ",
+        "a\nb",
+    ] {
         let e = import_folders(&tmp.user_skins(), &store, &names(&["Winter", bad])).unwrap_err();
         assert_eq!(e.code, ErrorCode::InvalidInput, "{bad:?}");
     }
     assert_eq!(store.all(), [], "nothing is imported when a name is invalid");
 
-    let index = import_folders(&tmp.user_skins(), &store, &names(&["Gone", "Winter", ".hidden"])).unwrap();
+    let index = import_folders(&tmp.user_skins(), &store, &names(&["Gone", "Winter"])).unwrap();
     assert_eq!(folders(&index), ["Winter"]);
 }
 
@@ -214,7 +231,8 @@ fn scan_keeps_index_identity_and_refreshes_disk_facts() {
     let store = LibraryStore::load(path.clone());
     let imported = import_folders(&tmp.user_skins(), &store, &names(&["Winter"])).unwrap().remove(0);
 
-    // Pretend the index knows more than the disk: author, WT Live origin, inactive, older date.
+    // Pretend the index knows more than the disk: author, WT Live origin, older date, and a
+    // stale "inactive" flag (the folder is in UserSkins, so the disk says active).
     let mut known = imported.clone();
     known.origin = Origin::Wtlive;
     known.author = Some(Author {
@@ -242,14 +260,32 @@ fn scan_keeps_index_identity_and_refreshes_disk_facts() {
     assert_eq!(merged.id, known.id);
     assert_eq!(merged.origin, Origin::Wtlive);
     assert_eq!(merged.author, known.author);
-    assert!(!merged.active);
+    assert!(merged.active, "active comes from where the folder is");
     assert_eq!(merged.installed_at, "2025-01-02T03:04:05Z");
     assert_eq!(merged.source_id.as_deref(), Some("wt-123"));
     assert_eq!(merged.name, "Winter Flanker");
     assert_eq!(merged.attention.len(), 1, "attention is fresh");
     assert!(merged.size_bytes < imported.size_bytes, "size is fresh");
 
-    assert_eq!(store.all(), [known], "a scan never changes the index");
+    // Re-check refreshes the index entry it found (and only adds nothing: New One isn't indexed).
+    assert_eq!(store.all(), std::slice::from_ref(merged));
+    assert_eq!(LibraryStore::load(path).all(), std::slice::from_ref(merged), "and saves it");
+}
+
+#[test]
+fn scan_of_an_unchanged_library_writes_nothing() {
+    let tmp = TempDir::new("nowrite");
+    tmp.skin("Winter", "su_27", &[]);
+    let store = LibraryStore::load(tmp.index_path());
+    // Nothing indexed yet (First run lists folders before importing): no file appears.
+    assert_eq!(folders(&scan_game(&tmp.user_skins(), &store).unwrap()), ["Winter"]);
+    assert!(!tmp.index_path().exists());
+
+    import_folders(&tmp.user_skins(), &store, &names(&["Winter"])).unwrap();
+    // Remove the file behind the store's back: a rescan with the same facts doesn't rewrite it.
+    fs::remove_file(tmp.index_path()).unwrap();
+    scan_game(&tmp.user_skins(), &store).unwrap();
+    assert!(!tmp.index_path().exists());
 }
 
 // ── Game folder from settings ───────────────────────────────────────────────

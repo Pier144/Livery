@@ -3,6 +3,8 @@ import { render, type RenderOptions } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { createQueryClient } from '@/queries/client';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
+import { resetCollectionsUi } from '@/store/collections';
+import { hangarDefaults, useHangarStore } from '@/store/hangar';
 import { useQueue } from '@/store/queue';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
@@ -20,6 +22,8 @@ export function resetStores() {
   });
   useToasts.getState().clear();
   useQueue.setState({ items: [], conflictDialogId: null });
+  useHangarStore.setState(hangarDefaults());
+  resetCollectionsUi();
 }
 
 interface ProviderOptions extends RenderOptions {

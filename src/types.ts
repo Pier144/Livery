@@ -148,6 +148,20 @@ export interface Backup {
   reason: 'replace' | 'delete';
 }
 
+export interface CollectionsState {
+  collections: Collection[];
+  /** The collection activated last (its skins are the active ones), if any. */
+  activeCollectionId?: string;
+}
+export interface DeleteResult {
+  /** One per deleted skin; `restore_backups` undoes the delete. */
+  backupIds: string[];
+}
+export interface ExportResult {
+  exported: number;
+  dest: string;
+}
+
 /** Serialized form of the Rust `AppError`. */
 export interface AppError {
   code: string;

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri",
-    "handoff": "node scripts/serve-handoff.mjs"
+    "handoff": "node scripts/serve-handoff.mjs",
+    "dev:mock": "vite --mode mock"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.103.1",

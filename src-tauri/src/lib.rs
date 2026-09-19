@@ -41,6 +41,8 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             app.manage(settings::SettingsStore::load(data_dir.join("settings.json")));
             app.manage(library::LibraryStore::load(data_dir.join("library.json")));
+            // Expired and ephemeral backups go away at launch, not only on the first library command.
+            backup::purge_on_startup(app.handle());
             tracing::info!(data_dir = %data_dir.display(), version = env!("CARGO_PKG_VERSION"), "Livery started");
             Ok(())
         })
@@ -52,6 +54,19 @@ pub fn run() {
             library::scan_user_skins,
             library::import_skins,
             library::get_hangar,
+            library::set_skin_active,
+            library::delete_skins,
+            library::restore_backups,
+            library::export_skins,
+            library::collections::collections_list,
+            library::collections::collections_create,
+            library::collections::collections_update,
+            library::collections::collections_delete,
+            library::collections::collections_restore,
+            library::collections::collections_set_skins,
+            library::collections::activate_collection,
+            backup::list_backups,
+            backup::clear_backups,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Livery");
