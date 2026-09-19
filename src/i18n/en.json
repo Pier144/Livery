@@ -73,9 +73,8 @@
     },
     "drop": {
       "title": "Drop to add to the install queue",
-      "formats": "ZIP · RAR · 7Z",
+      "formats": "ZIP · RAR · 7Z · FOLDER",
       "analyzing": "Analyzing archive…",
-      "unsupported": "Only ZIP, RAR and 7z archives can be added",
       "queued_one": "{{count}} archive added to the install queue",
       "queued_other": "{{count}} archives added to the install queue"
     },
@@ -312,7 +311,106 @@
   "queue": {
     "title": "Install queue",
     "dropZone": "Drop ZIP, RAR or 7z archives anywhere in the window",
-    "browse": "or click to browse"
+    "browse": "or click to browse",
+    "browseTitle": "Add skin archives",
+    "browseFilter": "Skin archives",
+    "chooseFolder": "Choose a skin folder",
+    "foldersOnlyNote": "ZIP, RAR and 7z unpacking arrives in a later update. Skin folders install now.",
+    "empty": "Queue is empty.",
+    "list": "Queued items",
+    "meta": {
+      "items_one": "{{count}} archive",
+      "items_other": "{{count}} archives",
+      "ready_one": "{{count}} ready",
+      "ready_other": "{{count}} ready"
+    },
+    "clearDone": "Clear installed",
+    "installReady_one": "Install {{count}} ready",
+    "installReady_other": "Install {{count}} ready",
+    "status": {
+      "analyzing": "Analyzing",
+      "ready": "Ready",
+      "conflict": "Conflict",
+      "needsLook": "Needs a look",
+      "installing": "Installing",
+      "done": "Installed",
+      "error": "Error"
+    },
+    "note": {
+      "files_one": "{{count}} file",
+      "files_other": "{{count}} files",
+      "textures_one": "{{count}} texture",
+      "textures_other": "{{count}} textures",
+      "analyzing": "Analyzing…",
+      "blkOk": "skin.blk ok",
+      "blkBad": "skin.blk has problems",
+      "conflict": "Same folder name as “{{installed}}” (installed)",
+      "conflictQueued": "Same folder name as “{{installed}}” (queued)",
+      "needsLook_one": "Can’t detect the vehicle. Pick it to continue.",
+      "needsLook_other": "Can’t detect the vehicle: {{count}} folders inside. Pick one to continue.",
+      "installed": "Now in My Hangar",
+      "error": "Something went wrong."
+    },
+    "action": {
+      "install": "Install",
+      "resolve": "Resolve",
+      "pickVehicle": "Pick vehicle",
+      "installed": "Installed",
+      "remove": "Remove {{name}} from the queue"
+    },
+    "progress": {
+      "label": "Installing {{name}}",
+      "extract": "Extract",
+      "verify": "Verify",
+      "done": "Done",
+      "extracting": "Extracting {{pct}}%",
+      "verifying": "Verifying {{pct}}%"
+    },
+    "watch": {
+      "title": "Watch Downloads folder",
+      "helper": "New skin archives install automatically.",
+      "showFolder": "Show folder",
+      "hideFolder": "Hide folder",
+      "defaultFolder": "Downloads (default)",
+      "change": "Change",
+      "pickTitle": "Choose the folder to watch"
+    },
+    "legend": {
+      "title": "What the states mean",
+      "ready": "vehicle detected, files look good.",
+      "conflict": "a skin with the same folder is installed.",
+      "needsLook": "can’t tell which vehicle it’s for.",
+      "done": "it’s in My Hangar and in the game.",
+      "error": "it can’t be installed; the row says why."
+    },
+    "conflict": {
+      "title": "This skin is already installed",
+      "body": "<file>{{file}}</file> uses the same folder as “{{installed}}” on {{vehicle}}.",
+      "bodyNoVehicle": "<file>{{file}}</file> uses the same folder as “{{installed}}”.",
+      "replace": "Replace, keep a backup",
+      "replaceHelp": "The old version goes to Backups. Undo available.",
+      "copy": "Install as a copy",
+      "copyHelp": "Both versions stay. The new one gets “(2)” in its name.",
+      "skip": "Skip",
+      "skipHelp": "Leave the installed version as it is.",
+      "footer": "Change the default in Settings → Conflicts"
+    },
+    "toast": {
+      "notSkin_one": "“{{name}}” isn’t a skin archive or folder",
+      "notSkin_other": "{{count}} items aren’t skin archives or folders",
+      "installed": "Installed “{{name}}”",
+      "installedMany_one": "Installed {{count}} skin",
+      "installedMany_other": "Installed {{count}} skins",
+      "replaced": "Replaced “{{name}}” · backup kept",
+      "replacedPlain": "Replaced “{{name}}”",
+      "restored": "Restored the previous version",
+      "copied": "Installed as a copy",
+      "skipped": "Skipped. Nothing changed."
+    },
+    "announce": {
+      "done": "{{name}}: installed",
+      "error": "{{name}} can’t be installed. {{message}}"
+    }
   },
   "settings": {
     "title": "Settings"

@@ -1,0 +1,6 @@
+replace_tex{
+  from:t="su27_body_c*"; to:t="su27_c";
+}
+replace_tex{
+  from:t="su27_body_n*"; to:t="su27_n";
+}

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetStores } from '@/test/render';
-import { selectPendingCount, useQueue } from './queue';
 import { TOAST_DURATION_MS, toast, useToasts } from './toasts';
 import { useUi } from './ui';
 
@@ -57,24 +56,5 @@ describe('toasts', () => {
   it('keeps at most four, dropping the oldest', () => {
     for (let i = 1; i <= 6; i++) toast(`t${i}`);
     expect(useToasts.getState().toasts.map((t) => t.message)).toEqual(['t3', 't4', 't5', 't6']);
-  });
-});
-
-describe('queue store', () => {
-  it('accepts only zip/rar/7z and adds them as analyzing, newest first', () => {
-    const q = useQueue.getState();
-    q.addPaths(['C:\\Downloads\\a.zip']);
-    const added = q.addPaths(['C:\\Downloads\\b.RAR', 'C:\\Downloads\\notes.txt', '/home/x/c.7z']);
-    expect(added.map((i) => i.fileName)).toEqual(['b.RAR', 'c.7z']);
-    const items = useQueue.getState().items;
-    expect(items.map((i) => i.fileName)).toEqual(['b.RAR', 'c.7z', 'a.zip']);
-    expect(items.every((i) => i.status === 'analyzing')).toBe(true);
-    expect(new Set(items.map((i) => i.id)).size).toBe(3);
-  });
-
-  it('pending count excludes installed items', () => {
-    const [a] = useQueue.getState().addPaths(['a.zip', 'b.zip']);
-    useQueue.getState().update(a!.id, { status: 'done' });
-    expect(selectPendingCount(useQueue.getState())).toBe(1);
   });
 });

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import en from '@/i18n/en.json';
+import { baseName } from '@/lib/format';
 import { useQueue } from '@/store/queue';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
@@ -11,6 +11,7 @@ type DragDropHandler = (event: { payload: Record<string, unknown> }) => void;
 
 const tauri = vi.hoisted(() => ({
   enabled: false,
+  call: vi.fn<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>(),
   handler: undefined as DragDropHandler | undefined,
   unlisten: vi.fn(),
   /** Resolves the `onDragDropEvent` registration; replaced to test unmount-before-resolve. */
@@ -20,7 +21,20 @@ const tauri = vi.hoisted(() => ({
 vi.mock('@/lib/tauri', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/tauri')>()),
   isTauri: () => tauri.enabled,
+  hasBackend: () => true,
+  call: (cmd: string, args?: Record<string, unknown>) => tauri.call(cmd, args),
 }));
+
+/** `analyze_archive`: text and images aren't skins; anything else is a ready skin keyed by its path. */
+function installAnalysis() {
+  tauri.call.mockReset();
+  tauri.call.mockImplementation(async (cmd: string, args: Record<string, unknown> = {}) => {
+    if (cmd !== 'analyze_archive') throw { code: 'noBackend', message: `unexpected ${cmd}` };
+    const path = args.path as string;
+    if (/\.(txt|png)$/i.test(path)) throw { code: 'invalidInput', message: 'Not a skin folder or archive' };
+    return { id: `q-${path}`, path, fileName: baseName(path), sizeBytes: 1, status: 'ready' };
+  });
+}
 
 vi.mock('@tauri-apps/api/webview', () => ({
   getCurrentWebview: () => ({
@@ -51,6 +65,7 @@ const messages = () => useToasts.getState().toasts.map((t) => t.message);
 describe('useFileDrop — browser', () => {
   beforeEach(() => {
     resetStores();
+    installAnalysis();
     tauri.enabled = false;
   });
 
@@ -81,46 +96,43 @@ describe('useFileDrop — browser', () => {
     expect(fireEvent.drop(window, { dataTransfer: files('notes.txt') })).toBe(false);
   });
 
-  it('adds only archives to the queue and opens the queue', () => {
+  it('queues every dropped entry for analysis and opens the queue; what isn’t a skin leaves with one toast', async () => {
     render(<Harness />);
     fireEvent.dragEnter(window, { dataTransfer: files() });
     fireEvent.drop(window, { dataTransfer: files('a.zip', 'notes.txt') });
     expect(active()).toBe(false);
-    const items = useQueue.getState().items;
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ path: 'a.zip', fileName: 'a.zip', status: 'analyzing' });
+    // At once: one "Analyzing archive…" placeholder per entry.
+    expect(useQueue.getState().items.map((i) => [i.fileName, i.status])).toEqual([
+      ['a.zip', 'analyzing'],
+      ['notes.txt', 'analyzing'],
+    ]);
     expect(useUi.getState().screen).toBe('queue');
     expect(messages()).toEqual([]);
+    await waitFor(() => expect(useQueue.getState().items.map((i) => [i.fileName, i.status])).toEqual([['a.zip', 'ready']]));
+    expect(messages()).toEqual(['“notes.txt” isn’t a skin archive or folder']);
   });
 
-  it('toasts and stays put when nothing dropped is an archive', () => {
+  it('opens the queue even when nothing dropped turns out to be a skin', async () => {
     useUi.getState().go('hangar');
     render(<Harness />);
     fireEvent.dragEnter(window, { dataTransfer: files() });
     fireEvent.drop(window, { dataTransfer: files('notes.txt', 'preview.png') });
     expect(active()).toBe(false);
-    expect(useQueue.getState().items).toEqual([]);
-    expect(useUi.getState().screen).toBe('hangar');
-    expect(messages()).toEqual([en.common.drop.unsupported]);
+    expect(useUi.getState().screen).toBe('queue');
+    await waitFor(() => expect(useQueue.getState().items).toEqual([]));
+    expect(messages()).toEqual(['2 items aren’t skin archives or folders']);
   });
 
-  it('during First run adds archives to the queue but stays on the screen, with a toast', () => {
+  it('during First run queues the drop but stays on the screen, with a toast', async () => {
     useUi.getState().go('firstRun');
     render(<Harness />);
     fireEvent.dragEnter(window, { dataTransfer: files() });
     fireEvent.drop(window, { dataTransfer: files('a.zip', 'b.rar', 'notes.txt') });
-    expect(useQueue.getState().items.map((i) => i.fileName)).toEqual(['a.zip', 'b.rar']);
+    expect(useQueue.getState().items.map((i) => i.fileName)).toEqual(['a.zip', 'b.rar', 'notes.txt']);
     expect(useUi.getState().screen).toBe('firstRun');
-    expect(messages()).toEqual(['2 archives added to the install queue']);
-  });
-
-  it('during First run a drop with no archive only toasts', () => {
-    useUi.getState().go('firstRun');
-    render(<Harness />);
-    fireEvent.drop(window, { dataTransfer: files('notes.txt') });
-    expect(useQueue.getState().items).toEqual([]);
+    expect(messages()).toEqual(['3 archives added to the install queue']);
+    await waitFor(() => expect(useQueue.getState().items.map((i) => i.fileName)).toEqual(['a.zip', 'b.rar']));
     expect(useUi.getState().screen).toBe('firstRun');
-    expect(messages()).toEqual([en.common.drop.unsupported]);
   });
 
   it('hands every dropped entry to the folder drop handler instead of the queue', () => {
@@ -177,6 +189,7 @@ describe('useFileDrop — Tauri', () => {
 
   beforeEach(() => {
     resetStores();
+    installAnalysis();
     tauri.enabled = true;
     tauri.handler = undefined;
     tauri.register = undefined;
@@ -218,27 +231,28 @@ describe('useFileDrop — Tauri', () => {
     expect(active()).toBe(false);
   });
 
-  it('adds dropped archive paths to the queue and opens it', async () => {
+  it('adds dropped paths to the queue for analysis and opens it', async () => {
     render(<Harness />);
     await waitFor(() => expect(tauri.handler).toBeDefined());
     const paths = ['C:\\Skins\\tiger.zip', 'C:\\Skins\\readme.txt'];
     emit({ type: 'enter', paths, position });
     emit({ type: 'drop', paths, position });
     expect(active()).toBe(false);
-    const items = useQueue.getState().items;
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ path: 'C:\\Skins\\tiger.zip', fileName: 'tiger.zip', status: 'analyzing' });
+    expect(useQueue.getState().items[0]).toMatchObject({ path: 'C:\\Skins\\tiger.zip', fileName: 'tiger.zip', status: 'analyzing' });
     expect(useUi.getState().screen).toBe('queue');
+    expect(tauri.call.mock.calls.map(([, args]) => args)).toEqual([{ path: paths[0] }, { path: paths[1] }]);
+    await waitFor(() => expect(useQueue.getState().items.map((i) => i.id)).toEqual(['q-C:\\Skins\\tiger.zip']));
   });
 
-  it('toasts when the drop has no archives', async () => {
+  it('queues a dropped skin folder', async () => {
     render(<Harness />);
     await waitFor(() => expect(tauri.handler).toBeDefined());
-    emit({ type: 'enter', paths: ['C:\\Skins'], position });
-    emit({ type: 'drop', paths: ['C:\\Skins'], position });
-    expect(useQueue.getState().items).toEqual([]);
-    expect(useUi.getState().screen).toBe('explore');
-    expect(messages()).toEqual([en.common.drop.unsupported]);
+    emit({ type: 'enter', paths: ['C:\\Skins\\Tiger winter'], position });
+    emit({ type: 'drop', paths: ['C:\\Skins\\Tiger winter'], position });
+    expect(useQueue.getState().items[0]).toMatchObject({ fileName: 'Tiger winter', status: 'analyzing' });
+    expect(useUi.getState().screen).toBe('queue');
+    await waitFor(() => expect(useQueue.getState().items[0]).toMatchObject({ fileName: 'Tiger winter', status: 'ready' }));
+    expect(messages()).toEqual([]);
   });
 
   it('passes dropped folder paths to the folder drop handler', async () => {

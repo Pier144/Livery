@@ -1,0 +1,6 @@
+replace_tex{
+  from:t="tiger_body_c*"; to:t="tiger_body_c";
+}
+replace_tex{
+  from:t="tiger_camo_c*"; to:t="tiger_camo.tga";
+}

@@ -41,8 +41,12 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             app.manage(settings::SettingsStore::load(data_dir.join("settings.json")));
             app.manage(library::LibraryStore::load(data_dir.join("library.json")));
+            app.manage(archive::QueueStore::default());
             // Expired and ephemeral backups go away at launch, not only on the first library command.
             backup::purge_on_startup(app.handle());
+            // Stale install staging (.livery/partial) from a crash or a closed window goes too.
+            archive::purge_on_startup(app.handle());
+            watch::start(app.handle());
             tracing::info!(data_dir = %data_dir.display(), version = env!("CARGO_PKG_VERSION"), "Livery started");
             Ok(())
         })
@@ -66,6 +70,13 @@ pub fn run() {
             library::collections::collections_set_skins,
             library::collections::activate_collection,
             backup::list_backups,
+            archive::analyze_archive,
+            archive::install_from_archive,
+            archive::list_queue,
+            archive::remove_queue_item,
+            archive::undo_replace,
+            textures::read_textures,
+            watch::watch_folder,
             backup::clear_backups,
         ])
         .run(tauri::generate_context!())

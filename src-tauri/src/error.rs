@@ -13,6 +13,8 @@ pub enum ErrorCode {
     InvalidInput,
     /// The target already exists (e.g. a folder name clash when activating or restoring).
     Conflict,
+    /// The feature needs something that isn't available yet (e.g. ZIP/RAR/7z unpacking).
+    Unsupported,
     Network,
     Internal,
 }

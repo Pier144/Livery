@@ -3,3 +3,5 @@
 *.png binary
 *.ico binary
 *.icns binary
+*.dds binary
+*.tga binary

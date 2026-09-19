@@ -21,7 +21,7 @@ export function resetStores() {
     folderDrop: null,
   });
   useToasts.getState().clear();
-  useQueue.setState({ items: [], conflictDialogId: null });
+  useQueue.setState({ items: [], conflictDialogId: null, installs: {}, picked: {}, batchRunning: false });
   useHangarStore.setState(hangarDefaults());
   resetCollectionsUi();
 }

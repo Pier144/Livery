@@ -358,3 +358,113 @@ pub struct ExportResult {
     pub exported: u32,
     pub dest: String,
 }
+
+// ── Install queue & textures (M4) ───────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum QueueStatus {
+    Analyzing,
+    Ready,
+    Conflict,
+    NeedsLook,
+    Installing,
+    Done,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileEntry {
+    /// Path inside the source, `/`-separated.
+    pub path: String,
+    pub size_bytes: u64,
+}
+
+/// One dropped/watched archive or skin folder in the install queue.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueItem {
+    pub id: String,
+    /// Where it came from (archive file or folder).
+    pub path: String,
+    pub file_name: String,
+    pub size_bytes: u64,
+    pub status: QueueStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vehicle: Option<Vehicle>,
+    /// needsLook: one entry per skin root found inside.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub candidates: Vec<Vehicle>,
+    /// conflict: `HangarSkin.id` of the installed skin using the same folder (or `disk:<folder>`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conflict_with: Option<String>,
+    /// Folder name it will be installed as inside UserSkins.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_folder: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<FileEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub texture_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blk_ok: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InstallStep {
+    Download,
+    Extract,
+    Verify,
+    Done,
+    Error,
+}
+
+/// Payload of `install://progress`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallProgress {
+    pub install_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queue_id: Option<String>,
+    pub step: InstallStep,
+    /// 0–100 within the whole install.
+    pub pct: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// done: the installed skin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skin_id: Option<String>,
+    /// done after a Replace: the backup of the previous version (drives Undo).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backup_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallStarted {
+    pub install_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextureInfo {
+    pub file: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    /// e.g. "BC7", "BC5", "BC1", "RGBA8", "RGB8", "BLK".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub missing: bool,
+}
