@@ -9,7 +9,7 @@
 use super::header::{self, Header, TextureKind, HEADER_BYTES};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::blk;
-use crate::model::TextureInfo;
+use crate::model::{TextureInfo, TextureWarningKind};
 use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Read};
@@ -64,15 +64,26 @@ pub fn inspect_file(path: &Path) -> TextureInfo {
     let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let size_bytes = fs::metadata(path).ok().filter(fs::Metadata::is_file).map(|m| m.len());
     match read_header(path, &file) {
-        Ok(Header { width, height, format }) => TextureInfo {
-            warning: size_warning(width, height),
-            file,
-            width: Some(width),
-            height: Some(height),
-            format: Some(format),
-            size_bytes,
-            missing: false,
-        },
+        Ok(Header { width, height, format }) => {
+            let warning = size_warning(width, height);
+            let warning_kind = warning.as_deref().map(|w| {
+                if w == NOT_SQUARE_POW2_WARNING {
+                    TextureWarningKind::NotSquarePow2
+                } else {
+                    TextureWarningKind::Heavy
+                }
+            });
+            TextureInfo {
+                warning,
+                warning_kind,
+                file,
+                width: Some(width),
+                height: Some(height),
+                format: Some(format),
+                size_bytes,
+                missing: false,
+            }
+        }
         Err(reason) => {
             tracing::debug!(file = %file, %reason, "texture header can't be read");
             TextureInfo {
@@ -82,6 +93,7 @@ pub fn inspect_file(path: &Path) -> TextureInfo {
                 format: None,
                 size_bytes,
                 warning: Some(UNREADABLE_WARNING.to_owned()),
+                warning_kind: Some(TextureWarningKind::Unreadable),
                 missing: false,
             }
         }
@@ -168,6 +180,7 @@ fn build<S: AsRef<str>>(dir: &Path, listing: &Listing, blk_refs: &[S]) -> Vec<Te
             format: None,
             size_bytes: None,
             warning: Some(MISSING_WARNING.to_owned()),
+            warning_kind: Some(TextureWarningKind::Missing),
             missing: true,
         })
         .collect();
@@ -182,6 +195,7 @@ fn build<S: AsRef<str>>(dir: &Path, listing: &Listing, blk_refs: &[S]) -> Vec<Te
             format: Some(BLK_FORMAT.to_owned()),
             size_bytes: fs::metadata(dir.join(name)).ok().map(|m| m.len()),
             warning: None,
+            warning_kind: None,
             missing: false,
         });
     }

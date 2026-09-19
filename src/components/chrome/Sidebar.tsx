@@ -63,7 +63,8 @@ export function Sidebar({ liveSkinCount }: SidebarProps) {
           key={item.id}
           {...item}
           collapsed={!open}
-          active={screen === item.id}
+          // The Skin detail belongs to Explore (prototype).
+          active={screen === item.id || (screen === 'detail' && item.id === 'explore')}
           badge={item.id === 'queue' ? pending : 0}
           describedBy={badgeId}
         />

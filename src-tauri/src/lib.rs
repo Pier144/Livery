@@ -77,6 +77,14 @@ pub fn run() {
             archive::undo_replace,
             textures::read_textures,
             watch::watch_folder,
+            wtlive::wtlive_search,
+            wtlive::wtlive_post,
+            wtlive::wtlive_following_new,
+            wtlive::install_from_wtlive,
+            wtlive::finalize_try,
+            wtlive::following_list,
+            wtlive::following_set,
+            wtlive::following_mark_seen,
             backup::clear_backups,
         ])
         .run(tauri::generate_context!())

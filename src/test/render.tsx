@@ -19,6 +19,8 @@ export function resetStores() {
     online: true,
     dragActive: false,
     folderDrop: null,
+    detailSkinId: null,
+    firstRun: { step: 'detect', returnTo: 'explore' },
   });
   useToasts.getState().clear();
   useQueue.setState({ items: [], conflictDialogId: null, installs: {}, picked: {}, batchRunning: false });

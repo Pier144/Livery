@@ -54,6 +54,17 @@ pub struct Settings {
     pub start_with_windows: bool,
     /// First run finished or skipped; the app then opens on Explore.
     pub onboarded: bool,
+    /// Settings → General → Reduce motion (`system` follows Windows).
+    pub reduce_motion: ReduceMotion,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReduceMotion {
+    #[default]
+    System,
+    On,
+    Off,
 }
 
 impl Default for Settings {
@@ -71,6 +82,7 @@ impl Default for Settings {
             auto_update: true,
             start_with_windows: false,
             onboarded: false,
+            reduce_motion: ReduceMotion::System,
         }
     }
 }
@@ -93,6 +105,7 @@ pub struct SettingsPatch {
     pub auto_update: Option<bool>,
     pub start_with_windows: Option<bool>,
     pub onboarded: Option<bool>,
+    pub reduce_motion: Option<ReduceMotion>,
 }
 
 /// Deserializes a present field as `Some(value)`, so `Option<Option<T>>` can tell
@@ -139,6 +152,9 @@ impl Settings {
         }
         if let Some(v) = patch.onboarded {
             self.onboarded = v;
+        }
+        if let Some(v) = patch.reduce_motion {
+            self.reduce_motion = v;
         }
     }
 }
@@ -454,6 +470,9 @@ pub struct InstallStarted {
 #[serde(rename_all = "camelCase")]
 pub struct TextureInfo {
     pub file: String,
+    /// Localizable kind of `warning` (the UI translates it; `warning` stays as English fallback).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning_kind: Option<TextureWarningKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub width: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -467,4 +486,110 @@ pub struct TextureInfo {
     pub warning: Option<String>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub missing: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TextureWarningKind {
+    Unreadable,
+    NotSquarePow2,
+    Heavy,
+    Missing,
+}
+
+// ── WT Live (M5) ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Category {
+    Historical,
+    #[serde(rename = "Semi-historical")]
+    SemiHistorical,
+    Fictional,
+    Camouflage,
+    Other,
+}
+
+/// A skin post on WT Live (Explore, Following, Skin detail).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WtLiveSkin {
+    pub id: String,
+    pub name: String,
+    pub vehicle: Vehicle,
+    pub author: Author,
+    pub category: Category,
+    pub downloads: u64,
+    pub likes: u64,
+    /// RFC 3339.
+    pub posted_at: String,
+    pub size_bytes: u64,
+    pub images: Vec<String>,
+    pub post_url: String,
+    pub download_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub files: Option<Vec<FileEntry>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_new: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SortOrder {
+    Downloads,
+    Likes,
+    Newest,
+    Name,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchParams {
+    #[serde(default)]
+    pub q: Option<String>,
+    #[serde(default)]
+    pub nation: Option<Nation>,
+    #[serde(default, rename = "type")]
+    pub vehicle_type: Option<VehicleType>,
+    #[serde(default)]
+    pub class: Option<String>,
+    /// Vehicle code.
+    #[serde(default)]
+    pub vehicle: Option<String>,
+    #[serde(default)]
+    pub category: Option<Category>,
+    pub sort: SortOrder,
+    pub page: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResult {
+    pub items: Vec<WtLiveSkin>,
+    pub total: u64,
+    pub took_ms: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FollowKind {
+    Vehicle,
+    Author,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FollowEntry {
+    pub kind: FollowKind,
+    /// Vehicle code or author id.
+    pub id: String,
+    pub name: String,
+    /// RFC 3339; skins posted after it count as new.
+    pub last_seen_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InstallMode {
+    Normal,
+    Temporary,
 }
