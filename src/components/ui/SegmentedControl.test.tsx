@@ -133,6 +133,27 @@ describe('SegmentedControl', () => {
     expect(onChange).toHaveBeenCalledWith('list');
   });
 
+  it('describes the group with aria-describedby when given', () => {
+    renderWithProviders(
+      <>
+        <p id="motion-help">Follows your Windows setting by default.</p>
+        <SegmentedControl
+          label="Reduce motion"
+          value="system"
+          onChange={() => {}}
+          options={[{ value: 'system', label: 'System' }]}
+          aria-describedby="motion-help"
+        />
+      </>,
+    );
+    expect(screen.getByRole('radiogroup', { name: 'Reduce motion' })).toHaveAccessibleDescription('Follows your Windows setting by default.');
+  });
+
+  it('has no description by default', () => {
+    renderWithProviders(<Harness />);
+    expect(group()).not.toHaveAttribute('aria-describedby');
+  });
+
   it('has no serious axe violations', async () => {
     const { container } = renderWithProviders(<Harness />);
     expect(await seriousViolations(container)).toEqual([]);

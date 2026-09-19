@@ -66,6 +66,15 @@ export const INITIAL_FIRST_RUN: FirstRunState = {
   invalidFolder: false,
 };
 
+/**
+ * Where a run starts: `detect` = the onboarding (Detect first); `choose` = Settings → Game → Change,
+ * straight to the folder picker (not-found view) without detecting. The screen offers "Back to
+ * Settings" there instead of "Back", so a choose entry never detects.
+ */
+export function initialFirstRun(step: 'detect' | 'choose'): FirstRunState {
+  return step === 'choose' ? { ...INITIAL_FIRST_RUN, step: 'confirm', view: 'notFound', progress: 100 } : INITIAL_FIRST_RUN;
+}
+
 const NOT_FOUND: GameDetection = { found: false, existingSkins: 0 };
 
 const isFinal = (s: DetectState | undefined): s is Exclude<DetectState, 'checking'> =>

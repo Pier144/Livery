@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toAppError } from '@/lib/tauri';
 import { detectGame, useImportSkins, useScanUserSkins, useSetGamePath } from '@/queries/game';
@@ -8,18 +8,23 @@ import { useUi } from '@/store/ui';
 import type { GameSource } from '@/types';
 import { ConfirmStep } from './ConfirmStep';
 import { DetectStep } from './DetectStep';
-import { INITIAL_FIRST_RUN, TICK_MS, firstRunReducer, stepIndex } from './firstRunMachine';
+import { TICK_MS, firstRunReducer, initialFirstRun, stepIndex } from './firstRunMachine';
 import { ImportStep } from './ImportStep';
 import { StepTracker } from './StepTracker';
 import { TechAnimation } from './TechAnimation';
 
 /**
  * First run (README §1): Detect → Confirm (found / not found) → Import, with the technical
- * drawing on the right. Finishing or skipping sets `onboarded` and opens Explore.
+ * drawing on the right. Finishing or skipping sets `onboarded` and opens `useUi.firstRun.returnTo`
+ * (Explore for the onboarding). Settings → Game → Change starts it at `choose`: straight to the
+ * folder picker without detecting, with "Back to Settings" (a cancel that changes nothing) in place
+ * of "Skip for now" and "Back", and back to Settings when a folder is set.
  */
 export function FirstRun() {
   const { t } = useTranslation();
-  const [state, dispatch] = useReducer(firstRunReducer, INITIAL_FIRST_RUN);
+  // Read once: the entry describes this run, whatever happens to the store meanwhile.
+  const [entry] = useState(() => useUi.getState().firstRun);
+  const [state, dispatch] = useReducer(firstRunReducer, entry.step, initialFirstRun);
   const setGamePath = useSetGamePath();
   const scan = useScanUserSkins();
   const importSkins = useImportSkins();
@@ -27,7 +32,9 @@ export function FirstRun() {
   const busy = setGamePath.isPending || importSkins.isPending || updateSettings.isPending;
 
   // Detection: results arrive in ms and are buffered; the tick below reveals them.
+  // Every run id starts on Detect, except the first one of a `choose` entry (no detection on mount).
   useEffect(() => {
+    if (state.step !== 'detect') return;
     let alive = true;
     detectGame((event) => {
       if (alive) dispatch({ type: 'detectEvent', event });
@@ -55,7 +62,8 @@ export function FirstRun() {
   // Each new step (or Confirm view) moves focus to its heading so screen readers hear it.
   const headingRef = useRef<HTMLHeadingElement>(null);
   const stepKey = state.step === 'confirm' ? `confirm-${state.view}` : state.step;
-  const shownKey = useRef(stepKey);
+  // A `choose` entry comes from Settings: focus its heading on arrival too (the Change button is gone).
+  const shownKey = useRef<string | null>(entry.step === 'choose' ? null : stepKey);
   useEffect(() => {
     if (shownKey.current === stepKey) return;
     shownKey.current = stepKey;
@@ -68,7 +76,7 @@ export function FirstRun() {
       {
         onSuccess: () => {
           if (message) toast(message);
-          useUi.getState().go('explore');
+          useUi.getState().go(entry.returnTo);
         },
         onError: (e) => toast(e.message),
       },
@@ -153,6 +161,8 @@ export function FirstRun() {
               onFolder={(path) => applyFolder(path)}
               onSkip={() => !busy && finish(t('firstRun.toast.later'))}
               onBack={() => !busy && dispatch({ type: 'back' })}
+              // From Settings: leave without touching anything (no detection, no settings write).
+              onCancel={entry.step === 'choose' ? () => !busy && useUi.getState().go(entry.returnTo) : undefined}
             />
           )}
           {state.step === 'import' && (

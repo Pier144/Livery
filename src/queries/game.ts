@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { call, isTauri } from '@/lib/tauri';
 import { DETECT_EVENT, type AppError, type DetectEvent, type GameDetection, type GameSource, type HangarSkin } from '@/types';
+import { COLLECTIONS_KEY } from './collections';
 import { HANGAR_KEY } from './hangar';
-import { SETTINGS_KEY } from './settings';
+import { BACKUPS_KEY, SETTINGS_KEY } from './settings';
 
 /** What the plain-browser build (`pnpm dev`, no backend) reports: nothing found anywhere. */
 const BROWSER_EVENTS: DetectEvent[] = [
@@ -44,14 +45,18 @@ export interface SetGamePathArgs {
 
 /**
  * Validates and saves the game root (`set_game_path`). Rejects with code `invalidInput` when the
- * folder isn't War Thunder. The backend persists gamePath/gameSource/gameVersion, so settings are
- * refetched before the mutation settles.
+ * folder isn't War Thunder. The backend persists gamePath/gameSource/gameVersion, and each game
+ * folder has its own library index (skins, collections, backups), so the settings, My Hangar,
+ * the collections and the backups list are refetched before the mutation settles.
  */
 export function useSetGamePath() {
   const qc = useQueryClient();
   return useMutation<GameDetection, AppError, SetGamePathArgs>({
     mutationFn: ({ path, source }) => call<GameDetection>('set_game_path', source ? { path, source } : { path }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: SETTINGS_KEY }),
+    onSuccess: () =>
+      Promise.all(
+        [SETTINGS_KEY, HANGAR_KEY, COLLECTIONS_KEY, BACKUPS_KEY].map((queryKey) => qc.invalidateQueries({ queryKey })),
+      ),
   });
 }
 

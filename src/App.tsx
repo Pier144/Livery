@@ -9,6 +9,7 @@ import { useFileDrop } from '@/hooks/useFileDrop';
 import { useInstallEvents } from '@/hooks/useInstallEvents';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useWtLiveInstallEvents } from '@/store/installs';
 import { useSettings } from '@/queries/settings';
 import { useNetStatusEvents } from '@/queries/wtlive';
@@ -61,6 +62,7 @@ export function App() {
   useWtLiveInstallEvents();
   useNetStatusEvents();
   useLanguageSync();
+  useReduceMotion();
   const booted = useBootScreen();
   const { t } = useTranslation();
   const screen = useUi((s) => s.screen);
