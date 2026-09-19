@@ -1,0 +1,104 @@
+{
+  "common": {
+    "appName": "Livery",
+    "brand": "LIVERY",
+    "unofficial": "Unofficial tool, not affiliated with Gaijin Entertainment.",
+    "undo": "Undo",
+    "dismiss": "Dismiss",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "showPath": "Show path",
+    "hidePath": "Hide path",
+    "comingIn": "Coming in {{milestone}}",
+    "loading": "Loading",
+    "titlebar": {
+      "offline": "OFFLINE · library only",
+      "search": "Search skins, vehicles, authors",
+      "searchShortcut": "Ctrl K",
+      "minimize": "Minimize",
+      "maximize": "Maximize",
+      "restore": "Restore",
+      "close": "Close"
+    },
+    "nav": {
+      "label": "Sections",
+      "explore": "Explore",
+      "hangar": "My Hangar",
+      "collections": "Collections",
+      "queue": "Install queue",
+      "settings": "Settings",
+      "queueBadge_one": "{{count}} archive waiting",
+      "queueBadge_other": "{{count}} archives waiting",
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar"
+    },
+    "status": {
+      "game": "War Thunder",
+      "source": {
+        "steam": "STEAM",
+        "standalone": "STANDALONE",
+        "custom": "CUSTOM",
+        "none": "NOT SET"
+      },
+      "online": "WT Live online · {{count, number}} skins",
+      "onlineNoCount": "WT Live online",
+      "offline": "WT Live offline",
+      "hangar": "Hangar {{count, number}} · {{size}}"
+    },
+    "palette": {
+      "label": "Command palette",
+      "input": "Command",
+      "placeholder": "Jump to a vehicle, skin or action…",
+      "esc": "Esc",
+      "results": "Results",
+      "kind": {
+        "skin": "Skin",
+        "vehicle": "Vehicle",
+        "action": "Action"
+      },
+      "actions": {
+        "explore": "Go to Explore",
+        "hangar": "Go to My Hangar",
+        "collections": "Go to Collections",
+        "queue": "Open Install queue",
+        "settings": "Open Settings"
+      },
+      "empty": "No matches",
+      "hintNavigate": "↑↓ navigate",
+      "hintOpen": "↵ open",
+      "hintClose": "Ctrl K close"
+    },
+    "drop": {
+      "title": "Drop to add to the install queue",
+      "formats": "ZIP · RAR · 7Z",
+      "analyzing": "Analyzing archive…",
+      "added_one": "Added {{count}} archive to the install queue",
+      "added_other": "Added {{count}} archives to the install queue",
+      "unsupported": "Only ZIP, RAR and 7z archives can be added"
+    },
+    "toasts": {
+      "region": "Notifications"
+    }
+  },
+  "explore": {
+    "title": "Explore",
+    "following": "Following"
+  },
+  "hangar": {
+    "title": "My Hangar",
+    "emptyTitle": "Nothing here yet",
+    "emptyBody": "Install a skin from Explore, or drop a ZIP anywhere in this window.",
+    "emptyAction": "Browse WT Live"
+  },
+  "collections": {
+    "title": "Collections"
+  },
+  "queue": {
+    "title": "Install queue",
+    "dropZone": "Drop ZIP, RAR or 7z archives anywhere in the window",
+    "browse": "or click to browse"
+  },
+  "settings": {
+    "title": "Settings"
+  }
+}

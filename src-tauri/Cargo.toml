@@ -1,0 +1,29 @@
+[package]
+name = "livery"
+version = "0.1.0"
+description = "Unofficial War Thunder user-skin manager. Not affiliated with Gaijin Entertainment."
+edition = "2021"
+rust-version = "1.80"
+publish = false
+
+[lib]
+# `_lib` suffix avoids a name clash with the bin target on Windows (see Tauri issue #10537).
+name = "livery_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "ansi", "std"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

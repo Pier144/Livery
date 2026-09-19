@@ -1,0 +1,11 @@
+[
+  { "code": "germ_pzkpfw_VI_ausf_b_tiger_IIH", "name": "Tiger II (H)", "nation": "GER", "type": "ground", "class": "Heavy tank" },
+  { "code": "ussr_t_34_85", "name": "T-34-85", "nation": "USSR", "type": "ground", "class": "Medium tank" },
+  { "code": "us_m1a2_sep", "name": "M1A2 SEP", "nation": "USA", "type": "ground", "class": "MBT" },
+  { "code": "germ_leopard_2a6", "name": "Leopard 2A6", "nation": "GER", "type": "ground", "class": "MBT" },
+  { "code": "it_c1_ariete", "name": "Ariete", "nation": "ITA", "type": "ground", "class": "MBT" },
+  { "code": "f_4e", "name": "F-4E Phantom II", "nation": "USA", "type": "air", "class": "Strike aircraft" },
+  { "code": "bf-109g-6", "name": "Bf 109 G-6", "nation": "GER", "type": "air", "class": "Fighter" },
+  { "code": "spitfire_mk9c", "name": "Spitfire Mk IX", "nation": "GBR", "type": "air", "class": "Fighter" },
+  { "code": "su_27", "name": "Su-27", "nation": "USSR", "type": "air", "class": "Fighter" }
+]

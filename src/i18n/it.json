@@ -1,0 +1,104 @@
+{
+  "common": {
+    "appName": "Livery",
+    "brand": "LIVERY",
+    "unofficial": "Strumento non ufficiale, non affiliato con Gaijin Entertainment.",
+    "undo": "Annulla",
+    "dismiss": "Chiudi",
+    "retry": "Riprova",
+    "cancel": "Annulla",
+    "showPath": "Mostra percorso",
+    "hidePath": "Nascondi percorso",
+    "comingIn": "In arrivo con {{milestone}}",
+    "loading": "Caricamento",
+    "titlebar": {
+      "offline": "OFFLINE · solo libreria",
+      "search": "Cerca skin, veicoli, autori",
+      "searchShortcut": "Ctrl K",
+      "minimize": "Riduci a icona",
+      "maximize": "Ingrandisci",
+      "restore": "Ripristina",
+      "close": "Chiudi"
+    },
+    "nav": {
+      "label": "Sezioni",
+      "explore": "Esplora",
+      "hangar": "Il mio hangar",
+      "collections": "Collezioni",
+      "queue": "Coda di installazione",
+      "settings": "Impostazioni",
+      "queueBadge_one": "{{count}} archivio in attesa",
+      "queueBadge_other": "{{count}} archivi in attesa",
+      "collapse": "Comprimi barra laterale",
+      "expand": "Espandi barra laterale"
+    },
+    "status": {
+      "game": "War Thunder",
+      "source": {
+        "steam": "STEAM",
+        "standalone": "STANDALONE",
+        "custom": "PERSONALIZZATO",
+        "none": "NON IMPOSTATO"
+      },
+      "online": "WT Live online · {{count, number}} skin",
+      "onlineNoCount": "WT Live online",
+      "offline": "WT Live offline",
+      "hangar": "Hangar {{count, number}} · {{size}}"
+    },
+    "palette": {
+      "label": "Palette dei comandi",
+      "input": "Comando",
+      "placeholder": "Vai a un veicolo, una skin o un'azione…",
+      "esc": "Esc",
+      "results": "Risultati",
+      "kind": {
+        "skin": "Skin",
+        "vehicle": "Veicolo",
+        "action": "Azione"
+      },
+      "actions": {
+        "explore": "Vai a Esplora",
+        "hangar": "Vai a Il mio hangar",
+        "collections": "Vai a Collezioni",
+        "queue": "Apri la coda di installazione",
+        "settings": "Apri le impostazioni"
+      },
+      "empty": "Nessun risultato",
+      "hintNavigate": "↑↓ naviga",
+      "hintOpen": "↵ apri",
+      "hintClose": "Ctrl K chiudi"
+    },
+    "drop": {
+      "title": "Rilascia per aggiungere alla coda di installazione",
+      "formats": "ZIP · RAR · 7Z",
+      "analyzing": "Analisi dell'archivio…",
+      "added_one": "{{count}} archivio aggiunto alla coda di installazione",
+      "added_other": "{{count}} archivi aggiunti alla coda di installazione",
+      "unsupported": "Si possono aggiungere solo archivi ZIP, RAR e 7z"
+    },
+    "toasts": {
+      "region": "Notifiche"
+    }
+  },
+  "explore": {
+    "title": "Esplora",
+    "following": "Seguiti"
+  },
+  "hangar": {
+    "title": "Il mio hangar",
+    "emptyTitle": "Non c'è ancora niente",
+    "emptyBody": "Installa una skin da Esplora, oppure trascina uno ZIP in qualsiasi punto della finestra.",
+    "emptyAction": "Sfoglia WT Live"
+  },
+  "collections": {
+    "title": "Collezioni"
+  },
+  "queue": {
+    "title": "Coda di installazione",
+    "dropZone": "Trascina archivi ZIP, RAR o 7z in qualsiasi punto della finestra",
+    "browse": "oppure fai clic per sfogliare"
+  },
+  "settings": {
+    "title": "Impostazioni"
+  }
+}
