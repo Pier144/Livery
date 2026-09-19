@@ -33,7 +33,7 @@ Checks at the latest commit: `pnpm typecheck` clean · `pnpm test` 662 passing �
 
 | Dependency | Unlocks | Status today |
 |---|---|---|
-| HTTP client (`reqwest` + rustls) + `scraper` (or WT Live's JSON endpoints) | M5 backend: search, post, following-new, download for install / Try in game; parser tests against saved-HTML fixtures (BUILD_PLAN M5), which someone must capture online | `DisabledClient` answers `unsupported` + `net://status` offline; the UI shows the designed offline state. Check WT Live's terms of use before scraping. |
+| HTTP client (`reqwest` + rustls) + a JSON parser | M5 backend: search, post, following-new, download for install / Try in game. **Read [docs/wtlive-terms.md](docs/wtlive-terms.md) first**: the terms were checked on 2026-09-19 (downloads are expressly licensed, listing is a grey area, the Marketplace is off limits) and WT Live serves its content through JSON endpoints, not HTML, so `scraper` is not needed and the saved-HTML fixtures become saved-JSON fixtures. | `DisabledClient` answers `unsupported` + `net://status` offline; the UI shows the designed offline state. |
 | `zip`, `unrar`, `sevenz-rust` | Installing .zip/.rar/.7z (M4), and ZIP export ("zip per skin", DESIGN_NOTES "M3 · Export"). Add `ZipSource` etc. implementing `archive::SkinSource`, flip `ARCHIVES_SUPPORTED` in `src/screens/Queue/queueModel.ts`, add the three archive fixtures | Archives become `unsupported` error rows; skin folders install; export copies folders |
 | `tauri-plugin-opener` | "Open original post", About links, "Show in Explorer" | Detail copies the post URL to the clipboard; About links are unavailable |
 | `tauri-plugin-autostart` | Settings → Start with Windows | Switch unavailable, with a helper |
@@ -48,7 +48,7 @@ Already approved and in use: `tauri-plugin-dialog`, `winreg`, jsdom/testing-libr
 
 - **Vehicle list source (BUILD_PLAN open decision 3).** `src/data/vehicles.json` is still the 9-vehicle placeholder seed. It feeds the Explore autocomplete and class chips, the palette and the Rust nation/type fallback. Which public datamine should we use, and is its licence OK to ship?
 - **Updater endpoint.** The repo exists (<https://github.com/Pier144/Livery>); the updater still needs a public release feed and a signing key before it can be switched on.
-- **WT Live.** Is scraping allowed by its terms? Who captures the saved-HTML fixtures (needs network access)?
+- **WT Live.** The terms are documented in [docs/wtlive-terms.md](docs/wtlive-terms.md): the remaining choices are accepting the discretionary risk, and whether to ask Gaijin before the public release.
 - **Following a vehicle.** The README only designs the author Follow button. The Skin detail now has a small Follow toggle on the VEHICLE row of the side panel (DESIGN_NOTES "M5 · Skin detail · side panel"). Is that OK?
 - **Two WT Live posts in the same folder.** Folders are named `<code>_<author>`, so two different posts by one author for one vehicle clash. The mock installs the second into `<folder> (2)`; the Rust plan applies the conflict policy as in the queue. Which rule should the real pipeline use?
 - **Hangar clicks.** WT Live skins open their Skin detail on click/Enter (prototype); local skins still select on click, because there is no texture viewer (DESIGN_NOTES "M3 · Hangar interaction"). OK?
