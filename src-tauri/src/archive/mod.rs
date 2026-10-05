@@ -1,10 +1,12 @@
 //! Install queue (M4): skin sources, analysis, staged install into `UserSkins` with
 //! `install://progress` events, conflict policies and Undo of a Replace.
 //!
-//! - `source`: what a dropped or watched path holds ([`SkinSource`]); folders today, ZIP/RAR/7z
-//!   once their unpacking crates are approved (until then they become `error` items);
+//! - `source`: what a dropped or watched path holds ([`SkinSource`]): a folder, or a ZIP, 7z or
+//!   RAR archive (`zip_source`, `sevenz_source`, `rar_source`, sharing the checks and the staged
+//!   writer in `unpack`: no path outside the destination, no links, no encrypted or split
+//!   archives, capped sizes);
 //! - `analyze`: skin roots, vehicle, target folder, name clashes → a [`QueueItem`];
-//! - `install`: copy into `UserSkins/.livery/partial/<installId>/<folder>` (with the
+//! - `install`: copy or unpack into `UserSkins/.livery/partial/<installId>/<folder>` (with the
 //!   `.livery-partial` marker), verify, then one atomic rename into place inside a library
 //!   transaction (Replace backs the old version up first); Undo of a Replace.
 //!
@@ -15,21 +17,30 @@
 
 pub mod analyze;
 pub mod install;
+pub mod rar_source;
+pub mod sevenz_source;
 pub mod source;
+pub mod unpack;
+pub mod zip_source;
 
 pub use analyze::{analyze_path, analyze_source, sanitize_folder_name, Analysis, Queued, SkinRoot};
 // `install::undo_replace` is the plain function behind the `undo_replace` command below.
 pub use install::{prepare, purge_partials, run, run_with_source, Ctx, InstallJob};
-pub use source::{open_source, ExtractTick, FolderSource, SkinSource, SourceEntry, UNSUPPORTED_ARCHIVES};
+pub use rar_source::RarSource;
+pub use sevenz_source::SevenZSource;
+pub use source::{open_source, open_source_with, ArchiveKind, ExtractTick, FolderSource, SkinSource, SourceEntry};
+pub use unpack::Limits;
+pub use zip_source::ZipSource;
 
 use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::root;
 use crate::library::index::{folder_key, Library};
 use crate::library::{self, layout, GameLibrary, LibraryStore};
-use crate::model::{ConflictPolicy, HangarSkin, InstallStarted, QueueItem, QueueStatus, TextureInfo};
+use crate::model::{ConflictPolicy, FileEntry, HangarSkin, InstallStarted, QueueItem, QueueStatus, TextureInfo};
 use crate::settings::SettingsStore;
 use crate::textures;
+use crate::textures::header::{TextureKind, HEADER_BYTES};
 use analyze::Conflict;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -60,7 +71,8 @@ pub(crate) struct Entry {
     pub source: PathBuf,
     /// Skin roots inside; one once a vehicle was picked.
     pub roots: Vec<SkinRoot>,
-    /// Why the source can't be opened (unsupported archive); returned by install / textures.
+    /// Why the source can't be opened (an archive that can't be unpacked); returned by install /
+    /// textures.
     pub failure: Option<AppError>,
     /// The skin this item installed (drives the queue side of Undo).
     pub installed_skin: Option<String>,
@@ -223,9 +235,10 @@ fn refresh(entries: &mut [Entry], user_skins: Option<&Path>, library: &Library) 
 }
 
 /// The texture list of a queued item, read from its source: the skin's folder as it is (plain
-/// folders). An item with several skins lists them all, each file prefixed with `<folder>/`.
-/// `notFound` for an unknown id; the item's own error (`unsupported` for archives,
-/// `invalidInput` when there's no skin) when it holds nothing to read.
+/// folders), or, for an archive, the headers read from it (see [`archive_textures`]). An item
+/// with several skins lists them all, each file prefixed with `<folder>/`. `notFound` for an
+/// unknown id; the item's own error (an archive that can't be unpacked, `invalidInput` when
+/// there's no skin) when it holds nothing to read.
 pub fn textures_for_queue(queue: &QueueStore, queue_id: &str) -> AppResult<Vec<TextureInfo>> {
     let entry = queue
         .lock()
@@ -237,13 +250,18 @@ pub fn textures_for_queue(queue: &QueueStore, queue_id: &str) -> AppResult<Vec<T
         return Err(entry.failure.unwrap_or_else(|| AppError::new(ErrorCode::InvalidInput, analyze::NO_BLK_ERROR)));
     }
     let source = open_source(&entry.source)?;
+    let in_archive = !entry.source.is_dir();
     let several = entry.roots.len() > 1;
     let mut list = Vec::new();
     for root in &entry.roots {
-        let dir = source.local_dir(&root.dir).ok_or_else(|| {
-            AppError::new(ErrorCode::NotFound, source::SOURCE_GONE).with_detail(root::display_path(&entry.source))
-        })?;
-        let textures = textures::inspect_skin(&dir)?;
+        let textures = match source.local_dir(&root.dir) {
+            Some(dir) => textures::inspect_skin(&dir)?,
+            None if in_archive => archive_textures(source.as_ref(), root)?,
+            None => {
+                return Err(AppError::new(ErrorCode::NotFound, source::SOURCE_GONE)
+                    .with_detail(root::display_path(&entry.source)))
+            }
+        };
         if several {
             list.extend(
                 textures.into_iter().map(|t| TextureInfo { file: format!("{}/{}", root.target_folder, t.file), ..t }),
@@ -253,6 +271,84 @@ pub fn textures_for_queue(queue: &QueueStore, queue_id: &str) -> AppResult<Vec<T
         }
     }
     Ok(list)
+}
+
+/// Skin `.blk` files are a few hundred bytes; the texture reader refuses more than this.
+const MAX_BLK_BYTES: u64 = 4 * 1024 * 1024;
+
+/// The texture list of a skin inside an archive, without unpacking it: the headers of its
+/// top-level textures and its `.blk` are read in one pass, then laid out in a scratch folder
+/// (headers only, every other file empty) for the same reader the folders use; the sizes come
+/// from the archive's listing. The scratch folder goes when done.
+pub fn archive_textures(source: &dyn SkinSource, root: &SkinRoot) -> AppResult<Vec<TextureInfo>> {
+    let prefix = if root.dir.is_empty() { String::new() } else { format!("{}/", root.dir) };
+    let top: Vec<&FileEntry> = root.files.iter().filter(|f| !f.path.contains('/')).collect();
+    let wanted: Vec<(String, u64)> = top
+        .iter()
+        .filter_map(|f| {
+            let limit = if f.path == root.blk {
+                MAX_BLK_BYTES + 1
+            } else if TextureKind::from_file_name(&f.path).is_some() {
+                HEADER_BYTES as u64
+            } else {
+                return None;
+            };
+            Some((format!("{prefix}{}", f.path), limit))
+        })
+        .collect();
+    let found = source.read_many(&wanted)?;
+
+    let scratch = std::env::temp_dir().join(format!("{TEXTURES_SCRATCH}{}", library::index::new_id_with("t")));
+    let _cleanup = RemoveOnDrop(scratch.clone());
+    let scratch_error =
+        |e: std::io::Error| AppError::new(ErrorCode::Io, "Could not read the skin folder").with_detail(e.to_string());
+    std::fs::create_dir_all(&scratch).map_err(scratch_error)?;
+    for file in &root.files {
+        let path = source::join_rel(&scratch, &file.path)?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(scratch_error)?;
+        }
+        let bytes = found.get(&format!("{prefix}{}", file.path)).map(Vec::as_slice).unwrap_or_default();
+        std::fs::write(&path, bytes).map_err(scratch_error)?;
+    }
+    let sizes: HashMap<&str, u64> = top.iter().map(|f| (f.path.as_str(), f.size_bytes)).collect();
+    let mut textures = textures::inspect_skin(&scratch)?;
+    for texture in textures.iter_mut().filter(|t| !t.missing) {
+        texture.size_bytes = sizes.get(texture.file.as_str()).copied();
+    }
+    Ok(textures)
+}
+
+/// Name prefix of [`archive_textures`]' scratch folders in the temp folder.
+const TEXTURES_SCRATCH: &str = "livery-textures-";
+
+/// Removes [`archive_textures`] scratch folders older than an hour from the temp folder: one is
+/// only left behind when Livery stopped while reading textures (a crash, release builds abort on
+/// a panic). Returns how many went.
+pub fn purge_textures_scratch(temp: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(temp) else { return 0 };
+    let stale = |entry: &std::fs::DirEntry| {
+        entry.file_name().to_str().is_some_and(|n| n.starts_with(TEXTURES_SCRATCH))
+            && entry.file_type().is_ok_and(|t| t.is_dir())
+            && entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|age| age > std::time::Duration::from_secs(3600))
+    };
+    entries.filter_map(Result::ok).filter(stale).filter(|e| layout::remove_tree(&e.path()).is_ok()).count()
+}
+
+/// Removes a scratch folder when dropped.
+struct RemoveOnDrop(PathBuf);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        if let Err(e) = layout::remove_tree(&self.0) {
+            tracing::debug!(error = %e, "scratch folder could not be removed");
+        }
+    }
 }
 
 // ── App glue ────────────────────────────────────────────────────────────────
@@ -351,18 +447,21 @@ pub fn start_install(
 }
 
 /// Removes staging left by interrupted installs, off the main thread; call once at startup,
-/// after the settings and queue stores are managed. Does nothing while no game folder is set.
+/// after the settings and queue stores are managed (does nothing while no game folder is set).
+/// Stale texture scratch folders go too ([`purge_textures_scratch`]).
 pub fn purge_on_startup(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        purge_textures_scratch(&std::env::temp_dir());
         if let Some(user_skins) = user_skins(&app) {
             app.state::<QueueStore>().ensure_partials_purged(&user_skins);
         }
     });
 }
 
-/// Looks inside a dropped/watched skin folder or archive without installing anything, and
-/// queues it. ZIP/RAR/7z come back as `error` items (unpacking isn't available yet).
+/// Looks inside a dropped/watched skin folder or ZIP/RAR/7z archive without installing anything,
+/// and queues it. An archive that can't be unpacked (encrypted, split, unsafe, damaged) comes
+/// back as an `error` item carrying the reason.
 #[tauri::command]
 pub async fn analyze_archive(app: AppHandle, path: String) -> AppResult<QueueItem> {
     blocking(move || {

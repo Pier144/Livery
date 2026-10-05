@@ -8,7 +8,7 @@
 //! never roots. The vehicle is the `.blk` stem (the alphabetically first one, as the library scan
 //! picks it); the folder name is the root's own name, sanitized when it isn't a valid one.
 
-use super::source::{open_source, SkinSource, SourceEntry};
+use super::source::{is_archive_name, open_source, SkinSource, SourceEntry};
 use super::{Entry, QueueStore};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::root;
@@ -92,17 +92,41 @@ pub fn analyze_source(source: &dyn SkinSource, source_name: &str) -> AppResult<A
             .filter(|e| e.is_dir && depth(&e.path) <= MAX_ROOT_DEPTH && !e.path.split('/').any(is_skipped_folder))
             .map(|e| e.path.as_str()),
     );
+    let found: Vec<(&str, &str)> = candidates
+        .filter_map(|dir| top_files.get(dir).and_then(|names| skin_blk(names)).map(|blk| (dir, blk)))
+        .collect();
+    // Every `.blk` in one go: an archive reader reads them in a single pass.
+    let wanted: Vec<(String, u64)> = found.iter().map(|(dir, blk)| (join(dir, blk), MAX_BLK_BYTES + 1)).collect();
+    let blks = source.read_many(&wanted).unwrap_or_else(|e| {
+        tracing::debug!(error = %e, "skin blk files can't be read");
+        HashMap::new()
+    });
     let mut roots = Vec::new();
-    for dir in candidates {
-        let Some(blk) = top_files.get(dir).and_then(|names| skin_blk(names)) else { continue };
+    for (dir, blk) in found {
         let own_name = if dir.is_empty() { source_name } else { split_parent(dir).1 };
-        roots.push(describe_root(source, &entries, dir, blk, own_name));
+        roots.push(describe_root(&entries, dir, blk, blks.get(&join(dir, blk)), own_name));
     }
     roots.sort_by(|a, b| a.dir.to_lowercase().cmp(&b.dir.to_lowercase()).then_with(|| a.dir.cmp(&b.dir)));
     Ok(Analysis { size_bytes, roots })
 }
 
-fn describe_root(source: &dyn SkinSource, entries: &[SourceEntry], dir: &str, blk: &str, own_name: &str) -> SkinRoot {
+/// `dir/name` (`name` alone at the top).
+fn join(dir: &str, name: &str) -> String {
+    if dir.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{dir}/{name}")
+    }
+}
+
+/// One skin root; `blk_bytes` is the start of its `.blk` (`None` when it couldn't be read).
+fn describe_root(
+    entries: &[SourceEntry],
+    dir: &str,
+    blk: &str,
+    blk_bytes: Option<&Vec<u8>>,
+    own_name: &str,
+) -> SkinRoot {
     let prefix = if dir.is_empty() { String::new() } else { format!("{dir}/") };
     let mut files: Vec<FileEntry> = entries
         .iter()
@@ -113,14 +137,7 @@ fn describe_root(source: &dyn SkinSource, entries: &[SourceEntry], dir: &str, bl
     files.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()).then_with(|| a.path.cmp(&b.path)));
     let texture_count =
         files.iter().filter(|f| !f.path.contains('/') && is_texture(&f.path)).count().try_into().unwrap_or(u32::MAX);
-    let blk_path = format!("{prefix}{blk}");
-    let blk_ok = match source.read(&blk_path, MAX_BLK_BYTES + 1) {
-        Ok(bytes) => bytes.len() as u64 <= MAX_BLK_BYTES && blk::parse_bytes(&bytes).is_ok(),
-        Err(e) => {
-            tracing::debug!(error = %e, "skin blk can't be read");
-            false
-        }
-    };
+    let blk_ok = blk_bytes.is_some_and(|bytes| bytes.len() as u64 <= MAX_BLK_BYTES && blk::parse_bytes(bytes).is_ok());
     let stem = &blk[..blk.len() - 4];
     let vehicle = vehicles::resolve(stem);
     let target_folder = sanitize_folder_name(own_name, &vehicle.code);
@@ -378,9 +395,13 @@ pub struct Queued {
 /// alone; one already installed gets a new item. Name clashes are checked against `user_skins`
 /// (when a game folder is set) and older queue items.
 ///
+/// An archive's own name is its file name without the extension (`Winter Tiger.zip` installs
+/// as `Winter Tiger` when its skin sits at the top), and its size is the archive file's.
+///
 /// Errors: `notFound` (the path is gone), `invalidInput` (not a folder or archive, or far too
-/// many files), `io`. A ZIP/RAR/7z is not an error: it becomes an `error` item carrying the
-/// `unsupported` message, so the row can explain itself.
+/// many files), `io`. A ZIP/RAR/7z that can't be unpacked (encrypted, split, damaged, unsafe
+/// paths or links, too big) is not an error: it becomes an `error` item carrying the reason, so
+/// the row can explain itself.
 pub fn analyze_path(
     path: &Path,
     user_skins: Option<&Path>,
@@ -393,13 +414,21 @@ pub fn analyze_path(
         .map(|n| n.to_string_lossy().into_owned())
         .filter(|n| !n.is_empty())
         .unwrap_or_else(|| shown.clone());
-    let (analysis, failure) = match open_source(path) {
-        Ok(source) => (analyze_source(source.as_ref(), &file_name)?, None),
-        Err(e) if e.code == ErrorCode::Unsupported => {
-            let size_bytes = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    let archive_size = fs::metadata(path).ok().filter(|m| m.is_file() && is_archive_name(&file_name)).map(|m| m.len());
+    let source_name = match archive_size {
+        Some(_) => file_name.rsplit_once('.').map_or(file_name.as_str(), |(stem, _)| stem),
+        None => file_name.as_str(),
+    };
+    let (analysis, failure) = match (open_source(path), archive_size) {
+        (Ok(source), None) => (analyze_source(source.as_ref(), source_name)?, None),
+        (Ok(source), Some(size_bytes)) => {
+            (Analysis { size_bytes, ..analyze_source(source.as_ref(), source_name)? }, None)
+        }
+        (Err(e), Some(size_bytes)) if e.code != ErrorCode::NotFound => {
+            tracing::info!(error = %e, "archive can't be unpacked");
             (Analysis { size_bytes, roots: Vec::new() }, Some(e))
         }
-        Err(e) => return Err(e),
+        (Err(e), _) => return Err(e),
     };
     let base = QueueItem {
         id: String::new(),

@@ -3,11 +3,22 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent
 import { useTranslation } from 'react-i18next';
 import geistLicense from '@/assets/fonts/Geist-OFL.txt?raw';
 import plexLicense from '@/assets/fonts/IBMPlexMono-OFL.txt?raw';
+import unrarLicense from '@/assets/licenses/UnRAR.txt?raw';
+import zstdLicense from '@/assets/licenses/zstd-BSD-3-Clause.txt?raw';
 
 /** Bundled fonts: their license texts ship next to the woff2 files. */
 const FONTS = [
   { name: 'Geist', license: 'SIL OFL 1.1', text: geistLicense },
   { name: 'IBM Plex Mono', license: 'SIL OFL 1.1', text: plexLicense },
+] as const;
+
+/**
+ * Bundled native code whose licence asks for its text in the documentation: UnRAR (RAR reading,
+ * paragraph 2 must be quoted in full) and Zstandard (BSD-3-Clause, inside ZIP support).
+ */
+const NOTICES = [
+  { name: 'UnRAR · Alexander Roshal', license: 'UnRAR license', text: unrarLicense },
+  { name: 'Zstandard · Meta Platforms, Inc.', license: 'BSD-3-Clause', text: zstdLicense },
 ] as const;
 
 /** Main open-source libraries (names and SPDX ids aren't translated). */
@@ -19,11 +30,14 @@ const LIBRARIES = [
   { name: 'i18next · react-i18next', license: 'MIT' },
   { name: 'Lucide', license: 'ISC' },
   { name: 'Tailwind CSS', license: 'MIT' },
+  { name: 'zip', license: 'MIT' },
+  { name: 'sevenz-rust2', license: 'Apache-2.0' },
+  { name: 'unrar', license: 'MIT / Apache-2.0' },
 ] as const;
 
 const FOCUSABLE = 'button:not([disabled]), [tabindex="0"]';
 
-function FontLicense({ name, license, text }: { name: string; license: string; text: string }) {
+function LicenseText({ name, license, text }: { name: string; license: string; text: string }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const textId = useId();
@@ -58,7 +72,8 @@ function FontLicense({ name, license, text }: { name: string; license: string; t
 }
 
 /**
- * Licenses (Settings → About): the bundled fonts with their OFL texts and the main libraries.
+ * Licenses (Settings → About): the bundled fonts with their OFL texts, the main libraries and the
+ * notices bundled native code requires.
  * Modal: focus starts on the dialog, Tab cycles inside, Escape closes only this layer and focus goes
  * back to the opener.
  */
@@ -68,6 +83,7 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
   const introId = useId();
   const fontsId = useId();
   const librariesId = useId();
+  const noticesId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Read during the first render, before the dialog takes focus.
@@ -146,7 +162,7 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
             </h3>
             <ul className="flex flex-col gap-2">
               {FONTS.map((font) => (
-                <FontLicense key={font.name} {...font} />
+                <LicenseText key={font.name} {...font} />
               ))}
             </ul>
           </section>
@@ -163,6 +179,16 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
                   <span className="text-body leading-[normal] text-ink-1">{lib.name}</span>
                   <span className="font-mono text-mono-sm leading-[normal] text-ink-3">{lib.license}</span>
                 </li>
+              ))}
+            </ul>
+          </section>
+          <section aria-labelledby={noticesId} className="flex flex-col gap-2">
+            <h3 id={noticesId} className="font-mono text-mono-label uppercase text-ink-4">
+              {t('settings.licenses.notices')}
+            </h3>
+            <ul className="flex flex-col gap-2">
+              {NOTICES.map((notice) => (
+                <LicenseText key={notice.name} {...notice} />
               ))}
             </ul>
           </section>

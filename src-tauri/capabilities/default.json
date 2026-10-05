@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: core IPC, the window controls used by the frameless title bar, and the folder picker.",
+  "description": "Main window: core IPC, the window controls used by the frameless title bar, the folder picker, opening WT Live and Livery links plus folders in the file manager, and Start with Windows.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,6 +9,14 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://live.warthunder.com/*" }, { "url": "https://github.com/Pier144/Livery" }, { "url": "https://github.com/Pier144/Livery/*" }]
+    },
+    "opener:allow-reveal-item-in-dir",
+    "autostart:allow-is-enabled",
+    "autostart:allow-enable",
+    "autostart:allow-disable"
   ]
 }

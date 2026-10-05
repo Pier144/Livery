@@ -3,7 +3,6 @@
 //! panics, the client seam hands the real client what it needs, and `read_textures` takes
 //! exactly one of its three ids.
 
-use livery_lib::archive::UNSUPPORTED_ARCHIVES;
 use livery_lib::error::{AppError, AppResult, ErrorCode};
 use livery_lib::model::{
     Author, Category, ConflictPolicy, FollowEntry, FollowKind, InstallMode, Nation, SearchParams, SearchResult,
@@ -225,14 +224,14 @@ fn following_new_hands_the_client_each_followed_entry_with_its_last_seen() {
 }
 
 #[test]
-fn a_ready_client_still_waits_for_the_archive_crates_to_install() {
+fn a_ready_client_still_waits_for_the_download_pipeline_to_install() {
     let client = Recorder::default();
     for e in [
         start_install(&client, "s1", InstallMode::Temporary, None).map(|_| ()).unwrap_err(),
         post_textures(&client, "s1").map(|_| ()).unwrap_err(),
     ] {
         assert_eq!(e.code, ErrorCode::Unsupported);
-        assert_eq!(e.message, UNSUPPORTED_ARCHIVES);
+        assert_eq!(e.message, UNSUPPORTED_MESSAGE);
     }
 }
 

@@ -30,8 +30,8 @@ describe('errorText', () => {
   it('translates a message the backend is known to send', async () => {
     await i18n.changeLanguage('it');
     expect(errorText({ code: 'invalidInput', message: 'No game folder set' }, t)).toBe('Nessuna cartella del gioco impostata');
-    expect(errorText({ code: 'unsupported', message: en.common.errors.backend.archivesUnsupported }, t)).toBe(
-      itJson.common.errors.backend.archivesUnsupported,
+    expect(errorText({ code: 'unsupported', message: en.common.errors.backend.archiveEncrypted }, t)).toBe(
+      itJson.common.errors.backend.archiveEncrypted,
     );
     // Surrounding spaces don't matter.
     expect(errorText({ code: 'notFound', message: ' The file or folder can\'t be found\n' }, t)).toBe(

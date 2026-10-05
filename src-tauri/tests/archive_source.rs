@@ -1,9 +1,10 @@
-//! Skin sources: `open_source` (folders, archives until their crates are approved, anything
-//! else), and `FolderSource` listing, reading and copying with progress. Temp folders and the
-//! committed `fixtures/sources`.
+//! Skin sources: `open_source` (folders, files named like archives, anything else), and
+//! `FolderSource` listing, reading and copying with progress. Temp folders and the committed
+//! `fixtures/sources`. The archive readers themselves are tested in `archive_formats.rs`.
 
 use livery_lib::archive::source::{is_archive_name, join_rel, MAX_DEPTH, NOT_A_SOURCE, SOURCE_GONE};
-use livery_lib::archive::{open_source, ExtractTick, FolderSource, SkinSource, UNSUPPORTED_ARCHIVES};
+use livery_lib::archive::unpack::{ARCHIVE_DAMAGED, NOT_AN_ARCHIVE};
+use livery_lib::archive::{open_source, ExtractTick, FolderSource, SkinSource};
 use livery_lib::error::{AppError, ErrorCode};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -62,15 +63,23 @@ fn a_folder_opens_as_a_folder_source() {
 }
 
 #[test]
-fn archives_are_unsupported_until_their_crates_are_approved() {
+fn files_named_like_archives_open_by_what_they_hold() {
     let tmp = TempDir::new("archives");
+    // A ZIP signature, whatever the extension says: read as a ZIP, which this one isn't.
     for name in ["skin.zip", "Pack.RAR", "camo.7Z", "two.dots.Zip"] {
         let path = tmp.write(name, b"PK\x03\x04 not really");
         let e = err(open_source(&path));
-        assert_eq!(e.code, ErrorCode::Unsupported, "{name}");
-        assert_eq!(e.message, UNSUPPORTED_ARCHIVES);
+        assert_eq!((e.code, e.message.as_str()), (ErrorCode::Parse, ARCHIVE_DAMAGED), "{name}");
+        assert!(e.detail.unwrap().contains(name), "the detail names the file");
     }
-    assert!(UNSUPPORTED_ARCHIVES.len() < 160, "short enough for a queue row");
+    // No known signature: the extension decides, and the reader says what it found.
+    let e = err(open_source(&tmp.write("notes.7z", b"hello, not an archive")));
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::Parse, NOT_AN_ARCHIVE));
+    let e = err(open_source(&tmp.write("notes.rar", b"hello, not an archive")));
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::Parse, NOT_AN_ARCHIVE));
+    for message in [ARCHIVE_DAMAGED, NOT_AN_ARCHIVE] {
+        assert!(message.len() < 160 && message.is_ascii(), "short enough for a queue row: {message}");
+    }
 }
 
 #[test]

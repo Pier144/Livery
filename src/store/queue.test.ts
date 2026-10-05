@@ -116,7 +116,7 @@ describe('queue store — adding paths', () => {
   });
 
   it('keeps unsupported archives as error rows (the backend returns them as items)', async () => {
-    analyses['x.7z'] = item('q7', { path: 'x.7z', fileName: 'x.7z', status: 'error', vehicle: undefined, error: '7z archives can be unpacked once their library is approved.' });
+    analyses['x.7z'] = item('q7', { path: 'x.7z', fileName: 'x.7z', status: 'error', vehicle: undefined, error: "This archive is password-protected, so Livery can't unpack it" });
     q().addPaths(['x.7z']);
     await waitFor(() => expect(q().items).toEqual([analyses['x.7z']]));
   });

@@ -28,10 +28,12 @@
 // install queue isn't re-checked against the new folder, and an install or Try in game still in
 // progress when the folder changes lands in the new folder's library (Rust: its own folder's).
 //
-// Install queue (M4). Only skin folders install for now; `analyze_archive` looks at the last
-// segment of the path:
-//   *.zip / *.rar / *.7z   an `error` item: unpacking needs a library that isn't approved yet
-//                          (installing it rejects `unsupported` with the same message)
+// Install queue (M4). Skin folders and ZIP/RAR/7z archives install alike; `analyze_archive` looks
+// at the last segment of the path (an archive's name counts without its extension, and its size is
+// a made-up archive size):
+//   *locked*.zip|rar|7z    an `error` item: password-protected (installing it rejects
+//                          `unsupported` with the same message)
+//   *.part1.rar …          an `error` item: one part of a split archive (same)
 //   "notaskin"             rejects invalidInput "Not a skin folder or archive"
 //   contains "pack"        `needsLook`: three skin folders inside (Su-27, F-4E, Bf 109 G-6)
 //   an installed folder    `conflict` with that skin, e.g. "germ_leopard_2a6_Kessler_Wolf"
@@ -794,10 +796,15 @@ function restoreBackups(args: Args): HangarSkin[] {
   return restored;
 }
 
-/** Copies skin folders into `dest` (unknown ids are skipped). */
+/**
+ * Exports skins into `dest` (unknown ids are skipped): one `<folder>.zip` each, or with
+ * `format: 'folder'` a copy of each folder (Rust: `ops::export_as`). Nothing is written here.
+ */
 function exportSkins(args: Args): ExportResult {
   const ids = strList('export_skins', args, 'ids');
   const dest = str('export_skins', args, 'dest');
+  const format = optStr('export_skins', args, 'format');
+  if (format !== undefined && format !== 'zip' && format !== 'folder') badArg('export_skins', 'format');
   prepare();
   if (!dest.trim()) fail('invalidInput', "The export folder can't be found", dest);
   const known = new Set(state.index.map((s) => s.id));
@@ -962,9 +969,11 @@ function activateCollection(args: Args): HangarSkin[] {
 
 // ── Install queue (M4) ──────────────────────────────────────────────────────
 
-/** `ErrorCode::Unsupported` for archives until the unpacking crates are approved. */
-const UNSUPPORTED_ARCHIVES =
-  "ZIP, RAR and 7z archives can't be unpacked yet: this needs the unpacking library the author hasn't approved. Skin folders work today.";
+/** The Rust messages (`archive::unpack`) for archives that can't be unpacked. */
+const ARCHIVE_ENCRYPTED = "This archive is password-protected, so Livery can't unpack it";
+const ARCHIVE_SPLIT = 'This is one part of a split archive. Livery unpacks single-file archives only';
+
+const ARCHIVE_EXT = /\.(zip|rar|7z)$/i;
 
 /** How long an install takes from `{ installId }` to `done` (× the time scale). */
 const INSTALL_MS = 2000;
@@ -1041,10 +1050,23 @@ function analyze(path: string): StoredQueueItem {
   if (!name || name.toLowerCase() === 'notaskin') fail('invalidInput', 'Not a skin folder or archive', path);
   const id = newId('q');
   let stored: StoredQueueItem;
-  if (/\.(zip|rar|7z)$/i.test(name)) {
+  const archiveError = !ARCHIVE_EXT.test(name)
+    ? undefined
+    : /locked/i.test(name)
+      ? ARCHIVE_ENCRYPTED
+      : /\.part\d+\.rar$/i.test(name)
+        ? ARCHIVE_SPLIT
+        : undefined;
+  if (archiveError) {
     // Only the file's size is known without unpacking it.
     const sizeBytes = (20 + (nameHash(name) % 120)) * 1024 * 1024;
-    stored = { item: { id, path, fileName: name, sizeBytes, status: 'error', error: UNSUPPORTED_ARCHIVES }, roots: [] };
+    stored = { item: { id, path, fileName: name, sizeBytes, status: 'error', error: archiveError }, roots: [] };
+  } else if (ARCHIVE_EXT.test(name)) {
+    // Analysed like the folder it holds; the row shows the archive's own size.
+    const folder = name.replace(ARCHIVE_EXT, '');
+    const roots = sourceRoots(folder, installedAt(state, folder)?.vehicle);
+    const item = describeSource(state, id, path, roots);
+    stored = { item: { ...item, sizeBytes: Math.round(item.sizeBytes * 0.6) }, roots };
   } else {
     // A folder named like an installed skin holds a version of that skin (same vehicle).
     const roots = sourceRoots(name, installedAt(state, name)?.vehicle);
@@ -1165,7 +1187,7 @@ function installFromArchive(args: Args): InstallStarted {
   prepare();
   const stored = findQueued(queueId);
   const { item } = stored;
-  if (item.status === 'error') fail('unsupported', item.error ?? UNSUPPORTED_ARCHIVES, item.path);
+  if (item.status === 'error') fail('unsupported', item.error ?? ARCHIVE_ENCRYPTED, item.path);
   if (item.status === 'installing') fail('invalidInput', 'This item is already installing', queueId);
   if (item.status === 'done') fail('invalidInput', 'This item is already installed', queueId);
   const root = pickRoot(stored, vehicleCode);
@@ -1254,7 +1276,7 @@ function readTextures(args: Args): TextureInfo[] {
   }
   if (queueId !== undefined) {
     const { item, roots } = findQueued(queueId);
-    if (item.status === 'error') fail('unsupported', item.error ?? UNSUPPORTED_ARCHIVES, item.path);
+    if (item.status === 'error') fail('unsupported', item.error ?? ARCHIVE_ENCRYPTED, item.path);
     // Several skins inside: each row names its folder.
     if (roots.length > 1) return roots.flatMap((r) => r.textures.map((t) => ({ ...t, file: `${r.folder}/${t.file}` })));
     return roots[0]?.textures ?? [];

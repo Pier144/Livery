@@ -9,6 +9,13 @@
     "cancel": "Annulla",
     "showPath": "Mostra percorso",
     "hidePath": "Nascondi percorso",
+    "showInExplorer": "Mostra in Esplora file",
+    "explorerFailed": "Impossibile aprire quella cartella in Esplora file.",
+    "link": {
+      "copied": "Livery non è riuscita ad aprire il browser, quindi il link è negli appunti: incollalo lì.",
+      "failed": "Impossibile aprire il link: {{url}}",
+      "refused": "Quel link non porta a WT Live, quindi Livery non l’ha aperto."
+    },
     "comingIn": "In arrivo con {{milestone}}",
     "loading": "Caricamento",
     "any": "Qualsiasi",
@@ -123,7 +130,15 @@
         "collectionNotFound": "Collezione non trovata",
         "collectionNeedsName": "Una collezione deve avere un nome",
         "collectionExists": "Questa collezione esiste già",
-        "archivesUnsupported": "Gli archivi ZIP, RAR e 7z non si possono ancora estrarre: serve una libreria di estrazione che l’autore non ha ancora approvato. Le cartelle di skin funzionano già.",
+        "archiveUnsafePath": "Questo archivio contiene un percorso di file che non è sicuro estrarre",
+        "archiveLink": "Questo archivio contiene un collegamento al posto di un file",
+        "archiveEncrypted": "Questo archivio è protetto da password, quindi Livery non può estrarlo",
+        "archiveSplit": "Questa è una parte di un archivio diviso. Livery estrae solo archivi in un unico file",
+        "archiveMethod": "Questo archivio usa un metodo di compressione che Livery non supporta",
+        "archiveDamaged": "Questo archivio è danneggiato e non si può estrarre",
+        "notAnArchive": "Questo file non è un archivio ZIP, RAR o 7z",
+        "archiveTooBig": "Una volta estratto, questo archivio è troppo grande per essere una skin",
+        "archiveTooManyFiles": "Questo archivio contiene troppi file per essere una skin",
         "notASource": "Non è una cartella di skin né un archivio",
         "sourceGone": "Impossibile trovare il file o la cartella",
         "openFailed": "Impossibile aprire il file o la cartella",
@@ -344,10 +359,9 @@
       "label": "Autore",
       "onWtLive": "su WT Live",
       "openPost": "Apri il post originale",
-      "openPostHint": "Copia il link: Livery non può ancora aprire il browser"
+      "openPostHint": "Apre il post su WT Live nel browser",
+      "openAuthor": "Apri la pagina di {{name}} su WT Live"
     },
-    "linkCopied": "Link al post originale copiato. Livery non può ancora aprire il browser: incollalo lì.",
-    "linkCopyFailed": "Impossibile copiare il link: {{url}}",
     "vehicle": {
       "label": "Veicolo",
       "open": "Mostra in Esplora le skin di questo veicolo",
@@ -527,7 +541,7 @@
   "hangar": {
     "title": "Il mio hangar",
     "emptyTitle": "Non c'è ancora niente",
-    "emptyBody": "Installa una skin da Esplora, oppure trascina una cartella di skin in qualsiasi punto della finestra.",
+    "emptyBody": "Installa una skin da Esplora, oppure trascina uno ZIP in qualsiasi punto della finestra.",
     "emptyAction": "Sfoglia WT Live",
     "attention": {
       "missingTexture": "manca {{file}}",
@@ -676,7 +690,6 @@
     "browseTitle": "Aggiungi archivi di skin",
     "browseFilter": "Archivi di skin",
     "chooseFolder": "Scegli una cartella di skin",
-    "foldersOnlyNote": "L’estrazione di ZIP, RAR e 7z arriverà con un aggiornamento. Le cartelle di skin si installano già.",
     "empty": "La coda è vuota.",
     "list": "Elementi in coda",
     "meta": {
@@ -787,7 +800,8 @@
     },
     "general": {
       "autostart": "Avvia con Windows",
-      "autostartPending": "Non ancora disponibile. Arriverà in una versione successiva.",
+      "autostartHelper": "Livery si apre quando accedi a Windows.",
+      "autostartFailed": "Impossibile cambiare Avvia con Windows: {{message}}",
       "reduceMotion": "Riduci animazioni",
       "reduceMotionHelper": "Di norma segue l’impostazione di Windows.",
       "motion": {
@@ -868,15 +882,16 @@
       "description": "Un gestore di skin utente per War Thunder. Sfoglia WT Live, installa con un clic, tieni in ordine il tuo hangar.",
       "links": "Link",
       "source": "Codice sorgente",
-      "sourcePending": "Il codice sorgente non è ancora pubblico.",
+      "sourceHint": "Apre il repository di Livery su GitHub",
       "report": "Segnala un problema",
-      "reportPending": "Non c’è ancora un posto pubblico dove segnalare i problemi.",
+      "reportHint": "Apre la pagina delle segnalazioni di Livery su GitHub",
       "licenses": "Licenze"
     },
     "licenses": {
       "title": "Licenze",
       "intro": "Livery usa caratteri e librerie open source. Grazie a chi li realizza.",
       "fonts": "Caratteri",
+      "notices": "Avvisi di terze parti",
       "libraries": "Librerie",
       "showText": "Mostra il testo della licenza",
       "hideText": "Nascondi il testo della licenza",

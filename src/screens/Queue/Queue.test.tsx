@@ -68,7 +68,7 @@ const CONFLICT = q('q-conflict', 'leopard_flecktarn_v2.zip', { status: 'conflict
 const LOOK = q('q-look', 'Su-27 pack', { status: 'needsLook', sizeBytes: 12 * MB, candidates: [SU27, SU27SM] });
 const INSTALLING = q('q-installing', 'f4e_sea.zip', { status: 'installing', vehicle: vehicle('f_4e', 'F-4E Phantom II') });
 const DONE = q('q-done', 't34_winter.zip', { status: 'done', vehicle: vehicle('ussr_t_34_85', 'T-34-85') });
-const ERROR = q('q-error', 'mig29_desert.7z', { status: 'error', sizeBytes: 20 * MB, error: '7z archives can be unpacked once their library is approved.' });
+const ERROR = q('q-error', 'mig29_desert.7z', { status: 'error', sizeBytes: 20 * MB, error: "This archive is password-protected, so Livery can't unpack it" });
 const ANALYZING = q('p-1', 'new_drop.zip', { status: 'analyzing', sizeBytes: 0 });
 const ALL = [READY, CONFLICT, LOOK, INSTALLING, DONE, ERROR, ANALYZING];
 
@@ -242,7 +242,8 @@ describe('Install queue — adding', () => {
   it('browses for archives or a folder and analyses what was picked', async () => {
     const user = userEvent.setup();
     renderQueue([]);
-    expect(screen.getByText('ZIP, RAR and 7z unpacking arrives in a later update. Skin folders install now.')).toBeInTheDocument();
+    // Archives unpack now: no "folders only" note under the drop zone.
+    expect(screen.queryByText(/later update/)).not.toBeInTheDocument();
 
     analyses['D:\\Skins\\Tiger winter'] = q('q-folder', 'Tiger winter', { vehicle: TIGER, files: files(2), textureCount: 1, blkOk: true });
     backend.open.mockResolvedValueOnce('D:\\Skins\\Tiger winter');
@@ -260,10 +261,10 @@ describe('Install queue — adding', () => {
     expect(calls('analyze_archive')).toEqual([{ path: 'D:\\Skins\\Tiger winter' }]);
   });
 
-  it('shows an unsupported archive with the backend message, announces it and lets it be removed', async () => {
+  it('shows an archive that can’t be unpacked with the backend message, announces it and lets it be removed', async () => {
     const user = userEvent.setup();
     renderQueue([]);
-    const unsupported = q('q-7z', 'mig29_desert.7z', { status: 'error', error: '7z archives can be unpacked once their library is approved.' });
+    const unsupported = q('q-7z', 'mig29_desert.7z', { status: 'error', error: "This archive is password-protected, so Livery can't unpack it" });
     analyses['C:\\Downloads\\mig29_desert.7z'] = unsupported;
     backend.open.mockResolvedValueOnce(['C:\\Downloads\\mig29_desert.7z']);
     await user.click(screen.getByRole('button', { name: /Drop ZIP, RAR or 7z archives/ }));

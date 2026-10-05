@@ -8,7 +8,7 @@ use livery_lib::archive::analyze::QUEUE_PREFIX;
 use livery_lib::archive::install::{ALREADY_INSTALLED, EXTRACT_END, SKIPPED, USER_SKINS_GONE, VERIFY_END};
 use livery_lib::archive::{
     analyze_path, partial_dir, prepare, purge_partials, run, run_with_source, Ctx, ExtractTick, FolderSource,
-    InstallJob, QueueStore, SkinSource, SourceEntry, UNSUPPORTED_ARCHIVES,
+    InstallJob, QueueStore, SkinSource, SourceEntry,
 };
 use livery_lib::error::{AppError, AppResult, ErrorCode};
 use livery_lib::library::import_folders;
@@ -550,7 +550,7 @@ fn items_that_cant_install_are_refused() {
     let zip = env.tmp.write("skin.zip", b"PK");
     let zipped = env.analyze(&zip);
     let e = err(env.prepare(&zipped.id, None, None));
-    assert_eq!((e.code, e.message.as_str()), (ErrorCode::Unsupported, UNSUPPORTED_ARCHIVES));
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::Parse, livery_lib::archive::unpack::ARCHIVE_DAMAGED));
 
     let loose = env.analyze(&fixture("Loose Textures"));
     assert_eq!(err(env.prepare(&loose.id, None, None)).code, ErrorCode::InvalidInput);

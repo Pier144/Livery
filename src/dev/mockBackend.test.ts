@@ -283,6 +283,14 @@ describe('mock backend · hangar', () => {
     const result = await call('export_skins', { ids: ['h1', 'h2', 'gone'], dest: 'D:\\Exports' });
     expect(result).toEqual({ exported: 2, dest: 'D:\\Exports' });
     expect(await rejection(call('export_skins', { ids: ['h1'], dest: ' ' }))).toMatchObject({ code: 'invalidInput' });
+    // `format` is optional (zip); `folder` keeps the folder copy; anything else is a bad argument.
+    expect(await call('export_skins', { ids: ['h1'], dest: 'D:\\Exports', format: 'folder' })).toEqual({
+      exported: 1,
+      dest: 'D:\\Exports',
+    });
+    expect(await rejection(call('export_skins', { ids: ['h1'], dest: 'D:\\Exports', format: 'rar' }))).toMatchObject({
+      code: 'internal',
+    });
   });
 });
 
@@ -492,10 +500,16 @@ describe('mock backend · install queue', () => {
   });
 
   it('analyzes a path by its last segment', async () => {
-    const zip = await call<QueueItem>('analyze_archive', { path: 'D:\\Downloads\\camo.zip' });
-    expect(zip).toMatchObject({ status: 'error', fileName: 'camo.zip' });
-    expect(zip.error).toMatch(/^ZIP, RAR and 7z archives can't be unpacked yet/);
-    expect(zip).not.toHaveProperty('files');
+    // An archive reads like the folder it holds, named without its extension.
+    const zip = await call<QueueItem>('analyze_archive', { path: 'D:\\Downloads\\su_27_camo.zip' });
+    expect(zip).toMatchObject({ status: 'ready', fileName: 'su_27_camo.zip', targetFolder: 'su_27_camo' });
+    expect(zip.files?.length).toBeGreaterThan(0);
+    const locked = await call<QueueItem>('analyze_archive', { path: 'D:\\Downloads\\camo_locked.rar' });
+    expect(locked).toMatchObject({ status: 'error', fileName: 'camo_locked.rar' });
+    expect(locked.error).toBe("This archive is password-protected, so Livery can't unpack it");
+    expect(locked).not.toHaveProperty('files');
+    const split = await call<QueueItem>('analyze_archive', { path: 'D:\\Downloads\\camo.part1.rar' });
+    expect(split.error).toMatch(/^This is one part of a split archive/);
 
     const pack = await call<QueueItem>('analyze_archive', { path: 'D:\\Downloads\\winter_pack\\' });
     expect(pack).toMatchObject({ status: 'needsLook', fileName: 'winter_pack' });
@@ -524,7 +538,7 @@ describe('mock backend · install queue', () => {
       detail: 'E:\\notaskin',
     });
     const queue = await call<QueueItem[]>('list_queue');
-    expect(queue.slice(0, 4).map((q) => q.id)).toEqual([ready.id, clash.id, pack.id, zip.id]);
+    expect(queue.slice(0, 6).map((q) => q.id)).toEqual([ready.id, clash.id, pack.id, split.id, locked.id, zip.id]);
   });
 
   it('install answers at once, then emits progress up to done', async () => {
@@ -638,8 +652,8 @@ describe('mock backend · install queue', () => {
     expect(item).not.toHaveProperty('candidates');
   });
 
-  it('rejects archives as unsupported and needs a game folder', async () => {
-    const zip = await call<QueueItem>('analyze_archive', { path: 'D:\\Downloads\\camo.7z' });
+  it('rejects archives that can’t be unpacked and needs a game folder', async () => {
+    const zip = await call<QueueItem>('analyze_archive', { path: 'D:\\Downloads\\camo_locked.7z' });
     const error = await rejection(call('install_from_archive', { queueId: zip.id }));
     expect(error).toMatchObject({ code: 'unsupported', message: zip.error });
     expect(await rejection(call('install_from_archive', { queueId: 'gone' }))).toMatchObject({ code: 'notFound' });
