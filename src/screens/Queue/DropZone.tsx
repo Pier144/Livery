@@ -6,7 +6,7 @@ import { errorText } from '@/lib/errors';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { toast } from '@/store/toasts';
 import { TEXT_LINK } from './controls';
-import { ARCHIVES_SUPPORTED, ARCHIVE_EXTENSIONS } from './queueModel';
+import { ARCHIVE_EXTENSIONS } from './queueModel';
 
 interface DropZoneProps {
   /** Picked archives or folder (real paths). */
@@ -62,7 +62,6 @@ export const DropZone = forwardRef<HTMLButtonElement, DropZoneProps>(function Dr
         <span className="font-mono text-mono-sm leading-[normal] text-ink-4">{t('queue.browse')}</span>
       </button>
       <div className="flex items-baseline justify-between gap-4">
-        {!ARCHIVES_SUPPORTED && <p className="font-mono text-mono-sm text-ink-4">{t('queue.foldersOnlyNote')}</p>}
         <button type="button" onClick={() => void chooseFolder()} className={`ml-auto flex-none ${TEXT_LINK}`}>
           {t('queue.chooseFolder')}
         </button>

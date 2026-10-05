@@ -155,7 +155,7 @@ export function Queue() {
     const messages = items.flatMap((item) => {
       const was = before.get(item.id);
       if (was === item.status) return [];
-      // New rows are announced only when they arrive failed (e.g. an archive that can't be unpacked yet).
+      // New rows are announced only when they arrive failed (e.g. an archive that can't be unpacked).
       if (item.status === 'done' && was) return [t('queue.announce.done', { name: item.fileName })];
       if (item.status === 'error') {
         const message = item.error ? errorText({ message: item.error }, t) : '';

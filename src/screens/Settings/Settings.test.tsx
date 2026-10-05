@@ -1,5 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/chrome/Toaster';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
@@ -20,6 +21,13 @@ const backend = vi.hoisted(() => ({
   call: vi.fn<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>(),
   open: vi.fn<(options: unknown) => Promise<unknown>>(),
   getVersion: vi.fn<() => Promise<string>>(),
+  openUrl: vi.fn<(url: string) => Promise<void>>(),
+  revealItemInDir: vi.fn<(path: string) => Promise<void>>(),
+  /** A fake Windows Run entry: enable/disable flip it unless `fail` is set. */
+  autostart: { enabled: false, fail: null as unknown },
+  isEnabled: vi.fn<() => Promise<boolean>>(),
+  enable: vi.fn<() => Promise<void>>(),
+  disable: vi.fn<() => Promise<void>>(),
 }));
 
 vi.mock('@/lib/tauri', async (importOriginal) => ({
@@ -31,6 +39,17 @@ vi.mock('@/lib/tauri', async (importOriginal) => ({
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: (options: unknown) => backend.open(options),
+}));
+
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openUrl: (url: string) => backend.openUrl(url),
+  revealItemInDir: (path: string) => backend.revealItemInDir(path),
+}));
+
+vi.mock('@tauri-apps/plugin-autostart', () => ({
+  isEnabled: () => backend.isEnabled(),
+  enable: () => backend.enable(),
+  disable: () => backend.disable(),
 }));
 
 vi.mock('@tauri-apps/api/app', () => ({
@@ -96,11 +115,20 @@ function Harness() {
   );
 }
 
-function renderSettings(section?: SettingsSection, initial: Partial<SettingsData> = {}) {
+function renderSettings(section?: SettingsSection, initial: Partial<SettingsData> = {}, { strict = false } = {}) {
   settings = { ...DEFAULT_SETTINGS, onboarded: true, gamePath: GAME, gameSource: 'steam', ...initial };
   if (section) useSettingsUi.setState({ section });
   const user = userEvent.setup();
-  const view = renderWithProviders(<Harness />, { settings });
+  const view = renderWithProviders(
+    strict ? (
+      <StrictMode>
+        <Harness />
+      </StrictMode>
+    ) : (
+      <Harness />
+    ),
+    { settings },
+  );
   return { user, ...view };
 }
 
@@ -113,6 +141,19 @@ beforeEach(() => {
   backend.open.mockReset();
   backend.getVersion.mockReset();
   backend.getVersion.mockResolvedValue('0.2.0');
+  backend.openUrl.mockReset().mockResolvedValue(undefined);
+  backend.revealItemInDir.mockReset().mockResolvedValue(undefined);
+  backend.autostart.enabled = false;
+  backend.autostart.fail = null;
+  backend.isEnabled.mockReset().mockImplementation(() => Promise.resolve(backend.autostart.enabled));
+  backend.enable.mockReset().mockImplementation(async () => {
+    if (backend.autostart.fail) throw backend.autostart.fail;
+    backend.autostart.enabled = true;
+  });
+  backend.disable.mockReset().mockImplementation(async () => {
+    if (backend.autostart.fail) throw backend.autostart.fail;
+    backend.autostart.enabled = false;
+  });
   backups = [...BACKUPS];
   failSetSettings = null;
   installBackend();
@@ -220,15 +261,81 @@ describe('Settings · General', () => {
     expect(screen.getByRole('radio', { name: 'System' })).toBeChecked();
   });
 
-  it('Start with Windows is unavailable for now and says why', async () => {
+  it('Start with Windows turns the Windows entry on and off, then saves the setting', async () => {
     const { user } = renderSettings('general');
     const toggle = screen.getByRole('switch', { name: 'Start with Windows' });
-    expect(toggle).toHaveAttribute('aria-disabled', 'true');
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
-    expect(toggle).toHaveAccessibleDescription('Not available yet. It arrives in a later build.');
+    expect(toggle).not.toHaveAttribute('aria-disabled');
+    expect(toggle).toHaveAccessibleDescription('Livery opens when you sign in to Windows.');
+    // Reconciled on open: the plugin and the setting agree, so nothing is saved.
+    await waitFor(() => expect(backend.isEnabled).toHaveBeenCalledTimes(1));
+    expect(calls('set_settings')).toHaveLength(0);
+
     await user.click(toggle);
+    await waitFor(() => expect(settings.startWithWindows).toBe(true));
+    expect(backend.enable).toHaveBeenCalledTimes(1);
+    expect(backend.autostart.enabled).toBe(true);
+    expect(calls('set_settings')).toEqual([['set_settings', { patch: { startWithWindows: true } }]]);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+
+    await user.click(toggle);
+    await waitFor(() => expect(settings.startWithWindows).toBe(false));
+    expect(backend.disable).toHaveBeenCalledTimes(1);
+    expect(backend.autostart.enabled).toBe(false);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
+  });
+
+  it('Start with Windows: the plugin wins over a stale setting when General opens', async () => {
+    // Saved as on, but the Run entry was removed (Task Manager, Startup apps).
+    renderSettings('general', { startWithWindows: true });
+    await waitFor(() => expect(calls('set_settings')).toEqual([['set_settings', { patch: { startWithWindows: false } }]]));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Start with Windows' })).toHaveAttribute('aria-checked', 'false'));
+    expect(settings.startWithWindows).toBe(false);
+    expect(backend.enable).not.toHaveBeenCalled();
+    expect(backend.disable).not.toHaveBeenCalled();
+  });
+
+  it('Start with Windows: the reconcile survives StrictMode’s double effects', async () => {
+    renderSettings('general', { startWithWindows: true }, { strict: true });
+    await waitFor(() => expect(calls('set_settings')).toEqual([['set_settings', { patch: { startWithWindows: false } }]]));
+    expect(backend.isEnabled).toHaveBeenCalledTimes(1);
+  });
+
+  it('Start with Windows: a toggle made while the first read is in flight wins over that read', async () => {
+    let answer: (enabled: boolean) => void = () => {};
+    backend.isEnabled.mockImplementationOnce(() => new Promise<boolean>((resolve) => (answer = resolve)));
+    const { user } = renderSettings('general');
+    await waitFor(() => expect(backend.isEnabled).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('switch', { name: 'Start with Windows' }));
+    await waitFor(() => expect(settings.startWithWindows).toBe(true));
+    // The read started before the toggle: it says "off", which is no longer true.
+    await act(async () => answer(false));
+    expect(calls('set_settings')).toEqual([['set_settings', { patch: { startWithWindows: true } }]]);
+    expect(screen.getByRole('switch', { name: 'Start with Windows' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('Start with Windows: turning off an entry that is already gone counts as done', async () => {
+    // Saved as on, the read failed (so no reconcile), and the Run entry is missing: disable fails.
+    backend.isEnabled.mockRejectedValueOnce(new Error('registry unavailable'));
+    backend.disable.mockRejectedValueOnce('The system cannot find the file specified. (os error 2)');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { user } = renderSettings('general', { startWithWindows: true });
+    await waitFor(() => expect(backend.isEnabled).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('switch', { name: 'Start with Windows' }));
+    await waitFor(() => expect(settings.startWithWindows).toBe(false));
+    expect(messages()).toEqual([]);
+    warn.mockRestore();
+  });
+
+  it('Start with Windows: a failure says so and the switch goes back', async () => {
+    backend.autostart.fail = 'Access is denied. (os error 5)';
+    const { user } = renderSettings('general');
+    const toggle = screen.getByRole('switch', { name: 'Start with Windows' });
+    await waitFor(() => expect(backend.isEnabled).toHaveBeenCalled());
+    await user.click(toggle);
+    await waitFor(() => expect(messages()).toEqual(['Couldn’t change Start with Windows: Access is denied. (os error 5)']));
     expect(toggle).toHaveAttribute('aria-checked', 'false');
     expect(calls('set_settings')).toHaveLength(0);
+    expect(settings.startWithWindows).toBe(false);
   });
 
   it('summarises the keyboard shortcuts with key caps', () => {
@@ -252,6 +359,12 @@ describe('Settings · Game', () => {
     await user.click(reveal);
     expect(screen.getByText(GAME)).toBeVisible();
     expect(reveal).toHaveAttribute('aria-expanded', 'true');
+
+    // Show in Explorer opens the folder without showing the path.
+    await user.click(reveal);
+    await user.click(screen.getByRole('button', { name: 'Show in Explorer', description: 'War Thunder · Steam' }));
+    await waitFor(() => expect(backend.revealItemInDir).toHaveBeenCalledWith(GAME));
+    expect(screen.getByText(GAME)).not.toBeVisible();
 
     const change = screen.getByRole('button', { name: 'Change', description: 'War Thunder · Steam' });
     await user.click(change);
@@ -292,6 +405,19 @@ describe('Settings · Game', () => {
     expect(screen.getByText('E:\\Skins\\Incoming')).not.toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Show path', description: 'Watched folder' }));
     expect(screen.getByText('E:\\Skins\\Incoming')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Show in Explorer', description: 'Watched folder' }));
+    await waitFor(() => expect(backend.revealItemInDir).toHaveBeenCalledWith('E:\\Skins\\Incoming'));
+  });
+
+  it('the default Downloads folder has no path to show; a folder that can’t be shown says so', async () => {
+    backend.revealItemInDir.mockRejectedValue('The system cannot find the path specified.');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { user } = renderSettings('game');
+    // Only the game row has the links.
+    expect(screen.getAllByRole('button', { name: 'Show in Explorer' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Show in Explorer' }));
+    await waitFor(() => expect(messages()).toEqual(['Couldn’t open that folder in Explorer.']));
+    warn.mockRestore();
   });
 
   it('shows watch_folder errors as a toast', async () => {
@@ -539,10 +665,19 @@ describe('Settings · About', () => {
       screen.getByText('A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.'),
     ).toBeInTheDocument();
     const source = screen.getByRole('button', { name: 'Source code' });
-    expect(source).toHaveAttribute('aria-disabled', 'true');
-    expect(source).toHaveAttribute('title', 'The source code isn’t public yet.');
-    expect(screen.getByRole('button', { name: 'Report a problem' })).toHaveAttribute('aria-disabled', 'true');
+    expect(source).not.toHaveAttribute('aria-disabled');
+    expect(source).toHaveAccessibleDescription('Opens Livery’s repository on GitHub');
+    expect(screen.getByRole('button', { name: 'Report a problem' })).toHaveAccessibleDescription('Opens Livery’s issues page on GitHub');
     expect(panel().querySelector('img, svg')).toBeNull();
+  });
+
+  it('Source code and Report a problem open the GitHub repository and its issues', async () => {
+    const { user } = renderSettings('about');
+    await user.click(screen.getByRole('button', { name: 'Source code' }));
+    await waitFor(() => expect(backend.openUrl).toHaveBeenCalledWith('https://github.com/Pier144/Livery'));
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }));
+    await waitFor(() => expect(backend.openUrl).toHaveBeenLastCalledWith('https://github.com/Pier144/Livery/issues'));
+    expect(messages()).toEqual([]);
   });
 
   it('Licenses opens a focus-trapped dialog; Escape closes only it and focus goes back', async () => {
@@ -563,7 +698,15 @@ describe('Settings · About', () => {
     expect(await seriousViolations(container)).toEqual([]);
 
     const close = within(dialog).getByRole('button', { name: 'Close' });
-    const [geist, plex] = within(dialog).getAllByRole('button', { name: 'Show license text' }) as [HTMLElement, HTMLElement];
+    const toggles = within(dialog).getAllByRole('button', { name: 'Show license text' });
+    expect(toggles).toHaveLength(4);
+    const [geist, plex, unrar, zstd] = toggles as [HTMLElement, HTMLElement, HTMLElement, HTMLElement];
+    // The notices bundled native code requires: UnRAR's paragraph 2 verbatim, zstd's BSD text.
+    expect(within(dialog).getByText('UnRAR · Alexander Roshal')).toBeInTheDocument();
+    expect(within(dialog).getByText('BSD-3-Clause')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('UnRAR · Alexander Roshal license text').textContent).toContain(
+      'UnRAR source code may be used in any software to handle',
+    );
     await user.tab();
     expect(close).toHaveFocus();
     await user.tab();
@@ -571,9 +714,13 @@ describe('Settings · About', () => {
     await user.tab();
     expect(plex).toHaveFocus();
     await user.tab();
+    expect(unrar).toHaveFocus();
+    await user.tab();
+    expect(zstd).toHaveFocus();
+    await user.tab();
     expect(close).toHaveFocus();
     await user.tab({ shift: true });
-    expect(plex).toHaveFocus();
+    expect(zstd).toHaveFocus();
 
     // The full OFL text ships with the app; once shown it is a focusable scroll region.
     await user.click(geist);

@@ -2,12 +2,6 @@ import type { TFunction } from 'i18next';
 import { errorText } from '@/lib/errors';
 import type { HangarSkin, InstallStep, QueueItem, QueueStatus } from '@/types';
 
-/**
- * ZIP/RAR/7z unpacking waits for its crates to be approved (DESIGN_NOTES, M4): until then dropped archives
- * become error rows and the drop zone says that skin folders install now. Flip when the readers land.
- */
-export const ARCHIVES_SUPPORTED = false;
-
 /** Browse dialog filter. */
 export const ARCHIVE_EXTENSIONS = ['zip', 'rar', '7z'];
 

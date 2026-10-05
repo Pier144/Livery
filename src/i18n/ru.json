@@ -9,6 +9,13 @@
     "cancel": "Cancel",
     "showPath": "Show path",
     "hidePath": "Hide path",
+    "showInExplorer": "Show in Explorer",
+    "explorerFailed": "Couldn’t open that folder in Explorer.",
+    "link": {
+      "copied": "Livery couldn’t open your browser, so the link is on the clipboard. Paste it there.",
+      "failed": "Couldn’t open the link: {{url}}",
+      "refused": "That link doesn’t lead to WT Live, so Livery didn’t open it."
+    },
     "comingIn": "Coming in {{milestone}}",
     "loading": "Loading",
     "any": "Any",
@@ -127,7 +134,15 @@
         "collectionNotFound": "Collection not found",
         "collectionNeedsName": "A collection needs a name",
         "collectionExists": "This collection already exists",
-        "archivesUnsupported": "ZIP, RAR and 7z archives can't be unpacked yet: this needs the unpacking library the author hasn't approved. Skin folders work today.",
+        "archiveUnsafePath": "This archive holds a file path that isn't safe to unpack",
+        "archiveLink": "This archive holds a link instead of a file",
+        "archiveEncrypted": "This archive is password-protected, so Livery can't unpack it",
+        "archiveSplit": "This is one part of a split archive. Livery unpacks single-file archives only",
+        "archiveMethod": "This archive uses a compression method Livery can't unpack",
+        "archiveDamaged": "This archive is damaged and can't be unpacked",
+        "notAnArchive": "This file isn't a ZIP, RAR or 7z archive",
+        "archiveTooBig": "This archive unpacks to too much data to be a skin",
+        "archiveTooManyFiles": "This archive holds too many files to be a skin",
         "notASource": "Not a skin folder or archive",
         "sourceGone": "The file or folder can't be found",
         "openFailed": "Could not open the file or folder",
@@ -358,10 +373,9 @@
       "label": "Author",
       "onWtLive": "on WT Live",
       "openPost": "Open original post",
-      "openPostHint": "Copies the link: Livery can’t open the browser yet"
+      "openPostHint": "Opens the post on WT Live in your browser",
+      "openAuthor": "Open {{name}}’s page on WT Live"
     },
-    "linkCopied": "Link to the original post copied. Livery can’t open the browser yet, so paste it there.",
-    "linkCopyFailed": "Couldn’t copy the link: {{url}}",
     "vehicle": {
       "label": "Vehicle",
       "open": "Show this vehicle’s skins in Explore",
@@ -726,7 +740,6 @@
     "browseTitle": "Add skin archives",
     "browseFilter": "Skin archives",
     "chooseFolder": "Choose a skin folder",
-    "foldersOnlyNote": "ZIP, RAR and 7z unpacking arrives in a later update. Skin folders install now.",
     "empty": "Queue is empty.",
     "list": "Queued items",
     "meta": {
@@ -853,7 +866,8 @@
     },
     "general": {
       "autostart": "Start with Windows",
-      "autostartPending": "Not available yet. It arrives in a later build.",
+      "autostartHelper": "Livery opens when you sign in to Windows.",
+      "autostartFailed": "Couldn’t change Start with Windows: {{message}}",
       "reduceMotion": "Reduce motion",
       "reduceMotionHelper": "Follows your Windows setting by default.",
       "motion": {
@@ -940,15 +954,16 @@
       "description": "A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.",
       "links": "Links",
       "source": "Source code",
-      "sourcePending": "The source code isn’t public yet.",
+      "sourceHint": "Opens Livery’s repository on GitHub",
       "report": "Report a problem",
-      "reportPending": "There’s no public place to report problems yet.",
+      "reportHint": "Opens Livery’s issues page on GitHub",
       "licenses": "Licenses"
     },
     "licenses": {
       "title": "Licenses",
       "intro": "Livery is built with open-source fonts and libraries. Thanks to everyone who makes them.",
       "fonts": "Fonts",
+      "notices": "Third-party notices",
       "libraries": "Libraries",
       "showText": "Show license text",
       "hideText": "Hide license text",

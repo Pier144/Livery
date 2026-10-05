@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { errorText } from '@/lib/errors';
 import { baseName } from '@/lib/format';
+import { showInExplorer } from '@/lib/opener';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { useWatchFolder } from '@/queries/queue';
 import { toast } from '@/store/toasts';
@@ -11,7 +12,10 @@ import { ROW_LINK, SectionTitle, SettingGroup, SettingRow } from './SettingRow';
 import { useSettingsUi } from './settingsUi';
 import { useSettingsPatch } from './useSettingsPatch';
 
-/** A full path, hidden until "Show path" (paths are hidden by default everywhere). */
+/**
+ * A full path, hidden until "Show path" (paths are hidden by default everywhere), and "Show in
+ * Explorer", which opens the folder without ever showing the path in Livery.
+ */
 function RevealPath({ path, describedBy }: { path: string; describedBy: string }) {
   const { t } = useTranslation();
   const [shown, setShown] = useState(false);
@@ -21,23 +25,30 @@ function RevealPath({ path, describedBy }: { path: string; describedBy: string }
       <p id={pathId} hidden={!shown} data-selectable className="break-all font-mono text-mono-sm leading-[normal] text-ink-4">
         {path}
       </p>
-      <button
-        type="button"
-        onClick={() => setShown((v) => !v)}
-        aria-expanded={shown}
-        aria-controls={pathId}
-        aria-describedby={describedBy}
-        className={`mt-1 ${ROW_LINK}`}
-      >
-        {shown ? t('common.hidePath') : t('common.showPath')}
-      </button>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+        <button
+          type="button"
+          onClick={() => setShown((v) => !v)}
+          aria-expanded={shown}
+          aria-controls={pathId}
+          aria-describedby={describedBy}
+          className={ROW_LINK}
+        >
+          {shown ? t('common.hidePath') : t('common.showPath')}
+        </button>
+        <button type="button" onClick={() => void showInExplorer(path, t)} aria-describedby={describedBy} className={ROW_LINK}>
+          {t('common.showInExplorer')}
+        </button>
+      </div>
     </>
   );
 }
 
 /**
  * Game: the War Thunder install (Change → First run's folder picker, back here when done) and the
- * folder watched for new archives (Change → folder picker → `watch_folder`).
+ * folder watched for new archives (Change → folder picker → `watch_folder`). Both paths come from
+ * the backend's settings; the default Downloads folder has no path here, so it has no Show path or
+ * Show in Explorer.
  */
 export function GameSection() {
   const { t } = useTranslation();

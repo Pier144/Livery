@@ -30,6 +30,7 @@ type Args = Record<string, unknown>;
 const backend = vi.hoisted(() => ({
   call: vi.fn<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>(),
   listeners: new Map<string, (payload: unknown) => void>(),
+  openUrl: vi.fn<(url: string) => Promise<void>>(),
 }));
 
 vi.mock('@/lib/tauri', async (importOriginal) => ({
@@ -37,6 +38,11 @@ vi.mock('@/lib/tauri', async (importOriginal) => ({
   isTauri: () => true,
   hasBackend: () => true,
   call: (cmd: string, args?: Record<string, unknown>) => backend.call(cmd, args),
+}));
+
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openUrl: (url: string) => backend.openUrl(url),
+  revealItemInDir: () => Promise.resolve(),
 }));
 
 vi.mock('@/lib/events', () => ({
@@ -200,6 +206,8 @@ beforeEach(() => {
   resetStores();
   backend.listeners.clear();
   backend.call.mockReset();
+  backend.openUrl.mockReset();
+  backend.openUrl.mockResolvedValue(undefined);
   fakeBackend();
 });
 
@@ -683,11 +691,47 @@ describe('Skin detail · side panel', () => {
     expect(useExplore.getState()).toMatchObject({ tab: 'explore', vehicle: 'germ_tiger_IIH', nation: null, q: '' });
   });
 
-  it('copies the original post link (no browser opener yet) and says so', async () => {
+  it('opens the original post in the browser', async () => {
     const { user } = await renderLoaded();
     await user.click(screen.getByRole('button', { name: 'Open original post' }));
-    await waitFor(() => expect(toasts()).toEqual(['Link to the original post copied. Livery can’t open the browser yet, so paste it there.']));
+    await waitFor(() => expect(backend.openUrl).toHaveBeenCalledWith('https://live.warthunder.com/post/s1/en/'));
+    expect(toasts()).toEqual([]);
+  });
+
+  it('copies the post link and says so when the browser can’t be opened', async () => {
+    backend.openUrl.mockRejectedValue(new Error('no default browser'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { user } = await renderLoaded();
+    await user.click(screen.getByRole('button', { name: 'Open original post' }));
+    await waitFor(() =>
+      expect(toasts()).toEqual(['Livery couldn’t open your browser, so the link is on the clipboard. Paste it there.']),
+    );
     await expect(navigator.clipboard.readText()).resolves.toBe('https://live.warthunder.com/post/s1/en/');
+    warn.mockRestore();
+  });
+
+  it('never opens a post link that isn’t on WT Live', async () => {
+    fakeBackend({ posts: [post('s1', 'Schwarzwald Ambush', { postUrl: 'https://evil.example/post/s1/' })] });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { user } = await renderLoaded();
+    await user.click(screen.getByRole('button', { name: 'Open original post' }));
+    await waitFor(() => expect(toasts()).toEqual(['That link doesn’t lead to WT Live, so Livery didn’t open it.']));
+    expect(backend.openUrl).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('opens the author’s WT Live page from their name; an author without one is plain text', async () => {
+    const { user, unmount } = await renderLoaded();
+    const author = screen.getByRole('button', { name: 'Kessler_Wolf' });
+    expect(author).toHaveAccessibleDescription('Open Kessler_Wolf’s page on WT Live');
+    await user.click(author);
+    await waitFor(() => expect(backend.openUrl).toHaveBeenCalledWith('https://live.warthunder.com/user/kessler/'));
+    unmount();
+
+    // S13's author has no URL: the name isn't a control.
+    await renderLoaded('s13');
+    expect(screen.getByText('Panzerlack').tagName).toBe('SPAN');
+    expect(screen.queryByRole('button', { name: 'Panzerlack' })).toBeNull();
   });
 
   it('installs from the side panel and shows the steps', async () => {

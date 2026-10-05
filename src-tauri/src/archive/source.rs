@@ -1,22 +1,24 @@
 //! Where a skin comes from. A [`SkinSource`] lists what it holds, reads the start of a file and
-//! copies a sub-folder into a destination with progress. [`FolderSource`] (a folder on disk) is
-//! the only kind today; ZIP, RAR and 7z readers plug in behind the same trait once their
-//! unpacking crates are approved, and until then [`open_source`] answers `unsupported` for them.
+//! copies (or unpacks) a sub-folder into a destination with progress: [`FolderSource`] for a
+//! folder on disk, and ZIP, 7z and RAR archives ([`super::zip_source`], [`super::sevenz_source`],
+//! [`super::rar_source`]) behind the same trait. [`open_source`] picks the reader.
 //!
 //! Paths inside a source are relative and `/`-separated (`""` is the source itself). Livery's own
 //! files are never part of a skin: a `.livery` folder (Livery's data inside `UserSkins`, e.g. when
 //! the whole `UserSkins` folder is dropped) and the `.livery-partial` marker are left out.
 
+use super::rar_source::RarSource;
+use super::sevenz_source::SevenZSource;
+use super::unpack::{self, Limits};
+use super::zip_source::ZipSource;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::root;
 use crate::library::layout::LIVERY_DIR;
 use crate::library::scan::PARTIAL_MARKER;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-
-/// `unsupported` message for ZIP / RAR / 7z until their unpacking crates are approved.
-pub const UNSUPPORTED_ARCHIVES: &str = "ZIP, RAR and 7z archives can't be unpacked yet: this needs the unpacking library the author hasn't approved. Skin folders work today.";
 
 /// `invalidInput` message for a path that is neither a folder nor a known archive.
 pub const NOT_A_SOURCE: &str = "Not a skin folder or archive";
@@ -83,6 +85,19 @@ pub trait SkinSource: Send + Sync {
     fn local_dir(&self, _root: &str) -> Option<PathBuf> {
         None
     }
+
+    /// The first bytes of several files at once: `(path, limit)` pairs in, path → bytes out.
+    /// Paths that aren't files of the source are left out of the answer. Archive readers override
+    /// it to read everything in one pass (a solid 7z or RAR can't jump to a file).
+    fn read_many(&self, paths: &[(String, u64)]) -> AppResult<HashMap<String, Vec<u8>>> {
+        let mut out = HashMap::new();
+        for (path, limit) in paths {
+            if let Ok(bytes) = self.read(path, *limit) {
+                out.insert(path.clone(), bytes);
+            }
+        }
+        Ok(out)
+    }
 }
 
 /// Whether a file name ends in `.zip`, `.rar` or `.7z` (any case).
@@ -92,27 +107,86 @@ pub fn is_archive_name(name: &str) -> bool {
     })
 }
 
-/// The source at `path`: a folder â†’ [`FolderSource`]; a `.zip` / `.rar` / `.7z` file â†’
-/// `unsupported` ([`UNSUPPORTED_ARCHIVES`]) for now; a path that doesn't exist â†’ `notFound`;
-/// anything else â†’ `invalidInput` ([`NOT_A_SOURCE`]).
+/// The source at `path`: a folder → [`FolderSource`]; a `.zip` / `.rar` / `.7z` file → the
+/// archive reader for what the file really is (its first bytes decide, so a RAR named `.zip`
+/// still opens), with the default [`Limits`]; a path that doesn't exist → `notFound`; anything
+/// else → `invalidInput` ([`NOT_A_SOURCE`]).
+///
+/// An archive is listed and checked as it opens: unsafe paths, links, encryption, split volumes
+/// and sizes beyond the limits fail here, before anything is written (see [`super::unpack`]).
 pub fn open_source(path: &Path) -> AppResult<Box<dyn SkinSource>> {
+    open_source_with(path, Limits::DEFAULT)
+}
+
+/// [`open_source`] with other caps for archives (tests use small ones).
+pub fn open_source_with(path: &Path, limits: Limits) -> AppResult<Box<dyn SkinSource>> {
     let shown = root::display_path(path);
     if path.as_os_str().is_empty() {
         return Err(AppError::new(ErrorCode::InvalidInput, NOT_A_SOURCE));
     }
-    let meta = fs::metadata(path).map_err(|e| {
-        let code = if e.kind() == io::ErrorKind::NotFound { ErrorCode::NotFound } else { ErrorCode::Io };
-        let message = if code == ErrorCode::NotFound { SOURCE_GONE } else { "Could not open the file or folder" };
-        AppError::new(code, message).with_detail(format!("{shown}: {e}"))
-    })?;
+    let meta = fs::metadata(path).map_err(|e| open_error(&shown, &e))?;
     if meta.is_dir() {
         return Ok(Box::new(FolderSource::new(path)));
     }
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    if meta.is_file() && is_archive_name(&name) {
-        return Err(AppError::new(ErrorCode::Unsupported, UNSUPPORTED_ARCHIVES).with_detail(shown));
+    if !(meta.is_file() && is_archive_name(&name)) {
+        return Err(AppError::new(ErrorCode::InvalidInput, NOT_A_SOURCE).with_detail(shown));
     }
-    Err(AppError::new(ErrorCode::InvalidInput, NOT_A_SOURCE).with_detail(shown))
+    let kind = sniff(path).map_err(|e| open_error(&shown, &e))?.or_else(|| ArchiveKind::from_name(&name));
+    let opened: AppResult<Box<dyn SkinSource>> = match kind {
+        Some(ArchiveKind::Zip) => ZipSource::open(path, limits).map(|s| Box::new(s) as _),
+        Some(ArchiveKind::SevenZ) => SevenZSource::open(path, limits).map(|s| Box::new(s) as _),
+        Some(ArchiveKind::Rar) => RarSource::open(path, limits).map(|s| Box::new(s) as _),
+        None => Err(unpack::not_an_archive("no ZIP, RAR or 7z signature")),
+    };
+    opened.map_err(|e| {
+        let detail = match &e.detail {
+            Some(d) => format!("{shown}: {d}"),
+            None => shown.clone(),
+        };
+        AppError { detail: Some(detail), ..e }
+    })
+}
+
+fn open_error(shown: &str, e: &io::Error) -> AppError {
+    let code = if e.kind() == io::ErrorKind::NotFound { ErrorCode::NotFound } else { ErrorCode::Io };
+    let message = if code == ErrorCode::NotFound { SOURCE_GONE } else { "Could not open the file or folder" };
+    AppError::new(code, message).with_detail(format!("{shown}: {e}"))
+}
+
+/// The archive formats Livery unpacks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchiveKind {
+    Zip,
+    SevenZ,
+    Rar,
+}
+
+impl ArchiveKind {
+    /// From the extension (any case).
+    pub fn from_name(name: &str) -> Option<Self> {
+        let (_, ext) = name.rsplit_once('.')?;
+        [("zip", Self::Zip), ("7z", Self::SevenZ), ("rar", Self::Rar)]
+            .into_iter()
+            .find(|(known, _)| known.eq_ignore_ascii_case(ext))
+            .map(|(_, kind)| kind)
+    }
+}
+
+/// The format the first bytes of `path` announce: `PK\x03\x04` (or an empty ZIP's `PK\x05\x06`),
+/// `7z\xBC\xAF\x27\x1C`, `Rar!\x1A\x07`. `None` when it is none of them.
+pub fn sniff(path: &Path) -> io::Result<Option<ArchiveKind>> {
+    let mut head = Vec::with_capacity(8);
+    fs::File::open(path)?.take(8).read_to_end(&mut head)?;
+    Ok(if head.starts_with(b"PK\x03\x04") || head.starts_with(b"PK\x05\x06") {
+        Some(ArchiveKind::Zip)
+    } else if head.starts_with(b"7z\xBC\xAF\x27\x1C") {
+        Some(ArchiveKind::SevenZ)
+    } else if head.starts_with(b"Rar!\x1A\x07") {
+        Some(ArchiveKind::Rar)
+    } else {
+        None
+    })
 }
 
 /// A skin folder (or a folder of skins) on disk. Links and junctions are not followed.

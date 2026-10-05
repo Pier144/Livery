@@ -7,7 +7,8 @@ use livery_lib::archive::analyze::{
     analyze_source, find_clash, sanitize_folder_name, FALLBACK_FOLDER, MAX_ROOT_DEPTH, NO_BLK_ERROR,
 };
 use livery_lib::archive::source::NOT_A_SOURCE;
-use livery_lib::archive::{analyze_path, textures_for_queue, FolderSource, QueueStore, Queued, UNSUPPORTED_ARCHIVES};
+use livery_lib::archive::unpack::ARCHIVE_DAMAGED;
+use livery_lib::archive::{analyze_path, textures_for_queue, FolderSource, QueueStore, Queued};
 use livery_lib::error::{AppError, ErrorCode};
 use livery_lib::library::index::LibraryStore;
 use livery_lib::library::layout::inactive_dir;
@@ -273,20 +274,20 @@ fn a_folder_without_blk_is_an_error_item() {
 }
 
 #[test]
-fn an_archive_is_an_error_item_with_the_unsupported_message() {
+fn an_archive_that_cant_be_unpacked_is_an_error_item_with_the_reason() {
     let env = Env::new("zip");
     let zip = env.tmp.write("downloads/Tiger Winter.ZIP", &[b'P', b'K', 3, 4, 0, 0, 0, 0, 0, 0]);
     let item = env.analyze(&zip);
     assert_eq!(item.status, QueueStatus::Error);
-    assert_eq!(item.error.as_deref(), Some(UNSUPPORTED_ARCHIVES));
+    assert_eq!(item.error.as_deref(), Some(ARCHIVE_DAMAGED));
     assert_eq!(item.file_name, "Tiger Winter.ZIP");
     assert_eq!(item.size_bytes, 10, "the archive's own size");
     assert_eq!(env.queue.list(), std::slice::from_ref(&item));
     let e = err(textures_for_queue(&env.queue, &item.id));
-    assert_eq!(e.code, ErrorCode::Unsupported);
-    assert_eq!(e.message, UNSUPPORTED_ARCHIVES);
+    assert_eq!(e.code, ErrorCode::Parse);
+    assert_eq!(e.message, ARCHIVE_DAMAGED);
     // User-visible text: a mis-encoded dash once slipped in as mojibake.
-    assert!(UNSUPPORTED_ARCHIVES.is_ascii());
+    assert!(ARCHIVE_DAMAGED.is_ascii());
 }
 
 #[test]

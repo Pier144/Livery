@@ -1,4 +1,4 @@
-# Handoff — Livery (updated 2026-09-19, after the M6 polish)
+# Handoff — Livery (updated 2026-10-05, after archives and plugins)
 
 Read this first in a new session. Then read `CLAUDE.md`, `DESIGN_NOTES.md` (every decision so far, including the "M5 ·" and "M6 ·" rows) and the handoff spec in `design_handoff_livery/` (README → DATA_MODEL → BUILD_PLAN).
 
@@ -10,47 +10,43 @@ Read this first in a new session. Then read `CLAUDE.md`, `DESIGN_NOTES.md` (ever
 | M1 global chrome | done | `9194854` |
 | M2 game detection + First run | done. Detects the author's real Steam install: `D:\SteamLibrary\steamapps\common\War Thunder`, 2.59.0.13 (DESIGN_NOTES "M2 · Real-world facts"). | `85623c1` |
 | M3 library, My Hangar, Collections | done. Uses a JSON index, not SQLite (see "Pending approvals"). The 30-day backup expiry job (BUILD_PLAN M6) is already here: it purges at launch and before every library command. | `3503850` |
-| M4 install queue | done **for skin folders**. ZIP/RAR/7z wait for crate approval; the acceptance test "drop three fixture archives" needs those crates plus archive fixtures. | `2c86010` |
+| M4 install queue | done. Skin folders, ZIP, 7z and RAR (DESIGN_NOTES "M4 · Archives": zip-slip, link, bomb, encrypted and split-archive guards, limits), ZIP export ("M4 · ZIP export"). | `2c86010` + `feat(m4): archives …` (see git log) |
 | M5 WT Live | **UI done on the mock; network pending approval.** Explore (filters, vehicle autocomplete, sort, paged virtual grid, card install states, offline/empty states), Following (vehicles and authors, "N new"), Skin detail (Gallery with zoom and compare, Textures, Try in game with Keep/Discard, side panel with Follow and Add to collection), palette skins and vehicles, sidebar count, Hangar cards opening the detail. Rust: `WtLiveClient` seam with a disabled client (`unsupported` + `net://status` offline), real Following store (`following.json`). | `feat(m5): …` (see git log) |
 | M6 Settings/polish | **Done except the release itself.** Settings (7 sections), one library index per game folder, log file, `LIVERY_DATA_DIR`, startup timing, read-only stores for unreadable files, de/ru/fr key files + i18n checks, localized backend errors, a11y pass (`docs/a11y.md`), NSIS + CI + release workflows, developer README. | `feat(m6): …` (see git log) |
 
-Checks at the latest commit: `pnpm typecheck` clean · `pnpm test` 662 passing · `pnpm i18n:check` clean · `cargo test` 383 passing (2 ignored real-install tests) · `cargo clippy --all-targets -D warnings` clean · `cargo fmt --check` clean · `pnpm build` has no mock chunk or mock strings in `dist/`. Cold start of the release build: 367–415 ms (BUILD_PLAN asks for < 1.5 s), measured with `app_ready` on a scratch `LIVERY_DATA_DIR`. Visual check at 1440×900 against the prototype (Explore, Skin detail, Settings) matched; the deltas are the ones recorded in DESIGN_NOTES.
+Checks at the latest commit: `pnpm typecheck` clean · `pnpm test` 719 passing · `pnpm i18n:check` clean · `cargo test` 425 passing (2 ignored real-install tests) · `cargo clippy --all-targets -D warnings` clean · `cargo fmt --check` clean · `pnpm build` has no mock chunk or mock strings in `dist/`. Cold start of the release build (measured at the M6 polish): 367–415 ms. Visual check of Settings → About/Licenses in the mock at 1440×900.
 
 ### What still depends on the author
-- WT Live can't be reached from the app until an HTTP client is approved. The real app shows the designed offline state everywhere WT Live is involved; the full UI can be seen with `pnpm dev:mock`.
-- Archives (ZIP/RAR/7z), opening links, Start with Windows and updates are shown as unavailable, with a reason, until their crates/plugins are approved.
+- WT Live can't be reached from the app until the network client is written (next step 2; `reqwest` is approved and in the manifest). The real app shows the designed offline state everywhere WT Live is involved; the full UI can be seen with `pnpm dev:mock`.
+- Updates are shown as unavailable, with a reason, until the updater is approved. Archives, opening links ("Open original post", About links, "Show in Explorer" for the game and watched folders) and Start with Windows work since 2026-10-05.
 
-## Where we stopped (2026-09-20)
+## Where we stopped (2026-10-05)
 
-The author approved the dependencies: `zip`, `sevenz-rust2` (the maintained fork of `sevenz-rust`), `unrar`, `reqwest` with rustls, `tauri-plugin-opener` and `tauri-plugin-autostart`. They are in the manifests and the crate builds (`3dab278`). `scraper` is **not** needed: WT Live answers JSON, see [docs/wtlive-terms.md](docs/wtlive-terms.md), which also records the posture the author accepted for the network client (JSON endpoints, 1 req/s with backoff, fetch only on a user action, 24 h clearable cache, robots.txt re-checked daily, attribution, a kill switch, never `market.gaijin.net`, the app stays free).
+Archives and plugins are done and committed (DESIGN_NOTES rows dated 2026-10-05: "M4 · Archives", "M4 · ZIP export", "Opener", "Start with Windows", "About · Licenses · notices"). The branch `wip/m4-archives-plugins` is obsolete (its RAR fixtures and plugin wiring were taken over) and can be deleted. `scraper` is **not** needed: WT Live answers JSON, see [docs/wtlive-terms.md](docs/wtlive-terms.md), which also records the posture the author accepted for the network client (JSON endpoints, 1 req/s with backoff, fetch only on a user action, 24 h clearable cache, robots.txt re-checked daily, attribution, a kill switch, never `market.gaijin.net`, the app stays free).
 
-A workflow for the archive support and the plugin wiring was **stopped mid-run**. Its partial output is saved on the branch `wip/m4-archives-plugins` (do not merge: `pnpm typecheck` fails there, an i18n key rename is half applied). `main` is back at `3dab278` and green. Re-run that work from the saved script, or write it again from the two specs in this file's history; then comes the WT Live client.
+Known limits left from the archive review (all fail safe, none lets a file escape): the `zip` crate reserves memory for a zip64 entry count before Livery checks it (a crafted ~100 MB file could make it abort); LZMA inside ZIP has no dictionary cap in `zip` 4.6; the `unrar` crate `unwrap()`s unknown error codes — the only one reachable (dictionary > 4 GiB) is pre-validated by Livery, and `[patch.crates-io]` or an upstream fix would close it for good; a ZIP directory entry without a trailing slash fails the install; installs still run one thread each with no global limit (RAR decoding is serialised). "Show in Explorer" for a single skin folder isn't there: the README doesn't design it and `HangarSkin` has no absolute path (a `reveal_skin(id)` command using `tauri_plugin_opener::reveal_item_in_dir` from Rust would be the clean way).
 
 ## Next steps (in order)
 
-1. **Archives and plugins** (dependencies approved, nothing written yet on `main`): ZIP/7z/RAR in the install queue with zip-slip, symlink, archive-bomb and encrypted-archive guards; ZIP export; "Open original post", the About links and "Show in Explorer" through the opener; a working "Start with Windows".
-2. **WT Live client** with the posture above (`src-tauri/src/wtlive/`, the `WtLiveClient` seam is ready; fixtures become saved JSON, not saved HTML).
-3. **Release.** The repo is <https://github.com/Pier144/Livery> (`origin`). With CI green, tag `v0.1.0` to get the draft release with the NSIS installer (`docs/release.md`), then publish the draft by hand.
-4. **Sign the installer** (needs a certificate or a cloud signing service) and decide the publisher name shown in Apps & features, which is derived as "livery" today, and whether the identifier stays `app.livery.desktop`.
-5. **The M6 acceptance run**: the installer on a clean Windows 11 VM, first run to first installed skin in under 2 minutes. Without archive or WT Live support a user can only install a skin **folder**, so this really wants the approvals below.
-6. **Open a11y decisions** (`docs/a11y.md`): control boundaries under WCAG 1.4.11 (input, chip and secondary-button borders at 1.33–1.38:1; the selected segment of a segmented control at 1.14:1 by fill alone), and the Hangar Active switch whose name ("Active in game") doesn't contain the visible "Inactive". Also confirm First run's future steps moving from ink-5 to ink-4.
-7. **Updater**: the only dependency still unapproved (it also needs a signing key and a public release feed).
-8. **Nice to have, not blocking:** real de/ru/fr translations (the files hold English today); a `readOnly` flag on `get_settings` so the shell can explain an unreadable settings file instead of opening First run; storing the error code alongside queue rows and WT Live install failures so unknown messages fall back to the localized generic text; aligning the mock's own error messages with the Rust ones.
+1. **WT Live client** with the posture above (`src-tauri/src/wtlive/`, the `WtLiveClient` seam is ready; fixtures become saved JSON, not saved HTML).
+2. **Release.** The repo is <https://github.com/Pier144/Livery> (`origin`). With CI green, tag `v0.1.0` to get the draft release with the NSIS installer (`docs/release.md`), then publish the draft by hand.
+3. **Sign the installer** (needs a certificate or a cloud signing service) and decide the publisher name shown in Apps & features, which is derived as "livery" today, and whether the identifier stays `app.livery.desktop`.
+4. **The M6 acceptance run**: the installer on a clean Windows 11 VM, first run to first installed skin in under 2 minutes. Archives work now; without the WT Live client a user installs from a downloaded archive or folder.
+5. **Open a11y decisions** (`docs/a11y.md`): control boundaries under WCAG 1.4.11 (input, chip and secondary-button borders at 1.33–1.38:1; the selected segment of a segmented control at 1.14:1 by fill alone), and the Hangar Active switch whose name ("Active in game") doesn't contain the visible "Inactive". Also confirm First run's future steps moving from ink-5 to ink-4.
+6. **Updater**: the only dependency still unapproved (it also needs a signing key and a public release feed).
+7. **Nice to have, not blocking:** real de/ru/fr translations (the files hold English today); a `readOnly` flag on `get_settings` so the shell can explain an unreadable settings file instead of opening First run; storing the error code alongside queue rows and WT Live install failures so unknown messages fall back to the localized generic text; aligning the mock's own error messages with the Rust ones.
 
 ## Pending dependency approvals (ask the author; CLAUDE.md requires it)
 
 | Dependency | Unlocks | Status today |
 |---|---|---|
-| HTTP client (`reqwest` + rustls) + a JSON parser | M5 backend: search, post, following-new, download for install / Try in game. **Read [docs/wtlive-terms.md](docs/wtlive-terms.md) first**: the terms were checked on 2026-09-19 (downloads are expressly licensed, listing is a grey area, the Marketplace is off limits) and WT Live serves its content through JSON endpoints, not HTML, so `scraper` is not needed and the saved-HTML fixtures become saved-JSON fixtures. | `DisabledClient` answers `unsupported` + `net://status` offline; the UI shows the designed offline state. |
-| `zip`, `unrar`, `sevenz-rust` | Installing .zip/.rar/.7z (M4), and ZIP export ("zip per skin", DESIGN_NOTES "M3 · Export"). Add `ZipSource` etc. implementing `archive::SkinSource`, flip `ARCHIVES_SUPPORTED` in `src/screens/Queue/queueModel.ts`, add the three archive fixtures | Archives become `unsupported` error rows; skin folders install; export copies folders |
-| `tauri-plugin-opener` | "Open original post", About links, "Show in Explorer" | Detail copies the post URL to the clipboard; About links are unavailable |
-| `tauri-plugin-autostart` | Settings → Start with Windows | Switch unavailable, with a helper |
+| HTTP client (`reqwest` + rustls) | **Approved 2026-09-20, in the manifest, not written yet** (next step 1). M5 backend: search, post, following-new, download for install / Try in game. Read [docs/wtlive-terms.md](docs/wtlive-terms.md) first; fixtures are saved JSON. | `DisabledClient` answers `unsupported` + `net://status` offline; the UI shows the designed offline state. |
 | `tauri-plugin-updater` + signing key + a public release endpoint | Settings → Updates | Controls unavailable, with a helper |
 | `tauri-plugin-os` / `tauri-plugin-fs` | Listed in BUILD_PLAN M0 capabilities | Probably **not needed** (Rust does all disk I/O; nothing needs OS info in JS). Confirm with the author and record it. |
 | `rusqlite` (optional) | SQLite index as DATA_MODEL suggests | JSON `library.json` v2 works well (README allows JSON) |
 | `notify` (optional) | Event-based watcher | Polling watcher (2 s) works |
 
-Already approved and in use: `tauri-plugin-dialog`, `winreg`, jsdom/testing-library/axe-core (dev), fonts copied from npm.
+Already approved and in use: `tauri-plugin-dialog`, `winreg`, `zip`, `sevenz-rust2`, `unrar`, `tauri-plugin-opener`, `tauri-plugin-autostart`, jsdom/testing-library/axe-core (dev), fonts copied from npm. Approved, not used yet: `reqwest`.
 
 ## Decisions the author needs to make (not dependencies)
 

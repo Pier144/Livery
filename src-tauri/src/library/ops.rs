@@ -5,13 +5,20 @@
 use super::index::{folder_key, refresh, Library, LibraryStore};
 use super::layout::{self, Journal, MoveReport};
 use super::scan;
+use crate::archive::source::join_rel;
+use crate::archive::{FolderSource, SkinSource};
 use crate::backup;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::root;
 use crate::model::{BackupReason, DeleteResult, ExportResult, HangarSkin};
+use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use std::time::SystemTime;
+use zip::write::SimpleFileOptions;
+use zip::{CompressionMethod, ZipWriter};
 
 /// `ids` without repeats, first occurrence first.
 pub fn dedupe(ids: &[String]) -> Vec<&str> {
@@ -295,15 +302,45 @@ fn restored_folder_name(user_skins: &Path, library: &Library, skin_id: &str, fol
     })
 }
 
+/// How `export_skins` writes each skin into the chosen folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ExportFormat {
+    /// One `<folder>.zip` per skin, holding `<folder>/…` (the spec's "zip per skin").
+    #[default]
+    Zip,
+    /// A copy of each skin folder.
+    Folder,
+}
+
+/// [`export`] or [`export_zip`], as `format` says.
+pub fn export_as(
+    user_skins: &Path,
+    store: &LibraryStore,
+    ids: &[String],
+    dest: &Path,
+    format: ExportFormat,
+) -> AppResult<ExportResult> {
+    match format {
+        ExportFormat::Zip => export_zip(user_skins, store, ids, dest),
+        ExportFormat::Folder => export(user_skins, store, ids, dest),
+    }
+}
+
+fn check_export_dest(dest: &Path) -> AppResult<String> {
+    let shown = root::display_path(dest);
+    if dest.as_os_str().is_empty() || !dest.is_dir() {
+        return Err(AppError::new(ErrorCode::InvalidInput, "The export folder can't be found").with_detail(shown));
+    }
+    Ok(shown)
+}
+
 /// Copies each skin's folder (unknown ids and folders that are gone are skipped) into
 /// `dest/<folder>`, as `<folder> (2)`… when the name is taken there. `dest` must be an existing
 /// folder (`invalidInput` otherwise). Stops at the first copy that fails (`io`), removing that
 /// partial copy; earlier copies stay.
 pub fn export(user_skins: &Path, store: &LibraryStore, ids: &[String], dest: &Path) -> AppResult<ExportResult> {
-    let shown = root::display_path(dest);
-    if dest.as_os_str().is_empty() || !dest.is_dir() {
-        return Err(AppError::new(ErrorCode::InvalidInput, "The export folder can't be found").with_detail(shown));
-    }
+    let shown = check_export_dest(dest)?;
     let library = store.snapshot();
     let mut exported = 0u32;
     for id in dedupe(ids) {
@@ -320,4 +357,132 @@ pub fn export(user_skins: &Path, store: &LibraryStore, ids: &[String], dest: &Pa
     }
     tracing::info!(exported, "skins exported");
     Ok(ExportResult { exported, dest: shown })
+}
+
+/// Writes one ZIP per skin (unknown ids and folders that are gone are skipped) into
+/// `dest/<folder>.zip`, as `<folder> (2).zip`… when the name is taken there. Each archive holds
+/// the skin's folder (`<folder>/…`, so it unpacks into `UserSkins` as it is and Livery installs
+/// it under the same name); files already compressed (PNG, JPEG, archives…) are stored, the rest
+/// deflated. Livery's own files never go in. Each archive is written under a temporary name and
+/// moved to its name when complete, never over a file that appeared there meanwhile, so a failure
+/// never leaves a half-written `.zip` and nothing is overwritten. `dest` must be an existing
+/// folder (`invalidInput` otherwise). Stops at the first archive that fails (`io`); earlier ones
+/// stay.
+pub fn export_zip(user_skins: &Path, store: &LibraryStore, ids: &[String], dest: &Path) -> AppResult<ExportResult> {
+    let shown = check_export_dest(dest)?;
+    let library = store.snapshot();
+    let mut exported = 0u32;
+    for id in dedupe(ids) {
+        let Some(skin) = library.skins.iter().find(|s| s.id == id) else { continue };
+        let Some((src, _)) = layout::find_skin(user_skins, skin) else {
+            tracing::warn!(skin = %skin.id, "skin folder is gone; not exported");
+            continue;
+        };
+        let part = dest.join(format!("{}.zip.{}.part", skin.folder, super::index::new_id_with("x")));
+        let written = write_skin_zip(&src, &skin.folder, &part).and_then(|()| {
+            // Another program may take the free name while the zip is written: pick again.
+            for _ in 0..16 {
+                let name = layout::unique_name(&skin.folder, |n| layout::occupied(&dest.join(format!("{n}.zip"))));
+                match move_no_replace(&part, &dest.join(format!("{name}.zip"))) {
+                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+                    done => return done.map_err(|e| export_error(&skin.folder, &e)),
+                }
+            }
+            Err(export_error(&skin.folder, &"no free name"))
+        });
+        if let Err(e) = written {
+            let _ = fs::remove_file(&part);
+            return Err(e);
+        }
+        exported += 1;
+    }
+    tracing::info!(exported, "skins exported as zip");
+    Ok(ExportResult { exported, dest: shown })
+}
+
+/// Moves the file `from` to `to` unless something is already at `to` (`AlreadyExists`). A hard
+/// link plus a removal does it atomically; where hard links don't work (FAT/exFAT drives, some
+/// network shares) it falls back to a rename after checking `to` is free.
+fn move_no_replace(from: &Path, to: &Path) -> io::Result<()> {
+    match fs::hard_link(from, to) {
+        Ok(()) => {
+            if let Err(e) = fs::remove_file(from) {
+                tracing::debug!(error = %e, "export temp file could not be removed");
+            }
+            Ok(())
+        }
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists || layout::occupied(to) => {
+            Err(io::Error::new(io::ErrorKind::AlreadyExists, e))
+        }
+        Err(_) => fs::rename(from, to),
+    }
+}
+
+fn export_error(folder: &str, e: &dyn std::fmt::Display) -> AppError {
+    AppError::new(ErrorCode::Io, "Could not export the skin").with_detail(format!("{folder}: {e}"))
+}
+
+/// Extensions whose data is already compressed: stored as they are.
+const STORED_EXTENSIONS: [&str; 16] =
+    ["png", "jpg", "jpeg", "webp", "gif", "zip", "rar", "7z", "gz", "bz2", "xz", "zst", "mp3", "ogg", "mp4", "webm"];
+
+fn already_compressed(path: &str) -> bool {
+    path.rsplit_once('.').is_some_and(|(_, ext)| STORED_EXTENSIONS.iter().any(|known| known.eq_ignore_ascii_case(ext)))
+}
+
+/// The ZIP of one skin folder `src`, its entries under `folder/`, written to `out`.
+fn write_skin_zip(src: &Path, folder: &str, out: &Path) -> AppResult<()> {
+    let entries = FolderSource::new(src).entries()?;
+    let fail = |e: &dyn std::fmt::Display| export_error(folder, e);
+    let file = fs::File::create(out).map_err(|e| fail(&e))?;
+    let mut zip = ZipWriter::new(BufWriter::new(file));
+    let dir_options = SimpleFileOptions::default().unix_permissions(0o755);
+    zip.add_directory(format!("{folder}/"), dir_options).map_err(|e| fail(&e))?;
+    for entry in &entries {
+        let name = format!("{folder}/{}", entry.path);
+        if entry.is_dir {
+            zip.add_directory(format!("{name}/"), dir_options).map_err(|e| fail(&e))?;
+            continue;
+        }
+        let method = if entry.size_bytes == 0 || already_compressed(&entry.path) {
+            CompressionMethod::Stored
+        } else {
+            CompressionMethod::Deflated
+        };
+        let options = SimpleFileOptions::default()
+            .compression_method(method)
+            .unix_permissions(0o644)
+            .large_file(entry.size_bytes >= u64::from(u32::MAX));
+        zip.start_file(name, options).map_err(|e| fail(&e))?;
+        let mut input = fs::File::open(join_rel(src, &entry.path)?).map_err(|e| fail(&e))?;
+        io::copy(&mut input, &mut zip).map_err(|e| fail(&e))?;
+    }
+    let mut writer = zip.finish().map_err(|e| fail(&e))?;
+    writer.flush().map_err(|e| fail(&e))?;
+    writer.into_inner().map_err(|e| fail(e.error()))?.sync_all().map_err(|e| fail(&e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::move_no_replace;
+    use std::fs;
+    use std::io;
+
+    #[test]
+    fn a_finished_export_never_replaces_a_file_that_appeared_meanwhile() {
+        let dir = std::env::temp_dir().join(format!("livery-move-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let (part, taken, free) = (dir.join("a.zip.x.part"), dir.join("a.zip"), dir.join("a (2).zip"));
+        fs::write(&part, b"new").unwrap();
+        fs::write(&taken, b"someone else's").unwrap();
+        let e = move_no_replace(&part, &taken).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read(&taken).unwrap(), b"someone else's");
+        assert_eq!(fs::read(&part).unwrap(), b"new", "the finished zip is still there to move");
+        move_no_replace(&part, &free).unwrap();
+        assert_eq!(fs::read(&free).unwrap(), b"new");
+        assert!(!part.exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }

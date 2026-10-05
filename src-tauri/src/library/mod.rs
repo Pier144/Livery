@@ -232,12 +232,19 @@ pub async fn restore_backups(app: AppHandle, backup_ids: Vec<String>) -> AppResu
     .await
 }
 
-/// Copies skin folders into `dest` (a folder the user picked).
+/// Exports skins into `dest` (a folder the user picked): one `<folder>.zip` per skin, or, with
+/// `format: "folder"`, a copy of each skin folder. `format` may be left out (zip).
 #[tauri::command]
-pub async fn export_skins(app: AppHandle, ids: Vec<String>, dest: String) -> AppResult<ExportResult> {
+pub async fn export_skins(
+    app: AppHandle,
+    ids: Vec<String>,
+    dest: String,
+    format: Option<ops::ExportFormat>,
+) -> AppResult<ExportResult> {
     blocking(move || {
         let library = prepare(&app, &[])?;
-        ops::export(&library.user_skins, &library.store, &ids, &root::native_path(&dest))
+        let format = format.unwrap_or_default();
+        ops::export_as(&library.user_skins, &library.store, &ids, &root::native_path(&dest), format)
     })
     .await
 }

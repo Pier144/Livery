@@ -7,6 +7,7 @@ import { Menu, type MenuItem } from '@/components/ui/Menu';
 import { cn } from '@/lib/cn';
 import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
+import { isWtLiveUrl, openLink } from '@/lib/opener';
 import { call, toAppError } from '@/lib/tauri';
 import { useCollections, useSetCollectionSkins } from '@/queries/collections';
 import { FOLLOWING_KEY, isOfflineError, useFollowing, useSetFollow } from '@/queries/wtlive';
@@ -63,16 +64,9 @@ function AuthorBlock({ skin }: { skin: WtLiveSkin }) {
   const { author } = skin;
   const headingId = useId();
 
-  // No browser opener yet (tauri-plugin-opener isn't approved): the link goes to the clipboard.
-  const copyPostLink = async () => {
-    try {
-      if (!navigator.clipboard) throw new Error('clipboard unavailable');
-      await navigator.clipboard.writeText(skin.postUrl);
-      toast(t('detail.linkCopied'));
-    } catch {
-      toast(t('detail.linkCopyFailed', { url: skin.postUrl }));
-    }
-  };
+  // Both links come from WT Live's payload: only a WT Live page is ever opened (`openLink` with the
+  // `wtlive` scope refuses anything else). If the browser can't be opened the link is copied instead.
+  const authorUrl = isWtLiveUrl(author.url) ? author.url : undefined;
 
   return (
     <div role="group" aria-labelledby={headingId} className="flex flex-col gap-2.5">
@@ -87,9 +81,20 @@ function AuthorBlock({ skin }: { skin: WtLiveSkin }) {
           {initialOf(author.name)}
         </span>
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-card leading-[normal] text-ink-1" title={author.name}>
-            {author.name}
-          </span>
+          {authorUrl ? (
+            <button
+              type="button"
+              title={t('detail.author.openAuthor', { name: author.name })}
+              onClick={() => void openLink(authorUrl, t, 'wtlive')}
+              className="max-w-full self-start truncate text-left text-card leading-[normal] text-ink-1 underline-offset-[3px] hover:text-amber hover:underline motion-safe:transition-colors motion-safe:duration-120"
+            >
+              {author.name}
+            </button>
+          ) : (
+            <span className="truncate text-card leading-[normal] text-ink-1" title={author.name}>
+              {author.name}
+            </span>
+          )}
           <span className="text-[11px] leading-[normal] text-ink-4">{t('detail.author.onWtLive')}</span>
         </div>
         <FollowButton kind="author" id={author.id} name={author.name} />
@@ -97,7 +102,7 @@ function AuthorBlock({ skin }: { skin: WtLiveSkin }) {
       <button
         type="button"
         title={t('detail.author.openPostHint')}
-        onClick={() => void copyPostLink()}
+        onClick={() => void openLink(skin.postUrl, t, 'wtlive')}
         className="inline-flex items-center gap-1.5 self-start text-meta leading-[normal] text-amber underline underline-offset-[3px] hover:text-amber-hover motion-safe:transition-colors motion-safe:duration-120"
       >
         {t('detail.author.openPost')}

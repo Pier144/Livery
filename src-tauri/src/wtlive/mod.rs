@@ -47,8 +47,8 @@
 //!   extract and analyze (the archive module's `SkinSource` and `analyze_source`) → verify and
 //!   a staged install (`archive::install`). The index entry gets `origin: wtlive`, `sourceId` =
 //!   the WT Live id and the author; a folder clash follows `conflict` or the settings policy,
-//!   as in the queue. Posts download as ZIP archives, so until the archive crates are approved
-//!   a ready client still gets `unsupported` (`archive::UNSUPPORTED_ARCHIVES`).
+//!   as in the queue. Until that pipeline is written, a ready client still gets `unsupported`
+//!   ([`UNSUPPORTED_MESSAGE`]).
 //! - `mode: temporary` (Try in game) installs the same way and marks the index entry
 //!   `temporary: true`. My Hangar leaves it out (DESIGN_NOTES "M5 · Temporary installs").
 //! - `finalize_try { skinId, keep }`: `skinId` is the **WT Live** id (the entry's `sourceId`).
@@ -65,7 +65,6 @@ pub mod following;
 pub use client::{is_offline_error, unsupported, DisabledClient, DownloadProgress, WtLiveClient, UNSUPPORTED_MESSAGE};
 pub use following::{FollowingStore, FOLLOWING_FILE};
 
-use crate::archive::UNSUPPORTED_ARCHIVES;
 use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::model::{
@@ -203,10 +202,10 @@ pub fn post_textures(client: &dyn WtLiveClient, id: &str) -> AppResult<Vec<Textu
 }
 
 /// Installing a post, or reading its textures before installing, means downloading its archive
-/// and unpacking it: the client must be ready, and ZIP unpacking isn't approved yet either.
+/// and unpacking it: the client must be ready, and the download pipeline isn't written yet.
 fn download_and_unpack<T>(client: &dyn WtLiveClient) -> AppResult<T> {
     client.ready()?;
-    Err(AppError::new(ErrorCode::Unsupported, UNSUPPORTED_ARCHIVES).with_detail("WT Live posts download as archives"))
+    Err(unsupported().with_detail("WT Live downloads aren't wired to the archive readers yet"))
 }
 
 fn required_id(id: &str) -> AppResult<&str> {
