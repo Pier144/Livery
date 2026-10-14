@@ -53,9 +53,11 @@
 //
 // WT Live (M5). The catalog is the prototype's 16 posts, s1…s16 (`?many=1`: 1,284, so Explore
 // has pages). `wtlive_search({ params })` combines its filters (AND): `q` in the skin, vehicle or
-// author name (case-insensitive), nation, type, class, vehicle code, category; sorts by downloads,
-// likes, newest or name; answers pages of 60 (page 0 first) with `total` and `tookMs` = 12 + the
-// page's items (the prototype's "16 results · 28 ms"). Listing items carry no `files`;
+// author name (case-insensitive) — or, starting with `@`, an author whose name equals the rest
+// (case-insensitive; WT Live finds authors by `@nickname`) — nation, type, class, vehicle code,
+// category; sorts by downloads, likes, newest or name; answers pages of 60 (page 0 first) with
+// `total` (always exact here: `totalExact: true`), `hasMore` = (page + 1) × 60 < total and
+// `tookMs` = 12 + the page's items (the prototype's "16 results · 28 ms"). Listing items carry no `files`;
 // `wtlive_post({ id })` adds them (textures, `<code>.blk`, preview.jpg). `images` is always
 // empty: the UI shows its four placeholder views. Following is local data (works offline),
 // seeded with the prototype's four follows last seen on 9 Sep 2026. Like the Rust command,
@@ -85,6 +87,15 @@
 // of a WT Live skin") before anything else. `read_textures({ wtliveId })`
 // lists the post's archive like the prototype's Textures tab: s3's hull is 8192² (`heavy`), s5
 // lacks turret_n.dds (`missing`). Every texture row with a warning carries its `warningKind`.
+// Settings → WT Live: hidden posts (`wtlive_set_hidden({ id, hidden })`, a blank id is
+// invalidInput "Pass the id of a WT Live skin"; `wtlive_unhide_all`) are left out of
+// `wtlive_search` and `wtlive_following_new`, not of `wtlive_post`; none hidden at start.
+// `wtlive_storage` answers `{ cacheBytes, hiddenCount }` (local: works offline and with browsing
+// off, never emits net://status); the cache starts at 12.4 MB, grows by 150 KB with every WT Live
+// call that reaches WT Live, and `wtlive_clear_cache` empties it. With `wtliveEnabled: false`
+// (Browse WT Live off) wtlive_search/post/following_new, install_from_wtlive and
+// read_textures({ wtliveId }) reject `unsupported` "WT Live browsing is turned off in Settings"
+// (after their argument checks, before the offline switch) and emit no net://status.
 //
 // Start-up switches — a query parameter, or a localStorage key set to "1" (then reload):
 //   ?onboarded=1  livery.mock.onboarded  skip First run: onboarded, Steam game folder saved
@@ -144,6 +155,7 @@ import {
   type TextureInfo,
   type VehicleType,
   type WtLiveSkin,
+  type WtLiveStorage,
 } from '@/types';
 import {
   MOCK_DOWNLOADS,
@@ -296,7 +308,15 @@ interface MockState extends RootLibrary {
   following: FollowEntry[];
   /** WT Live ids with an install on its way. */
   wtInstalling: Set<string>;
+  /** WT Live ids hidden from Explore and Following (Settings → WT Live). */
+  hidden: Set<string>;
+  /** Size of the made-up WT Live cache (Settings → WT Live). */
+  cacheBytes: number;
 }
+
+/** WT Live cache at start, and what each call that reaches WT Live adds to it. */
+const MOCK_CACHE_BYTES = 12_400_000;
+const CACHE_GROWTH = 150_000;
 
 function createState(): MockState {
   const onboarded = readFlag('onboarded');
@@ -323,6 +343,8 @@ function createState(): MockState {
     catalog: many ? seedManyCatalog() : seedCatalog(),
     following: empty ? [] : seedFollowing(),
     wtInstalling: new Set(),
+    hidden: new Set(),
+    cacheBytes: MOCK_CACHE_BYTES,
     triedBackups: new Map(),
     libraries: new Map(),
   };
@@ -470,6 +492,7 @@ const PATCH_FIELDS: Partial<Record<keyof Settings, (v: unknown) => boolean>> = {
   startWithWindows: isBool,
   onboarded: isBool,
   reduceMotion: oneOf(REDUCE_MOTION),
+  wtliveEnabled: isBool,
 };
 
 /**
@@ -1324,9 +1347,28 @@ const FOLLOW_KINDS: readonly FollowKind[] = ['vehicle', 'author'];
 /** Results per `wtlive_search` page. */
 const PAGE_SIZE = 60;
 
-/** Under the offline switch (read on every call), anything that needs WT Live rejects `network`. */
+/**
+ * Before anything that needs WT Live: Browse WT Live off rejects `unsupported`; under the offline
+ * switch (read on every call) it rejects `network`. A call that gets through grows the cache.
+ */
 function reachWtLive(): void {
+  if (!state.settings.wtliveEnabled) fail('unsupported', 'WT Live browsing is turned off in Settings');
   if (readFlag('offline')) fail('network', "WT Live can't be reached");
+  state.cacheBytes += CACHE_GROWTH;
+}
+
+const visible = (s: WtLiveSkin) => !state.hidden.has(s.id);
+
+function wtliveStorage(): WtLiveStorage {
+  return { cacheBytes: state.cacheBytes, hiddenCount: state.hidden.size };
+}
+
+/** `wtlive_set_hidden({ id, hidden })`: the id is trimmed (blank → invalidInput); any id is kept. */
+function setHidden(args: Args): WtLiveStorage {
+  const id = requiredPostId(str('wtlive_set_hidden', args, 'id'));
+  if (bool('wtlive_set_hidden', args, 'hidden')) state.hidden.add(id);
+  else state.hidden.delete(id);
+  return wtliveStorage();
 }
 
 /**
@@ -1407,12 +1449,20 @@ function search(args: Args): SearchResult {
   return reported(() => {
     reachWtLive();
     const q = needle(params.q);
+    // `@name`: that author's skins (WT Live's author search); other text: a substring anywhere.
+    const authorName = q?.startsWith('@') ? q.slice(1).trim() : undefined;
+    const matches = (s: WtLiveSkin) =>
+      !q ||
+      (authorName !== undefined
+        ? s.author.name.toLowerCase() === authorName
+        : [s.name, s.vehicle.name, s.author.name].some((field) => field.toLowerCase().includes(q)));
     const klass = needle(params.class);
     const code = needle(params.vehicle);
     const found = state.catalog
       .filter(
         (s) =>
-          (!q || [s.name, s.vehicle.name, s.author.name].some((field) => field.toLowerCase().includes(q))) &&
+          visible(s) &&
+          matches(s) &&
           (!params.nation || s.vehicle.nation === params.nation) &&
           (!params.type || s.vehicle.type === params.type) &&
           (!klass || s.vehicle.class.toLowerCase() === klass) &&
@@ -1422,7 +1472,7 @@ function search(args: Args): SearchResult {
       .sort(SORTS[params.sort]);
     const start = params.page * PAGE_SIZE;
     const items = found.slice(start, start + PAGE_SIZE);
-    return { items, total: found.length, tookMs: 12 + items.length };
+    return { items, total: found.length, tookMs: 12 + items.length, hasMore: start + PAGE_SIZE < found.length, totalExact: true };
   });
 }
 
@@ -1458,7 +1508,7 @@ function followingNew(args: Args): WtLiveSkin[] {
       return after(since('vehicle', s.vehicle.code)) || after(since('author', s.author.id));
     };
     return state.catalog
-      .filter(isFresh)
+      .filter((s) => visible(s) && isFresh(s))
       .sort(SORTS.newest)
       .map((s) => ({ ...s, isNew: true }));
   });
@@ -1704,6 +1754,16 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   following_list: () => state.following,
   following_set: followingSet,
   following_mark_seen: followingMarkSeen,
+  wtlive_storage: wtliveStorage,
+  wtlive_clear_cache: () => {
+    state.cacheBytes = 0;
+    return wtliveStorage();
+  },
+  wtlive_set_hidden: setHidden,
+  wtlive_unhide_all: () => {
+    state.hidden.clear();
+    return wtliveStorage();
+  },
 };
 
 /** Answers `cmd` like the Rust backend would, after a short simulated delay. */

@@ -190,7 +190,7 @@ describe('grid rows', () => {
 describe('WT Live cache', () => {
   it('collects every cached skin once: search pages, single pages, posts and following-new', () => {
     const qc = new QueryClient();
-    const page = (ids: string[]): SearchResult => ({ items: ids.map((id) => skin(id)), total: 9, tookMs: 20 });
+    const page = (ids: string[]): SearchResult => ({ items: ids.map((id) => skin(id)), total: 9, tookMs: 20, hasMore: false, totalExact: true });
     qc.setQueryData([...WTLIVE_KEY, 'search-pages', { sort: 'downloads' }], { pages: [page(['s1', 's2']), page(['s3'])], pageParams: [0, 1] });
     qc.setQueryData([...WTLIVE_KEY, 'search', { sort: 'likes', page: 0 }], page(['s2', 's4']));
     qc.setQueryData([...WTLIVE_KEY, 'post', 's5'], skin('s5'));

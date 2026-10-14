@@ -18,6 +18,7 @@ import {
   type Settings,
   type TextureInfo,
   type WtLiveSkin,
+  type WtLiveStorage,
 } from '@/types';
 import {
   configureMockBackend,
@@ -813,7 +814,7 @@ describe('mock backend · WT Live search', () => {
     expect(postIds(await search({ vehicle: 'su_27' }))).toEqual(['s9', 's16']);
     // A vehicle code, not a prefix.
     expect(postIds(await search({ vehicle: 'su_2' }))).toEqual([]);
-    expect(await search({ nation: 'ITA', category: 'Historical' })).toEqual({ items: [], total: 0, tookMs: 12 });
+    expect(await search({ nation: 'ITA', category: 'Historical' })).toEqual({ items: [], total: 0, tookMs: 12, hasMore: false, totalExact: true });
     // Null or blank means any, like serde's Option.
     expect((await search({ nation: null, q: '  ', class: null })).total).toBe(16);
   });
@@ -824,15 +825,26 @@ describe('mock backend · WT Live search', () => {
     const byName = await search({ sort: 'name' });
     expect(byName.items.map((s) => s.name).slice(0, 3)).toEqual(['Ace of Spades', 'Baltic Winter', 'Bundeswehr Flecktarn']);
     expect(byName.items.at(-1)?.name).toBe("Winter '44 Whitewash");
-    expect(await search({ page: 1 })).toEqual({ items: [], total: 16, tookMs: 12 });
+    expect(await search({ page: 1 })).toEqual({ items: [], total: 16, tookMs: 12, hasMore: false, totalExact: true });
+  });
+
+  it('@name finds that author’s skins only (WT Live’s author search)', async () => {
+    expect(postIds(await search({ q: '@kessler_wolf' }))).toEqual(['s4', 's1', 's14']);
+    expect(postIds(await search({ q: ' @Skyhook_Dan ' }))).toEqual(['s6', 's12']);
+    // The whole name, not a part of it, and only the author (the bare text matches more).
+    expect(postIds(await search({ q: '@kessler' }))).toEqual([]);
+    expect(postIds(await search({ q: '@Phantom' }))).toEqual([]);
+    expect(postIds(await search({ q: '@' }))).toEqual([]);
   });
 
   it('?many=1 has 1,284 posts to page through', async () => {
     window.history.replaceState(null, '', '/?many=1');
     resetMockBackend();
     const first = await search();
-    expect(first).toMatchObject({ total: 1284, tookMs: 72 });
+    expect(first).toMatchObject({ total: 1284, tookMs: 72, hasMore: true, totalExact: true });
     expect(first.items).toHaveLength(60);
+    expect(await search({ page: 20 })).toMatchObject({ hasMore: true });
+    expect(await search({ page: 21 })).toMatchObject({ hasMore: false, total: 1284 });
     const seen = new Set<string>();
     for (let page = 0; page < 22; page += 1) postIds(await search({ page })).forEach((id) => seen.add(id));
     expect(seen.size).toBe(1284);
@@ -1264,6 +1276,77 @@ describe('mock backend · WT Live installs', () => {
     const noFolder = { code: 'invalidInput', message: 'No game folder set' };
     expect(await rejection(call('install_from_wtlive', { skinId: 's1', mode: 'normal' }))).toEqual(noFolder);
     expect(await rejection(call('finalize_try', { skinId: 's1', keep: true }))).toEqual(noFolder);
+  });
+});
+
+describe('mock backend · WT Live storage and hidden skins', () => {
+  const storage = () => call<WtLiveStorage>('wtlive_storage');
+
+  it('hides posts from search and following-new, not from the post itself', async () => {
+    expect(await storage()).toEqual({ cacheBytes: 12_400_000, hiddenCount: 0 });
+    expect(await call<WtLiveStorage>('wtlive_set_hidden', { id: ' s4 ', hidden: true })).toMatchObject({ hiddenCount: 1 });
+    await call('wtlive_set_hidden', { id: 's14', hidden: true });
+    // Hiding again changes nothing.
+    expect(await call<WtLiveStorage>('wtlive_set_hidden', { id: 's4', hidden: true })).toMatchObject({ hiddenCount: 2 });
+
+    const all = await search();
+    expect(all.total).toBe(14);
+    expect(postIds(all)).not.toContain('s4');
+    expect(postIds(await search({ q: '@Kessler_Wolf' }))).toEqual(['s1']);
+    const fresh = await call<WtLiveSkin[]>('wtlive_following_new', { vehicles: ['germ_leopard_2a6'], authors: ['40318255'] });
+    expect(fresh.map((s) => s.id)).toEqual(['s11']);
+    expect(await call<WtLiveSkin>('wtlive_post', { id: 's4' })).toMatchObject({ id: 's4' });
+
+    expect(await call<WtLiveStorage>('wtlive_set_hidden', { id: 's4', hidden: false })).toMatchObject({ hiddenCount: 1 });
+    expect(postIds(await search())).toContain('s4');
+    expect(await call<WtLiveStorage>('wtlive_unhide_all')).toMatchObject({ hiddenCount: 0 });
+    expect((await search()).total).toBe(16);
+  });
+
+  it('rejects a blank id', async () => {
+    expect(await rejection(call('wtlive_set_hidden', { id: '  ', hidden: true }))).toEqual({
+      code: 'invalidInput',
+      message: 'Pass the id of a WT Live skin',
+    });
+  });
+
+  it('grows the cache with WT Live calls and empties it on clear, offline too, without net://status', async () => {
+    const statuses: NetStatus[] = [];
+    await search();
+    await call('wtlive_post', { id: 's1' });
+    statuses.length = 0;
+    mockListen<NetStatus>(EVENTS.netStatus, (s) => statuses.push(s));
+    expect(await storage()).toEqual({ cacheBytes: 12_700_000, hiddenCount: 0 });
+    localStorage.setItem('livery.mock.offline', '1');
+    try {
+      expect(await call<WtLiveStorage>('wtlive_clear_cache')).toEqual({ cacheBytes: 0, hiddenCount: 0 });
+      expect(await call<WtLiveStorage>('wtlive_set_hidden', { id: 's2', hidden: true })).toEqual({ cacheBytes: 0, hiddenCount: 1 });
+    } finally {
+      localStorage.removeItem('livery.mock.offline');
+    }
+    expect(statuses).toEqual([]);
+  });
+
+  it('with Browse WT Live off, WT Live calls reject unsupported and say nothing about reachability', async () => {
+    await onboard();
+    await call('set_settings', { patch: { wtliveEnabled: false } });
+    expect(await call<Settings>('get_settings')).toMatchObject({ wtliveEnabled: false });
+    const statuses: NetStatus[] = [];
+    mockListen<NetStatus>(EVENTS.netStatus, (s) => statuses.push(s));
+    const off = { code: 'unsupported', message: 'WT Live browsing is turned off in Settings' };
+    expect(await rejection(search())).toEqual(off);
+    expect(await rejection(call('wtlive_post', { id: 's1' }))).toEqual(off);
+    expect(await rejection(call('wtlive_following_new', { vehicles: ['f_4e'], authors: [] }))).toEqual(off);
+    expect(await rejection(call('install_from_wtlive', { skinId: 's1', mode: 'normal' }))).toEqual(off);
+    expect(await rejection(call('read_textures', { wtliveId: 's1' }))).toEqual(off);
+    // Argument checks come first.
+    expect(await rejection(call('wtlive_post', { id: ' ' }))).toMatchObject({ code: 'invalidInput' });
+    expect(statuses).toEqual([]);
+    // Local data still works, the cache didn't grow.
+    expect(await call<WtLiveStorage>('wtlive_storage')).toEqual({ cacheBytes: 12_400_000, hiddenCount: 0 });
+    expect(await call<FollowEntry[]>('following_list')).toHaveLength(4);
+    await call('set_settings', { patch: { wtliveEnabled: true } });
+    expect((await search()).total).toBe(16);
   });
 });
 

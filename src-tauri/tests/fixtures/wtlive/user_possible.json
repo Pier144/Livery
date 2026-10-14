@@ -1,0 +1,23 @@
+{
+ "status": "OK",
+ "data": [
+  {
+   "id": 100001,
+   "nick": "Fixture_Author1",
+   "avatar": "https://cdn-live.warthunder.com/uploads/00/00/01/avatar_lq/image.png",
+   "rating": 176,
+   "posts": 9,
+   "comments": 2,
+   "subscribers": 2
+  },
+  {
+   "id": 100009,
+   "nick": "Fixture_Author1x",
+   "avatar": "",
+   "rating": 1,
+   "posts": 1,
+   "comments": 0,
+   "subscribers": 0
+  }
+ ]
+}

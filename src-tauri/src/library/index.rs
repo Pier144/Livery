@@ -1,6 +1,6 @@
 //! A library index, persisted as JSON:
 //! `{ "version": 2, "gameRoot"?: "…", "skins": [HangarSkin…], "collections": [Collection…],
-//!    "activeCollectionId"?: "…", "backups": [BackupRecord…] }`.
+//!    "activeCollectionId"?: "…", "backups": [BackupRecord…], "triedBackups"?: { skinId: backupId } }`.
 //! Each game root has its own index file (`<appData>/library/<key>.json`, see `super::roots`);
 //! `gameRoot` names the root it belongs to, for people reading the file (loading ignores it).
 //! Version 1 files (M2: `{ "version": 1, "skins": […] }`) load as they are; the next write
@@ -21,7 +21,7 @@ use crate::error::{AppError, AppResult, ErrorCode, UnreadableFile};
 use crate::model::{Backup, Collection, CollectionsState, HangarSkin};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -58,6 +58,9 @@ pub struct Library {
     /// The collection activated last.
     pub active_collection_id: Option<String>,
     pub backups: Vec<BackupRecord>,
+    /// Try in game installs that replaced an installed version: temporary skin id → the backup
+    /// of the version it replaced, which Discard puts back.
+    pub tried_backups: BTreeMap<String, String>,
 }
 
 impl Library {
@@ -107,6 +110,8 @@ struct IndexOut<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     active_collection_id: Option<&'a str>,
     backups: &'a [BackupRecord],
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    tried_backups: &'a BTreeMap<String, String>,
 }
 
 /// Read loosely so one bad entry doesn't cost the whole index.
@@ -123,6 +128,8 @@ struct IndexIn {
     active_collection_id: Option<serde_json::Value>,
     #[serde(default)]
     backups: Vec<serde_json::Value>,
+    #[serde(default)]
+    tried_backups: Option<serde_json::Value>,
 }
 
 impl LibraryStore {
@@ -314,7 +321,17 @@ fn read_index(path: &Path) -> Result<Library, UnreadableFile> {
         .active_collection_id
         .and_then(|v| v.as_str().map(str::to_owned))
         .filter(|id| collections.iter().any(|c| &c.id == id));
-    Ok(Library { skins, collections, active_collection_id, backups })
+    // Only pairs whose skin is a temporary install and whose backup still exists.
+    let tried_backups: BTreeMap<String, String> = index
+        .tried_backups
+        .and_then(|v| serde_json::from_value::<BTreeMap<String, String>>(v).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(skin, backup)| {
+            skins.iter().any(|s| &s.id == skin && s.temporary) && backups.iter().any(|b| &b.backup.id == backup)
+        })
+        .collect();
+    Ok(Library { skins, collections, active_collection_id, backups, tried_backups })
 }
 
 /// The entries of one list that parse; the others are counted in `dropped`.
@@ -344,6 +361,7 @@ fn write_atomic(path: &Path, game_root: Option<&str>, library: &Library) -> AppR
         collections: &library.collections,
         active_collection_id: library.active_collection_id.as_deref(),
         backups: &library.backups,
+        tried_backups: &library.tried_backups,
     };
     let tmp = path.with_extension("json.tmp");
     let written = (|| -> AppResult<()> {

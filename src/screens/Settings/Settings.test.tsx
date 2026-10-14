@@ -11,7 +11,7 @@ import { TOAST_DURATION_MS, useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
-import type { AppError, Backup, Settings as SettingsData } from '@/types';
+import type { AppError, Backup, Settings as SettingsData, WtLiveStorage } from '@/types';
 import { Settings } from '../Settings';
 import { SECTIONS, resetSettingsUi, useSettingsUi, type SettingsSection } from './settingsUi';
 
@@ -73,6 +73,7 @@ const BACKUPS = [backup('b1', 100 * MB), backup('b2', 40 * MB), backup('b3', 8 *
 let settings: SettingsData;
 let backups: Backup[];
 let failSetSettings: AppError | null;
+let storage: WtLiveStorage;
 
 function installBackend() {
   backend.call.mockImplementation(async (cmd: string, args: Args = {}) => {
@@ -88,6 +89,14 @@ function installBackend() {
         return settings;
       case 'list_backups':
         return backups;
+      case 'wtlive_storage':
+        return storage;
+      case 'wtlive_clear_cache':
+        storage = { ...storage, cacheBytes: 0 };
+        return storage;
+      case 'wtlive_unhide_all':
+        storage = { ...storage, hiddenCount: 0 };
+        return storage;
       case 'clear_backups': {
         // `ids` absent → every kept backup; given → only those (unknown ids ignored).
         const ids = args.ids as string[] | undefined;
@@ -156,6 +165,7 @@ beforeEach(() => {
   });
   backups = [...BACKUPS];
   failSetSettings = null;
+  storage = { cacheBytes: 12 * MB, hiddenCount: 3 };
   installBackend();
 });
 
@@ -174,7 +184,7 @@ describe('Settings · navigation', () => {
     const tablist = screen.getByRole('tablist', { name: 'Settings sections' });
     expect(tablist).toHaveAttribute('aria-orientation', 'vertical');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['General', 'Game', 'Conflicts', 'Backups', 'Language', 'Updates', 'About']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['General', 'Game', 'Conflicts', 'Backups', 'WT Live', 'Language', 'Updates', 'About']);
     expect(screen.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'General' })).toHaveClass('bg-bg-hover', 'text-ink-1');
     expect(screen.getByRole('tab', { name: 'Game' })).toHaveClass('text-ink-3');
@@ -597,6 +607,65 @@ describe('Settings · Backups', () => {
   });
 });
 
+// ── WT Live ─────────────────────────────────────────────────────────────────
+
+describe('Settings · WT Live', () => {
+  it('Browse WT Live patches wtliveEnabled', async () => {
+    const { user } = renderSettings('wtlive');
+    expect(within(panel()).getByRole('heading', { level: 2, name: 'WT Live' })).toBeInTheDocument();
+    const toggle = screen.getByRole('switch', { name: 'Browse WT Live' });
+    expect(toggle).toHaveAccessibleDescription(
+      'Explore, Following and installs from WT Live. Turn it off and Livery sends no requests to WT Live.',
+    );
+    expect(toggle).toBeChecked();
+    await user.click(toggle);
+    expect(toggle).not.toBeChecked();
+    await waitFor(() => expect(settings.wtliveEnabled).toBe(false));
+    await user.click(toggle);
+    await waitFor(() => expect(settings.wtliveEnabled).toBe(true));
+    expect(calls('set_settings')).toEqual([
+      ['set_settings', { patch: { wtliveEnabled: false } }],
+      ['set_settings', { patch: { wtliveEnabled: true } }],
+    ]);
+    expect(screen.getByText('Skins and images belong to their authors on WT Live.')).toBeInTheDocument();
+  });
+
+  it('shows the cache size and clears it with a plain toast (no Undo)', async () => {
+    const { user } = renderSettings('wtlive');
+    expect(await screen.findByText('12 MB')).toBeInTheDocument();
+    expect(screen.getByText('Pages and archives fetched from WT Live are kept for up to 24 hours.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear cache' }));
+    expect(await screen.findByText('0 B')).toBeInTheDocument();
+    expect(calls('wtlive_clear_cache')).toHaveLength(1);
+    expect(messages()).toEqual(['WT Live cache cleared']);
+    expect(useToasts.getState().toasts[0]?.onUndo).toBeUndefined();
+  });
+
+  it('Show them again brings the hidden skins back, and is unavailable at 0', async () => {
+    const { user } = renderSettings('wtlive');
+    const showAgain = screen.getByRole('button', { name: 'Show them again' });
+    // Unknown until the counts arrive.
+    expect(showAgain).toHaveAttribute('aria-disabled', 'true');
+    expect(await screen.findByText('3 skins')).toBeInTheDocument();
+    expect(showAgain).not.toHaveAttribute('aria-disabled');
+    await user.click(showAgain);
+    expect(await screen.findByText('0 skins')).toBeInTheDocument();
+    expect(messages()).toEqual(['Hidden skins are back in Explore']);
+    expect(showAgain).toHaveAttribute('aria-disabled', 'true');
+    // Stays focusable, and does nothing at 0.
+    expect(showAgain).toHaveFocus();
+    await user.click(showAgain);
+    expect(calls('wtlive_unhide_all')).toHaveLength(1);
+  });
+
+  it('works without WT Live: the counts are local', async () => {
+    renderSettings('wtlive', { wtliveEnabled: false });
+    expect(screen.getByRole('switch', { name: 'Browse WT Live' })).not.toBeChecked();
+    expect(await screen.findByText('3 skins')).toBeInTheDocument();
+    expect(calls('wtlive_storage')).toHaveLength(1);
+  });
+});
+
 // ── Language ────────────────────────────────────────────────────────────────
 
 describe('Settings · Language', () => {
@@ -699,8 +768,10 @@ describe('Settings · About', () => {
 
     const close = within(dialog).getByRole('button', { name: 'Close' });
     const toggles = within(dialog).getAllByRole('button', { name: 'Show license text' });
-    expect(toggles).toHaveLength(4);
-    const [geist, plex, unrar, zstd] = toggles as [HTMLElement, HTMLElement, HTMLElement, HTMLElement];
+    expect(toggles).toHaveLength(5);
+    const [geist, plex, unrar, zstd, awsLc] = toggles as [HTMLElement, HTMLElement, HTMLElement, HTMLElement, HTMLElement];
+    expect(within(dialog).getByText('AWS-LC · Amazon.com, Inc.')).toBeInTheDocument();
+    for (const lib of ['reqwest · hyper', 'rustls']) expect(within(dialog).getByText(lib)).toBeInTheDocument();
     // The notices bundled native code requires: UnRAR's paragraph 2 verbatim, zstd's BSD text.
     expect(within(dialog).getByText('UnRAR · Alexander Roshal')).toBeInTheDocument();
     expect(within(dialog).getByText('BSD-3-Clause')).toBeInTheDocument();
@@ -718,9 +789,11 @@ describe('Settings · About', () => {
     await user.tab();
     expect(zstd).toHaveFocus();
     await user.tab();
+    expect(awsLc).toHaveFocus();
+    await user.tab();
     expect(close).toHaveFocus();
     await user.tab({ shift: true });
-    expect(zstd).toHaveFocus();
+    expect(awsLc).toHaveFocus();
 
     // The full OFL text ships with the app; once shown it is a focusable scroll region.
     await user.click(geist);

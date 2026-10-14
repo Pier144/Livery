@@ -1,0 +1,380 @@
+{
+ "status": "OK",
+ "data": {
+  "list": [
+   {
+    "lang_group": 1191507,
+    "id": 1244190,
+    "language": "en",
+    "type": "camouflage",
+    "created": 1792005149,
+    "isAuthor": false,
+    "visible": true,
+    "isSpecial": false,
+    "author": {
+     "id": 100001,
+     "nickname": "Fixture_Author1",
+     "avatar": "https://cdn-live.warthunder.com/uploads/00/00/01/avatar_lq/image.png"
+    },
+    "likes": 0,
+    "isLiked": false,
+    "views": 11,
+    "doubt": false,
+    "featured": false,
+    "downloads": 0,
+    "comments": 0,
+    "isPinned": false,
+    "isMarketSuitable": true,
+    "canDelete": false,
+    "canEdit": false,
+    "description": "<p><b>F-4E Phantom II “Sharkmouth” #187: fixture squadron</b></p><p><a href=\"//live.warthunder.com/?q=%23187\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#187</a> <a href=\"//live.warthunder.com/?q=%23autumn_camo_contest_1\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#autumn_camo_contest_1</a> <a href=\"//live.warthunder.com/?q=%23f4e\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#f4e</a> <a href=\"//live.warthunder.com/?q=%23semihistorical\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#semihistorical</a> <a href=\"//live.warthunder.com/?q=%23iaf\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#iaf</a> <a href=\"//live.warthunder.com/?q=%23aircraft\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#aircraft</a> <a href=\"//live.warthunder.com/?q=%23israel\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#israel</a> </p><p><i>Fixture text, not from WT Live.</i></p>",
+    "images": [
+     {
+      "id": 2686387,
+      "type": "image/jpeg",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/01/img0_lq/shot0.jpg",
+      "width": 386,
+      "height": 386,
+      "ratio": 1
+     }
+    ],
+    "file": {
+     "id": 2686386,
+     "name": "fixture_skin_1.zip",
+     "link": "https://live.warthunder.com/dl/0000000000000000000000000000000000000001/",
+     "type": "application/zip",
+     "size": 34574792
+    },
+    "pbr_ready": true,
+    "inverted_roughness": false
+   },
+   {
+    "lang_group": 1191503,
+    "id": 1244186,
+    "language": "en",
+    "type": "camouflage",
+    "created": 1792003222,
+    "isAuthor": false,
+    "visible": true,
+    "isSpecial": false,
+    "author": {
+     "id": 100002,
+     "nickname": "Fixture_Author2",
+     "avatar": "https://cdn-live.warthunder.com/uploads/00/00/02/avatar_lq/image.png"
+    },
+    "likes": 1,
+    "isLiked": false,
+    "views": 20,
+    "doubt": false,
+    "featured": false,
+    "downloads": 3,
+    "comments": 0,
+    "isPinned": false,
+    "isMarketSuitable": true,
+    "canDelete": false,
+    "canEdit": false,
+    "description": "<p><a href=\"//live.warthunder.com/?q=%23ariete\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#ariete</a> <a href=\"//live.warthunder.com/?q=%23c1_ariete\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#c1_ariete</a> <a href=\"//live.warthunder.com/?q=%23italy\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#italy</a> <a href=\"//live.warthunder.com/?q=%23tank\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#tank</a> <a href=\"//live.warthunder.com/?q=%23fictional\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#fictional</a> </p><p><i>Fixture text, not from WT Live.</i></p>",
+    "images": [
+     {
+      "id": 2686384,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/02/img0_lq/shot0.jpg",
+      "width": 386,
+      "height": 208,
+      "ratio": 1.86
+     },
+     {
+      "id": 2686385,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/02/img1_lq/shot1.jpg",
+      "width": 386,
+      "height": 288,
+      "ratio": 1.34
+     },
+     {
+      "id": 2686383,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/02/img2_lq/shot2.jpg",
+      "width": 386,
+      "height": 288,
+      "ratio": 1.34
+     }
+    ],
+    "file": {
+     "id": 2686382,
+     "name": "fixture_skin_2.zip",
+     "link": "https://live.warthunder.com/dl/0000000000000000000000000000000000000002/",
+     "type": "application/zip",
+     "size": 11496311
+    },
+    "pbr_ready": true,
+    "inverted_roughness": false
+   },
+   {
+    "lang_group": 1191499,
+    "id": 1244182,
+    "language": "en",
+    "type": "camouflage",
+    "created": 1792000337,
+    "isAuthor": false,
+    "visible": true,
+    "isSpecial": false,
+    "author": {
+     "id": 100003,
+     "nickname": "Fixture_Author3",
+     "avatar": "https://cdn-live.warthunder.com/uploads/00/00/03/avatar_lq/image.png"
+    },
+    "likes": 4,
+    "isLiked": false,
+    "views": 16,
+    "doubt": false,
+    "featured": false,
+    "downloads": 0,
+    "comments": 0,
+    "isPinned": false,
+    "isMarketSuitable": true,
+    "canDelete": false,
+    "canEdit": false,
+    "description": "<p><b>Line art &amp; dots</b></p><p><a href=\"//live.warthunder.com/?q=%23germantank\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#germantank</a> <a href=\"//live.warthunder.com/?q=%23leopard\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#leopard</a> <a href=\"//live.warthunder.com/?q=%23leopard2a6\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#leopard2a6</a> </p><p><i>Fixture text, not from WT Live.</i></p>",
+    "images": [
+     {
+      "id": 2686367,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/03/img0_lq/shot0.jpg",
+      "width": 386,
+      "height": 219,
+      "ratio": 1.76
+     },
+     {
+      "id": 2686366,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/03/img1_lq/shot1.jpg",
+      "width": 386,
+      "height": 148,
+      "ratio": 2.61
+     },
+     {
+      "id": 2686365,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/03/img2_lq/shot2.jpg",
+      "width": 386,
+      "height": 145,
+      "ratio": 2.66
+     }
+    ],
+    "file": {
+     "id": 2686364,
+     "name": "fixture_skin_3.zip",
+     "link": "https://live.warthunder.com/dl/0000000000000000000000000000000000000003/",
+     "type": "application/zip",
+     "size": 3424725
+    },
+    "pbr_ready": true,
+    "inverted_roughness": false
+   },
+   {
+    "lang_group": 1191495,
+    "id": 1244177,
+    "language": "en",
+    "type": "camouflage",
+    "created": 1791998554,
+    "isAuthor": false,
+    "visible": true,
+    "isSpecial": false,
+    "author": {
+     "id": 100004,
+     "nickname": "Fixture_Author4",
+     "avatar": "https://cdn-live.warthunder.com/uploads/00/00/04/avatar_lq/image.png"
+    },
+    "likes": 7,
+    "isLiked": false,
+    "views": 34,
+    "doubt": false,
+    "featured": false,
+    "downloads": 2,
+    "comments": 0,
+    "isPinned": false,
+    "isMarketSuitable": true,
+    "canDelete": false,
+    "canEdit": false,
+    "description": "<p><b>Tu-2S winter &quot;test&quot;</b></p><p><a href=\"//live.warthunder.com/?q=%23camo\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#camo</a> <a href=\"//live.warthunder.com/?q=%23hungary\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#hungary</a> <a href=\"//live.warthunder.com/?q=%23semi_historical\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#semi_historical</a> <a href=\"//live.warthunder.com/?q=%23tu2\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#tu2</a> </p><p><i>Fixture text, not from WT Live.</i></p>",
+    "images": [
+     {
+      "id": 2686337,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/04/img0_lq/shot0.jpg",
+      "width": 386,
+      "height": 272,
+      "ratio": 1.42
+     }
+    ],
+    "file": {
+     "id": 2686336,
+     "name": "fixture_skin_4.zip",
+     "link": "https://live.warthunder.com/dl/0000000000000000000000000000000000000004/",
+     "type": "application/zip",
+     "size": 11347249
+    },
+    "pbr_ready": true,
+    "inverted_roughness": true
+   },
+   {
+    "lang_group": 1191494,
+    "id": 1244176,
+    "language": "en",
+    "type": "camouflage",
+    "created": 1791998046,
+    "isAuthor": false,
+    "visible": true,
+    "isSpecial": false,
+    "author": {
+     "id": 100005,
+     "nickname": "Fixture_Author5",
+     "avatar": "https://cdn-live.warthunder.com/uploads/00/00/05/avatar_lq/image.png"
+    },
+    "likes": 3,
+    "isLiked": false,
+    "views": 17,
+    "doubt": false,
+    "featured": false,
+    "downloads": 3,
+    "comments": 1,
+    "isPinned": false,
+    "isMarketSuitable": true,
+    "canDelete": false,
+    "canEdit": false,
+    "description": "<p><b>T-34-85 Berlin 1945</b></p><p><a href=\"//live.warthunder.com/?q=%23t_34_85\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#t_34_85</a> <a href=\"//live.warthunder.com/?q=%23ussr\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#ussr</a> <a href=\"//live.warthunder.com/?q=%23historical\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#historical</a> </p><p><i>Fixture text, not from WT Live.</i></p>",
+    "images": [
+     {
+      "id": 2686340,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/05/img0_lq/shot0.jpg",
+      "width": 386,
+      "height": 524,
+      "ratio": 0.74
+     }
+    ],
+    "file": {
+     "id": 2686339,
+     "name": "fixture_skin_5.zip",
+     "link": "https://live.warthunder.com/dl/0000000000000000000000000000000000000005/",
+     "type": "application/zip",
+     "size": 5275250
+    },
+    "pbr_ready": true,
+    "inverted_roughness": false
+   },
+   {
+    "lang_group": 1,
+    "id": 1,
+    "language": "en",
+    "type": "camouflage",
+    "created": 1792000337,
+    "isAuthor": false,
+    "visible": true,
+    "isSpecial": false,
+    "author": {
+     "id": 100003,
+     "nickname": "Fixture_Author3",
+     "avatar": "https://cdn-live.warthunder.com/uploads/00/00/03/avatar_lq/image.png"
+    },
+    "likes": 4,
+    "isLiked": false,
+    "views": 16,
+    "doubt": false,
+    "featured": false,
+    "downloads": 0,
+    "comments": 0,
+    "isPinned": false,
+    "isMarketSuitable": true,
+    "canDelete": false,
+    "canEdit": false,
+    "description": "<p><b>Line art &amp; dots</b></p><p><a href=\"//live.warthunder.com/?q=%23germantank\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#germantank</a> <a href=\"//live.warthunder.com/?q=%23leopard\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#leopard</a> <a href=\"//live.warthunder.com/?q=%23leopard2a6\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#leopard2a6</a> </p><p><i>Fixture text, not from WT Live.</i></p>",
+    "images": [
+     {
+      "id": 2686367,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/03/img0_lq/shot0.jpg",
+      "width": 386,
+      "height": 219,
+      "ratio": 1.76
+     },
+     {
+      "id": 2686366,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/03/img1_lq/shot1.jpg",
+      "width": 386,
+      "height": 148,
+      "ratio": 2.61
+     },
+     {
+      "id": 2686365,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/03/img2_lq/shot2.jpg",
+      "width": 386,
+      "height": 145,
+      "ratio": 2.66
+     }
+    ],
+    "pbr_ready": true,
+    "inverted_roughness": false
+   },
+   {
+    "lang_group": 2,
+    "id": 2,
+    "language": "en",
+    "type": "camouflage",
+    "created": 1791998046,
+    "isAuthor": false,
+    "visible": true,
+    "isSpecial": false,
+    "author": {
+     "id": 100005,
+     "nickname": "Fixture_Author5",
+     "avatar": "https://cdn-live.warthunder.com/uploads/00/00/05/avatar_lq/image.png"
+    },
+    "likes": -3,
+    "isLiked": false,
+    "views": 17,
+    "doubt": false,
+    "featured": false,
+    "downloads": 3,
+    "comments": 1,
+    "isPinned": false,
+    "isMarketSuitable": true,
+    "canDelete": false,
+    "canEdit": false,
+    "description": "<p><b>T-34-85 Berlin 1945</b></p><p><a href=\"//live.warthunder.com/?q=%23t_34_85\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#t_34_85</a> <a href=\"//live.warthunder.com/?q=%23ussr\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#ussr</a> <a href=\"//live.warthunder.com/?q=%23historical\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#historical</a> </p><p><i>Fixture text, not from WT Live.</i></p>",
+    "images": [
+     {
+      "id": 1,
+      "type": "image/jpeg",
+      "src": "https://market.gaijin.net/x.jpg",
+      "width": 1,
+      "height": 1,
+      "ratio": 1
+     },
+     {
+      "id": 2686340,
+      "type": "image/png",
+      "src": "https://cdn-live.warthunder.com/uploads/aa/bb/05/img0_lq/shot0.jpg",
+      "width": 386,
+      "height": 524,
+      "ratio": 0.74
+     }
+    ],
+    "file": {
+     "id": 2686339,
+     "name": "fixture_skin_5.zip",
+     "link": "https://example.com/dl/abc/",
+     "type": "application/zip",
+     "size": 5275250
+    },
+    "pbr_ready": true,
+    "inverted_roughness": false
+   }
+  ],
+  "pageTitle": "WT Live // Camouflages",
+  "link": "/feed/camouflages/"
+ }
+}

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommandPalette } from '@/components/chrome/CommandPalette';
 import i18n from '@/i18n';
 import { createQueryClient } from '@/queries/client';
+import { resetSettingsUi, useSettingsUi } from '@/screens/Settings/settingsUi';
 import { useDetail } from '@/store/detail';
 import { useExplore } from '@/store/explore';
 import { useInstalls, useWtLiveInstallEvents } from '@/store/installs';
@@ -137,7 +138,7 @@ function fakeBackend(overrides: Partial<Db> = {}) {
     wtlive_post: ({ id }) => db.posts.find((p) => p.id === id) ?? Promise.reject({ code: 'notFound', message: 'No such post' }),
     wtlive_search: ({ params }) => {
       const items = db.posts.filter((p) => p.vehicle.code === (params as SearchParams).vehicle).map((p) => ({ ...p, files: undefined }));
-      return { items, total: items.length, tookMs: 12 };
+      return { items, total: items.length, tookMs: 12, hasMore: false, totalExact: true };
     },
     get_hangar: () => db.hangar,
     read_textures: () => db.textures,
@@ -153,6 +154,7 @@ function fakeBackend(overrides: Partial<Db> = {}) {
       return null;
     },
     following_list: () => db.following,
+    wtlive_set_hidden: ({ hidden }) => ({ cacheBytes: 0, hiddenCount: hidden ? 1 : 0 }),
     following_set: ({ kind, id, name, follow, lastSeenAt }) => {
       db.following = db.following.filter((f) => !(f.kind === kind && f.id === id));
       const seen = (lastSeenAt as string | undefined) ?? '2026-09-19T10:00:00Z';
@@ -257,6 +259,22 @@ describe('Skin detail · loading and offline', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     const name = await screen.findByRole('heading', { level: 1, name: 'Schwarzwald Ambush' });
     await waitFor(() => expect(name).toHaveFocus());
+  });
+
+  it('Browse WT Live off: the "turned off" state, no request for the post, Open Settings', async () => {
+    resetSettingsUi();
+    useUi.getState().go('hangar');
+    useUi.getState().openSkin('s1');
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<Harness />, { client: createQueryClient(), settings: { wtliveEnabled: false } });
+    expect(await screen.findByRole('heading', { name: 'WT Live is turned off' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to My Hangar' })).toBeInTheDocument();
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(backend.call.mock.calls.filter(([cmd]) => cmd.startsWith('wtlive_'))).toEqual([]);
+    expect(await seriousViolations(container)).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Open Settings' }));
+    expect(useUi.getState().screen).toBe('settings');
+    expect(useSettingsUi.getState().section).toBe('wtlive');
   });
 
   it('opens My Hangar from the offline state (the build without HTTP answers unsupported)', async () => {
@@ -660,6 +678,33 @@ describe('Skin detail · side panel', () => {
       follow: true,
       lastSeenAt: '2026-09-19T10:00:00Z',
     });
+  });
+
+  it('Hide from Explore hides the skin, goes back like the back button, and Undo shows it again', async () => {
+    useUi.getState().go('collections');
+    const { user } = await renderLoaded();
+    const hide = screen.getByRole('button', { name: 'Hide from Explore' });
+    expect(hide.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    await user.click(hide);
+    await waitFor(() => expect(useUi.getState().screen).toBe('collections'));
+    expect(calls('wtlive_set_hidden')).toEqual([{ id: 's1', hidden: true }]);
+    const hidden = useToasts.getState().toasts.at(-1)!;
+    expect(hidden.message).toBe('Hidden “Schwarzwald Ambush”');
+    expect(hidden.onUndo).toBeDefined();
+
+    await act(() => useToasts.getState().undo(hidden.id));
+    expect(calls('wtlive_set_hidden')).toEqual([
+      { id: 's1', hidden: true },
+      { id: 's1', hidden: false },
+    ]);
+  });
+
+  it('says so when hiding fails, and stays on the detail', async () => {
+    const { user } = await renderLoaded();
+    db.fail.wtlive_set_hidden = { code: 'io', message: 'Could not save the hidden skins' };
+    await user.click(screen.getByRole('button', { name: 'Hide from Explore' }));
+    await waitFor(() => expect(toasts().at(-1)).toMatch(/^Couldn’t update hidden skins: /));
+    expect(useUi.getState().screen).toBe('detail');
   });
 
   it('Undo of a vehicle unfollow brings back its old "last seen"', async () => {

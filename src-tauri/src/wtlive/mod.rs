@@ -1,76 +1,49 @@
 //! WT Live (M5): Explore search, posts, Following, installs from WT Live and Try in game.
 //!
-//! # Today
-//! No HTTP client (nor HTML parser) is approved yet, so the app runs on [`DisabledClient`]:
-//! `wtlive_search`, `wtlive_post`, `wtlive_following_new`, `install_from_wtlive` and
-//! `read_textures { wtliveId }` answer `unsupported` ([`UNSUPPORTED_MESSAGE`]) and emit
-//! `net://status { online: false }`, and the UI shows its designed offline state. `finalize_try`
-//! answers `unsupported` too, but it is local work (keep or remove a skin already on disk), so it
-//! never emits `net://status` ([`WtLiveCall::reaches_wtlive`]). None of them panics. Following is
-//! local data ([`following`]) and works offline.
-//!
 //! # Layout
-//! - [`client`] holds the [`WtLiveClient`] trait (search, post, following_new, download) and
-//!   the [`DisabledClient`] used today. The real client implements the same trait and takes
-//!   the Disabled one's place in [`WtLive::load`]; the commands don't change.
+//! - [`client`]: the [`WtLiveClient`] trait the commands use, and the [`DisabledClient`].
+//! - [`live`]: the real client, [`LiveClient`]: WT Live's JSON endpoints ([`api`]) through a
+//!   polite HTTPS transport ([`net`]: one request a second, backoff, robots.txt, WT Live hosts
+//!   only), a disk cache of at most a day ([`cache`]) and the posts the user hid ([`hidden`]).
+//!   docs/wtlive-terms.md §7 is the posture it follows.
+//! - [`install`]: installs from WT Live, Try in game (Keep / Discard), textures before installing.
 //! - [`following`] keeps `<appData>/following.json`.
 //! - this file: the managed state [`WtLive`], the commands, and the plain functions behind them
 //!   (tested without Tauri in `tests/wtlive_*.rs` and `tests/following_*.rs`).
 //!
-//! # Plan for the real client (when an HTTP client and an HTML parser are approved)
-//! WT Live (`live.warthunder.com`) has no public API (DATA_MODEL.md).
-//! 1. **Fetch** listing pages and post pages over HTTPS with a Livery user agent
-//!    (`Livery/<version>`), at most one request per second through one shared limiter (the
-//!    client waits on its blocking thread). A failure (DNS, timeout, HTTP error, a page that
-//!    doesn't parse) is `network`; the commands turn it into `net://status { online: false }`,
-//!    and the next success turns it back to `online: true`.
-//! 2. **Parse** behind a `Parser` trait (`listing(html)` → skins + page count, `post(html)` →
-//!    [`WtLiveSkin`] with images, download URL, files and stats), so a change on the site swaps
-//!    one implementation. Its tests run against saved-HTML fixtures in
-//!    `src-tauri/tests/fixtures/wtlive/`. Capturing those pages needs network access, so they
-//!    will be saved when HTTP is approved; none exist yet.
-//! 3. **Cache** responses for 24 h in the app data dir (`<appData>/wtlive-cache/`, JSON keyed by
-//!    URL: DATA_MODEL's SQLite table isn't approved either). When WT Live can't be reached, a
-//!    stale cache is still served.
-//! 4. **Explore paging** (BUILD_PLAN open decision 2, DESIGN_NOTES "M5 · Explore paging"): the
-//!    first search fetches the first 5 listing pages and a background task prefetches the rest
-//!    into the cache. `search` filters and sorts the cached catalogue locally and answers pages
-//!    of results (`params.page`, from 0) with the total and the time it took; the frontend's
-//!    `useWtLiveSearchPages` asks for the next page as the grid scrolls.
-//! 5. **Following new**: [`WtLiveClient::following_new`] gets each followed entry with its own
-//!    `lastSeenAt` and answers the skins posted after it.
-//!
-//! # Installs from WT Live and Try in game (same approval, plus the archive crates)
-//! - `install_from_wtlive { skinId, mode, conflict? }` checks [`WtLiveClient::ready`], then
-//!   returns an `installId` at once and runs in the background, emitting `install://progress`:
-//!   download ([`WtLiveClient::download`] into `UserSkins/.livery/partial/<installId>`) →
-//!   extract and analyze (the archive module's `SkinSource` and `analyze_source`) → verify and
-//!   a staged install (`archive::install`). The index entry gets `origin: wtlive`, `sourceId` =
-//!   the WT Live id and the author; a folder clash follows `conflict` or the settings policy,
-//!   as in the queue. Until that pipeline is written, a ready client still gets `unsupported`
-//!   ([`UNSUPPORTED_MESSAGE`]).
-//! - `mode: temporary` (Try in game) installs the same way and marks the index entry
-//!   `temporary: true`. My Hangar leaves it out (DESIGN_NOTES "M5 · Temporary installs").
-//! - `finalize_try { skinId, keep }`: `skinId` is the **WT Live** id (the entry's `sourceId`).
-//!   Keep → `temporary = false` and the skin is returned. Discard → its folder and its index
-//!   entry are removed, a folder it replaced comes back from its backup, and `null` is returned.
-//! - At launch, any temporary install left by a crashed or closed session is removed the same
-//!   way (a `purge_on_startup` called next to `archive::purge_on_startup` in `lib.rs` setup).
-//! - `read_textures { wtliveId }` downloads the post's archive into the cache and reads its
-//!   texture headers, for the Skin detail's Textures tab before installing.
+//! # Network status
+//! Every call that reaches WT Live emits `net://status` from its outcome: a success → online;
+//! `network` or `unsupported` (turned off in Settings, robots.txt says no, the disabled client)
+//! → offline; other errors (a blank id, a post that's gone) say nothing. Local work (Keep /
+//! Discard, the storage commands) never emits it. Nothing reaches WT Live unless a command asks:
+//! no prefetch, no polling, nothing at startup but clearing the cache of what is over a day old.
 
+pub mod api;
+pub mod cache;
 pub mod client;
 pub mod following;
+pub mod hidden;
+pub mod install;
+pub mod live;
+pub mod net;
 
-pub use client::{is_offline_error, unsupported, DisabledClient, DownloadProgress, WtLiveClient, UNSUPPORTED_MESSAGE};
+pub use client::{
+    is_offline_error, turned_off, unsupported, DisabledClient, DownloadProgress, WtLiveClient, TURNED_OFF_MESSAGE,
+    UNSUPPORTED_MESSAGE,
+};
 pub use following::{FollowingStore, FOLLOWING_FILE};
+pub use live::LiveClient;
 
+use crate::archive::{QueueStore, PROGRESS_EVENT};
 use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
+use crate::library::{self, GameLibrary};
 use crate::model::{
     ConflictPolicy, FollowEntry, FollowKind, HangarSkin, InstallMode, InstallStarted, SearchParams, SearchResult,
-    TextureInfo, WtLiveSkin,
+    TextureInfo, WtLiveSkin, WtLiveStorage,
 };
+use cache::DiskCache;
+use hidden::HiddenStore;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -89,20 +62,51 @@ pub struct NetStatus {
     pub online: bool,
 }
 
-/// Managed state: the WT Live client and the Following list.
+/// Whether Settings → WT Live → Browse WT Live is on (read on every call).
+pub type EnabledFn = Arc<dyn Fn() -> bool + Send + Sync>;
+
+/// Managed state: the WT Live client, the Following list, the hidden posts and the cache.
 pub struct WtLive {
     client: Arc<dyn WtLiveClient>,
     following: FollowingStore,
+    hidden: Arc<HiddenStore>,
+    cache: Arc<DiskCache>,
+    installing: install::Installing,
 }
 
 impl WtLive {
-    /// This build's state: the [`DisabledClient`] and `<data_dir>/following.json`.
-    pub fn load(data_dir: &Path) -> Self {
-        Self::with_client(Arc::new(DisabledClient), data_dir.join(FOLLOWING_FILE))
+    /// The app's state: the [`LiveClient`] over HTTPS, browsing while `enabled()` says so, with
+    /// its files in `data_dir`.
+    pub fn load(data_dir: &Path, enabled: EnabledFn) -> Self {
+        let cache = Arc::new(DiskCache::new(data_dir.join(cache::CACHE_DIR)));
+        let hidden = Arc::new(HiddenStore::load(data_dir.join(hidden::HIDDEN_FILE)));
+        let transport = Arc::new(net::HttpTransport::new());
+        let client = Arc::new(LiveClient::new(transport, Arc::clone(&cache), Arc::clone(&hidden), enabled));
+        Self::with_parts(client, data_dir.join(FOLLOWING_FILE), hidden, cache)
     }
 
+    /// Another client (tests), with the Following list at `following_path` and the hidden posts
+    /// and the cache next to it.
     pub fn with_client(client: Arc<dyn WtLiveClient>, following_path: PathBuf) -> Self {
-        Self { client, following: FollowingStore::load(following_path) }
+        let dir = following_path.parent().map(Path::to_path_buf).unwrap_or_default();
+        let cache = Arc::new(DiskCache::new(dir.join(cache::CACHE_DIR)));
+        let hidden = Arc::new(HiddenStore::load(dir.join(hidden::HIDDEN_FILE)));
+        Self::with_parts(client, following_path, hidden, cache)
+    }
+
+    pub fn with_parts(
+        client: Arc<dyn WtLiveClient>,
+        following_path: PathBuf,
+        hidden: Arc<HiddenStore>,
+        cache: Arc<DiskCache>,
+    ) -> Self {
+        Self {
+            client,
+            following: FollowingStore::load(following_path),
+            hidden,
+            cache,
+            installing: install::Installing::default(),
+        }
     }
 
     pub fn client(&self) -> Arc<dyn WtLiveClient> {
@@ -111,6 +115,23 @@ impl WtLive {
 
     pub fn following(&self) -> &FollowingStore {
         &self.following
+    }
+
+    pub fn hidden(&self) -> &HiddenStore {
+        &self.hidden
+    }
+
+    pub fn cache(&self) -> &DiskCache {
+        &self.cache
+    }
+
+    pub fn installing(&self) -> &install::Installing {
+        &self.installing
+    }
+
+    /// Settings → WT Live: cache size and hidden posts.
+    pub fn storage(&self) -> WtLiveStorage {
+        WtLiveStorage { cache_bytes: self.cache.size(), hidden_count: self.hidden.count() }
     }
 }
 
@@ -173,42 +194,23 @@ pub fn following_new(
     client.following_new(&following::select(followed, vehicles, authors))
 }
 
-/// `install_from_wtlive`: what can be checked before an install starts. See the module doc
-/// for the pipeline that follows once it exists.
-pub fn start_install(
-    client: &dyn WtLiveClient,
-    skin_id: &str,
-    mode: InstallMode,
-    conflict: Option<ConflictPolicy>,
-) -> AppResult<InstallStarted> {
-    required_id(skin_id)?;
-    // Used by the pipeline: `temporary` on the index entry, and the folder clash policy.
-    let _ = (mode, conflict);
-    download_and_unpack(client)
-}
-
-/// `finalize_try`. A Try in game install can't exist in a build that can't download from WT
-/// Live, so there is nothing to keep or discard yet (see the module doc for the plan).
-pub fn keep_or_discard(skin_id: &str, keep: bool) -> AppResult<Option<HangarSkin>> {
-    required_id(skin_id)?;
-    let _ = keep;
-    Err(unsupported().with_detail("finalize_try: no Try in game install can exist in this build"))
-}
-
 /// `read_textures { wtliveId }`: the texture headers of a post that isn't installed.
 pub fn post_textures(client: &dyn WtLiveClient, id: &str) -> AppResult<Vec<TextureInfo>> {
-    required_id(id)?;
-    download_and_unpack(client)
+    install::post_textures(client, required_id(id)?)
 }
 
-/// Installing a post, or reading its textures before installing, means downloading its archive
-/// and unpacking it: the client must be ready, and the download pipeline isn't written yet.
-fn download_and_unpack<T>(client: &dyn WtLiveClient) -> AppResult<T> {
-    client.ready()?;
-    Err(unsupported().with_detail("WT Live downloads aren't wired to the archive readers yet"))
+/// `finalize_try`: Keep or Discard the post's Try in game install (see [`install::finalize`]).
+pub fn keep_or_discard(
+    user_skins: &Path,
+    store: &library::LibraryStore,
+    skin_id: &str,
+    keep: bool,
+    keep_backups: bool,
+) -> AppResult<Option<HangarSkin>> {
+    install::finalize(user_skins, store, required_id(skin_id)?, keep, keep_backups)
 }
 
-fn required_id(id: &str) -> AppResult<&str> {
+pub fn required_id(id: &str) -> AppResult<&str> {
     match id.trim() {
         "" => Err(AppError::new(ErrorCode::InvalidInput, MISSING_SKIN_ID)),
         id => Ok(id),
@@ -251,17 +253,81 @@ pub async fn install_from_wtlive(
     mode: InstallMode,
     conflict: Option<ConflictPolicy>,
 ) -> AppResult<InstallStarted> {
-    let client = client_of(&app);
-    let result = blocking(move || start_install(client.as_ref(), &skin_id, mode, conflict)).await;
+    let handle = app.clone();
+    let result = blocking(move || start_install(&handle, &skin_id, mode, conflict)).await;
     reported(&app, WtLiveCall::Install, result)
 }
 
-/// Try in game: keep → the temporary install becomes a normal hangar skin; discard → removed.
-/// `skin_id` is the **WT Live** skin id (the hangar skin's `source_id`), not a hangar id. Local:
-/// it never emits `net://status`.
+/// Checks and starts an install, then runs it on a background thread that reports through
+/// `install://progress` (and `net://status` once the download ran). Blocking.
+fn start_install(
+    app: &AppHandle,
+    skin_id: &str,
+    mode: InstallMode,
+    conflict: Option<ConflictPolicy>,
+) -> AppResult<InstallStarted> {
+    let post_id = required_id(skin_id)?.to_owned();
+    let library = GameLibrary::current(app)?;
+    library::purge_in(&library, &[]);
+    let GameLibrary { settings, user_skins, store } = library;
+    // Stale staging from a past session goes before anything is staged in this one.
+    app.state::<QueueStore>().ensure_partials_purged(&user_skins);
+    let state = app.state::<WtLive>();
+    let client = state.client();
+    let job = {
+        let ctx =
+            install::Ctx { user_skins: &user_skins, library: &store, settings: &settings, client: client.as_ref() };
+        install::prepare(&ctx, state.installing(), &post_id, mode, conflict)?
+    };
+    let started = InstallStarted { install_id: job.install_id.clone() };
+    let thread_app = app.clone();
+    let thread_job = job.clone();
+    let spawned = std::thread::Builder::new().name("livery-wtlive-install".into()).spawn(move || {
+        let app = thread_app;
+        let job = thread_job;
+        // Released however the install ends (a panic included); a skip claimed nothing.
+        let _claim = (!job.is_skip()).then(|| Release { app: app.clone(), post_id: job.post_id.clone() });
+        let ctx =
+            install::Ctx { user_skins: &user_skins, library: &store, settings: &settings, client: client.as_ref() };
+        let result = install::run(&ctx, &job, &mut |progress| emit(&app, PROGRESS_EVENT, progress));
+        if let Some(status) = net_status_of(&result) {
+            emit(&app, NET_STATUS_EVENT, status);
+        }
+    });
+    if let Err(e) = spawned {
+        if !job.is_skip() {
+            state.installing().release(&job.post_id);
+        }
+        return Err(AppError::new(ErrorCode::Internal, "Could not start the install").with_detail(e.to_string()));
+    }
+    Ok(started)
+}
+
+/// Gives a post's install claim back when dropped.
+struct Release {
+    app: AppHandle,
+    post_id: String,
+}
+
+impl Drop for Release {
+    fn drop(&mut self) {
+        self.app.state::<WtLive>().installing().release(&self.post_id);
+    }
+}
+
+/// Try in game: keep → the temporary install becomes a normal hangar skin; discard → removed,
+/// and a version it replaced comes back. `skin_id` is the **WT Live** skin id (the hangar skin's
+/// `source_id`), not a hangar id. Local: it never emits `net://status`.
 #[tauri::command]
 pub async fn finalize_try(app: AppHandle, skin_id: String, keep: bool) -> AppResult<Option<HangarSkin>> {
-    reported(&app, WtLiveCall::FinalizeTry, keep_or_discard(&skin_id, keep))
+    let handle = app.clone();
+    let result = blocking(move || {
+        required_id(&skin_id)?;
+        let library = GameLibrary::current(&handle)?;
+        keep_or_discard(&library.user_skins, &library.store, &skin_id, keep, library.settings.backups)
+    })
+    .await;
+    reported(&app, WtLiveCall::FinalizeTry, result)
 }
 
 /// `read_textures { wtliveId }` (called by `textures::read_textures`).
@@ -296,19 +362,81 @@ pub async fn following_mark_seen(app: AppHandle) -> AppResult<Vec<FollowEntry>> 
     blocking(move || app.state::<WtLive>().following().mark_seen()).await
 }
 
+/// Settings → WT Live: cache size and hidden posts. Local.
+#[tauri::command]
+pub async fn wtlive_storage(app: AppHandle) -> AppResult<WtLiveStorage> {
+    blocking(move || Ok(app.state::<WtLive>().storage())).await
+}
+
+/// Empties the WT Live cache. Local.
+#[tauri::command]
+pub async fn wtlive_clear_cache(app: AppHandle) -> AppResult<WtLiveStorage> {
+    blocking(move || {
+        let state = app.state::<WtLive>();
+        state.cache().clear();
+        Ok(state.storage())
+    })
+    .await
+}
+
+/// Hides a post from Explore and Following (`hidden: true`) or shows it again. Local.
+#[tauri::command]
+pub async fn wtlive_set_hidden(app: AppHandle, id: String, hidden: bool) -> AppResult<WtLiveStorage> {
+    blocking(move || {
+        let state = app.state::<WtLive>();
+        state.hidden().set(required_id(&id)?, hidden)?;
+        Ok(state.storage())
+    })
+    .await
+}
+
+/// Shows every hidden post again. Local.
+#[tauri::command]
+pub async fn wtlive_unhide_all(app: AppHandle) -> AppResult<WtLiveStorage> {
+    blocking(move || {
+        let state = app.state::<WtLive>();
+        state.hidden().clear()?;
+        Ok(state.storage())
+    })
+    .await
+}
+
+/// At launch, off the main thread: what the cache holds for more than a day goes, and so do the
+/// Try in game installs a closed or crashed session left behind. Nothing is fetched.
+pub fn purge_on_startup(app: &AppHandle) {
+    let app = app.clone();
+    let launched = std::time::SystemTime::now();
+    tauri::async_runtime::spawn_blocking(move || {
+        let removed = app.state::<WtLive>().cache().purge_expired();
+        if removed > 0 {
+            tracing::info!(removed, "expired WT Live cache files removed");
+        }
+        if let Ok(library) = GameLibrary::current(&app) {
+            let discarded = install::purge_tries(&library.user_skins, &library.store, launched);
+            if discarded > 0 {
+                tracing::info!(discarded, "Try in game installs from the last session discarded");
+            }
+        }
+    });
+}
+
 // ── App glue ────────────────────────────────────────────────────────────────
 
 fn client_of(app: &AppHandle) -> Arc<dyn WtLiveClient> {
     app.state::<WtLive>().client()
 }
 
+fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
+    if let Err(e) = app.emit(event, payload) {
+        tracing::warn!(error = %e, "could not emit {event}");
+    }
+}
+
 /// Emits `net://status` when the outcome of `call` says something about reaching WT Live (see
 /// [`net_status_after`]), then hands the outcome back.
 fn reported<T>(app: &AppHandle, call: WtLiveCall, result: AppResult<T>) -> AppResult<T> {
     if let Some(status) = net_status_after(call, &result) {
-        if let Err(e) = app.emit(NET_STATUS_EVENT, status) {
-            tracing::warn!(error = %e, "could not emit {NET_STATUS_EVENT}");
-        }
+        emit(app, NET_STATUS_EVENT, status);
     }
     if let Err(e) = &result {
         tracing::debug!(?call, code = ?e.code, "WT Live call failed: {}", e.message);

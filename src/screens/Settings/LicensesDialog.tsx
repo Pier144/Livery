@@ -5,6 +5,7 @@ import geistLicense from '@/assets/fonts/Geist-OFL.txt?raw';
 import plexLicense from '@/assets/fonts/IBMPlexMono-OFL.txt?raw';
 import unrarLicense from '@/assets/licenses/UnRAR.txt?raw';
 import zstdLicense from '@/assets/licenses/zstd-BSD-3-Clause.txt?raw';
+import awsLcLicense from '@/assets/licenses/AWS-LC.txt?raw';
 
 /** Bundled fonts: their license texts ship next to the woff2 files. */
 const FONTS = [
@@ -14,11 +15,13 @@ const FONTS = [
 
 /**
  * Bundled native code whose licence asks for its text in the documentation: UnRAR (RAR reading,
- * paragraph 2 must be quoted in full) and Zstandard (BSD-3-Clause, inside ZIP support).
+ * paragraph 2 must be quoted in full), Zstandard (BSD-3-Clause, inside ZIP support) and AWS-LC
+ * (the cryptography behind HTTPS to WT Live; ISC, Apache-2.0, MIT and BSD-3-Clause parts).
  */
 const NOTICES = [
   { name: 'UnRAR · Alexander Roshal', license: 'UnRAR license', text: unrarLicense },
   { name: 'Zstandard · Meta Platforms, Inc.', license: 'BSD-3-Clause', text: zstdLicense },
+  { name: 'AWS-LC · Amazon.com, Inc.', license: 'ISC · Apache-2.0 · MIT · BSD-3-Clause', text: awsLcLicense },
 ] as const;
 
 /** Main open-source libraries (names and SPDX ids aren't translated). */
@@ -33,6 +36,8 @@ const LIBRARIES = [
   { name: 'zip', license: 'MIT' },
   { name: 'sevenz-rust2', license: 'Apache-2.0' },
   { name: 'unrar', license: 'MIT / Apache-2.0' },
+  { name: 'reqwest · hyper', license: 'MIT / Apache-2.0' },
+  { name: 'rustls', license: 'Apache-2.0 / ISC / MIT' },
 ] as const;
 
 const FOCUSABLE = 'button:not([disabled]), [tabindex="0"]';

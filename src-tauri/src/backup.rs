@@ -91,7 +91,8 @@ pub fn is_expired(record: &BackupRecord, now: i64, backup_days: u32) -> bool {
 }
 
 /// Permanently removes expired backups (folder and record), except the ids in `keep` (an Undo
-/// in progress). A folder that can't be removed keeps its record, so the next purge retries.
+/// in progress) and the versions a Try in game replaced (`triedBackups`: Discard puts them
+/// back). A folder that can't be removed keeps its record, so the next purge retries.
 /// Returns how many were purged; writes the index only when something changed.
 pub fn purge(
     user_skins: &Path,
@@ -101,8 +102,13 @@ pub fn purge(
     keep: &[String],
 ) -> AppResult<usize> {
     let now = time::unix_secs(now);
-    let due = |record: &BackupRecord| !keep.contains(&record.backup.id) && is_expired(record, now, backup_days);
     let purged = store.transact(|library, _| {
+        let tried: HashSet<String> = library.tried_backups.values().cloned().collect();
+        let due = |record: &BackupRecord| {
+            !keep.contains(&record.backup.id)
+                && !tried.contains(&record.backup.id)
+                && is_expired(record, now, backup_days)
+        };
         if !library.backups.iter().any(due) {
             return Ok(0);
         }
@@ -133,12 +139,19 @@ pub fn purge(
     Ok(purged)
 }
 
-/// Kept backups (not the ephemeral Undo-only ones), newest first.
+/// Kept backups (not the ephemeral Undo-only ones, nor a version a Try in game replaced, which
+/// belongs to that try until Keep or Discard), newest first.
 pub fn list(store: &LibraryStore) -> Vec<Backup> {
     let library = store.snapshot();
+    let tried: HashSet<&String> = library.tried_backups.values().collect();
     // Records are appended as they are made: reversed, then a stable sort by date.
-    let mut backups: Vec<Backup> =
-        library.backups.iter().rev().filter(|r| !r.ephemeral).map(|r| r.backup.clone()).collect();
+    let mut backups: Vec<Backup> = library
+        .backups
+        .iter()
+        .rev()
+        .filter(|r| !r.ephemeral && !tried.contains(&r.backup.id))
+        .map(|r| r.backup.clone())
+        .collect();
     backups.sort_by(|a, b| {
         let key = |b: &Backup| time::parse_rfc3339(&b.created_at).unwrap_or(i64::MIN);
         key(b).cmp(&key(a))
@@ -150,16 +163,19 @@ pub fn list(store: &LibraryStore) -> Vec<Backup> {
 /// gone for good. `ids: None` clears every backup, ephemeral ones included, plus the leftover
 /// folders no record points to; `Some(ids)` only those backups (unknown ids are ignored, and
 /// nothing else in the backups folder is touched), so a backup made after the list the user saw
-/// survives a deferred Clear. Folders that can't be removed keep their record and are reported
-/// as an `io` error.
+/// survives a deferred Clear. The versions a Try in game replaced are never cleared (Discard puts
+/// them back). Folders that can't be removed keep their record and are reported as an `io` error.
 pub fn clear(user_skins: &Path, store: &LibraryStore, ids: Option<&[String]>) -> AppResult<()> {
     let root = layout::backups_dir(user_skins);
     let chosen: Option<HashSet<&str>> = ids.map(|ids| ids.iter().map(String::as_str).collect());
     let failed = store.transact(|library, _| {
         let mut failed = Vec::new();
         let mut kept = Vec::new();
+        let tried: HashSet<String> = library.tried_backups.values().cloned().collect();
         for record in std::mem::take(&mut library.backups) {
-            if chosen.as_ref().is_some_and(|chosen| !chosen.contains(record.backup.id.as_str())) {
+            if tried.contains(&record.backup.id)
+                || chosen.as_ref().is_some_and(|chosen| !chosen.contains(record.backup.id.as_str()))
+            {
                 kept.push(record);
                 continue;
             }

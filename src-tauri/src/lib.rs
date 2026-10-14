@@ -68,11 +68,17 @@ pub fn run() {
             app.manage(settings);
             app.manage(libraries);
             app.manage(archive::QueueStore::default());
-            app.manage(wtlive::WtLive::load(&data_dir));
+            // Settings → WT Live → Browse WT Live, read on every WT Live call.
+            let handle = app.handle().clone();
+            let enabled: wtlive::EnabledFn =
+                std::sync::Arc::new(move || handle.state::<settings::SettingsStore>().get().wtlive_enabled);
+            app.manage(wtlive::WtLive::load(&data_dir, enabled));
             // Expired and ephemeral backups go away at launch, not only on the first library command.
             backup::purge_on_startup(app.handle());
             // Stale install staging (.livery/partial) from a crash or a closed window goes too.
             archive::purge_on_startup(app.handle());
+            // WT Live cache older than a day, and Try in game installs left by the last session.
+            wtlive::purge_on_startup(app.handle());
             watch::start(app.handle());
             tracing::info!(version = env!("CARGO_PKG_VERSION"), "Livery started");
             Ok(())
@@ -112,6 +118,10 @@ pub fn run() {
             wtlive::following_list,
             wtlive::following_set,
             wtlive::following_mark_seen,
+            wtlive::wtlive_storage,
+            wtlive::wtlive_clear_cache,
+            wtlive::wtlive_set_hidden,
+            wtlive::wtlive_unhide_all,
             backup::clear_backups,
             startup::app_ready,
         ])

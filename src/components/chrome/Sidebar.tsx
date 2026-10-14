@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
 import { useHangarSummary } from '@/queries/hangar';
-import { useSettings } from '@/queries/settings';
+import { useSettings, useWtLiveEnabled } from '@/queries/settings';
 import { WTLIVE_KEY } from '@/queries/wtlive';
 import { selectPendingCount, useQueue } from '@/store/queue';
 import { useUi } from '@/store/ui';
@@ -49,18 +49,25 @@ function isUnfiltered(params: unknown): boolean {
 
 /**
  * WT Live catalogue size: `total` of the first page of the newest cached **unfiltered** Explore
- * search (a filtered total would only count that filter's skins), else the last one seen.
+ * search (a filtered total would only count that filter's skins), else the last one seen. Only an
+ * exact total counts (`totalExact`): WT Live's feed has no total count, and a lower bound would
+ * read as the catalogue size, so then there is no count at all.
  */
 function cachedLiveSkinCount(qc: QueryClient): number | undefined {
-  let newest: { at: number; total: number } | undefined;
+  let newest: { at: number; first: SearchResult } | undefined;
   for (const query of qc.getQueryCache().findAll({ queryKey: [...WTLIVE_KEY, 'search-pages'] })) {
     if (!isUnfiltered(query.queryKey[2])) continue;
     const first = (query.state.data as InfiniteData<SearchResult> | undefined)?.pages?.[0];
     if (typeof first?.total !== 'number') continue;
-    if (!newest || query.state.dataUpdatedAt > newest.at) newest = { at: query.state.dataUpdatedAt, total: first.total };
+    if (!newest || query.state.dataUpdatedAt > newest.at) newest = { at: query.state.dataUpdatedAt, first };
   }
-  if (newest) lastKnownCount.set(qc, newest.total);
-  return newest?.total ?? lastKnownCount.get(qc);
+  if (!newest) return lastKnownCount.get(qc);
+  if (newest.first.totalExact !== true) {
+    lastKnownCount.delete(qc);
+    return undefined;
+  }
+  lastKnownCount.set(qc, newest.first.total);
+  return newest.first.total;
 }
 
 /**
@@ -89,12 +96,17 @@ export function Sidebar({ liveSkinCount }: SidebarProps) {
   const badgeId = useId();
   const cachedCount = useCachedLiveSkinCount();
   const count = liveSkinCount ?? cachedCount;
+  // Browse WT Live off (Settings → WT Live): no request is made, so neither online nor offline.
+  const wtliveEnabled = useWtLiveEnabled();
+  const live = wtliveEnabled && online;
 
-  const liveText = !online
-    ? t('common.status.offline')
-    : count === undefined
-      ? t('common.status.onlineNoCount')
-      : t('common.status.online', { count });
+  const liveText = !wtliveEnabled
+    ? t('common.status.off')
+    : !online
+      ? t('common.status.offline')
+      : count === undefined
+        ? t('common.status.onlineNoCount')
+        : t('common.status.online', { count });
 
   return (
     <nav
@@ -117,13 +129,13 @@ export function Sidebar({ liveSkinCount }: SidebarProps) {
       ))}
       <div className="flex-1" />
       {open ? (
-        <StatusCard online={online} liveText={liveText} />
+        <StatusCard online={live} liveText={liveText} />
       ) : (
         <span
           role="img"
           aria-label={liveText}
           title={liveText}
-          className={cn('mb-2.5 h-1.5 w-1.5 flex-none rounded-full', online ? 'bg-amber' : 'bg-ink-5')}
+          className={cn('mb-2.5 h-1.5 w-1.5 flex-none rounded-full', live ? 'bg-amber' : 'bg-ink-5')}
         />
       )}
       <button

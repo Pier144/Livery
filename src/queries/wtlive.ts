@@ -10,6 +10,7 @@ import {
 import { useEffect } from 'react';
 import { listenEvent } from '@/lib/events';
 import { call, hasBackend, toAppError } from '@/lib/tauri';
+import { useWtLiveEnabled } from '@/queries/settings';
 import { useUi } from '@/store/ui';
 import {
   EVENTS,
@@ -24,11 +25,14 @@ import {
   type SearchParams,
   type SearchResult,
   type WtLiveSkin,
+  type WtLiveStorage,
 } from '@/types';
 import { HANGAR_KEY } from './hangar';
 
 export const WTLIVE_KEY = ['wtlive'] as const;
 export const FOLLOWING_KEY = ['following'] as const;
+/** Cache size and hidden skins (Settings → WT Live); local data, not under WTLIVE_KEY. */
+export const WTLIVE_STORAGE_KEY = ['wtlive-storage'] as const;
 
 /** Errors that mean "WT Live can't be reached from here" (drives the offline state). */
 const OFFLINE_CODES = new Set(['network', 'unsupported', 'noBackend']);
@@ -70,53 +74,75 @@ export function useNetStatusEvents() {
   }, []);
 }
 
+/**
+ * Every WT Live query below is disabled while Settings → WT Live → Browse WT Live is off
+ * (`useWtLiveEnabled`): no request at all, and the screens show the "turned off" state.
+ */
+
 /** Explore grid. Filters combine (AND); previous results stay on screen while the next page loads. */
 export function useWtLiveSearch(params: SearchParams) {
+  const enabled = useWtLiveEnabled();
   return useQuery<SearchResult, AppError>({
     queryKey: [...WTLIVE_KEY, 'search', params],
     queryFn: () => tracked(() => call<SearchResult>('wtlive_search', { params })),
+    enabled,
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
   });
 }
 
+/** Next page to ask for: WT Live's feed has no total count, so it follows the last page's `hasMore`. */
+export const nextSearchPage = (last: SearchResult, pages: readonly SearchResult[]): number | undefined =>
+  last.hasMore ? pages.length : undefined;
+
 /**
  * Explore grid, page after page (BUILD_PLAN open decision 2): the backend fetches, caches and
  * filters WT Live locally and answers pages of results; call `fetchNextPage()` when the virtual
- * grid nears the end. `total` and `tookMs` come from the first page.
+ * grid nears the end. The count comes from the last loaded page (a lower bound unless
+ * `totalExact`), the query time from the first.
  */
 export function useWtLiveSearchPages(params: Omit<SearchParams, 'page'>) {
+  const enabled = useWtLiveEnabled();
   return useInfiniteQuery<SearchResult, AppError, InfiniteData<SearchResult, number>, QueryKey, number>({
     queryKey: [...WTLIVE_KEY, 'search-pages', params],
     queryFn: ({ pageParam }) => tracked(() => call<SearchResult>('wtlive_search', { params: { ...params, page: pageParam } })),
+    enabled,
     initialPageParam: 0,
-    getNextPageParam: (last, pages) => {
-      const loaded = pages.reduce((n, p) => n + p.items.length, 0);
-      return last.items.length > 0 && loaded < last.total ? pages.length : undefined;
-    },
+    getNextPageParam: nextSearchPage,
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
+    // Every loaded page would be fetched again (docs/wtlive-terms.md §7.4: only on the user's
+    // action): coming back to Explore, refocusing the window or reconnecting reuse what is here.
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 
 /** Full post (images, files) for the Skin detail. */
 export function useWtLivePost(id: string | null) {
+  const enabled = useWtLiveEnabled();
   return useQuery<WtLiveSkin, AppError>({
     queryKey: [...WTLIVE_KEY, 'post', id],
     queryFn: () => tracked(() => call<WtLiveSkin>('wtlive_post', { id })),
-    enabled: id !== null,
+    enabled: enabled && id !== null,
     staleTime: 5 * 60_000,
   });
 }
 
-/** New skins from followed vehicles/authors since they were last seen. */
-export function useFollowingNew(entries: FollowEntry[] | undefined) {
+/**
+ * New skins from followed vehicles/authors since they were last seen. One WT Live request per
+ * followed entry, so it is fetched only where `fetch` is true (the Following tab); elsewhere (the
+ * "N new" pill) it only reads what that tab already fetched.
+ */
+export function useFollowingNew(entries: FollowEntry[] | undefined, { fetch = true }: { fetch?: boolean } = {}) {
+  const enabled = useWtLiveEnabled();
   const vehicles = (entries ?? []).filter((e) => e.kind === 'vehicle').map((e) => e.id);
   const authors = (entries ?? []).filter((e) => e.kind === 'author').map((e) => e.id);
   return useQuery<WtLiveSkin[], AppError>({
     queryKey: [...WTLIVE_KEY, 'following-new', vehicles, authors],
     queryFn: () => tracked(() => call<WtLiveSkin[]>('wtlive_following_new', { vehicles, authors })),
-    enabled: entries !== undefined && (vehicles.length > 0 || authors.length > 0),
+    enabled: fetch && enabled && entries !== undefined && (vehicles.length > 0 || authors.length > 0),
     staleTime: 5 * 60_000,
   });
 }
@@ -161,6 +187,9 @@ export function useMarkFollowingSeen() {
     mutationFn: () => call<FollowEntry[]>('following_mark_seen'),
     onSuccess: (list) => {
       qc.setQueryData(FOLLOWING_KEY, list);
+      // Everything was just seen: nothing is new (outside the Following tab the query doesn't
+      // refetch, so the pill must not keep the old count).
+      qc.setQueriesData<WtLiveSkin[]>({ queryKey: [...WTLIVE_KEY, 'following-new'] }, (old) => (old ? [] : old));
       return qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'following-new'] });
     },
   });
@@ -180,5 +209,79 @@ export function useFinalizeTry() {
   return useMutation<HangarSkin | null, AppError, { skinId: string; keep: boolean }>({
     mutationFn: (args) => call<HangarSkin | null>('finalize_try', args),
     onSettled: () => qc.invalidateQueries({ queryKey: HANGAR_KEY }),
+  });
+}
+
+// ── Settings → WT Live: cache and hidden skins (local; never emit net://status) ──
+
+/** What Livery keeps from WT Live: cache size and hidden skins (`wtlive_storage`, works offline). */
+export function useWtLiveStorage() {
+  return useQuery<WtLiveStorage, AppError>({
+    queryKey: WTLIVE_STORAGE_KEY,
+    queryFn: () =>
+      hasBackend() ? call<WtLiveStorage>('wtlive_storage') : Promise.resolve<WtLiveStorage>({ cacheBytes: 0, hiddenCount: 0 }),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+}
+
+/** Empties the WT Live cache (`wtlive_clear_cache`). Not undoable: it is only a cache. */
+export function useClearWtLiveCache() {
+  const qc = useQueryClient();
+  return useMutation<WtLiveStorage, AppError, void>({
+    mutationFn: () => call<WtLiveStorage>('wtlive_clear_cache'),
+    onSuccess: (storage) => qc.setQueryData(WTLIVE_STORAGE_KEY, storage),
+  });
+}
+
+/**
+ * The WT Live lists a hide or unhide changes: Explore's searches and Following's new skins (posts
+ * stay: a hidden skin's detail still opens, e.g. from My Hangar).
+ */
+function invalidateWtLiveLists(qc: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'search-pages'] }),
+    qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'search'] }),
+    qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'following-new'] }),
+  ]);
+}
+
+/** Takes a hidden skin out of the cached lists at once, so going back never shows (or focuses) its card. */
+function pruneHidden(qc: ReturnType<typeof useQueryClient>, id: string) {
+  const keep = (s: WtLiveSkin) => s.id !== id;
+  qc.setQueriesData<InfiniteData<SearchResult, number>>({ queryKey: [...WTLIVE_KEY, 'search-pages'] }, (data) =>
+    data ? { ...data, pages: data.pages.map((p) => ({ ...p, items: p.items.filter(keep) })) } : data,
+  );
+  qc.setQueriesData<SearchResult>({ queryKey: [...WTLIVE_KEY, 'search'] }, (data) =>
+    data ? { ...data, items: data.items.filter(keep) } : data,
+  );
+  qc.setQueriesData<WtLiveSkin[]>({ queryKey: [...WTLIVE_KEY, 'following-new'] }, (data) => data?.filter(keep));
+}
+
+/**
+ * Hides a WT Live skin from Explore and Following, or shows it again (`wtlive_set_hidden`). A skin
+ * already installed stays in My Hangar: hiding only affects the WT Live lists.
+ */
+export function useSetWtLiveHidden() {
+  const qc = useQueryClient();
+  return useMutation<WtLiveStorage, AppError, { id: string; hidden: boolean }>({
+    mutationFn: (args) => call<WtLiveStorage>('wtlive_set_hidden', args),
+    onSuccess: (storage, { id, hidden }) => {
+      qc.setQueryData(WTLIVE_STORAGE_KEY, storage);
+      if (hidden) pruneHidden(qc, id);
+      return invalidateWtLiveLists(qc);
+    },
+  });
+}
+
+/** Every hidden skin back in Explore and Following (`wtlive_unhide_all`). */
+export function useUnhideAllWtLive() {
+  const qc = useQueryClient();
+  return useMutation<WtLiveStorage, AppError, void>({
+    mutationFn: () => call<WtLiveStorage>('wtlive_unhide_all'),
+    onSuccess: (storage) => {
+      qc.setQueryData(WTLIVE_STORAGE_KEY, storage);
+      return invalidateWtLiveLists(qc);
+    },
   });
 }

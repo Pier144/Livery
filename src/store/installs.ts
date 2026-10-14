@@ -5,6 +5,7 @@ import i18n from '@/i18n';
 import { listenEvent } from '@/lib/events';
 import { toAppError } from '@/lib/tauri';
 import { HANGAR_KEY, useHangar } from '@/queries/hangar';
+import { useWtLiveEnabled } from '@/queries/settings';
 import { installFromWtLive } from '@/queries/wtlive';
 import { toast } from '@/store/toasts';
 import {
@@ -138,12 +139,14 @@ export type WtInstallState =
 /**
  * Card / side-panel install state for a WT Live skin: hangar (by sourceId, temporary installs
  * included) + in-flight installs. A finished install reads 'installing' at 100% until the hangar
- * refetch shows it, then 'installed'.
+ * refetch shows it, then 'installed'. While Browse WT Live is off, `install` does nothing (no
+ * request reaches the backend).
  */
 export function useWtLiveInstall(skin: Pick<WtLiveSkin, 'id'>): { state: WtInstallState; install: (conflict?: ConflictPolicy) => void } {
   const { data: hangar } = useHangar({ includeTemporary: true });
   const track = useInstalls((s) => s.bySkin[skin.id]);
   const start = useInstalls((s) => s.start);
+  const enabled = useWtLiveEnabled();
   const installed = hangar?.find((h) => h.sourceId === skin.id);
   const state: WtInstallState =
     track && track.step === 'error'
@@ -155,5 +158,5 @@ export function useWtLiveInstall(skin: Pick<WtLiveSkin, 'id'>): { state: WtInsta
           : track
             ? { kind: 'installing', step: 'done', pct: 100 }
             : { kind: 'idle' };
-  return { state, install: (conflict) => void start(skin.id, 'normal', conflict) };
+  return { state, install: (conflict) => (enabled ? void start(skin.id, 'normal', conflict) : undefined) };
 }

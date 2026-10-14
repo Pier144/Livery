@@ -2,6 +2,7 @@ import { useCallback, useId, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import { useWtLiveEnabled } from '@/queries/settings';
 import { isOfflineError, useFollowing, useFollowingNew, useWtLiveSearchPages } from '@/queries/wtlive';
 import { useExplore, type ExploreTab } from '@/store/explore';
 import { toast } from '@/store/toasts';
@@ -13,6 +14,7 @@ import { FilterRow } from './Explore/FilterRow';
 import { Following } from './Explore/Following';
 import { SkinGrid } from './Explore/SkinGrid';
 import { ScreenFrame } from './ScreenHeader';
+import { openSettingsAt } from './Settings/settingsUi';
 
 /** Filters → `wtlive_search` params (memoized on the individual filter values). */
 function useSearchParams() {
@@ -31,8 +33,9 @@ function useSearchParams() {
 
 /**
  * Explore (README §2): WT Live skins with filters, a virtual grid and install-from-card, plus the
- * Following tab. WT Live pages come from `useWtLiveSearchPages`; the count and query time in the
- * header come from the first page.
+ * Following tab. WT Live pages come from `useWtLiveSearchPages`. The header count comes from the
+ * last loaded page ("75+ results" while it is only a lower bound), the query time from the first.
+ * With Browse WT Live off, both tabs show the "turned off" state and nothing asks WT Live.
  */
 export function Explore() {
   const { t } = useTranslation();
@@ -41,16 +44,15 @@ export function Explore() {
   const params = useSearchParams();
   const search = useWtLiveSearchPages(params);
   const following = useFollowing();
-  const fresh = useFollowingNew(following.data);
+  // The pill reads what the Following tab fetched: opening Explore doesn't ask WT Live for every follow.
+  const fresh = useFollowingNew(following.data, { fetch: tab === 'following' });
+  const enabled = useWtLiveEnabled();
 
   const baseId = useId();
   const tabId = useCallback((id: ExploreTab) => `${baseId}-tab-${id}`, [baseId]);
   const panelId = useCallback((id: ExploreTab) => `${baseId}-panel-${id}`, [baseId]);
 
-  const first = search.data?.pages[0];
-  // Only while results are on screen (not over the offline / error state).
-  const failed = search.isError && !search.isFetchNextPageError;
-  const meta = tab === 'explore' && first && !failed ? t('explore.results', { count: first.total, ms: first.tookMs }) : '';
+  const meta = useResultsMeta(search, tab === 'explore' && enabled);
 
   return (
     <ScreenFrame label={t('explore.title')}>
@@ -58,15 +60,45 @@ export function Explore() {
       <h1 tabIndex={-1} className="sr-only">
         {t('explore.title')}
       </h1>
-      <ExploreHeader tab={tab} onTab={setTab} newCount={fresh.data?.length ?? 0} meta={meta} tabId={tabId} panelId={panelId} />
+      <ExploreHeader tab={tab} onTab={setTab} newCount={enabled ? (fresh.data?.length ?? 0) : 0} meta={meta} tabId={tabId} panelId={panelId} />
       <div role="tabpanel" id={panelId(tab)} aria-labelledby={tabId(tab)} className="flex min-h-0 flex-1 flex-col gap-3.5">
-        {tab === 'explore' ? <ExploreTabPanel search={search} params={params} /> : <Following />}
+        {!enabled ? <WtLiveOff /> : tab === 'explore' ? <ExploreTabPanel search={search} params={params} /> : <Following />}
       </div>
     </ScreenFrame>
   );
 }
 
 type Search = ReturnType<typeof useWtLiveSearchPages>;
+
+/**
+ * "1,284 results · 24 ms": the count from the last loaded page (WT Live's feed has no total count,
+ * so unless `totalExact` it is a lower bound that grows as pages load: "75+ results"), the time
+ * from the first. Empty unless results are on screen (not over the offline / error state).
+ */
+function useResultsMeta(search: Search, show: boolean): string {
+  const { t } = useTranslation();
+  const pages = search.data?.pages;
+  const first = pages?.[0];
+  const last = pages?.[pages.length - 1];
+  const failed = search.isError && !search.isFetchNextPageError;
+  if (!show || !first || !last || failed) return '';
+  const values = { count: last.total, ms: first.tookMs };
+  return last.totalExact ? t('explore.results', values) : t('explore.resultsAtLeast', values);
+}
+
+/** Browse WT Live is off (Settings → WT Live): no request is made; the library works as usual. */
+function WtLiveOff() {
+  const { t } = useTranslation();
+  return (
+    <EmptyState
+      dot
+      title={t('explore.off.title')}
+      body={t('explore.off.body')}
+      primary={{ label: t('explore.off.settings'), onClick: () => openSettingsAt('wtlive') }}
+      className="pb-6"
+    />
+  );
+}
 
 function ExploreTabPanel({ search, params }: { search: Search; params: ReturnType<typeof useSearchParams> }) {
   const filterRowRef = useRef<HTMLDivElement>(null);

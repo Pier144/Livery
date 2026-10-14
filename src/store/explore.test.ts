@@ -50,10 +50,12 @@ describe('explore store', () => {
     expect(state()).toMatchObject({ ...NO_EXPLORE_FILTERS, tab: 'explore', vehicle: 'germ_leopard_2a6', sort: 'likes' });
   });
 
-  it('applyAuthor opens the Explore tab searching for the author', () => {
+  it('applyAuthor opens the Explore tab searching for @author (WT Live finds authors by @nickname)', () => {
     state().setTab('following');
     state().setVehicle('su_27');
     state().applyAuthor(' Kessler_Wolf ');
-    expect(state()).toMatchObject({ ...NO_EXPLORE_FILTERS, tab: 'explore', q: 'Kessler_Wolf' });
+    expect(state()).toMatchObject({ ...NO_EXPLORE_FILTERS, tab: 'explore', q: '@Kessler_Wolf' });
+    state().applyAuthor('   ');
+    expect(state().q).toBe('');
   });
 });

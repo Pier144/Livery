@@ -276,7 +276,7 @@ fn settle(ctx: &Ctx, job: &InstallJob, result: AppResult<Outcome>, reporter: &mu
 }
 
 /// Removes a folder when dropped (staging: removed on success, failure and panic alike).
-struct RemoveOnDrop(PathBuf);
+pub(crate) struct RemoveOnDrop(pub(crate) PathBuf);
 
 impl Drop for RemoveOnDrop {
     fn drop(&mut self) {
@@ -287,18 +287,40 @@ impl Drop for RemoveOnDrop {
 }
 
 fn install(ctx: &Ctx, job: &InstallJob, source: &dyn SkinSource, reporter: &mut Reporter) -> AppResult<Outcome> {
-    if !ctx.user_skins.is_dir() {
+    let staged = stage(ctx.user_skins, &job.install_id, &job.root, &job.root.target_folder, source, reporter)?;
+    commit(ctx, job, &staged.dir, staged.scanned.clone())
+}
+
+/// A skin copied into `UserSkins/.livery/partial/<installId>/<folder>`, verified and scanned,
+/// ready to be renamed into place. The staging goes when this is dropped.
+pub(crate) struct Staged {
+    pub dir: PathBuf,
+    pub scanned: HangarSkin,
+    _cleanup: RemoveOnDrop,
+}
+
+/// Steps 1 and 2 of the module doc: extract (0–[`EXTRACT_END`]) and verify (to
+/// [`VERIFY_END`]) the skin at `root` of `source` into the staging folder `folder`.
+pub(crate) fn stage(
+    user_skins: &Path,
+    install_id: &str,
+    root: &SkinRoot,
+    folder: &str,
+    source: &dyn SkinSource,
+    reporter: &mut Reporter,
+) -> AppResult<Staged> {
+    if !user_skins.is_dir() {
         return Err(AppError::new(ErrorCode::NotFound, USER_SKINS_GONE));
     }
-    let holder = partial_dir(ctx.user_skins).join(&job.install_id);
-    let _cleanup = RemoveOnDrop(holder.clone());
-    let stage = holder.join(&job.root.target_folder);
+    let holder = partial_dir(user_skins).join(install_id);
+    let cleanup = RemoveOnDrop(holder.clone());
+    let stage = holder.join(folder);
     let staging_error =
         |e: io::Error| AppError::new(ErrorCode::Io, "Could not prepare the install").with_detail(e.to_string());
     fs::create_dir_all(&stage).map_err(staging_error)?;
     fs::write(stage.join(PARTIAL_MARKER), b"").map_err(staging_error)?;
 
-    let copied = source.extract(&job.root.dir, &stage, &mut |tick| {
+    let copied = source.extract(&root.dir, &stage, &mut |tick| {
         reporter.tick(InstallStep::Extract, extract_pct(&tick));
         Ok(())
     })?;
@@ -310,11 +332,10 @@ fn install(ctx: &Ctx, job: &InstallJob, source: &dyn SkinSource, reporter: &mut 
     }
     reporter.mark(InstallStep::Verify, EXTRACT_END);
     verify_copy(&stage, &copied)?;
-    let scanned = scan::scan_skin(&stage).ok_or_else(|| {
-        AppError::new(ErrorCode::Io, "The copied skin can't be read").with_detail(job.root.target_folder.clone())
-    })?;
+    let scanned = scan::scan_skin(&stage)
+        .ok_or_else(|| AppError::new(ErrorCode::Io, "The copied skin can't be read").with_detail(folder.to_owned()))?;
     reporter.mark(InstallStep::Verify, VERIFY_END);
-    commit(ctx, job, &stage, scanned)
+    Ok(Staged { dir: stage, scanned, _cleanup: cleanup })
 }
 
 /// 0–[`EXTRACT_END`] by bytes (by files when every file is empty).
@@ -398,7 +419,7 @@ fn commit(ctx: &Ctx, job: &InstallJob, stage: &Path, scanned: HangarSkin) -> App
 
 /// Replace: the skin in the way (indexed, or a folder the library didn't know yet, adopted with a
 /// new id) goes to a backup and leaves the index. Returns the backup id.
-fn replace(
+pub(crate) fn replace(
     user_skins: &Path,
     library: &mut Library,
     journal: &mut Journal,
@@ -434,7 +455,7 @@ fn replace(
 }
 
 /// `name (2)`, `name (3)`… free in both places and in the index.
-fn free_name(user_skins: &Path, library: &Library, name: &str) -> String {
+pub(crate) fn free_name(user_skins: &Path, library: &Library, name: &str) -> String {
     let inactive = layout::inactive_dir(user_skins);
     layout::unique_name(name, |candidate| {
         layout::occupied(&user_skins.join(candidate))
@@ -443,7 +464,7 @@ fn free_name(user_skins: &Path, library: &Library, name: &str) -> String {
     })
 }
 
-fn rename_retrying(journal: &mut Journal, from: &Path, to: &Path) -> io::Result<()> {
+pub(crate) fn rename_retrying(journal: &mut Journal, from: &Path, to: &Path) -> io::Result<()> {
     let mut attempt = 1;
     loop {
         match journal.rename(from, to) {
@@ -456,27 +477,50 @@ fn rename_retrying(journal: &mut Journal, from: &Path, to: &Path) -> io::Result<
     }
 }
 
-fn install_error(e: io::Error) -> AppError {
+pub(crate) fn install_error(e: io::Error) -> AppError {
     AppError::new(ErrorCode::Io, "Could not install the skin").with_detail(e.to_string())
 }
 
 /// Sends progress for one install: steps in order, `pct` never going back, intermediate ticks at
 /// most every [`MIN_TICK_INTERVAL`].
-struct Reporter<'a> {
+pub(crate) struct Reporter<'a> {
     emit: &'a mut dyn FnMut(&InstallProgress),
     install_id: String,
-    queue_id: String,
+    queue_id: Option<String>,
+    /// `pct` 0–100 of the steps reported is mapped onto `base`–100 (a WT Live install spends
+    /// 0–`base` downloading).
+    base: u8,
     last: Option<(InstallStep, u8)>,
     last_at: Option<Instant>,
 }
 
 impl<'a> Reporter<'a> {
     fn new(emit: &'a mut dyn FnMut(&InstallProgress), job: &InstallJob) -> Self {
-        Self { emit, install_id: job.install_id.clone(), queue_id: job.queue_id.clone(), last: None, last_at: None }
+        Self::for_install(emit, job.install_id.clone(), Some(job.queue_id.clone()))
     }
 
-    fn tick(&mut self, step: InstallStep, pct: u8) {
-        let pct = pct.max(self.last.map_or(0, |(_, p)| p));
+    pub(crate) fn for_install(
+        emit: &'a mut dyn FnMut(&InstallProgress),
+        install_id: String,
+        queue_id: Option<String>,
+    ) -> Self {
+        Self { emit, install_id, queue_id, base: 0, last: None, last_at: None }
+    }
+
+    /// From now on, `pct` is mapped onto `base`–100.
+    pub(crate) fn rebase(&mut self, base: u8) {
+        self.base = base.min(100);
+    }
+
+    fn scaled(&self, pct: u8) -> u8 {
+        let pct = u16::from(pct.min(100));
+        let base = u16::from(self.base);
+        u8::try_from(base + pct * (100 - base) / 100).unwrap_or(100)
+    }
+
+    /// An intermediate tick (throttled).
+    pub(crate) fn tick(&mut self, step: InstallStep, pct: u8) {
+        let pct = self.scaled(pct).max(self.last.map_or(0, |(_, p)| p));
         if self.last == Some((step, pct)) {
             return;
         }
@@ -488,14 +532,14 @@ impl<'a> Reporter<'a> {
     }
 
     /// A step boundary (verify starts, verify ends): sent even right after another event.
-    fn mark(&mut self, step: InstallStep, pct: u8) {
-        let pct = pct.max(self.last.map_or(0, |(_, p)| p));
+    pub(crate) fn mark(&mut self, step: InstallStep, pct: u8) {
+        let pct = self.scaled(pct).max(self.last.map_or(0, |(_, p)| p));
         if self.last != Some((step, pct)) {
             self.send(step, pct, None, None, None);
         }
     }
 
-    fn finish(
+    pub(crate) fn finish(
         &mut self,
         step: InstallStep,
         message: Option<String>,
@@ -516,7 +560,7 @@ impl<'a> Reporter<'a> {
     ) {
         (self.emit)(&InstallProgress {
             install_id: self.install_id.clone(),
-            queue_id: Some(self.queue_id.clone()),
+            queue_id: self.queue_id.clone(),
             step,
             pct,
             message,

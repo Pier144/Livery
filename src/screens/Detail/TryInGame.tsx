@@ -3,6 +3,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
+import { useWtLiveEnabled } from '@/queries/settings';
 import { isOfflineError, useFinalizeTry } from '@/queries/wtlive';
 import { useInstalls, type WtInstall } from '@/store/installs';
 import { toast } from '@/store/toasts';
@@ -31,6 +32,8 @@ const STEPS = ['step1', 'step2', 'step3'] as const;
 export function TryInGame({ skin, state, hangarSkin, track }: TryInGameProps) {
   const { t } = useTranslation();
   const start = useInstalls((s) => s.start);
+  // Browse WT Live off: the detail shows the "turned off" state, so this is only a backstop.
+  const wtliveEnabled = useWtLiveEnabled();
   const finalize = useFinalizeTry();
   const busyId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -88,7 +91,7 @@ export function TryInGame({ skin, state, hangarSkin, track }: TryInGameProps) {
                 aria-disabled={busy || undefined}
                 aria-describedby={busy ? busyId : undefined}
                 onClick={() => {
-                  if (!busy) void start(skin.id, 'temporary');
+                  if (!busy && wtliveEnabled) void start(skin.id, 'temporary');
                 }}
                 className={DISABLED}
               >

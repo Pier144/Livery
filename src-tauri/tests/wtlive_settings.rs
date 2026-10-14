@@ -43,3 +43,16 @@ fn reduce_motion_is_saved_and_reloaded() {
     assert_eq!(SettingsStore::load(path).get().reduce_motion, ReduceMotion::On);
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn browsing_wt_live_is_on_by_default_and_can_be_turned_off() {
+    assert!(Settings::default().wtlive_enabled);
+    assert_eq!(serde_json::to_value(Settings::default()).unwrap()["wtliveEnabled"], true);
+    let old_file: Settings = serde_json::from_str(r#"{ "language": "it" }"#).unwrap();
+    assert!(old_file.wtlive_enabled, "files from before the switch keep browsing on");
+    let mut settings = Settings::default();
+    settings.apply(serde_json::from_str(r#"{ "wtliveEnabled": false }"#).unwrap());
+    assert!(!settings.wtlive_enabled);
+    settings.apply(serde_json::from_str(r#"{ "language": "en" }"#).unwrap());
+    assert!(!settings.wtlive_enabled, "a patch without it leaves it");
+}

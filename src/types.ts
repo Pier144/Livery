@@ -152,7 +152,14 @@ export interface Settings {
   onboarded: boolean;
   /** Settings → General → Reduce motion; `system` follows Windows. (Not in DATA_MODEL; see DESIGN_NOTES.) */
   reduceMotion: ReduceMotion;
+  /**
+   * Settings → WT Live → Browse WT Live (default true). Off: Explore, Following, the WT Live Skin
+   * detail and installs from WT Live send no request at all. (Not in DATA_MODEL; see DESIGN_NOTES.)
+   */
+  wtliveEnabled: boolean;
 }
+/** `set_settings({ patch })`: the fields to change. */
+export type SettingsPatch = Partial<Settings>;
 export type ReduceMotion = 'system' | 'on' | 'off';
 export interface GameDetection {
   found: boolean;
@@ -221,9 +228,17 @@ export interface SearchParams {
 }
 export interface SearchResult {
   items: WtLiveSkin[];
+  /**
+   * With `totalExact`, every result of the search. Otherwise a lower bound: the results up to and
+   * including this page (it grows as pages load), shown as "75+ results".
+   */
   total: number;
   /** Server + parse time, shown as "1,284 results · 24 ms". */
   tookMs: number;
+  /** Another page exists (WT Live's feed has no total count, so paging follows this). */
+  hasMore: boolean;
+  /** `total` is the full count rather than a lower bound. */
+  totalExact: boolean;
 }
 export type FollowKind = 'vehicle' | 'author';
 export interface FollowEntry {
@@ -235,3 +250,10 @@ export interface FollowEntry {
   lastSeenAt: string;
 }
 export type InstallMode = 'normal' | 'temporary';
+/** `wtlive_storage` and friends: what Livery keeps from WT Live on this PC (local, works offline). */
+export interface WtLiveStorage {
+  /** Pages and archives fetched from WT Live (kept up to 24 hours). */
+  cacheBytes: number;
+  /** WT Live skins hidden from Explore and Following. */
+  hiddenCount: number;
+}

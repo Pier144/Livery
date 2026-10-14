@@ -104,7 +104,10 @@ describe('Sidebar', () => {
   });
 
   describe('WT Live count from the Explore cache', () => {
-    const page = (total: number): InfiniteData<SearchResult, number> => ({ pages: [{ items: [], total, tookMs: 20 }], pageParams: [0] });
+    const page = (total: number, totalExact = true): InfiniteData<SearchResult, number> => ({
+      pages: [{ items: [], total, tookMs: 20, hasMore: false, totalExact }],
+      pageParams: [0],
+    });
     const searchKey = (params: Record<string, unknown>) => [...WTLIVE_KEY, 'search-pages', params];
 
     async function renderWith(client: QueryClient) {
@@ -155,6 +158,35 @@ describe('Sidebar', () => {
       // The collapsed dot speaks the same text.
       act(() => useUi.getState().toggleSidebar());
       expect(screen.getByRole('img', { name: 'WT Live online' })).toBeInTheDocument();
+    });
+
+    it('shows a count only when the newest unfiltered search knows the exact total', async () => {
+      const client = createQueryClient();
+      client.setQueryData(searchKey({ sort: 'downloads' }), page(2318));
+      await renderWith(client);
+      expect(screen.getByText('WT Live online · 2,318 skins')).toBeInTheDocument();
+
+      // A newer unfiltered search whose total is only a lower bound (WT Live's feed): no count.
+      act(() => client.setQueryData(searchKey({ sort: 'newest' }), page(60, false)));
+      expect(screen.getByText('WT Live online')).toBeInTheDocument();
+      // …and not the older exact one either, even after the cache is cleared.
+      act(() => client.removeQueries({ queryKey: WTLIVE_KEY }));
+      expect(screen.getByText('WT Live online')).toBeInTheDocument();
+
+      // An exact total again brings the count back.
+      act(() => client.setQueryData(searchKey({ sort: 'likes' }), page(2320)));
+      expect(screen.getByText('WT Live online · 2,320 skins')).toBeInTheDocument();
+    });
+
+    it('says WT Live is off, with the grey dot, while browsing is turned off', async () => {
+      const client = createQueryClient();
+      client.setQueryData(searchKey({ sort: 'downloads' }), page(2318));
+      renderWithProviders(<Sidebar />, { client, settings: { wtliveEnabled: false } });
+      await screen.findByText('NOT SET');
+      const status = screen.getByText('WT Live off');
+      expect(status.querySelector('span')).toHaveClass('bg-ink-5');
+      act(() => useUi.getState().toggleSidebar());
+      expect(screen.getByRole('img', { name: 'WT Live off' })).toHaveClass('bg-ink-5');
     });
 
     it('a count passed in wins over the cache', async () => {

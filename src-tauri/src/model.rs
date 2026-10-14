@@ -56,6 +56,8 @@ pub struct Settings {
     pub onboarded: bool,
     /// Settings → General → Reduce motion (`system` follows Windows).
     pub reduce_motion: ReduceMotion,
+    /// Settings → WT Live → Browse WT Live. Off: Livery sends no request to WT Live.
+    pub wtlive_enabled: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -83,6 +85,7 @@ impl Default for Settings {
             start_with_windows: false,
             onboarded: false,
             reduce_motion: ReduceMotion::System,
+            wtlive_enabled: true,
         }
     }
 }
@@ -106,6 +109,7 @@ pub struct SettingsPatch {
     pub start_with_windows: Option<bool>,
     pub onboarded: Option<bool>,
     pub reduce_motion: Option<ReduceMotion>,
+    pub wtlive_enabled: Option<bool>,
 }
 
 /// Deserializes a present field as `Some(value)`, so `Option<Option<T>>` can tell
@@ -155,6 +159,9 @@ impl Settings {
         }
         if let Some(v) = patch.reduce_motion {
             self.reduce_motion = v;
+        }
+        if let Some(v) = patch.wtlive_enabled {
+            self.wtlive_enabled = v;
         }
     }
 }
@@ -565,8 +572,23 @@ pub struct SearchParams {
 #[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub items: Vec<WtLiveSkin>,
+    /// With `total_exact`, every result; otherwise the results up to and including this page (a
+    /// lower bound: WT Live's feed doesn't say how many posts match).
     pub total: u64,
     pub took_ms: u64,
+    /// Another page exists.
+    pub has_more: bool,
+    pub total_exact: bool,
+}
+
+/// What Livery keeps of WT Live on this computer (Settings → WT Live).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WtLiveStorage {
+    /// Size of the response and archive cache.
+    pub cache_bytes: u64,
+    /// Posts hidden from Explore and Following.
+    pub hidden_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

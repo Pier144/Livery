@@ -51,7 +51,7 @@ describe('CommandPalette', () => {
   it('skin results come from the cached WT Live results and open the Skin detail', async () => {
     const user = userEvent.setup();
     const client = createQueryClient();
-    const page: SearchResult = { items: [wtSkin('s4', 'Bundeswehr Flecktarn'), wtSkin('s14', 'Baltic Winter')], total: 2, tookMs: 20 };
+    const page: SearchResult = { items: [wtSkin('s4', 'Bundeswehr Flecktarn'), wtSkin('s14', 'Baltic Winter')], total: 2, tookMs: 20, hasMore: false, totalExact: true };
     client.setQueryData([...WTLIVE_KEY, 'search-pages', { sort: 'downloads' }], { pages: [page], pageParams: [0] });
     renderWithProviders(<CommandPalette />, { client });
     open();

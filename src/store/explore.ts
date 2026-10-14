@@ -5,7 +5,10 @@ export type ExploreTab = 'explore' | 'following';
 
 /** Explore filters (README State: `explore {tab, q, nation, type, class, vehicle, category, sort}`); `null` = Any. */
 export interface ExploreFilters {
-  /** Free text (name, vehicle or author); set from Following's author cards. */
+  /**
+   * Free text. WT Live's search matches it against hashtags; `@nickname` finds an author's skins
+   * (set by `applyAuthor` from Following's author cards).
+   */
   q: string;
   nation: Nation | null;
   type: VehicleType | null;
@@ -36,7 +39,7 @@ export interface ExploreState extends ExploreFilters {
   clearAll: () => void;
   /** Explore tab showing exactly this vehicle's skins (palette, Following, Skin detail's vehicle card). */
   applyVehicle: (code: string) => void;
-  /** Explore tab searching for this author's name (Following). */
+  /** Explore tab searching for this author's skins: `q` = `@` + the name (WT Live's author search). */
   applyAuthor: (name: string) => void;
 }
 
@@ -44,6 +47,9 @@ export interface ExploreState extends ExploreFilters {
 export function exploreDefaults(): Pick<ExploreState, 'tab' | 'sort' | ExploreFilterKey> {
   return { tab: 'explore', sort: 'downloads', ...NO_EXPLORE_FILTERS };
 }
+
+/** WT Live finds an author's skins by `@nickname` (free text only matches hashtags); blank → no search. */
+export const authorQuery = (name: string) => (name.trim() === '' ? '' : `@${name.trim()}`);
 
 /** Blank strings mean "no filter". */
 const orNull = (value: string | null) => (value === null || value.trim() === '' ? null : value.trim());
@@ -66,5 +72,5 @@ export const useExplore = create<ExploreState>()((set) => ({
   clearAll: () => set({ ...NO_EXPLORE_FILTERS }),
   // A focused view: the other filters would only narrow (or empty) the vehicle's / author's skins.
   applyVehicle: (code) => set({ ...NO_EXPLORE_FILTERS, tab: 'explore', vehicle: orNull(code) }),
-  applyAuthor: (name) => set({ ...NO_EXPLORE_FILTERS, tab: 'explore', q: name.trim() }),
+  applyAuthor: (name) => set({ ...NO_EXPLORE_FILTERS, tab: 'explore', q: authorQuery(name) }),
 }));

@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   startWithWindows: false,
   onboarded: false,
   reduceMotion: 'system',
+  wtliveEnabled: true,
 };
 
 export const SETTINGS_KEY = ['settings'] as const;
@@ -41,6 +42,15 @@ export function useSettings() {
     queryFn: () => (hasBackend() ? call<Settings>('get_settings') : Promise.resolve(DEFAULT_SETTINGS)),
     staleTime: Infinity,
   });
+}
+
+/**
+ * Settings → WT Live → Browse WT Live. True until the saved settings say otherwise: the app shows no
+ * screen before they have loaded (App's boot), so nothing asks WT Live ahead of them, and settings
+ * that can't be read don't switch WT Live off.
+ */
+export function useWtLiveEnabled(): boolean {
+  return useSettings().data?.wtliveEnabled !== false;
 }
 
 /**

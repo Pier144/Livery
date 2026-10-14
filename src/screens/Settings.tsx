@@ -9,12 +9,14 @@ import { GeneralSection } from './Settings/GeneralSection';
 import { LanguageSection } from './Settings/LanguageSection';
 import { SECTIONS, useSettingsUi, type SettingsSection } from './Settings/settingsUi';
 import { UpdatesSection } from './Settings/UpdatesSection';
+import { WtLiveSection } from './Settings/WtLiveSection';
 
 const PANELS: Record<SettingsSection, () => JSX.Element> = {
   general: GeneralSection,
   game: GameSection,
   conflicts: ConflictsSection,
   backups: BackupsSection,
+  wtlive: WtLiveSection,
   language: LanguageSection,
   updates: UpdatesSection,
   about: AboutSection,

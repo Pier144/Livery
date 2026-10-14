@@ -22,7 +22,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tracing::Subscriber;
-use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::fmt::writer::{MakeWriter, OptionalWriter};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -64,7 +64,15 @@ pub fn init() {
 pub fn subscriber(slot: &'static OnceLock<File>, level: LevelFilter, console: bool) -> impl Subscriber + Send + Sync {
     let stdout = tracing_subscriber::fmt::layer().with_target(false).with_writer(Console { slot, always: console });
     let file = tracing_subscriber::fmt::layer().with_target(false).with_ansi(false).with_writer(LogFile { slot });
-    tracing_subscriber::registry().with(level).with(stdout).with(file)
+    tracing_subscriber::registry().with(quiet_network(level)).with(stdout).with(file)
+}
+
+/// The HTTP crates WT Live goes through log every frame at debug level: warnings only from them.
+fn quiet_network(level: LevelFilter) -> Targets {
+    let quiet = LevelFilter::WARN.min(level);
+    ["h2", "hyper", "hyper_util", "reqwest", "rustls", "tokio_rustls"]
+        .into_iter()
+        .fold(Targets::new().with_default(level), |targets, crate_name| targets.with_target(crate_name, quiet))
 }
 
 /// Opens `<data_dir>/logs/livery.log` (rotating it first, see [`open_log_file`]) and sends the

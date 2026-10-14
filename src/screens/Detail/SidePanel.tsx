@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, ExternalLink } from 'lucide-react';
+import { Check, ChevronDown, ExternalLink, EyeOff } from 'lucide-react';
 import { useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
@@ -10,9 +10,10 @@ import { formatBytes } from '@/lib/format';
 import { isWtLiveUrl, openLink } from '@/lib/opener';
 import { call, toAppError } from '@/lib/tauri';
 import { useCollections, useSetCollectionSkins } from '@/queries/collections';
-import { FOLLOWING_KEY, isOfflineError, useFollowing, useSetFollow } from '@/queries/wtlive';
+import { FOLLOWING_KEY, isOfflineError, useFollowing, useSetFollow, useSetWtLiveHidden } from '@/queries/wtlive';
 import type { WtInstall, WtInstallState } from '@/store/installs';
 import { toast } from '@/store/toasts';
+import { useUi } from '@/store/ui';
 import type { AppError, ConflictPolicy, FollowEntry, FollowKind, HangarSkin, WtLiveSkin } from '@/types';
 import { formatCount, formatPosted, initialOf, stepParts } from './detailModel';
 import { useFocusFallback } from './useFocusFallback';
@@ -108,7 +109,45 @@ function AuthorBlock({ skin }: { skin: WtLiveSkin }) {
         {t('detail.author.openPost')}
         <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
       </button>
+      <HideButton skin={skin} />
     </div>
+  );
+}
+
+/**
+ * "Hide from Explore": the skin leaves Explore and Following (`wtlive_set_hidden`), the detail goes
+ * back like its back button, and the toast's Undo shows it again. An installed copy stays in My
+ * Hangar. Settings → WT Live → Hidden skins brings every hidden skin back.
+ */
+function HideButton({ skin }: { skin: WtLiveSkin }) {
+  const { t } = useTranslation();
+  const setHidden = useSetWtLiveHidden();
+  const hide = () => {
+    if (setHidden.isPending) return;
+    setHidden.mutateAsync({ id: skin.id, hidden: true }).then(
+      () => {
+        if (useUi.getState().screen === 'detail' && useUi.getState().detailSkinId === skin.id) useUi.getState().leaveDetail();
+        // Undo outlives this screen: the mutation's own callbacks (cache, lists) still run.
+        toast.undoable(t('detail.hide.hidden', { name: skin.name }), async () => {
+          await setHidden
+            .mutateAsync({ id: skin.id, hidden: false })
+            .catch((e: AppError) => toast(t('detail.hide.failed', { message: errorText(e, t) })));
+        });
+      },
+      (e: AppError) => toast(t('detail.hide.failed', { message: errorText(e, t) })),
+    );
+  };
+  return (
+    <button
+      type="button"
+      title={t('detail.hide.hint')}
+      aria-disabled={setHidden.isPending || undefined}
+      onClick={hide}
+      className="inline-flex items-center gap-1.5 self-start text-meta leading-[normal] text-ink-3 hover:text-ink-1 aria-disabled:cursor-default motion-safe:transition-colors motion-safe:duration-120"
+    >
+      <EyeOff size={14} strokeWidth={1.75} aria-hidden />
+      {t('detail.hide.action')}
+    </button>
   );
 }
 

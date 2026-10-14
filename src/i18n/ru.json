@@ -59,6 +59,7 @@
       "online": "WT Live online · {{count, number}} skins",
       "onlineNoCount": "WT Live online",
       "offline": "WT Live offline",
+      "off": "WT Live off",
       "hangar": "Hangar {{count, number}} · {{size}}"
     },
     "palette": {
@@ -172,7 +173,23 @@
         "noDownloadsFolder": "Can't find the Downloads folder. Pick a folder to watch.",
         "watchStartFailed": "Could not start watching folders",
         "wtliveUnsupported": "WT Live can't be reached from this build yet: it needs a network library the author hasn't approved.",
-        "followingNotSaved": "The Following list couldn't be saved"
+        "wtliveOff": "WT Live browsing is turned off in Settings",
+        "followingNotSaved": "The Following list couldn't be saved",
+        "wtliveUnreadable": "WT Live answered in a way Livery can't read",
+        "wtliveErrorAnswer": "WT Live answered with an error",
+        "hiddenNotSaved": "Could not save the hidden skins",
+        "wtlivePostGone": "This skin is no longer on WT Live",
+        "archiveNotSaved": "Could not save the skin's archive",
+        "httpClientFailed": "The HTTP client can't start",
+        "wtlivePaused": "WT Live isn't answering; Livery will try again in a couple of minutes",
+        "wtliveUnreachable": "WT Live can't be reached",
+        "wtliveRobots": "WT Live's robots.txt asks tools like Livery not to read this page",
+        "archiveTooLarge": "The skin's archive is larger than expected",
+        "notADownloadLink": "Not a WT Live download link",
+        "postNotAnArchive": "This post's file isn't a ZIP, 7z or RAR archive",
+        "skinInstalling": "This skin is already installing",
+        "notTried": "This skin isn't being tried in game",
+        "installedFolderGone": "The installed version's folder is gone"
       }
     }
   },
@@ -289,6 +306,11 @@
       "body": "Your library works as usual. Browsing and installing from WT Live will resume when you’re back online.",
       "hangar": "Open My Hangar"
     },
+    "off": {
+      "title": "WT Live is turned off",
+      "body": "Livery sends no requests to WT Live while browsing is off. Your library works as usual.",
+      "settings": "Open Settings"
+    },
     "error": {
       "title": "This skin can’t be loaded"
     },
@@ -376,6 +398,12 @@
       "openPostHint": "Opens the post on WT Live in your browser",
       "openAuthor": "Open {{name}}’s page on WT Live"
     },
+    "hide": {
+      "action": "Hide from Explore",
+      "hint": "Keeps this skin out of Explore and Following. If it’s installed, it stays in My Hangar.",
+      "hidden": "Hidden “{{name}}”",
+      "failed": "Couldn’t update hidden skins: {{message}}"
+    },
     "vehicle": {
       "label": "Vehicle",
       "open": "Show this vehicle’s skins in Explore",
@@ -453,6 +481,10 @@
     "results_few": "{{count, number}} results · {{ms, number}} ms",
     "results_many": "{{count, number}} results · {{ms, number}} ms",
     "results_other": "{{count, number}} results · {{ms, number}} ms",
+    "resultsAtLeast_one": "{{count, number}}+ results · {{ms, number}} ms",
+    "resultsAtLeast_few": "{{count, number}}+ results · {{ms, number}} ms",
+    "resultsAtLeast_many": "{{count, number}}+ results · {{ms, number}} ms",
+    "resultsAtLeast_other": "{{count, number}}+ results · {{ms, number}} ms",
     "filters": {
       "label": "Filters",
       "nation": "Nation",
@@ -533,6 +565,11 @@
       "body": "Your library works as usual. Browsing and installing from WT Live will resume when you're back online.",
       "hangar": "Open My Hangar",
       "stillOffline": "Still offline. Your library is fully available."
+    },
+    "off": {
+      "title": "WT Live is turned off",
+      "body": "Livery sends no requests to WT Live while browsing is off. Your library works as usual.",
+      "settings": "Open Settings"
     },
     "error": {
       "title": "WT Live didn't answer as expected",
@@ -860,6 +897,7 @@
       "game": "Game",
       "conflicts": "Conflicts",
       "backups": "Backups",
+      "wtlive": "WT Live",
       "language": "Language",
       "updates": "Updates",
       "about": "About"
@@ -932,6 +970,24 @@
       "cleared_few": "Cleared {{count}} backups",
       "cleared_many": "Cleared {{count}} backups",
       "cleared_other": "Cleared {{count}} backups"
+    },
+    "wtlive": {
+      "browse": "Browse WT Live",
+      "browseHelper": "Explore, Following and installs from WT Live. Turn it off and Livery sends no requests to WT Live.",
+      "cache": "Cache",
+      "cacheHelper": "Pages and archives fetched from WT Live are kept for up to 24 hours.",
+      "clearCache": "Clear cache",
+      "cacheCleared": "WT Live cache cleared",
+      "hidden": "Hidden skins",
+      "hiddenHelper": "Skins you hid stay out of Explore and Following.",
+      "hiddenCount_one": "{{count, number}} skin",
+      "hiddenCount_few": "{{count, number}} skins",
+      "hiddenCount_many": "{{count, number}} skins",
+      "hiddenCount_other": "{{count, number}} skins",
+      "showAgain": "Show them again",
+      "unhidden": "Hidden skins are back in Explore",
+      "unavailable": "Can’t read this right now",
+      "attribution": "Skins and images belong to their authors on WT Live."
     },
     "language": {
       "names": {

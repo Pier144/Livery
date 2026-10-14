@@ -3,12 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { errorText } from '@/lib/errors';
+import { useWtLiveEnabled } from '@/queries/settings';
 import { isOfflineError, useWtLivePost } from '@/queries/wtlive';
 import { useDetail, useDetailTry } from '@/store/detail';
 import { useExplore } from '@/store/explore';
 import { useWtLiveInstall } from '@/store/installs';
 import { useUi } from '@/store/ui';
 import type { WtLiveSkin } from '@/types';
+import { openSettingsAt } from '../Settings/settingsUi';
 import { DetailTopBar, type TabIds } from './DetailTopBar';
 import { Gallery } from './Gallery';
 import { SidePanel } from './SidePanel';
@@ -19,7 +21,8 @@ import type { DetailTab } from './detailModel';
 /**
  * Skin detail (README §3) for `ui.detailSkinId`: top bar with tabs, then `1fr 320px` — the tab on
  * the left (Gallery / Textures / Try in game), the side panel on the right; each column scrolls.
- * Loading → skeletons; WT Live unreachable → the offline state (the library keeps working).
+ * Loading → skeletons; WT Live unreachable → the offline state (the library keeps working);
+ * Browse WT Live off → the "turned off" state, without asking WT Live for the post.
  */
 export function SkinDetail() {
   const { t } = useTranslation();
@@ -27,6 +30,7 @@ export function SkinDetail() {
   const returnTo = useUi((s) => s.detailReturnTo);
   const go = useUi((s) => s.go);
   const post = useWtLivePost(id);
+  const enabled = useWtLiveEnabled();
 
   // The store resets on every entry (see src/store/detail.ts); this covers a mount with another id.
   useLayoutEffect(() => {
@@ -41,6 +45,19 @@ export function SkinDetail() {
           title={t('detail.noSkin.title')}
           body={t('detail.noSkin.body')}
           primary={{ label: t(`detail.backTo.${returnTo}`), onClick: () => go(returnTo) }}
+        />
+      </Frame>
+    );
+  }
+
+  if (!enabled) {
+    return (
+      <Frame>
+        <EmptyState
+          dot
+          title={t('detail.off.title')}
+          body={t('detail.off.body')}
+          primary={{ label: t('detail.off.settings'), onClick: () => openSettingsAt('wtlive') }}
         />
       </Frame>
     );

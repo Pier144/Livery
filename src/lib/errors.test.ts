@@ -99,6 +99,7 @@ const GENERIC_ON_PURPOSE: (string | RegExp)[] = [
   'Not an RFC 3339 time',
   'Pass exactly one of a skin id, a queue id or a WT Live id',
   'Pass the id of a WT Live skin',
+  'Ask for the pages of a search in order',
   'Pass the id of the vehicle or author to follow',
   'Pass the name of the vehicle or author to follow',
   // Launch (src-tauri/src/startup.rs, lib.rs setup): no window yet.

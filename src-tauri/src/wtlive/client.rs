@@ -1,23 +1,30 @@
 //! The seam between the WT Live commands and the network: [`WtLiveClient`].
 //!
-//! Today the app runs on [`DisabledClient`], which answers `unsupported` to everything (no HTTP
-//! client is approved yet). The real client implements the same trait and is handed to
-//! [`super::WtLive::with_client`] at startup; the commands don't change.
+//! The app runs on [`super::live::LiveClient`]; [`DisabledClient`] answers `unsupported` to
+//! everything (tests, and a build without network). The client is handed to
+//! [`super::WtLive::with_client`]; the commands don't change.
 //!
 //! The methods are blocking: the commands call them through `crate::blocking`, so a client may
 //! sleep for its rate limit, read its disk cache or wait on a socket without holding up the UI.
 
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::model::{FollowEntry, SearchParams, SearchResult, WtLiveSkin};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-/// `unsupported` message for every WT Live call in a build without an HTTP client.
-pub const UNSUPPORTED_MESSAGE: &str =
-    "WT Live can't be reached from this build yet: it needs a network library the author hasn't approved.";
+/// `unsupported` message for every WT Live call of the [`DisabledClient`].
+pub const UNSUPPORTED_MESSAGE: &str = "WT Live can't be reached from this build.";
 
-/// The error every WT Live call answers in a build without an HTTP client.
+/// `unsupported` message while Settings → WT Live → Browse WT Live is off.
+pub const TURNED_OFF_MESSAGE: &str = "WT Live browsing is turned off in Settings";
+
+/// The error every WT Live call of the [`DisabledClient`] answers.
 pub fn unsupported() -> AppError {
     AppError::new(ErrorCode::Unsupported, UNSUPPORTED_MESSAGE)
+}
+
+/// The error every WT Live call answers while browsing is turned off: nothing is sent.
+pub fn turned_off() -> AppError {
+    AppError::new(ErrorCode::Unsupported, TURNED_OFF_MESSAGE)
 }
 
 /// Errors that mean "WT Live can't be reached from here": they turn the UI's WT Live state
@@ -52,19 +59,20 @@ pub trait WtLiveClient: Send + Sync {
     /// request ([`DisabledClient`] still answers `unsupported`, so the UI stays offline).
     fn following_new(&self, follows: &[FollowEntry]) -> AppResult<Vec<WtLiveSkin>>;
 
-    /// Downloads the post's archive into `dest_dir` and returns the file's path. `progress` is
-    /// called as bytes arrive.
-    fn download(&self, id: &str, dest_dir: &Path, progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf>;
+    /// The post's archive on disk (downloaded now, or kept from a download less than a day
+    /// old), as a `.zip`, `.7z` or `.rar` file. `progress` is called as bytes arrive. The file
+    /// belongs to the client's cache: read it, don't move or delete it.
+    fn archive(&self, id: &str, progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf>;
 }
 
-/// The client of a build without an HTTP client: every call is `unsupported`
-/// ([`UNSUPPORTED_MESSAGE`]); nothing is sent, nothing is written.
+/// A client that never reaches WT Live: every call is `unsupported` ([`UNSUPPORTED_MESSAGE`]);
+/// nothing is sent, nothing is written.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DisabledClient;
 
 impl DisabledClient {
     fn refuse<T>(operation: &str) -> AppResult<T> {
-        Err(unsupported().with_detail(format!("{operation}: no HTTP client in this build")))
+        Err(unsupported().with_detail(format!("{operation}: this client never reaches WT Live")))
     }
 }
 
@@ -85,7 +93,7 @@ impl WtLiveClient for DisabledClient {
         Self::refuse("following_new")
     }
 
-    fn download(&self, _id: &str, _dest_dir: &Path, _progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf> {
-        Self::refuse("download")
+    fn archive(&self, _id: &str, _progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf> {
+        Self::refuse("archive")
     }
 }

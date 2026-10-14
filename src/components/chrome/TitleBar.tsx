@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Kbd } from '@/components/ui/Kbd';
 import { cn } from '@/lib/cn';
 import { appWindow } from '@/lib/tauri';
+import { useWtLiveEnabled } from '@/queries/settings';
 import { useUi } from '@/store/ui';
 
 /**
@@ -73,7 +74,10 @@ function WindowButton({ label, icon: Icon, onClick, danger }: WindowButtonProps)
 
 export function TitleBar() {
   const { t } = useTranslation();
+  // With Browse WT Live off nothing asks WT Live, so "offline" would say something untrue.
   const online = useUi((s) => s.online);
+  const wtliveEnabled = useWtLiveEnabled();
+  const offline = !online && wtliveEnabled;
   const maximized = useIsMaximized();
   const paletteOpen = useUi((s) => s.palette.open);
 
@@ -89,7 +93,7 @@ export function TitleBar() {
           {t('common.brand')}
         </span>
         <span {...drag} role="status" className="flex">
-          {!online && (
+          {offline && (
             <span
               {...drag}
               className="ml-1.5 rounded-tag border border-line-3 px-1.5 py-px font-mono text-[10px] leading-[normal] text-ink-3"

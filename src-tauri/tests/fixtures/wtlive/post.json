@@ -1,0 +1,60 @@
+{
+ "lang_group": 1191507,
+ "id": 1244190,
+ "language": "en",
+ "languages": [
+  "en",
+  "ru"
+ ],
+ "type": "camouflage",
+ "created": 1792005149,
+ "isAuthor": false,
+ "visible": true,
+ "isSpecial": false,
+ "author": {
+  "id": 100001,
+  "nickname": "Fixture_Author1",
+  "avatar": "https://cdn-live.warthunder.com/uploads/00/00/01/avatar_lq/image.png"
+ },
+ "likes": 0,
+ "isLiked": false,
+ "views": 11,
+ "doubt": false,
+ "featured": false,
+ "downloads": 0,
+ "comments": 0,
+ "isPinned": false,
+ "isMarketSuitable": true,
+ "canDelete": false,
+ "canEdit": false,
+ "description": "<p><b>F-4E Phantom II “Sharkmouth” #187: fixture squadron</b></p><p><a href=\"//live.warthunder.com/?q=%23187\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#187</a> <a href=\"//live.warthunder.com/?q=%23autumn_camo_contest_1\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#autumn_camo_contest_1</a> <a href=\"//live.warthunder.com/?q=%23f4e\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#f4e</a> <a href=\"//live.warthunder.com/?q=%23semihistorical\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#semihistorical</a> <a href=\"//live.warthunder.com/?q=%23iaf\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#iaf</a> <a href=\"//live.warthunder.com/?q=%23aircraft\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#aircraft</a> <a href=\"//live.warthunder.com/?q=%23israel\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#israel</a> </p><p><i>Fixture text, not from WT Live.</i></p>",
+ "images": [
+  {
+   "id": 2686387,
+   "type": "image/jpeg",
+   "mq": {
+    "src": "https://cdn-live.warthunder.com/uploads/aa/bb/01/img0_mq/shot0.jpg",
+    "width": 800,
+    "height": 800,
+    "ratio": 1
+   },
+   "orig": {
+    "src": "https://cdn-live.warthunder.com/uploads/aa/bb/01/img0_orig/shot0.jpg"
+   }
+  }
+ ],
+ "gamePreviewAvailable": false,
+ "file": {
+  "id": 2686386,
+  "name": "fixture_skin_1.zip",
+  "link": "https://live.warthunder.com/dl/0000000000000000000000000000000000000001/",
+  "type": "application/zip",
+  "size": 34574792
+ },
+ "gameItemApproved": false,
+ "gameItemTags": [],
+ "pbr_ready": true,
+ "inverted_roughness": false,
+ "hidden": false,
+ "pageTitle": "WT Live // Camouflage by Fixture_Author1"
+}

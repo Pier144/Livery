@@ -57,6 +57,7 @@
       "online": "WT Live online · {{count, number}} skin",
       "onlineNoCount": "WT Live online",
       "offline": "WT Live offline",
+      "off": "WT Live disattivato",
       "hangar": "Hangar {{count, number}} · {{size}}"
     },
     "palette": {
@@ -167,8 +168,24 @@
         "watchInsideUserSkins": "La cartella controllata non può stare dentro UserSkins",
         "noDownloadsFolder": "Impossibile trovare la cartella Download. Scegli una cartella da controllare.",
         "watchStartFailed": "Impossibile avviare il controllo delle cartelle",
-        "wtliveUnsupported": "WT Live non è ancora raggiungibile da questa versione: serve una libreria di rete che l’autore non ha ancora approvato.",
-        "followingNotSaved": "Impossibile salvare l’elenco dei seguiti"
+        "wtliveUnsupported": "WT Live non è raggiungibile da questa versione.",
+        "wtliveOff": "La navigazione su WT Live è disattivata nelle Impostazioni",
+        "followingNotSaved": "Impossibile salvare l’elenco dei seguiti",
+        "wtliveUnreadable": "WT Live ha risposto in un modo che Livery non sa leggere",
+        "wtliveErrorAnswer": "WT Live ha risposto con un errore",
+        "hiddenNotSaved": "Impossibile salvare le skin nascoste",
+        "wtlivePostGone": "Questa skin non è più su WT Live",
+        "archiveNotSaved": "Impossibile salvare l’archivio della skin",
+        "httpClientFailed": "Impossibile avviare il client HTTP",
+        "wtlivePaused": "WT Live non risponde; Livery riproverà tra un paio di minuti",
+        "wtliveUnreachable": "WT Live non è raggiungibile",
+        "wtliveRobots": "Il robots.txt di WT Live chiede agli strumenti come Livery di non leggere questa pagina",
+        "archiveTooLarge": "L’archivio della skin è più grande del previsto",
+        "notADownloadLink": "Non è un link di download di WT Live",
+        "postNotAnArchive": "Il file di questo post non è un archivio ZIP, 7z o RAR",
+        "skinInstalling": "L’installazione di questa skin è già in corso",
+        "notTried": "Questa skin non è in prova nel gioco",
+        "installedFolderGone": "La cartella della versione installata non c’è più"
       }
     }
   },
@@ -279,6 +296,11 @@
       "body": "La tua libreria funziona come sempre. Potrai sfogliare e installare da WT Live appena torni online.",
       "hangar": "Apri il mio hangar"
     },
+    "off": {
+      "title": "WT Live è disattivato",
+      "body": "Livery non invia richieste a WT Live finché la navigazione è disattivata. La tua libreria funziona come sempre.",
+      "settings": "Apri Impostazioni"
+    },
     "error": {
       "title": "Impossibile caricare questa skin"
     },
@@ -362,6 +384,12 @@
       "openPostHint": "Apre il post su WT Live nel browser",
       "openAuthor": "Apri la pagina di {{name}} su WT Live"
     },
+    "hide": {
+      "action": "Nascondi da Esplora",
+      "hint": "Tiene questa skin fuori da Esplora e Seguiti. Se è installata, resta nel tuo hangar.",
+      "hidden": "“{{name}}” nascosta",
+      "failed": "Impossibile aggiornare le skin nascoste: {{message}}"
+    },
     "vehicle": {
       "label": "Veicolo",
       "open": "Mostra in Esplora le skin di questo veicolo",
@@ -435,6 +463,8 @@
     "newCount_other": "{{count, number}} nuove",
     "results_one": "{{count, number}} risultato · {{ms, number}} ms",
     "results_other": "{{count, number}} risultati · {{ms, number}} ms",
+    "resultsAtLeast_one": "{{count, number}}+ risultati · {{ms, number}} ms",
+    "resultsAtLeast_other": "{{count, number}}+ risultati · {{ms, number}} ms",
     "filters": {
       "label": "Filtri",
       "nation": "Nazione",
@@ -513,6 +543,11 @@
       "body": "La tua libreria funziona come sempre. Potrai sfogliare e installare da WT Live appena torni online.",
       "hangar": "Apri il mio hangar",
       "stillOffline": "Ancora offline. La tua libreria è del tutto disponibile."
+    },
+    "off": {
+      "title": "WT Live è disattivato",
+      "body": "Livery non invia richieste a WT Live finché la navigazione è disattivata. La tua libreria funziona come sempre.",
+      "settings": "Apri Impostazioni"
     },
     "error": {
       "title": "WT Live ha risposto in modo inatteso",
@@ -794,6 +829,7 @@
       "game": "Gioco",
       "conflicts": "Conflitti",
       "backups": "Backup",
+      "wtlive": "WT Live",
       "language": "Lingua",
       "updates": "Aggiornamenti",
       "about": "Informazioni"
@@ -860,6 +896,22 @@
       "clear": "Svuota",
       "cleared_one": "Eliminato {{count}} backup",
       "cleared_other": "Eliminati {{count}} backup"
+    },
+    "wtlive": {
+      "browse": "Sfoglia WT Live",
+      "browseHelper": "Esplora, Seguiti e installazioni da WT Live. Se lo disattivi, Livery non invia alcuna richiesta a WT Live.",
+      "cache": "Cache",
+      "cacheHelper": "Pagine e archivi scaricati da WT Live vengono conservati fino a 24 ore.",
+      "clearCache": "Svuota cache",
+      "cacheCleared": "Cache di WT Live svuotata",
+      "hidden": "Skin nascoste",
+      "hiddenHelper": "Le skin che hai nascosto restano fuori da Esplora e Seguiti.",
+      "hiddenCount_one": "{{count, number}} skin",
+      "hiddenCount_other": "{{count, number}} skin",
+      "showAgain": "Mostrale di nuovo",
+      "unhidden": "Le skin nascoste sono di nuovo in Esplora",
+      "unavailable": "Impossibile leggere questi dati ora",
+      "attribution": "Skin e immagini appartengono ai rispettivi autori su WT Live."
     },
     "language": {
       "names": {

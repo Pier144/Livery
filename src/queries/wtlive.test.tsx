@@ -9,12 +9,20 @@ import { EVENTS, type FollowEntry, type SearchParams, type SearchResult, type Wt
 import {
   FOLLOWING_KEY,
   WTLIVE_KEY,
+  WTLIVE_STORAGE_KEY,
   isOfflineError,
+  nextSearchPage,
+  useFollowingNew,
   useMarkFollowingSeen,
   useNetStatusEvents,
   useSetFollow,
+  useSetWtLiveHidden,
+  useWtLivePost,
+  useWtLiveSearch,
   useWtLiveSearchPages,
 } from './wtlive';
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from './settings';
+import type { InfiniteData } from '@tanstack/react-query';
 
 const backend = vi.hoisted(() => ({
   call: vi.fn<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>(),
@@ -47,12 +55,34 @@ beforeEach(() => {
   backend.listeners.clear();
 });
 
+const found = (items: WtLiveSkin[], extra: Partial<SearchResult> = {}): SearchResult => ({
+  items,
+  total: items.length,
+  tookMs: 14,
+  hasMore: false,
+  totalExact: true,
+  ...extra,
+});
+
+describe('nextSearchPage', () => {
+  it('follows the last page’s hasMore, not the total', () => {
+    const first = found([item(1), item(2)], { total: 2, totalExact: false, hasMore: true });
+    expect(nextSearchPage(first, [first])).toBe(1);
+    // An inexact total equal to what is loaded doesn't stop paging; hasMore does.
+    const second = found([item(3)], { total: 3, totalExact: false, hasMore: false });
+    expect(nextSearchPage(second, [first, second])).toBeUndefined();
+    // An exact total larger than what is loaded doesn't keep paging either.
+    expect(nextSearchPage(found([item(1)], { total: 99 }), [found([item(1)])])).toBeUndefined();
+  });
+});
+
 describe('useWtLiveSearchPages', () => {
-  it('asks for the next page until every result is loaded', async () => {
+  it('asks for the next page while the backend says there is one', async () => {
     backend.call.mockImplementation(async (_cmd, args) => {
       const { page } = (args as { params: SearchParams }).params;
-      const items = page === 0 ? [item(1), item(2)] : [item(3)];
-      return { items, total: 3, tookMs: 14 } satisfies SearchResult;
+      return page === 0
+        ? found([item(1), item(2)], { total: 2, totalExact: false, hasMore: true })
+        : found([item(3)], { total: 3, totalExact: false, hasMore: false });
     });
     const { result } = renderHook(() => useWtLiveSearchPages({ sort: 'downloads', nation: 'GER' }), { wrapper });
 
@@ -74,6 +104,54 @@ describe('useWtLiveSearchPages', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(isOfflineError(result.current.error)).toBe(true);
     expect(useUi.getState().online).toBe(false);
+  });
+});
+
+describe('Browse WT Live off', () => {
+  it('disables every WT Live query: no call at all', async () => {
+    const client = createQueryClient();
+    client.setQueryData(SETTINGS_KEY, { ...DEFAULT_SETTINGS, wtliveEnabled: false });
+    const entries: FollowEntry[] = [{ kind: 'vehicle', id: 'su_27', name: 'Su-27', lastSeenAt: '2026-09-09T20:00:00Z' }];
+    const { result: hooks } = renderHook(
+      () => ({
+        pages: useWtLiveSearchPages({ sort: 'downloads' }),
+        single: useWtLiveSearch({ sort: 'downloads', page: 0 }),
+        post: useWtLivePost('s1'),
+        fresh: useFollowingNew(entries),
+      }),
+      { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> },
+    );
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(backend.call).not.toHaveBeenCalled();
+    expect(hooks.current.pages.fetchStatus).toBe('idle');
+    expect(hooks.current.post.fetchStatus).toBe('idle');
+    expect(hooks.current.fresh.fetchStatus).toBe('idle');
+  });
+});
+
+describe('useSetWtLiveHidden', () => {
+  it('stores the counts, drops the skin from cached lists at once and refetches them', async () => {
+    backend.call.mockResolvedValue({ cacheBytes: 10, hiddenCount: 1 });
+    const client = createQueryClient();
+    const pagesKey = [...WTLIVE_KEY, 'search-pages', { sort: 'downloads' }];
+    const freshKey = [...WTLIVE_KEY, 'following-new', ['su_27'], []];
+    client.setQueryData(pagesKey, { pages: [found([item(1), item(2)])], pageParams: [0] });
+    client.setQueryData(freshKey, [item(2), item(3)]);
+    client.setQueryData([...WTLIVE_KEY, 'post', 's2'], item(2));
+    const { result: hook } = renderHook(() => useSetWtLiveHidden(), {
+      wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    });
+
+    await act(() => hook.current.mutateAsync({ id: 's2', hidden: true }));
+    expect(backend.call).toHaveBeenLastCalledWith('wtlive_set_hidden', { id: 's2', hidden: true });
+    expect(client.getQueryData(WTLIVE_STORAGE_KEY)).toEqual({ cacheBytes: 10, hiddenCount: 1 });
+    const pages = client.getQueryData<InfiniteData<SearchResult>>(pagesKey);
+    expect(pages?.pages[0]?.items.map((s) => s.id)).toEqual(['s1']);
+    expect(client.getQueryData<WtLiveSkin[]>(freshKey)?.map((s) => s.id)).toEqual(['s3']);
+    expect(client.getQueryState(pagesKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(freshKey)?.isInvalidated).toBe(true);
+    // The post itself stays (an installed skin's detail still opens).
+    expect(client.getQueryState([...WTLIVE_KEY, 'post', 's2'])?.isInvalidated).toBe(false);
   });
 });
 

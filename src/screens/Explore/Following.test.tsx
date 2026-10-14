@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { vehicles } from '@/data/vehicles';
 import { createQueryClient } from '@/queries/client';
 import { mockLayout } from '@/screens/Hangar/testLayout';
+import { resetSettingsUi, useSettingsUi } from '@/screens/Settings/settingsUi';
 import { useExplore } from '@/store/explore';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
@@ -69,7 +70,7 @@ function installBackend() {
       case 'wtlive_search': {
         const params = args.params as SearchParams;
         const items = NEW.filter((s) => !params.vehicle || s.vehicle.code === params.vehicle);
-        return { items, total: items.length, tookMs: 20 };
+        return { items, total: items.length, tookMs: 20, hasMore: false, totalExact: true };
       }
       case 'get_hangar':
         return [];
@@ -120,8 +121,12 @@ describe('Following', () => {
   it('counts new skins on the tab and per follow', async () => {
     const user = userEvent.setup();
     renderExplore();
-    await waitFor(() => expect(followingTab()).toHaveTextContent('Following3 new'));
+    // Explore alone asks WT Live nothing about follows: the pill fills once the tab has looked.
+    await new Promise((r) => setTimeout(r, 10));
+    expect(calls('wtlive_following_new')).toHaveLength(0);
+    expect(followingTab()).toHaveTextContent(/^Following$/);
     await user.click(followingTab());
+    await waitFor(() => expect(followingTab()).toHaveTextContent('Following3 new'));
     expect(followingTab()).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: /^Following/ })).toBeInTheDocument();
 
@@ -146,7 +151,7 @@ describe('Following', () => {
     expect(FOLLOWS.map((f) => newFor(f, NEW))).toEqual([2, 1, 1, 0]);
   });
 
-  it('a vehicle follow opens Explore filtered by it; an author follow searches for the author', async () => {
+  it('a vehicle follow opens Explore filtered by it; an author follow searches for @author', async () => {
     const user = userEvent.setup();
     useExplore.setState({ tab: 'following', nation: 'USSR' });
     renderExplore();
@@ -157,8 +162,10 @@ describe('Following', () => {
 
     act(() => useExplore.getState().setTab('following'));
     await user.click(await screen.findByRole('button', { name: /^Skyhook_Dan/ }));
-    expect(useExplore.getState()).toMatchObject({ tab: 'explore', q: 'Skyhook_Dan', vehicle: null });
-    expect(screen.getByRole('button', { name: 'Remove filter: “Skyhook_Dan”' })).toBeInTheDocument();
+    // WT Live finds an author's skins by @nickname.
+    expect(useExplore.getState()).toMatchObject({ tab: 'explore', q: '@Skyhook_Dan', vehicle: null });
+    expect(screen.getByRole('button', { name: 'Remove filter: “@Skyhook_Dan”' })).toBeInTheDocument();
+    await waitFor(() => expect(calls('wtlive_search').at(-1)?.[1]).toEqual({ params: { sort: 'downloads', q: '@Skyhook_Dan', page: 0 } }));
   });
 
   it('unfollow is undoable and keeps focus in the list', async () => {
@@ -207,8 +214,8 @@ describe('Following', () => {
   it('counts reset when the user leaves the tab, not on opening it or opening a skin from it', async () => {
     const user = userEvent.setup();
     renderExplore();
-    await waitFor(() => expect(followingTab()).toHaveTextContent('3 new'));
     await user.click(followingTab());
+    await waitFor(() => expect(followingTab()).toHaveTextContent('3 new'));
     await screen.findByRole('button', { name: /^Baltic Winter/ });
 
     // Opening a new skin keeps the counts for the way back.
@@ -221,8 +228,8 @@ describe('Following', () => {
   it('leaving the tab marks everything seen and the pill goes away', async () => {
     const user = userEvent.setup();
     renderExplore();
-    await waitFor(() => expect(followingTab()).toHaveTextContent('3 new'));
     await user.click(followingTab());
+    await waitFor(() => expect(followingTab()).toHaveTextContent('3 new'));
     await screen.findByRole('button', { name: /^Baltic Winter/ });
     expect(calls('following_mark_seen')).toHaveLength(0);
 
@@ -257,6 +264,21 @@ describe('Following', () => {
     renderWithProviders(<Explore />, { client: createQueryClient() });
     expect(await screen.findByText('New skins show up here when WT Live can be reached.')).toBeInTheDocument();
     expect(followCard('Leopard 2A6')).toBeInTheDocument();
+  });
+
+  it('Browse WT Live off: the "turned off" state, no WT Live call, Open Settings goes to the WT Live section', async () => {
+    const user = userEvent.setup();
+    resetSettingsUi();
+    useExplore.setState({ tab: 'following' });
+    installBackend();
+    renderWithProviders(<Explore />, { client: createQueryClient(), settings: { wtliveEnabled: false } });
+    expect(await screen.findByRole('heading', { name: 'WT Live is turned off' })).toBeInTheDocument();
+    expect(followingTab()).toHaveAttribute('aria-selected', 'true');
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(backend.call.mock.calls.filter(([cmd]) => cmd.startsWith('wtlive_'))).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Open Settings' }));
+    expect(useUi.getState().screen).toBe('settings');
+    expect(useSettingsUi.getState().section).toBe('wtlive');
   });
 
   it('has no serious axe violations', async () => {

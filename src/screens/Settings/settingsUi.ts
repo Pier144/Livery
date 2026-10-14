@@ -1,7 +1,8 @@
 import { create } from 'zustand';
+import { useUi } from '@/store/ui';
 
-/** Left-nav order (README §7). */
-export const SECTIONS = ['general', 'game', 'conflicts', 'backups', 'language', 'updates', 'about'] as const;
+/** Left-nav order (README §7; WT Live added after Backups, see DESIGN_NOTES). */
+export const SECTIONS = ['general', 'game', 'conflicts', 'backups', 'wtlive', 'language', 'updates', 'about'] as const;
 export type SettingsSection = (typeof SECTIONS)[number];
 
 interface SettingsUiState {
@@ -27,6 +28,12 @@ export const useSettingsUi = create<SettingsUiState>()((set) => ({
   ...initial,
   setSection: (section) => set({ section }),
 }));
+
+/** Opens Settings on a section (e.g. "Open Settings" in the WT Live "turned off" states). */
+export function openSettingsAt(section: SettingsSection) {
+  useSettingsUi.getState().setSection(section);
+  useUi.getState().go('settings');
+}
 
 /** Tests: back to the first section with nothing pending. */
 export function resetSettingsUi() {

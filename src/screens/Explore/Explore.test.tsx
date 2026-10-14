@@ -79,6 +79,8 @@ interface Fake {
   /** `install_from_wtlive` rejects with this once. */
   installError?: AppError;
   tookMs: number;
+  /** Answer like WT Live's feed: no total count, `total` is a lower bound. */
+  inexact?: boolean;
 }
 let fake: Fake;
 const PAGE = 60;
@@ -95,7 +97,10 @@ function search(params: SearchParams): SearchResult {
       (!params.category || s.category === params.category),
   );
   const items = found.slice(params.page * PAGE, params.page * PAGE + PAGE);
-  return { items, total: found.length, tookMs: fake.tookMs };
+  const hasMore = (params.page + 1) * PAGE < found.length;
+  // `inexact`: WT Live's feed without a total count; `total` counts up to this page.
+  if (fake.inexact) return { items, total: params.page * PAGE + items.length, tookMs: fake.tookMs, hasMore, totalExact: false };
+  return { items, total: found.length, tookMs: fake.tookMs, hasMore, totalExact: true };
 }
 
 function installBackend() {
@@ -465,6 +470,41 @@ describe('Explore', () => {
     expect(screen.queryByRole('group', { name: 'Skin 000' })).not.toBeInTheDocument();
     expect(rendered()).toBeLessThanOrEqual(24);
     expect(screen.queryByRole('status', { busy: true })).not.toBeInTheDocument();
+  });
+
+  it('without a total count, the header shows a lower bound from the last page that grows as pages load', async () => {
+    const many = Array.from({ length: 130 }, (_, i) => post(`m${i}`, `Skin ${String(i).padStart(3, '0')}`, 'su_27', 'Flanker_Ivan'));
+    fake = { catalog: many, hangar: [], tookMs: 24, inexact: true };
+    installBackend();
+    renderWithProviders(<Harness />, { client: createQueryClient() });
+    await screen.findByRole('group', { name: 'Skin 000' });
+    const status = () => screen.getByText(/results ·/);
+    expect(status()).toHaveTextContent('60+ results · 24 ms');
+    expect(status()).toHaveAttribute('role', 'status');
+
+    // The query time stays the first page's.
+    fake.tookMs = 99;
+    const scroller = screen.getByRole('region', { name: 'WT Live skins' });
+    Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 1e6 });
+    fireEvent.scroll(scroller);
+    await waitFor(() => expect(status()).toHaveTextContent('120+ results · 24 ms'));
+    await waitFor(() => expect(searches().map((p) => p.page)).toEqual([0, 1, 2]));
+    expect(status()).toHaveTextContent('130+ results · 24 ms');
+  });
+
+  it('Browse WT Live off: the "turned off" state instead of results, and no WT Live call', async () => {
+    const user = userEvent.setup();
+    fake = { catalog: CATALOG, hangar: [], tookMs: 24 };
+    installBackend();
+    renderWithProviders(<Harness />, { client: createQueryClient(), settings: { wtliveEnabled: false } });
+    expect(await screen.findByRole('heading', { name: 'WT Live is turned off' })).toBeInTheDocument();
+    expect(screen.getByText('Livery sends no requests to WT Live while browsing is off. Your library works as usual.')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Schwarzwald Ambush' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/results ·/)).not.toBeInTheDocument();
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(backend.call.mock.calls.filter(([cmd]) => cmd.startsWith('wtlive_') || cmd === 'install_from_wtlive')).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Open Settings' }));
+    expect(useUi.getState().screen).toBe('settings');
   });
 
   it('never pages on from the previous filters while the new first page loads', async () => {
