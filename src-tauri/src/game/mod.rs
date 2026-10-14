@@ -5,9 +5,15 @@
 //!
 //! The logic lives in plain functions (`detect`, `apply_game_path`) so it is testable without a
 //! running app; the commands only gather the real inputs and hop onto a blocking thread.
+//!
+//! [`catalog`] reads the game's vehicle list from the install's data archives ([`vromfs`],
+//! [`binblk`]), read-only; `game_vehicles` hands it to the UI.
 
+pub mod binblk;
+pub mod catalog;
 pub mod root;
 pub mod steam;
+pub mod vromfs;
 
 use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
@@ -165,7 +171,33 @@ pub async fn set_game_path(app: AppHandle, path: String, source: Option<GameSour
         let detection = apply_game_path(&app.state::<SettingsStore>(), &path, source)?;
         crate::archive::follow_game_root(&app);
         crate::library::purge_expired(&app, &[]);
+        load_vehicles_in_background(&app);
         Ok(detection)
     })
     .await
+}
+
+/// The vehicle list of the saved game folder ([`catalog`]): every vehicle of the game, read
+/// from its data files (or the cached copy). Empty when no game folder is saved or the files
+/// can't be read; the UI then keeps its built-in list.
+#[tauri::command]
+pub async fn game_vehicles(app: AppHandle) -> AppResult<Vec<crate::model::Vehicle>> {
+    blocking(move || Ok(current_vehicles(&app).map(|list| list.as_ref().clone()).unwrap_or_default())).await
+}
+
+/// The saved game folder's vehicle list (see [`catalog::CatalogStore::load`]); waits for a read
+/// in progress. WT Live calls go through it first, so posts are matched against the game's list
+/// even right after launch. Blocking.
+pub fn current_vehicles(app: &AppHandle) -> Option<std::sync::Arc<Vec<crate::model::Vehicle>>> {
+    let root = crate::library::game_root(&app.state::<SettingsStore>().get()).ok()?;
+    app.state::<catalog::CatalogStore>().load(&root)
+}
+
+/// Reads (or loads the cached) vehicle list off the main thread, so lookups use it as soon as
+/// possible: at launch and after the game folder changes.
+pub fn load_vehicles_in_background(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        current_vehicles(&app);
+    });
 }

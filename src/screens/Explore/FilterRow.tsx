@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ChipDropdown } from '@/components/ui/ChipDropdown';
 import { Menu } from '@/components/ui/Menu';
 import { SegmentedControl, type Segment } from '@/components/ui/SegmentedControl';
-import { vehicles } from '@/data/vehicles';
+import { useVehicles } from '@/queries/vehicles';
 import { useExplore } from '@/store/explore';
 import type { SortOrder, VehicleType } from '@/types';
 import { classOptions, EXPLORE_CATEGORIES, EXPLORE_NATIONS, EXPLORE_SORTS, EXPLORE_TYPES } from './exploreModel';
@@ -18,6 +18,7 @@ type TypeValue = VehicleType | 'all';
  */
 export const FilterRow = forwardRef<HTMLDivElement>(function FilterRow(_, ref) {
   const { t } = useTranslation();
+  const vehicles = useVehicles();
   const nation = useExplore((s) => s.nation);
   const type = useExplore((s) => s.type);
   const klass = useExplore((s) => s.class);
@@ -56,7 +57,7 @@ export const FilterRow = forwardRef<HTMLDivElement>(function FilterRow(_, ref) {
         onChange={setClass}
         menuWidthClass="min-w-[180px]"
       />
-      <VehicleInput />
+      <VehicleInput list={vehicles} />
       <ChipDropdown
         label={t('explore.filters.category')}
         value={category}

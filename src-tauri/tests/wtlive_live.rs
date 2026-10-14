@@ -118,7 +118,9 @@ impl Transport for FakeTransport {
 fn zip_bytes() -> Vec<u8> {
     let mut buffer = std::io::Cursor::new(Vec::new());
     let mut zip = zip::ZipWriter::new(&mut buffer);
-    zip.start_file("Skin/su_27.blk", zip::write::SimpleFileOptions::default()).unwrap();
+    // A fixed date: the same bytes every time the test asks.
+    let options = zip::write::SimpleFileOptions::default().last_modified_time(zip::DateTime::default());
+    zip.start_file("Skin/su_27.blk", options).unwrap();
     zip.write_all(b"x{}").unwrap();
     zip.finish().unwrap();
     buffer.into_inner()

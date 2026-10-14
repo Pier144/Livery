@@ -163,6 +163,8 @@ pub fn purge_expired(app: &AppHandle, keep: &[String]) {
 
 /// The game folder a command that works on skin folders works on, after the purge.
 fn prepare(app: &AppHandle, keep: &[String]) -> AppResult<GameLibrary> {
+    // Scans resolve vehicles: with the game's list once it is read.
+    crate::game::current_vehicles(app);
     let library = GameLibrary::current(app)?;
     purge_in(&library, keep);
     Ok(library)
@@ -194,9 +196,21 @@ pub async fn import_skins(app: AppHandle, folders: Vec<String>) -> AppResult<Vec
 pub async fn get_hangar(app: AppHandle) -> AppResult<Vec<HangarSkin>> {
     blocking(move || {
         purge_expired(&app, &[]);
-        Ok(current_store(&app).map(|store| store.all()).unwrap_or_default())
+        crate::game::current_vehicles(&app);
+        Ok(current_store(&app)
+            .map(|store| store.all().into_iter().map(with_current_vehicle).collect())
+            .unwrap_or_default())
     })
     .await
+}
+
+/// A skin with its vehicle as the current catalog names it (an index written before the game's
+/// list was read still holds a guessed name). Unknown codes keep what the index has.
+pub fn with_current_vehicle(skin: HangarSkin) -> HangarSkin {
+    match vehicles::lookup(&skin.vehicle.code) {
+        Some(vehicle) if !skin.vehicle.code.is_empty() => HangarSkin { vehicle, ..skin },
+        _ => skin,
+    }
 }
 
 /// Moves skins in or out of the game's view; returns the whole index. A name clash at the

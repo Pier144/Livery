@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { vehicles } from '@/data/vehicles';
+import { useVehicles } from '@/queries/vehicles';
 import { cn } from '@/lib/cn';
 import { useExplore, type ExploreFilterKey } from '@/store/explore';
 import { activeFilters, vehicleLabel } from './exploreModel';
@@ -21,6 +21,7 @@ export function ActiveFilters({ onEmpty }: { onEmpty: () => void }) {
   const category = useExplore((s) => s.category);
   const clear = useExplore((s) => s.clear);
   const clearAll = useExplore((s) => s.clearAll);
+  const vehicles = useVehicles();
 
   const list = activeFilters(
     { q, nation, type, class: klass, vehicle, category },

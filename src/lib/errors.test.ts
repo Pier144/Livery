@@ -100,6 +100,9 @@ const GENERIC_ON_PURPOSE: (string | RegExp)[] = [
   'Pass exactly one of a skin id, a queue id or a WT Live id',
   'Pass the id of a WT Live skin',
   'Ask for the pages of a search in order',
+  // The game's vehicle list: logged, never shown (the UI keeps its built-in list).
+  "A War Thunder data file can't be read",
+  "The game's vehicle data can't be found",
   'Pass the id of the vehicle or author to follow',
   'Pass the name of the vehicle or author to follow',
   // Launch (src-tauri/src/startup.rs, lib.rs setup): no window yet.

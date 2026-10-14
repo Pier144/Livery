@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TextInput } from '@/components/ui/TextInput';
-import { vehicles as localVehicles } from '@/data/vehicles';
+import { vehicles as builtIn } from '@/data/vehicles';
 import { cn } from '@/lib/cn';
 import { useExplore } from '@/store/explore';
 import type { Vehicle } from '@/types';
@@ -20,7 +20,7 @@ function exactVehicle(list: readonly Vehicle[], text: string): Vehicle | undefin
  * the local list). Escape closes only the menu (a second Escape clears the field and the filter);
  * leaving the field restores the filter's name, and leaving it empty clears the filter.
  */
-export function VehicleInput({ list = localVehicles }: { list?: readonly Vehicle[] }) {
+export function VehicleInput({ list = builtIn }: { list?: readonly Vehicle[] }) {
   const { t } = useTranslation();
   const vehicle = useExplore((s) => s.vehicle);
   const setVehicle = useExplore((s) => s.setVehicle);

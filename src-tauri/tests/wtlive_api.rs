@@ -185,18 +185,22 @@ fn categories() {
     assert_eq!(infer_category(&tags(&["4k"])), Category::Other);
 }
 
+fn infer_vehicle_t(tags: &[String]) -> livery_lib::wtlive::api::VehicleGuess {
+    infer_vehicle(tags, "")
+}
+
 #[test]
 fn vehicles_from_hashtags() {
-    assert_eq!(infer_vehicle(&tags(&["tiger_ii_h"])).vehicle.code, "germ_pzkpfw_VI_ausf_b_tiger_IIH", "by name");
-    assert_eq!(infer_vehicle(&tags(&["su27"])).vehicle.code, "su_27");
-    let guess = infer_vehicle(&tags(&["germantank", "germany"]));
+    assert_eq!(infer_vehicle_t(&tags(&["tiger_ii_h"])).vehicle.code, "germ_pzkpfw_VI_ausf_b_tiger_IIH", "by name");
+    assert_eq!(infer_vehicle_t(&tags(&["su27"])).vehicle.code, "su_27");
+    let guess = infer_vehicle_t(&tags(&["germantank", "germany"]));
     assert_eq!(guess.vehicle.code, "");
     assert_eq!(guess.nation, Some(Nation::Ger));
     assert_eq!(guess.vehicle_type, Some(VehicleType::Ground), "…tank");
     assert_eq!(guess.vehicle.nation, Nation::Ger);
-    let none = infer_vehicle(&tags(&["4k", "dds"]));
+    let none = infer_vehicle_t(&tags(&["4k", "dds"]));
     assert_eq!((none.nation, none.vehicle_type), (None, None));
-    let heli = infer_vehicle(&tags(&["helicopter", "uk"]));
+    let heli = infer_vehicle_t(&tags(&["helicopter", "uk"]));
     assert_eq!((heli.nation, heli.vehicle_type), (Some(Nation::Gbr), Some(VehicleType::Heli)));
 }
 

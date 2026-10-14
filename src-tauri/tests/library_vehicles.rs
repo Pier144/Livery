@@ -7,7 +7,7 @@ use livery_lib::model::{Nation, VehicleType};
 #[test]
 fn catalog_is_embedded_and_parses() {
     assert!(!vehicles::all().is_empty(), "src/data/vehicles.json must parse into Vehicle");
-    for v in vehicles::all() {
+    for v in vehicles::all().iter() {
         assert_eq!(lookup(&v.code).as_ref(), Some(v), "{}", v.code);
     }
 }

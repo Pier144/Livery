@@ -68,6 +68,7 @@ pub fn run() {
             app.manage(settings);
             app.manage(libraries);
             app.manage(archive::QueueStore::default());
+            app.manage(game::catalog::CatalogStore::new(data_dir.join(game::catalog::CATALOG_FILE)));
             // Settings → WT Live → Browse WT Live, read on every WT Live call.
             let handle = app.handle().clone();
             let enabled: wtlive::EnabledFn =
@@ -79,6 +80,8 @@ pub fn run() {
             archive::purge_on_startup(app.handle());
             // WT Live cache older than a day, and Try in game installs left by the last session.
             wtlive::purge_on_startup(app.handle());
+            // The game's vehicle list (cached in vehicles.json; read from the game when it changed).
+            game::load_vehicles_in_background(app.handle());
             watch::start(app.handle());
             tracing::info!(version = env!("CARGO_PKG_VERSION"), "Livery started");
             Ok(())
@@ -88,6 +91,7 @@ pub fn run() {
             settings::set_settings,
             game::detect_game,
             game::set_game_path,
+            game::game_vehicles,
             library::scan_user_skins,
             library::import_skins,
             library::get_hangar,

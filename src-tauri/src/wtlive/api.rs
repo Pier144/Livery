@@ -197,7 +197,8 @@ fn to_post(raw: RawPost, detail: bool) -> Option<Post> {
         return None;
     }
     let tags = hashtags(&raw.description);
-    let guess = infer_vehicle(&tags);
+    let name = skin_name(&raw.description, &file.name, &author_name);
+    let guess = infer_vehicle(&tags, &name);
     let language = raw.language.filter(|l| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphabetic()));
     let images = raw
         .images
@@ -213,7 +214,7 @@ fn to_post(raw: RawPost, detail: bool) -> Option<Post> {
         .collect();
     let created = raw.created.max(0);
     let skin = WtLiveSkin {
-        name: skin_name(&raw.description, &file.name, &author_name),
+        name,
         vehicle: guess.vehicle,
         author: Author {
             id: raw.author.id.to_string(),
@@ -453,26 +454,23 @@ const TYPE_TAGS: [(&[&str], VehicleType); 4] = [
     ),
 ];
 
-/// The vehicle a post is for, from its hashtags: the first hashtag that names a catalog vehicle
-/// (its code, its code without the nation prefix, or its name, compared without `_ - .` and
-/// spaces), else the unknown vehicle with the nation and type the hashtags give, if any.
-pub fn infer_vehicle(tags: &[String]) -> VehicleGuess {
-    for tag in tags {
-        let key = squash(tag);
-        if key.len() < 3 {
-            continue;
-        }
-        if let Some(vehicle) = vehicles::all().iter().find(|v| vehicle_keys(v).contains(&key)) {
-            return VehicleGuess {
-                nation: Some(vehicle.nation).filter(|n| *n != Nation::Unknown),
-                vehicle_type: Some(vehicle.vehicle_type),
-                vehicle: vehicle.clone(),
-            };
-        }
-    }
+/// The vehicle a post is for: the first hashtag that names a catalog vehicle (its code, its
+/// code without the nation prefix, or its name, compared without `_ - .` and spaces), else
+/// words of the title that are exactly a vehicle's name ([`title_vehicle`]), else the unknown
+/// vehicle with the nation and type the hashtags give, if any. When a hashtag names several
+/// vehicles, the one of the nation the other hashtags give wins.
+pub fn infer_vehicle(tags: &[String], title: &str) -> VehicleGuess {
     let squashed: Vec<String> = tags.iter().map(|t| squash(t)).collect();
     let nation =
         NATION_TAGS.iter().find(|(words, _)| squashed.iter().any(|t| words.contains(&t.as_str()))).map(|&(_, n)| n);
+    let found = squashed.iter().find_map(|t| vehicles::by_hashtag(t, nation)).or_else(|| title_vehicle(title, nation));
+    if let Some(vehicle) = found {
+        return VehicleGuess {
+            nation: Some(vehicle.nation).filter(|n| *n != Nation::Unknown),
+            vehicle_type: Some(vehicle.vehicle_type),
+            vehicle,
+        };
+    }
     let vehicle_type = TYPE_TAGS
         .iter()
         .find(|&&(words, ty)| {
@@ -491,25 +489,40 @@ pub fn infer_vehicle(tags: &[String]) -> VehicleGuess {
     VehicleGuess { vehicle, nation, vehicle_type }
 }
 
-/// The keys a hashtag is compared with for one vehicle (squashed).
-fn vehicle_keys(vehicle: &Vehicle) -> Vec<String> {
-    let code = vehicle.code.to_lowercase();
-    let mut keys = vec![squash(&code), squash(&vehicle.name)];
-    if let Some(rest) = strip_nation(&code) {
-        keys.push(squash(rest));
+/// A vehicle named by consecutive words of a post's title (`Historic skin: Bf 109G-2/trop`,
+/// `T-26 No.531`), longest run first. To keep common words from matching, a run of one word
+/// counts only when it holds a digit (`T-26`, not `Tiger`), and every key has 4 characters or
+/// more.
+pub fn title_vehicle(title: &str, nation: Option<Nation>) -> Option<Vehicle> {
+    let words: Vec<&str> = title
+        .split(|c: char| {
+            c.is_whitespace()
+                || matches!(
+                    c,
+                    ',' | ';' | ':' | '|' | '"' | '\u{201c}' | '\u{201d}' | '[' | ']' | '(' | ')' | '!' | '?'
+                )
+        })
+        // A word is letters or digits (a lone `-` or `/` isn't one, and can't join two runs).
+        .filter(|w| w.chars().any(char::is_alphanumeric))
+        .take(40)
+        .collect();
+    for len in (1..=4usize).rev() {
+        for window in words.windows(len) {
+            let key = squash(&window.concat());
+            if key.chars().count() < 4 || (len == 1 && !key.chars().any(|c| c.is_ascii_digit())) {
+                continue;
+            }
+            if let Some(vehicle) = vehicles::by_name(&key, nation) {
+                return Some(vehicle);
+            }
+        }
     }
-    keys.retain(|k| k.len() >= 3);
-    keys
-}
-
-fn strip_nation(code: &str) -> Option<&str> {
-    vehicles::nation_from_prefix(code)?;
-    code.split_once('_').map(|(_, rest)| rest).filter(|rest| !rest.is_empty())
+    None
 }
 
 /// Lower case without `_ - .`, spaces and other punctuation: `T-34-85` → `t3485`.
 pub fn squash(s: &str) -> String {
-    s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
+    vehicles::squash(s)
 }
 
 /// The hashtags WT Live is searched with for a vehicle code (OR-ed by the site): the code, the
@@ -517,7 +530,7 @@ pub fn squash(s: &str) -> String {
 pub fn vehicle_tags(code: &str) -> Vec<String> {
     let lower = code.trim().to_lowercase().replace(['-', '.', ' '], "_");
     let mut tags = vec![lower.clone()];
-    if let Some(rest) = strip_nation(&lower) {
+    if let Some(rest) = vehicles::without_nation(&lower) {
         tags.push(rest.to_owned());
         tags.push(squash(rest));
     }

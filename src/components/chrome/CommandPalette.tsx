@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Kbd } from '@/components/ui/Kbd';
-import { vehicles } from '@/data/vehicles';
+import { useVehicles } from '@/queries/vehicles';
 import { focusScreenHeading } from '@/hooks/useScreenFocus';
 import { cn } from '@/lib/cn';
 import { cachedWtLiveSkins } from '@/screens/Explore/exploreModel';
@@ -49,9 +49,10 @@ function PalettePanel() {
   // WT Live skins already fetched (Explore pages, posts, Following), read once per opening.
   const qc = useQueryClient();
   const [skins] = useState(() => cachedWtLiveSkins(qc));
+  const vehicles = useVehicles();
   const items = useMemo(
     () => buildPaletteItems(query, { t: translate, vehicles, skins, go, openSkin, applyVehicle }),
-    [query, translate, skins, go, openSkin, applyVehicle],
+    [query, translate, vehicles, skins, go, openSkin, applyVehicle],
   );
   const active = Math.min(index, Math.max(0, items.length - 1));
   const activeItem = items[active];

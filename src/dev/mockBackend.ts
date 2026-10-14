@@ -122,6 +122,7 @@
 // ("No game folder set").
 
 import { DEFAULT_SETTINGS } from '@/queries/settings';
+import { vehicles as builtInVehicles } from '@/data/vehicles';
 import {
   EVENTS,
   type AppError,
@@ -1717,6 +1718,8 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   set_settings: setSettings,
   detect_game: () => runDetect(),
   set_game_path: setGamePath,
+  // The real backend reads every vehicle of the game; the mock has only the built-in list.
+  game_vehicles: () => (hasGameFolder() ? builtInVehicles : []),
   scan_user_skins: scan,
   import_skins: importSkins,
   get_hangar: () => {

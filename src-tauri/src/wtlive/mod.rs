@@ -222,13 +222,25 @@ pub fn required_id(id: &str) -> AppResult<&str> {
 #[tauri::command]
 pub async fn wtlive_search(app: AppHandle, params: SearchParams) -> AppResult<SearchResult> {
     let client = client_of(&app);
-    reported(&app, WtLiveCall::Search, blocking(move || client.search(&params)).await)
+    let handle = app.clone();
+    let result = blocking(move || {
+        crate::game::current_vehicles(&handle);
+        client.search(&params)
+    })
+    .await;
+    reported(&app, WtLiveCall::Search, result)
 }
 
 #[tauri::command]
 pub async fn wtlive_post(app: AppHandle, id: String) -> AppResult<WtLiveSkin> {
     let client = client_of(&app);
-    reported(&app, WtLiveCall::Post, blocking(move || post(client.as_ref(), &id)).await)
+    let handle = app.clone();
+    let result = blocking(move || {
+        crate::game::current_vehicles(&handle);
+        post(client.as_ref(), &id)
+    })
+    .await;
+    reported(&app, WtLiveCall::Post, result)
 }
 
 #[tauri::command]
@@ -239,6 +251,7 @@ pub async fn wtlive_following_new(
 ) -> AppResult<Vec<WtLiveSkin>> {
     let handle = app.clone();
     let result = blocking(move || {
+        crate::game::current_vehicles(&handle);
         let state = handle.state::<WtLive>();
         following_new(state.client().as_ref(), &state.following().list(), &vehicles, &authors)
     })
