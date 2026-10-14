@@ -536,7 +536,7 @@ impl WtLiveClient for LiveClient {
                 }
             }
         }
-        found.sort_by(|a, b| b.created.cmp(&a.created));
+        found.sort_by_key(|p| std::cmp::Reverse(p.created));
         Ok(found.into_iter().map(|p| WtLiveSkin { is_new: Some(true), ..p.skin }).collect())
     }
 
