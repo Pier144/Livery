@@ -56,10 +56,6 @@
         "custom": "CUSTOM",
         "none": "NOT SET"
       },
-      "online": "WT Live online · {{count, number}} skins",
-      "onlineNoCount": "WT Live online",
-      "offline": "WT Live offline",
-      "off": "WT Live off",
       "hangar": "Hangar {{count, number}} · {{size}}"
     },
     "palette": {
@@ -189,7 +185,13 @@
         "postNotAnArchive": "This post's file isn't a ZIP, 7z or RAR archive",
         "skinInstalling": "This skin is already installing",
         "notTried": "This skin isn't being tried in game",
-        "installedFolderGone": "The installed version's folder is gone"
+        "installedFolderGone": "The installed version's folder is gone",
+        "updateCheckFailed": "Livery couldn't check for updates",
+        "updateDownloadFailed": "The update couldn't be downloaded",
+        "updateBadSignature": "The update isn't signed by Livery, so it wasn't installed",
+        "updateInstallFailed": "The update couldn't be installed",
+        "updateUpToDate": "Livery is already up to date",
+        "updateBusy": "The update is already downloading"
       }
     }
   },
@@ -1001,9 +1003,24 @@
     },
     "updates": {
       "version": "Livery {{version}}",
-      "pending": "Update checks aren’t available yet. They arrive in a later build.",
+      "upToDate": "Livery {{version}} · You’re up to date.",
+      "checking": "Checking for updates…",
       "check": "Check now",
-      "auto": "Install updates automatically"
+      "available": "Livery {{version}} is available",
+      "availableHelper": "You have {{current}}.",
+      "install": "Install and restart",
+      "downloading": "Downloading Livery {{version}}",
+      "downloadingHelper": "Livery closes and opens again when it’s done.",
+      "downloadingBackground": "In the background. It installs when you close Livery.",
+      "ready": "Livery {{version}} is ready",
+      "readyHelper": "It installs when you close Livery.",
+      "readyManualHelper": "Restart to install it.",
+      "restart": "Restart and update",
+      "installing": "Installing Livery {{version}}…",
+      "installingHelper": "Livery closes and opens again on the new version.",
+      "readyToast": "Livery {{version}} is ready. It installs when you close Livery.",
+      "auto": "Install updates automatically",
+      "autoHelper": "Downloads new versions in the background and installs them when you close Livery."
     },
     "about": {
       "build": "{{version}} · Windows x64",

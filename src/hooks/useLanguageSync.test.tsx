@@ -51,7 +51,7 @@ describe('useLanguageSync', () => {
       expect(i18n.language).toBe('en');
       expect(i18n.t('common.nav.hangar')).toBe('My Hangar');
       // Numbers follow the text shown, not the German/Russian/French locale.
-      expect(i18n.t('common.status.online', { count: 2318 })).toBe('WT Live online · 2,318 skins');
+      expect(i18n.t('common.status.hangar', { count: 2318, size: '3.8 GB' })).toBe('Hangar 2,318 · 3.8 GB');
     }
   });
 });

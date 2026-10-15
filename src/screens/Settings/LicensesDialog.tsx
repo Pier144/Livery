@@ -38,6 +38,7 @@ const LIBRARIES = [
   { name: 'unrar', license: 'MIT / Apache-2.0' },
   { name: 'reqwest · hyper', license: 'MIT / Apache-2.0' },
   { name: 'rustls', license: 'Apache-2.0 / ISC / MIT' },
+  { name: 'minisign-verify', license: 'MIT' },
 ] as const;
 
 const FOCUSABLE = 'button:not([disabled]), [tabindex="0"]';

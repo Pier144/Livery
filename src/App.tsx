@@ -11,6 +11,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useScreenFocus } from '@/hooks/useScreenFocus';
+import { useUpdateEvents } from '@/hooks/useUpdateEvents';
 import { reportReadyAfterPaint } from '@/lib/startup';
 import { useWtLiveInstallEvents } from '@/store/installs';
 import { useSettings } from '@/queries/settings';
@@ -65,6 +66,7 @@ export function App() {
   useInstallEvents();
   useWtLiveInstallEvents();
   useNetStatusEvents();
+  useUpdateEvents();
   useLanguageSync();
   useReduceMotion();
   // After the screens' own effects: focus the new screen's heading, or the card the detail came from.

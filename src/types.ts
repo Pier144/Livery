@@ -257,3 +257,23 @@ export interface WtLiveStorage {
   /** WT Live skins hidden from Explore and Following. */
   hiddenCount: number;
 }
+
+/** `check_update`: DATA_MODEL `{ current, latest?, notes? }`, plus `ready` (already downloaded). */
+export interface UpdateInfo {
+  current: string;
+  /** The newer version on offer; absent when Livery is up to date. */
+  latest?: string;
+  notes?: string;
+  ready: boolean;
+}
+
+/** `update://progress` while a new version downloads. */
+export interface UpdateProgress {
+  downloaded: number;
+  total?: number;
+}
+
+/** `update://ready`: a background download is verified and installs when Livery closes. */
+export interface UpdateReady {
+  version: string;
+}

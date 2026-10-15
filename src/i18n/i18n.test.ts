@@ -59,7 +59,7 @@ describe('i18n runtime', () => {
   });
 
   it('formats counts in interpolations', () => {
-    expect(i18n.t('common.status.online', { count: 2318 })).toBe('WT Live online · 2,318 skins');
+    expect(i18n.t('common.status.hangar', { count: 2318, size: '3.8 GB' })).toBe('Hangar 2,318 · 3.8 GB');
     expect(i18n.t('common.nav.queueBadge', { count: 1 })).toBe('1 archive waiting');
     expect(i18n.t('common.nav.queueBadge', { count: 3 })).toBe('3 archives waiting');
   });

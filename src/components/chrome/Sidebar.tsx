@@ -1,5 +1,4 @@
-import { useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
-import { useCallback, useId, useSyncExternalStore } from 'react';
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Compass, Download, Layers, Settings, Warehouse, type LucideIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/Kbd';
@@ -7,11 +6,10 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
 import { useHangarSummary } from '@/queries/hangar';
-import { useSettings, useWtLiveEnabled } from '@/queries/settings';
-import { WTLIVE_KEY } from '@/queries/wtlive';
+import { useSettings } from '@/queries/settings';
 import { selectPendingCount, useQueue } from '@/store/queue';
 import { useUi } from '@/store/ui';
-import type { SearchParams, SearchResult, Section } from '@/types';
+import type { Section } from '@/types';
 
 interface NavDef {
   id: Section;
@@ -28,85 +26,18 @@ const NAV: NavDef[] = [
   { id: 'settings', icon: Settings, hint: ',' },
 ];
 
-export interface SidebarProps {
-  /**
-   * WT Live skin count for the status line. Defaults to the catalogue size Explore already fetched
-   * (see `useCachedLiveSkinCount`); unknown until then.
-   */
-  liveSkinCount?: number;
-}
-
-/** Last catalogue size seen per client, so the count survives Explore's query being garbage-collected. */
-const lastKnownCount = new WeakMap<QueryClient, number>();
-
-/** True for the params of an unfiltered search: any sort, no filter set. */
-function isUnfiltered(params: unknown): boolean {
-  if (typeof params !== 'object' || params === null) return false;
-  return Object.entries(params as Partial<SearchParams>).every(
-    ([key, value]) => key === 'sort' || value === undefined || value === null || value === '',
-  );
-}
-
-/**
- * WT Live catalogue size: `total` of the first page of the newest cached **unfiltered** Explore
- * search (a filtered total would only count that filter's skins), else the last one seen. Only an
- * exact total counts (`totalExact`): WT Live's feed has no total count, and a lower bound would
- * read as the catalogue size, so then there is no count at all.
- */
-function cachedLiveSkinCount(qc: QueryClient): number | undefined {
-  let newest: { at: number; first: SearchResult } | undefined;
-  for (const query of qc.getQueryCache().findAll({ queryKey: [...WTLIVE_KEY, 'search-pages'] })) {
-    if (!isUnfiltered(query.queryKey[2])) continue;
-    const first = (query.state.data as InfiniteData<SearchResult> | undefined)?.pages?.[0];
-    if (typeof first?.total !== 'number') continue;
-    if (!newest || query.state.dataUpdatedAt > newest.at) newest = { at: query.state.dataUpdatedAt, first };
-  }
-  if (!newest) return lastKnownCount.get(qc);
-  if (newest.first.totalExact !== true) {
-    lastKnownCount.delete(qc);
-    return undefined;
-  }
-  lastKnownCount.set(qc, newest.first.total);
-  return newest.first.total;
-}
-
-/**
- * The catalogue size from the query cache, kept up to date by subscribing to it. Only reads: it
- * never starts a WT Live request, so the count stays unknown until Explore has searched.
- */
-function useCachedLiveSkinCount(): number | undefined {
-  const qc = useQueryClient();
-  const subscribe = useCallback((notify: () => void) => qc.getQueryCache().subscribe(notify), [qc]);
-  const snapshot = useCallback(() => cachedLiveSkinCount(qc), [qc]);
-  return useSyncExternalStore(subscribe, snapshot);
-}
-
 /**
  * 216px section nav with the status card, or the 56px icon rail when collapsed (`[` / `]`).
  * Both variants share one element tree so focus survives a toggle.
  */
-export function Sidebar({ liveSkinCount }: SidebarProps) {
+export function Sidebar() {
   const { t } = useTranslation();
   const open = useUi((s) => s.sidebarOpen);
   const screen = useUi((s) => s.screen);
   const detailFrom = useUi((s) => s.detailReturnTo);
-  const online = useUi((s) => s.online);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const pending = useQueue(selectPendingCount);
   const badgeId = useId();
-  const cachedCount = useCachedLiveSkinCount();
-  const count = liveSkinCount ?? cachedCount;
-  // Browse WT Live off (Settings → WT Live): no request is made, so neither online nor offline.
-  const wtliveEnabled = useWtLiveEnabled();
-  const live = wtliveEnabled && online;
-
-  const liveText = !wtliveEnabled
-    ? t('common.status.off')
-    : !online
-      ? t('common.status.offline')
-      : count === undefined
-        ? t('common.status.onlineNoCount')
-        : t('common.status.online', { count });
 
   return (
     <nav
@@ -128,16 +59,7 @@ export function Sidebar({ liveSkinCount }: SidebarProps) {
         />
       ))}
       <div className="flex-1" />
-      {open ? (
-        <StatusCard online={live} liveText={liveText} />
-      ) : (
-        <span
-          role="img"
-          aria-label={liveText}
-          title={liveText}
-          className={cn('mb-2.5 h-1.5 w-1.5 flex-none rounded-full', live ? 'bg-amber' : 'bg-ink-5')}
-        />
-      )}
+      {open && <StatusCard />}
       <button
         type="button"
         onClick={toggleSidebar}
@@ -229,7 +151,7 @@ function NavItem({ id, icon: Icon, hint, collapsed, active, badge, describedBy }
   );
 }
 
-function StatusCard({ online, liveText }: { online: boolean; liveText: string }) {
+function StatusCard() {
   const { t } = useTranslation();
   const { data: settings, isPending } = useSettings();
   const hangar = useHangarSummary();
@@ -246,10 +168,6 @@ function StatusCard({ online, liveText }: { online: boolean; liveText: string })
             {source ? t(`common.status.source.${source}`) : t('common.status.source.none')}
           </span>
         )}
-      </div>
-      <div className="flex items-center gap-1.5 font-mono text-mono-sm text-ink-3">
-        <span aria-hidden className={cn('h-1.5 w-1.5 flex-none rounded-full', online ? 'bg-amber' : 'bg-ink-5')} />
-        {liveText}
       </div>
       <div className="font-mono text-mono-sm text-ink-4">
         {t('common.status.hangar', { count: hangar.count, size: formatBytes(hangar.sizeBytes) })}

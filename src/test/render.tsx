@@ -11,6 +11,7 @@ import { useInstalls } from '@/store/installs';
 import { useQueue } from '@/store/queue';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
+import { useUpdate } from '@/store/update';
 import type { Settings } from '@/types';
 
 /** Resets all Zustand stores to their initial state. Call in `beforeEach`. */
@@ -33,6 +34,7 @@ export function resetStores() {
   useInstalls.setState({ bySkin: {}, byInstallId: {} });
   useExplore.setState(exploreDefaults());
   resetDetail();
+  useUpdate.getState().reset();
 }
 
 interface ProviderOptions extends RenderOptions {

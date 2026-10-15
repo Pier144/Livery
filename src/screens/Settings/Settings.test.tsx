@@ -11,7 +11,9 @@ import { TOAST_DURATION_MS, useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
-import type { AppError, Backup, Settings as SettingsData, WtLiveStorage } from '@/types';
+import { useUpdate } from '@/store/update';
+import type { AppError, Backup, Settings as SettingsData, UpdateInfo, WtLiveStorage } from '@/types';
+import { version as PACKAGE_VERSION } from '../../../package.json';
 import { Settings } from '../Settings';
 import { SECTIONS, resetSettingsUi, useSettingsUi, type SettingsSection } from './settingsUi';
 
@@ -74,6 +76,8 @@ let settings: SettingsData;
 let backups: Backup[];
 let failSetSettings: AppError | null;
 let storage: WtLiveStorage;
+/** What `check_update` answers, or the error it throws. */
+let updateFeed: UpdateInfo | AppError;
 
 function installBackend() {
   backend.call.mockImplementation(async (cmd: string, args: Args = {}) => {
@@ -97,6 +101,12 @@ function installBackend() {
       case 'wtlive_unhide_all':
         storage = { ...storage, hiddenCount: 0 };
         return storage;
+      case 'check_update':
+        if ('code' in updateFeed) throw updateFeed;
+        return updateFeed;
+      case 'install_update':
+        // The real command closes Livery; here it just never answers.
+        return new Promise(() => {});
       case 'clear_backups': {
         // `ids` absent → every kept backup; given → only those (unknown ids ignored).
         const ids = args.ids as string[] | undefined;
@@ -166,6 +176,7 @@ beforeEach(() => {
   backups = [...BACKUPS];
   failSetSettings = null;
   storage = { cacheBytes: 12 * MB, hiddenCount: 3 };
+  updateFeed = { current: '0.2.0', ready: false };
   installBackend();
 });
 
@@ -699,26 +710,76 @@ describe('Settings · Language', () => {
 // ── Updates ─────────────────────────────────────────────────────────────────
 
 describe('Settings · Updates', () => {
-  it('shows the app version; checking and auto-install are unavailable for now', async () => {
-    const { user } = renderSettings('updates', { autoUpdate: true });
+  it('checks now and says when Livery is up to date', async () => {
+    const { user } = renderSettings('updates');
     expect(await screen.findByText('Livery 0.2.0')).toBeInTheDocument();
-    const check = screen.getByRole('button', { name: 'Check now' });
-    expect(check).toHaveAttribute('aria-disabled', 'true');
-    expect(check).toHaveAccessibleDescription(/arrive in a later build/);
-    const auto = screen.getByRole('switch', { name: 'Install updates automatically' });
-    expect(auto).toHaveAttribute('aria-disabled', 'true');
+    await user.click(screen.getByRole('button', { name: 'Check now' }));
+    expect(await screen.findByText('Livery 0.2.0 · You’re up to date.')).toBeInTheDocument();
+    expect(calls('check_update')).toHaveLength(1);
+  });
+
+  it('offers a newer version, then shows the download and the install', async () => {
+    updateFeed = { current: '0.2.0', latest: '0.3.0', ready: false };
+    const { user } = renderSettings('updates');
+    await user.click(await screen.findByRole('button', { name: 'Check now' }));
+    expect(await screen.findByText('Livery 0.3.0 is available')).toBeInTheDocument();
+    const install = screen.getByRole('button', { name: 'Install and restart' });
+    expect(install).toHaveAccessibleDescription('You have 0.2.0.');
+    await user.click(install);
+    expect(calls('install_update')).toHaveLength(1);
+    expect(screen.getByText('Downloading Livery 0.3.0')).toBeInTheDocument();
+
+    act(() => useUpdate.getState().progress({ downloaded: 450, total: 1000 }));
+    const bar = screen.getByRole('progressbar', { name: 'Downloading Livery 0.3.0' });
+    expect(bar).toHaveAttribute('aria-valuenow', '45');
+    expect(screen.getByText('Livery closes and opens again when it’s done.')).toBeInTheDocument();
+
+    act(() => useUpdate.getState().progress({ downloaded: 1000, total: 1000 }));
+    expect(screen.getByText('Installing Livery 0.3.0…')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('a version downloaded in the background installs on restart or on close', async () => {
+    const { user } = renderSettings('updates', { autoUpdate: true });
+    await screen.findByText('Livery 0.2.0');
+    act(() => useUpdate.getState().progress({ downloaded: 10, total: undefined }));
+    expect(screen.getByText('In the background. It installs when you close Livery.')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
+
+    act(() => useUpdate.getState().ready('0.3.0'));
+    expect(screen.getByText('Livery 0.3.0 is ready')).toBeInTheDocument();
+    const restart = screen.getByRole('button', { name: 'Restart and update' });
+    expect(restart).toHaveAccessibleDescription('It installs when you close Livery.');
+    await user.click(restart);
+    expect(calls('install_update')).toHaveLength(1);
+    expect(screen.getByText('Installing Livery 0.3.0…')).toBeInTheDocument();
+  });
+
+  it('shows a failed check in the user’s words and lets them try again', async () => {
+    updateFeed = { code: 'network', message: "Livery couldn't check for updates", detail: 'dns' };
+    const { user } = renderSettings('updates');
+    await user.click(await screen.findByRole('button', { name: 'Check now' }));
+    expect(await screen.findByText("Livery couldn't check for updates")).toBeInTheDocument();
+    updateFeed = { current: '0.2.0', ready: false };
+    await user.click(screen.getByRole('button', { name: 'Check now' }));
+    expect(await screen.findByText('Livery 0.2.0 · You’re up to date.')).toBeInTheDocument();
+  });
+
+  it('turns automatic updates on and off', async () => {
+    const { user } = renderSettings('updates', { autoUpdate: true });
+    const auto = await screen.findByRole('switch', { name: 'Install updates automatically' });
     expect(auto).toBeChecked();
+    expect(auto).toHaveAccessibleDescription('Downloads new versions in the background and installs them when you close Livery.');
     await user.click(auto);
-    await user.click(check);
-    expect(auto).toBeChecked();
-    expect(calls('set_settings')).toHaveLength(0);
-    expect(messages()).toEqual([]);
+    await waitFor(() => expect(settings.autoUpdate).toBe(false));
+    expect(calls('set_settings')[0]?.[1]).toEqual({ patch: { autoUpdate: false } });
+    expect(auto).not.toBeChecked();
   });
 
   it('falls back to the package version when the app version is unavailable', async () => {
     backend.getVersion.mockRejectedValue(new Error('no app'));
     renderSettings('updates');
-    expect(await screen.findByText('Livery 0.1.0')).toBeInTheDocument();
+    expect(await screen.findByText(`Livery ${PACKAGE_VERSION}`)).toBeInTheDocument();
   });
 });
 

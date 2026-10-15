@@ -122,6 +122,7 @@
 // ("No game folder set").
 
 import { DEFAULT_SETTINGS } from '@/queries/settings';
+import { version as PACKAGE_VERSION } from '../../package.json';
 import { vehicles as builtInVehicles } from '@/data/vehicles';
 import {
   EVENTS,
@@ -154,6 +155,7 @@ import {
   type Settings,
   type SortOrder,
   type TextureInfo,
+  type UpdateInfo,
   type VehicleType,
   type WtLiveSkin,
   type WtLiveStorage,
@@ -1749,6 +1751,9 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   read_textures: readTextures,
   watch_folder: watchFolder,
   clear_backups: clearBackups,
+  // The mock has no update feed: always up to date.
+  check_update: (): UpdateInfo => ({ current: PACKAGE_VERSION, ready: false }),
+  install_update: () => fail('invalidInput', 'Livery is already up to date'),
   wtlive_search: search,
   wtlive_post: wtlivePost,
   wtlive_following_new: followingNew,

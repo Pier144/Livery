@@ -14,6 +14,7 @@ pub mod model;
 pub mod settings;
 pub mod startup;
 pub mod textures;
+pub mod update;
 pub mod watch;
 pub mod wtlive;
 
@@ -39,7 +40,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         // Links in the default browser and folders in the file manager. The capability allows only
         // WT Live and Livery's own repository (src-tauri/capabilities/default.json).
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        // Livery's own updates: the signed feed and public key are in tauri.conf.json (`plugins.updater`).
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(update::UpdateState::default());
     // Start with Windows. The plugin crate is desktop-only, and Livery registers the app with **no
     // launch arguments**, so a Livery started by Windows opens exactly like one started by hand.
     #[cfg(desktop)]
@@ -83,6 +87,8 @@ pub fn run() {
             // The game's vehicle list (cached in vehicles.json; read from the game when it changed).
             game::load_vehicles_in_background(app.handle());
             watch::start(app.handle());
+            // Settings → Updates → Install updates automatically (release builds only).
+            update::start(app.handle());
             tracing::info!(version = env!("CARGO_PKG_VERSION"), "Livery started");
             Ok(())
         })
@@ -127,8 +133,16 @@ pub fn run() {
             wtlive::wtlive_set_hidden,
             wtlive::wtlive_unhide_all,
             backup::clear_backups,
+            update::check_update,
+            update::install_update,
             startup::app_ready,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Livery");
+        .build(tauri::generate_context!())
+        .expect("error while running Livery")
+        .run(|app, event| {
+            // A version downloaded in the background installs as Livery closes.
+            if let tauri::RunEvent::Exit = event {
+                update::install_on_exit(app);
+            }
+        });
 }

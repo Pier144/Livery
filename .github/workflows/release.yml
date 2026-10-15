@@ -1,7 +1,8 @@
 # Builds the NSIS installer and attaches it to a DRAFT GitHub release.
 # Trigger: push a tag `v<version>` (it must match tauri.conf.json), or run it by hand
 # (workflow_dispatch), which drafts `v<version>` on the chosen branch's commit.
-# Code signing is optional and off until the secrets exist. See docs/release.md.
+# Code signing is optional and off until the secrets exist. The updater signing key
+# (TAURI_SIGNING_PRIVATE_KEY) is required: it signs the update feed. See docs/release.md.
 name: Release
 
 on:
@@ -143,11 +144,18 @@ jobs:
           Write-Host "Signing with certificate $($cert.Subject)"
 
       # ── Build ─────────────────────────────────────────────────────────────
-      # `tauri build` runs `pnpm build` (tsc + vite) first, then cargo in release mode, then makensis.
+      # `tauri build` runs `pnpm build` (tsc + vite) first, then cargo in release mode, then makensis,
+      # then signs the installer for the updater (`<installer>.sig`, createUpdaterArtifacts).
       - name: Build the installer
         env:
           SIGNING_CONFIG: ${{ steps.signing.outputs.config }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing: updates can't be signed (docs/release.md, \"Updates\")."
+            exit 1
+          fi
           if [ -n "${SIGNING_CONFIG}" ]; then
             pnpm tauri build --ci --config "${SIGNING_CONFIG}"
           else
@@ -164,9 +172,17 @@ jobs:
             exit 1
           fi
           installer="${files[0]}"
+          if [ ! -s "${installer}.sig" ]; then
+            echo "::error::${installer}.sig is missing: the updater signature wasn't written."
+            exit 1
+          fi
           (cd "$(dirname "$installer")" && sha256sum "$(basename "$installer")" > "$(basename "$installer").sha256")
+          # The update feed: the latest *published* release's latest.json is what Livery reads.
+          node scripts/updater-manifest.mjs "${installer}" "$(dirname "$installer")/latest.json" "${GITHUB_REPOSITORY}"
           echo "path=${installer}" >> "$GITHUB_OUTPUT"
           echo "checksum=${installer}.sha256" >> "$GITHUB_OUTPUT"
+          echo "signature=${installer}.sig" >> "$GITHUB_OUTPUT"
+          echo "manifest=$(dirname "$installer")/latest.json" >> "$GITHUB_OUTPUT"
           ls -l "$(dirname "$installer")"
 
       - name: Verify the signature
@@ -194,15 +210,17 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           INSTALLER: ${{ steps.installer.outputs.path }}
           CHECKSUM: ${{ steps.installer.outputs.checksum }}
+          SIGNATURE: ${{ steps.installer.outputs.signature }}
+          MANIFEST: ${{ steps.installer.outputs.manifest }}
         run: |
           if draft=$(gh release view "${TAG}" --json isDraft --jq .isDraft 2>/dev/null); then
             if [ "${draft}" != "true" ]; then
               echo "::error::Release ${TAG} is already published. Bump the version to release again."
               exit 1
             fi
-            gh release upload "${TAG}" "${INSTALLER}" "${CHECKSUM}" --clobber
+            gh release upload "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" --clobber
           else
-            gh release create "${TAG}" "${INSTALLER}" "${CHECKSUM}" \
+            gh release create "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" \
               --draft \
               --target "${GITHUB_SHA}" \
               --title "Livery ${VERSION}" \

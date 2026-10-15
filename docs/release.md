@@ -12,7 +12,7 @@ How the Windows installer is built, how to turn on code signing, and how a relea
 |---|---|---|
 | `installMode` | `currentUser` | Per-user install into `%LOCALAPPDATA%\Livery`, no administrator prompt, registry entries under `HKCU`. |
 | `languages` + `displayLanguageSelector` | `["English", "Italian"]`, `true` | The installer and uninstaller open with a language picker; the Windows language is preselected (English if it's neither). Tauri ships its own strings for both. |
-| `installerIcon` | `icons/icon.ico` | The app icon (amber dot on graphite) on the setup executable. |
+| `installerIcon` | `icons/icon.ico` | The app icon (the paint bucket on graphite) on the setup executable. |
 | `compression` | `lzma` | Smallest installer. |
 | `startMenuFolder` | `Livery` | Shortcut at `Start Menu\Programs\Livery\Livery.lnk`. |
 
@@ -21,14 +21,16 @@ Other behaviour worth knowing:
 - **WebView2:** left at Tauri's default (`downloadBootstrapper`, silent). If the runtime is missing, which is rare on Windows 10 and doesn't happen on 11, the installer downloads it, so it needs a connection in that case.
 - **Uninstall** removes the program and offers a "delete app data" checkbox (`%APPDATA%\app.livery.desktop`: settings, following, library indexes). It never touches the game folder, so skins in `UserSkins` and the backups in `UserSkins\.livery\backups` stay.
 - **Publisher:** not set, so Tauri uses the middle segment of the identifier: "livery", shown in Settings → Apps. It also names the registry key `HKCU\Software\livery\Livery`. Decide the publisher (and the identifier, see DESIGN_NOTES "App identifier") **before the first public release**: changing either later splits upgrades from existing installs (the identifier also moves the app data folder).
-- **Updater:** off. There is no `tauri-plugin-updater` and `createUpdaterArtifacts` stays at its default (`false`). It needs the plugin approval, an updater signing key and a public endpoint (HANDOFF.md, "Pending dependency approvals").
+- **Updater:** on (see "Updates" below). `createUpdaterArtifacts: true` makes `tauri build` also write `<installer>.sig`, so **every build needs the updater signing key** in `TAURI_SIGNING_PRIVATE_KEY`.
 
 ### Build locally
 
 ```bash
 pnpm install
-pnpm tauri build            # pnpm build (tsc + vite), cargo --release, then makensis
+TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/livery-updater.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" pnpm tauri build
 ```
+
+`tauri build` runs `pnpm build` (tsc + vite), cargo `--release`, makensis, then signs the installer for the updater. Without the key it stops with an error after building; `pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'` builds an installer without the `.sig` (fine for a local try, not for a release).
 
 The first bundle downloads NSIS into `%LOCALAPPDATA%\tauri\NSIS` (Tauri CLI does this by itself). Try the installer on a clean Windows 11 VM, not on your dev machine: it registers an uninstaller and Start menu entries.
 
@@ -118,6 +120,16 @@ Also check `livery.exe` after installing. Both need `Status: Valid` and a timest
 
 A push to a branch with an open pull request runs twice (once per event). Restrict `push` to `main` and tags if that gets noisy.
 
+## Updates
+
+Livery updates itself with `tauri-plugin-updater` (Rust side only, `src-tauri/src/update.rs`; Settings → Updates).
+
+- **Feed:** `https://github.com/Pier144/Livery/releases/latest/download/latest.json` (`plugins.updater.endpoints`). GitHub's `latest` is the newest **published**, non-prerelease release, so drafts are never offered. `release.yml` writes `latest.json` with `scripts/updater-manifest.mjs`: version, notes link, date, and for `windows-x86_64` the installer's release URL and its signature.
+- **Signature:** every update is checked against the minisign public key in `plugins.updater.pubkey` before it runs. The private key is `~/.tauri/livery-updater.key` on the author's machine (no password) and the **`TAURI_SIGNING_PRIVATE_KEY`** repository secret (its file content; `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` stays unset). **Back the key up.** If it's lost, installed copies can't verify any new version: they would need a manual reinstall of a build with a new public key. Never commit it.
+- **Install:** the NSIS installer runs in passive mode (`plugins.updater.windows.installMode`): a small progress window, no questions, then Livery opens again on the new version.
+- **Manual:** Settings → Updates → Check now → Install and restart.
+- **Automatic** (Settings → Updates → Install updates automatically, on by default): release builds check 15 s after launch and every 6 hours, download a newer version in the background (toast "Livery X is ready…") and install it when Livery closes, without reopening it. Debug builds (`pnpm tauri dev`) only check by hand, so a dev session never replaces the installed app.
+
 ## Cut a release
 
 1. Bump the version in **three** places: `package.json`, `src-tauri/Cargo.toml` (then `cargo check --manifest-path src-tauri/Cargo.toml` to refresh `Cargo.lock`) and `src-tauri/tauri.conf.json`. The installer name and the tag check use `tauri.conf.json`.
@@ -126,8 +138,8 @@ A push to a branch with an open pull request runs twice (once per event). Restri
    git tag v0.2.0
    git push origin main v0.2.0
    ```
-3. `release.yml` checks that the tag matches `v<tauri.conf.json version>`, builds (signing if configured) and creates a **draft** release `v0.2.0` with the installer and its `.sha256`, with GitHub's generated notes.
-4. Wait for CI to pass on the tagged commit, install the draft's installer on a clean Windows 11 VM (M6 acceptance: first run to first installed skin in under 2 minutes), edit the notes, then publish the draft by hand.
+3. `release.yml` checks that the tag matches `v<tauri.conf.json version>`, builds (signing if configured) and creates a **draft** release `v0.2.0` with the installer, its `.sha256`, its updater `.sig` and `latest.json`, with GitHub's generated notes.
+4. Wait for CI to pass on the tagged commit, install the draft's installer on a clean Windows 11 VM (M6 acceptance: first run to first installed skin in under 2 minutes), edit the notes, then publish the draft by hand. **Publishing is what ships the update:** from that moment every installed Livery finds it.
 
 **Run it by hand** (Actions → Release → Run workflow): drafts `v<tauri.conf.json version>` on the selected branch's commit. The tag is created when you publish the draft. Re-running for the same version replaces the draft's files; a version that is already published fails with a message: bump it.
 
@@ -148,4 +160,4 @@ The workflow needs only `GITHUB_TOKEN` with `contents: write` (declared in the w
 | Official actions only | `actions/checkout@v7`, `actions/setup-node@v7`, `actions/cache@v6`; the rest are shell steps with preinstalled tools (rustup, gh, pwsh). | CLAUDE.md / author: no third-party actions. |
 | Node 24, pnpm pinned | Node 24 because it still bundles corepack (Node 25+ doesn't); pnpm 10.32.1 pinned in both workflows (`PNPM_VERSION`). | `package.json` has no `packageManager` field; the pin keeps CI on the version that wrote the lockfile. Update both workflows when you upgrade pnpm locally. |
 | Release caches | Restore-only for the pnpm store and cargo registry; the release build starts from a clean `target/`. | A release never writes caches, and its binaries don't depend on a cached build. |
-| Updater | Not enabled. | Plugin not approved; it also needs a key and an endpoint. |
+| Updater | `tauri-plugin-updater`, Rust side only; feed = `latest.json` on the latest published GitHub release; passive NSIS install; automatic updates install on close. | Approved by the author on 2026-10-15. No JS plugin package or extra capability: the commands are Livery's own (`check_update`, `install_update`). |
