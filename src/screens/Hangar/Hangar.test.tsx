@@ -550,7 +550,7 @@ describe('My Hangar', () => {
     await user.keyboard('{Escape}');
     expect(field).not.toBeInTheDocument();
     expect(calls('rename_skin')).toEqual([]);
-    expect(within(cardOf('SEA Camo')).getByRole('button', { name: 'Rename' })).toHaveFocus();
+    await waitFor(() => expect(within(cardOf('SEA Camo')).getByRole('button', { name: 'Rename' })).toHaveFocus());
 
     await user.click(within(cardOf('SEA Camo')).getByRole('button', { name: 'Rename' }));
     // Windows can't use it as a folder name: explained without asking the backend.
