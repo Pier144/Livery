@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next';
-import i18n, { translated } from '@/i18n';
+import i18n from '@/i18n';
 import en from '@/i18n/en.json';
-import type { AppError, Language } from '@/types';
+import type { AppError } from '@/types';
 
 /** Codes with a generic text under `common.errors.<code>`. Any other code reads as `internal`. */
 export const GENERIC_ERROR_CODES = [
@@ -61,19 +61,19 @@ function genericKey(code: string | undefined): `common.errors.${GenericCode}` {
   return `common.errors.${known ?? 'internal'}`;
 }
 
-/** The language shown now (de/ru/fr show English, see `useLanguageSync`). */
+/** The language shown now. */
 function shownLanguage(): string {
   return i18n.resolvedLanguage ?? i18n.language ?? 'en';
 }
 
 /** Whether errors are shown in another language than the backend's English. */
 function localizes(lng: string): boolean {
-  return lng !== 'en' && translated.includes(lng as Language);
+  return lng !== 'en';
 }
 
 /**
  * The text to show for a backend error (`AppError`), in the UI language:
- * - English (also de/ru/fr, which show English): the backend's message as it is;
+ * - English: the backend's message as it is;
  * - otherwise the message's own translation when it is one the backend is known to send;
  * - else a generic text for its `code` (an unknown code reads as `internal`).
  *

@@ -115,6 +115,14 @@ describe('matchVehicles', () => {
     expect(matchVehicles(list, 'c1_').map((v) => v.name)).toEqual(['Ariete']);
   });
 
+  it('matches the name in the UI language too, and labels with it', () => {
+    const names = new Map([['germ_leopard_2a6', '豹 2A6']]);
+    expect(matchVehicles(list, '豹', undefined, names).map((v) => v.code)).toEqual(['germ_leopard_2a6']);
+    expect(matchVehicles(list, 'leopard', undefined, names).map((v) => v.code)).toEqual(['germ_leopard_2a6']);
+    expect(vehicleLabel(list, 'germ_leopard_2a6', names)).toBe('豹 2A6');
+    expect(vehicleLabel(list, 'germ_leopard_2a6')).toBe('Leopard 2A6');
+  });
+
   it('is empty for blank text and capped', () => {
     expect(matchVehicles(list, '  ')).toEqual([]);
     expect(matchVehicles(list, 'e', 3)).toHaveLength(3);

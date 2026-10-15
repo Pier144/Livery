@@ -1,10 +1,11 @@
 import { X } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useVehicles } from '@/queries/vehicles';
+import { useVehicleNames, useVehicles } from '@/queries/vehicles';
 import { cn } from '@/lib/cn';
 import { useExplore, type ExploreFilterKey } from '@/store/explore';
 import { activeFilters, vehicleLabel } from './exploreModel';
+import { vehicleClassLabel } from '@/lib/vehicleClass';
 
 /**
  * "3 filters combined | Germany × Ground × Historical × Clear all" (mono 11px). Hidden (not
@@ -22,6 +23,7 @@ export function ActiveFilters({ onEmpty }: { onEmpty: () => void }) {
   const clear = useExplore((s) => s.clear);
   const clearAll = useExplore((s) => s.clearAll);
   const vehicles = useVehicles();
+  const names = useVehicleNames();
 
   const list = activeFilters(
     { q, nation, type, class: klass, vehicle, category },
@@ -29,7 +31,8 @@ export function ActiveFilters({ onEmpty }: { onEmpty: () => void }) {
       nation: (n) => t(`hangar.nation.${n}`),
       type: (v) => t(`hangar.type.${v}`),
       category: (c) => t(`explore.category.${c}`),
-      vehicle: (code) => vehicleLabel(vehicles, code),
+      vehicle: (code) => vehicleLabel(vehicles, code, names),
+      vehicleClass: (c) => vehicleClassLabel(t, c),
       query: (text) => t('explore.filters.query', { q: text }),
     },
   );

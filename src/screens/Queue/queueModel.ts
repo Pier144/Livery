@@ -1,6 +1,10 @@
 import type { TFunction } from 'i18next';
 import { errorText } from '@/lib/errors';
-import type { HangarSkin, InstallStep, QueueItem, QueueStatus } from '@/types';
+import type { HangarSkin, InstallStep, QueueItem, QueueStatus, Vehicle } from '@/types';
+
+/** A vehicle's shown name (`useVehicleName`: in the UI language); English by default. */
+type NameOf = (v: Pick<Vehicle, 'code' | 'name'>) => string;
+const englishName: NameOf = (v) => v.name;
 
 /** Browse dialog filter. */
 export const ARCHIVE_EXTENSIONS = ['zip', 'rar', '7z'];
@@ -46,17 +50,19 @@ export function conflictTarget(
   item: QueueItem,
   hangar: readonly HangarSkin[] | undefined,
   queued?: readonly QueueItem[],
+  nameOf = englishName,
 ): ConflictTarget {
   const id = item.conflictWith;
-  if (id?.startsWith('disk:')) return { name: id.slice('disk:'.length), vehicle: item.vehicle?.name };
+  const own = item.vehicle ? nameOf(item.vehicle) : undefined;
+  if (id?.startsWith('disk:')) return { name: id.slice('disk:'.length), vehicle: own };
   // Another queued item will install under the same folder name.
   if (id?.startsWith('queue:')) {
     const other = queued?.find((q) => q.id === id.slice('queue:'.length));
-    return { name: other ? skinName(other) : skinName(item), vehicle: other?.vehicle?.name ?? item.vehicle?.name, queued: true };
+    return { name: other ? skinName(other) : skinName(item), vehicle: other?.vehicle ? nameOf(other.vehicle) : own, queued: true };
   }
   const skin = id ? hangar?.find((s) => s.id === id) : undefined;
-  if (skin) return { name: skin.name, vehicle: skin.vehicle.name };
-  return { name: skinName(item), vehicle: item.vehicle?.name };
+  if (skin) return { name: skin.name, vehicle: nameOf(skin.vehicle) };
+  return { name: skinName(item), vehicle: own };
 }
 
 export interface RowLine {
@@ -75,10 +81,15 @@ export function detailsNote(item: QueueItem, t: TFunction): string | undefined {
   return parts.length ? parts.join(' · ') : item.note || undefined;
 }
 
-/** The row's second line: "**Status** · Vehicle · note". */
-export function rowLine(item: QueueItem, t: TFunction, installedName: string, conflictQueued = false): RowLine {
+/** The needs-a-look note. One candidate folder has its own key: Russian `_one` also covers 21, 31… */
+function needsLookNote(count: number, t: TFunction): string {
+  return count === 1 ? t('queue.note.needsLookOne') : t('queue.note.needsLook', { count });
+}
+
+/** The row's second line: "**Status** · Vehicle · note". `nameOf` gives the shown vehicle name. */
+export function rowLine(item: QueueItem, t: TFunction, installedName: string, conflictQueued = false, nameOf = englishName): RowLine {
   const label = t(`queue.status.${item.status}`);
-  const vehicle = item.vehicle?.name;
+  const vehicle = item.vehicle ? nameOf(item.vehicle) : undefined;
   switch (item.status) {
     case 'analyzing':
       // Folders are analysed too, so not "Analyzing archive…".
@@ -92,7 +103,7 @@ export function rowLine(item: QueueItem, t: TFunction, installedName: string, co
         note: t(conflictQueued ? 'queue.note.conflictQueued' : 'queue.note.conflict', { installed: installedName }),
       };
     case 'needsLook':
-      return { label, vehicle, note: t('queue.note.needsLook', { count: item.candidates?.length ?? 0 }) };
+      return { label, vehicle, note: needsLookNote(item.candidates?.length ?? 0, t) };
     case 'installing':
       return { label, vehicle };
     case 'done':

@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import type { WtLiveSkin } from '@/types';
 import { CardAction } from './CardAction';
 import { compactNumber } from './exploreModel';
+import { useVehicleName } from '@/queries/vehicles';
 
 export interface SkinCardProps {
   skin: WtLiveSkin;
@@ -55,6 +56,7 @@ export function SkinImage({ skin, showCategory = true }: { skin: WtLiveSkin; sho
  */
 export const SkinCard = memo(function SkinCard({ skin, onOpen, enterDelay }: SkinCardProps) {
   const { t, i18n } = useTranslation();
+  const vehicleName = useVehicleName();
   const lang = i18n.language;
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -93,7 +95,7 @@ export const SkinCard = memo(function SkinCard({ skin, onOpen, enterDelay }: Ski
           <span className="flex-none rounded-tag border border-line-3 px-1 py-px font-mono text-[10px] leading-[normal] text-ink-2">
             {skin.vehicle.nation}
           </span>
-          <span className="truncate">{skin.vehicle.name}</span>
+          <span className="truncate">{vehicleName(skin.vehicle)}</span>
         </div>
         <div className="flex items-center justify-between gap-2 leading-[normal]">
           <span className="min-w-0 truncate text-meta leading-[normal] text-ink-3">

@@ -1,21 +1,29 @@
 import { useEffect } from 'react';
-import { setLanguage, translated } from '@/i18n';
+import { detectLanguage, setLanguage } from '@/i18n';
 import { useSettings } from '@/queries/settings';
-import type { Language } from '@/types';
+import type { Language, Settings } from '@/types';
 
-/**
- * The language the UI actually shows for a setting: languages without a translation yet
- * (de/ru/fr) show English, so i18next (numbers, plurals) and `<html lang>` say `en` for them.
- */
-export function shownLanguage(language: Language): Language {
-  return translated.includes(language) ? language : 'en';
-}
-
-/** Applies `settings.language` to i18next and `<html lang>`. */
+/** Applies `settings.language` to i18next (texts, plurals, number formats) and `<html lang>`. */
 export function useLanguageSync() {
   const { data } = useSettings();
   const language = data?.language;
   useEffect(() => {
-    if (language) setLanguage(shownLanguage(language));
+    if (language) setLanguage(language);
   }, [language]);
+}
+
+/**
+ * The language to save when the app opens on First run: the Windows display language
+ * (`navigator.languages` in WebView2) when Livery has it and the settings still hold the default
+ * English. Null when there is nothing to change. Upgraded installs never get here (`onboarded`).
+ */
+export function firstRunLanguage(settings: Settings, preferred: readonly string[] = systemLanguages()): Language | null {
+  if (settings.onboarded || settings.gamePath || settings.language !== 'en') return null;
+  const detected = detectLanguage(preferred);
+  return detected === 'en' ? null : detected;
+}
+
+function systemLanguages(): readonly string[] {
+  if (typeof navigator === 'undefined') return [];
+  return navigator.languages?.length ? navigator.languages : [navigator.language].filter(Boolean);
 }

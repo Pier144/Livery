@@ -273,10 +273,10 @@ describe('My Hangar', () => {
     renderHangar();
     await user.click(screen.getByRole('radio', { name: 'List view' }));
     expect(screen.getByRole('radio', { name: 'List view' })).toBeChecked();
-    // List rows show the author column: WT Live author, "you" for your own, "—" otherwise.
+    // List rows show the author column: WT Live author, "you" for your own, "–" otherwise.
     expect(within(cardOf('Ambush')).getByText('Kessler_Wolf')).toBeInTheDocument();
     expect(within(cardOf('Factory olive')).getByText('you')).toBeInTheDocument();
-    expect(within(cardOf('SEA Camo')).getByText('—')).toBeInTheDocument();
+    expect(within(cardOf('SEA Camo')).getByText('–')).toBeInTheDocument();
     expect(within(cardOf('Winter whitewash')).getByText('turret_c.dds is missing')).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('livery.hangar') ?? '{}').state).toEqual({ view: 'list' });
   });

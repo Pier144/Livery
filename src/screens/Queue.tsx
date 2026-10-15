@@ -15,6 +15,7 @@ import { conflictTarget, headerMeta } from './Queue/queueModel';
 import { QueueRow } from './Queue/QueueRow';
 import { WatchCard } from './Queue/WatchCard';
 import { ScreenFrame, ScreenHeader } from './ScreenHeader';
+import { useVehicleName } from '@/queries/vehicles';
 
 /** A row's element (its `li` is focusable with tabindex -1). */
 function rowElement(list: HTMLElement | null, id: string): HTMLElement | null {
@@ -35,6 +36,7 @@ function focusIsLost(): boolean {
  */
 export function Queue() {
   const { t } = useTranslation();
+  const vehicleName = useVehicleName();
   const items = useQueue((s) => s.items);
   // Removed rows close up for 220 ms; rows added while the queue is open slide in (60 ms apart
   // within one batch), the ones already there when it opened don't.
@@ -245,7 +247,7 @@ export function Queue() {
         <ConflictDialog
           key={conflictItem.id}
           item={conflictItem}
-          installed={conflictTarget(conflictItem, hangar, items)}
+          installed={conflictTarget(conflictItem, hangar, items, vehicleName)}
           onChoose={onChoose}
           onCancel={onCancelConflict}
           fallbackFocus={conflictFallback}

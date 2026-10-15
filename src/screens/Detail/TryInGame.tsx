@@ -10,6 +10,7 @@ import { toast } from '@/store/toasts';
 import type { AppError, HangarSkin, WtLiveSkin } from '@/types';
 import type { TryState } from './detailModel';
 import { useFocusFallback } from './useFocusFallback';
+import { useVehicleName } from '@/queries/vehicles';
 
 interface TryInGameProps {
   skin: WtLiveSkin;
@@ -31,6 +32,7 @@ const STEPS = ['step1', 'step2', 'step3'] as const;
  */
 export function TryInGame({ skin, state, hangarSkin, track }: TryInGameProps) {
   const { t } = useTranslation();
+  const vehicleName = useVehicleName();
   const start = useInstalls((s) => s.start);
   // Browse WT Live off: the detail shows the "turned off" state, so this is only a backstop.
   const wtliveEnabled = useWtLiveEnabled();
@@ -131,7 +133,7 @@ export function TryInGame({ skin, state, hangarSkin, track }: TryInGameProps) {
                 </h2>
               </div>
               <p className={BODY}>
-                <Trans i18nKey="detail.try.activeBody" values={{ vehicle: skin.vehicle.name, name: skin.name }} components={{ b: BOLD }} />
+                <Trans i18nKey="detail.try.activeBody" values={{ vehicle: vehicleName(skin.vehicle), name: skin.name }} components={{ b: BOLD }} />
               </p>
             </div>
             <div className="flex flex-col gap-1.5 rounded-card border border-amber-35 bg-amber-10 px-4 py-3.5">
@@ -169,7 +171,7 @@ export function TryInGame({ skin, state, hangarSkin, track }: TryInGameProps) {
               {t('detail.try.keptTitle')}
             </h2>
             <p className={BODY}>
-              <Trans i18nKey="detail.try.keptBody" values={{ vehicle: skin.vehicle.name, name: skin.name }} components={{ b: BOLD }} />
+              <Trans i18nKey="detail.try.keptBody" values={{ vehicle: vehicleName(skin.vehicle), name: skin.name }} components={{ b: BOLD }} />
             </p>
           </div>
         )}

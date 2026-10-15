@@ -5,7 +5,7 @@ import i18n from '@/i18n';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
 import { renderWithProviders } from '@/test/render';
 import type { Language } from '@/types';
-import { shownLanguage, useLanguageSync } from './useLanguageSync';
+import { firstRunLanguage, useLanguageSync } from './useLanguageSync';
 
 function Probe() {
   useLanguageSync();
@@ -26,10 +26,6 @@ afterEach(async () => {
 });
 
 describe('useLanguageSync', () => {
-  it('maps untranslated languages to English', () => {
-    expect((['en', 'it', 'de', 'ru', 'fr'] as Language[]).map(shownLanguage)).toEqual(['en', 'it', 'en', 'en', 'en']);
-  });
-
   it('switches i18next and <html lang> when the setting changes', async () => {
     const { client } = renderWithProviders(<Probe />, { settings: { language: 'it' } });
     expect(i18n.language).toBe('it');
@@ -41,17 +37,35 @@ describe('useLanguageSync', () => {
     expect(document.documentElement.lang).toBe('en');
   });
 
-  it('names English on <html> while Deutsch, Русский and Français fall back to it', async () => {
-    const { client } = renderWithProviders(<Probe />, { settings: { language: 'it' } });
-    for (const language of ['de', 'ru', 'fr'] as const) {
-      await setLanguageSetting(client, 'it');
-      expect(document.documentElement.lang).toBe('it');
+  it('shows every language in itself, numbers included', async () => {
+    const { client } = renderWithProviders(<Probe />, { settings: { language: 'en' } });
+    for (const language of ['de', 'ru', 'fr', 'es', 'pl', 'pt-BR', 'zh-CN'] as const) {
       await setLanguageSetting(client, language);
-      expect(document.documentElement.lang).toBe('en');
-      expect(i18n.language).toBe('en');
-      expect(i18n.t('common.nav.hangar')).toBe('My Hangar');
-      // Numbers follow the text shown, not the German/Russian/French locale.
-      expect(i18n.t('common.status.hangar', { count: 2318, size: '3.8 GB' })).toBe('Hangar 2,318 · 3.8 GB');
+      expect(document.documentElement.lang).toBe(language);
+      expect(i18n.language).toBe(language);
+      expect(i18n.t('common.nav.hangar')).not.toBe('My Hangar');
+      // Numbers use the language's own format (2.318 in German, 2 318 in Russian…).
+      const grouped = new Intl.NumberFormat(language).format(2318);
+      expect(i18n.t('common.status.hangar', { count: 2318, size: '3.8 GB' })).toContain(grouped);
     }
+  });
+});
+
+describe('firstRunLanguage', () => {
+  const fresh = { ...DEFAULT_SETTINGS };
+
+  it('takes the Windows display language on a fresh install', () => {
+    expect(firstRunLanguage(fresh, ['it-IT', 'en-US'])).toBe('it');
+    expect(firstRunLanguage(fresh, ['pt-BR'])).toBe('pt-BR');
+    expect(firstRunLanguage(fresh, ['zh-Hans-CN'])).toBe('zh-CN');
+  });
+
+  it('changes nothing for English, unknown languages or settings already made', () => {
+    expect(firstRunLanguage(fresh, ['en-GB'])).toBeNull();
+    expect(firstRunLanguage(fresh, ['ja-JP'])).toBeNull();
+    expect(firstRunLanguage(fresh, [])).toBeNull();
+    expect(firstRunLanguage({ ...fresh, onboarded: true }, ['de-DE'])).toBeNull();
+    expect(firstRunLanguage({ ...fresh, gamePath: 'D:\WT' }, ['de-DE'])).toBeNull();
+    expect(firstRunLanguage({ ...fresh, language: 'fr' }, ['de-DE'])).toBeNull();
   });
 });

@@ -197,6 +197,33 @@
         "skinNeedsName": "A skin needs a name",
         "renameFailed": "Could not rename the skin folder"
       }
+    },
+    "vehicleClass": {
+      "fighter": "Fighter",
+      "strike_aircraft": "Strike aircraft",
+      "bomber": "Bomber",
+      "attack_helicopter": "Attack helicopter",
+      "utility_helicopter": "Utility helicopter",
+      "helicopter": "Helicopter",
+      "light_tank": "Light tank",
+      "medium_tank": "Medium tank",
+      "tank": "Tank",
+      "heavy_tank": "Heavy tank",
+      "tank_destroyer": "Tank destroyer",
+      "spaa": "SPAA",
+      "mbt": "MBT",
+      "frigate": "Frigate",
+      "destroyer": "Destroyer",
+      "battleship": "Battleship",
+      "battlecruiser": "Battlecruiser",
+      "heavy_cruiser": "Heavy cruiser",
+      "light_cruiser": "Light cruiser",
+      "cruiser": "Cruiser",
+      "torpedo_boat": "Torpedo boat",
+      "gunboat": "Gunboat",
+      "torpedo_gunboat": "Torpedo gunboat",
+      "submarine_chaser": "Submarine chaser",
+      "naval_ferry_barge": "Naval ferry barge"
     }
   },
   "firstRun": {
@@ -392,7 +419,7 @@
       "temporary": "Temporary · will be removed on Discard",
       "keep": "Keep",
       "discard": "Discard",
-      "kept": "Kept “{{name}}” — it’s in My Hangar",
+      "kept": "Kept “{{name}}”. It’s in My Hangar.",
       "discarded": "Discarded “{{name}}”. Game files restored.",
       "finalizeFailed": "Couldn’t finish the try: {{message}}",
       "keptTitle": "It’s in My Hangar",
@@ -677,7 +704,7 @@
       "renameLabel": "New name for {{name}}",
       "attentionMore": "{{message}} +{{count}}",
       "authorYou": "you",
-      "noAuthor": "—",
+      "noAuthor": "–",
       "hintOpen": "Press Enter to open the skin page, Space to select it.",
       "hintSelect": "Press Enter or Space to select it. Local skins have no skin page."
     },
@@ -801,7 +828,8 @@
       "blkBad": "skin.blk has problems",
       "conflict": "Same folder name as “{{installed}}” (installed)",
       "conflictQueued": "Same folder name as “{{installed}}” (queued)",
-      "needsLook_one": "Can’t detect the vehicle. Pick it to continue.",
+      "needsLookOne": "Can’t detect the vehicle. Pick it to continue.",
+      "needsLook_one": "Can’t detect the vehicle: {{count}} folder inside. Pick it to continue.",
       "needsLook_other": "Can’t detect the vehicle: {{count}} folders inside. Pick one to continue.",
       "installed": "Now in My Hangar",
       "error": "Something went wrong."
@@ -851,7 +879,8 @@
       "footer": "Change the default in Settings → Conflicts"
     },
     "toast": {
-      "notSkin_one": "“{{name}}” isn’t a skin archive or folder",
+      "notSkinOne": "“{{name}}” isn’t a skin archive or folder",
+      "notSkin_one": "{{count}} item isn’t a skin archive or folder",
       "notSkin_other": "{{count}} items aren’t skin archives or folders",
       "installed": "Installed “{{name}}”",
       "installedMany_one": "Installed {{count}} skin",
@@ -968,9 +997,12 @@
         "it": "Italiano",
         "de": "Deutsch",
         "ru": "Русский",
-        "fr": "Français"
-      },
-      "englishForNow": "English for now"
+        "fr": "Français",
+        "es": "Español",
+        "pl": "Polski",
+        "pt-BR": "Português (Brasil)",
+        "zh-CN": "简体中文"
+      }
     },
     "updates": {
       "version": "Livery {{version}}",

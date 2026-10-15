@@ -11,7 +11,7 @@ function ctx(overrides: Partial<PaletteContext> = {}): PaletteContext {
 const skin = (id: string, name: string, vehicle = 'Leopard 2A6', author = 'Kestrel'): PaletteSkin => ({
   id,
   name,
-  vehicle: { name: vehicle },
+  vehicle: { code: '', name: vehicle },
   author: { name: author },
 });
 
@@ -119,5 +119,14 @@ describe('buildPaletteItems', () => {
   it('item ids are unique', () => {
     const ids = buildPaletteItems('', ctx()).map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('shows vehicles in the UI language and finds them by either name', () => {
+    const vehicleNames = new Map([['germ_leopard_2a6', '豹 2A6']]);
+    const byLocal = buildPaletteItems('豹', ctx({ vehicleNames }));
+    expect(byLocal.map((i) => [i.label, i.hint])).toEqual([['豹 2A6', 'germ_leopard_2a6']]);
+    const byEnglish = buildPaletteItems('leopard 2a6', ctx({ vehicleNames }));
+    expect(byEnglish.map((i) => i.label)).toContain('豹 2A6');
+    const skins = [{ ...skin('a', 'Desert'), vehicle: { code: 'germ_leopard_2a6', name: 'Leopard 2A6' } }];
+    expect(buildPaletteItems('desert', ctx({ vehicleNames, skins }))[0]?.hint).toBe('豹 2A6 · Kestrel');
   });
 });

@@ -165,7 +165,9 @@ export const useQueue = create<QueueState>()((set, get) => {
         }
       }),
     );
-    if (notSkins.length) toast(i18n.t('queue.toast.notSkin', { count: notSkins.length, name: notSkins[0] }));
+    // `_one` also covers 21, 31… in Russian, so the single case has its own key.
+    if (notSkins.length === 1) toast(i18n.t('queue.toast.notSkinOne', { name: notSkins[0] }));
+    else if (notSkins.length) toast(i18n.t('queue.toast.notSkin', { count: notSkins.length }));
   };
 
   /** Skip needs nothing on disk: the row leaves the queue. Idempotent (event and reply may both call it). */

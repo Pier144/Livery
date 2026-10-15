@@ -1,9 +1,8 @@
-// Brings src/i18n/{it,de,ru,fr}.json in line with en.json (rules in scripts/i18n-check.mjs):
+// Brings src/i18n/<lang>.json in line with en.json (rules in scripts/i18n-check.mjs):
 // - key order follows en.json and existing texts are kept;
-// - keys en.json no longer has are removed;
-// - de/ru/fr get missing keys with the English text, plural forms included (ru: _one/_few/_many/_other,
-//   the new forms start from the English `_other`);
-// - it.json never gets invented Italian: its missing keys are listed for a translator.
+// - keys en.json no longer has, and plural forms the language doesn't use, are removed;
+// - a missing plural form is filled from the same language's `_other` and listed for review;
+// - no text is ever invented: other missing keys are listed for a translator.
 // A file is written only when its content changes.
 //
 //   pnpm i18n:sync              write
@@ -16,25 +15,27 @@ import { I18N_DIR, TARGETS, readLocale, serialize, syncLanguage, unflatten } fro
 const dryRun = process.argv.includes('--dry-run');
 const en = readLocale('en').entries;
 const list = (keys) => (keys.length > 6 ? `${keys.slice(0, 6).join(', ')} … (+${keys.length - 6})` : keys.join(', '));
-let missingItalian = [];
+const missingByLanguage = [];
 
 for (const lng of TARGETS) {
   const file = resolve(I18N_DIR, `${lng}.json`);
-  const before = existsSync(file) ? readFileSync(file, 'utf8') : '';
-  const current = before ? readLocale(lng).entries : [];
-  const { entries, added, missing, removed } = syncLanguage(en, current, lng);
+  if (!existsSync(file)) {
+    console.warn(`${lng}.json: missing, not created (write it by hand from en.json)`);
+    continue;
+  }
+  const before = readFileSync(file, 'utf8');
+  const { entries, filled, missing, removed } = syncLanguage(en, readLocale(lng).entries, lng);
   const after = serialize(unflatten(entries));
   const notes = [];
-  if (!before) notes.push('created');
-  if (added.length) notes.push(`added ${added.length} (English): ${list(added)}`);
+  if (filled.length) notes.push(`filled ${filled.length} plural form(s) from _other, review them: ${list(filled)}`);
   if (removed.length) notes.push(`removed ${removed.length}: ${list(removed)}`);
-  if (before && after !== before && !added.length && !removed.length) notes.push('reordered like en.json');
-  if (missing.length) missingItalian = missing;
+  if (after !== before && !filled.length && !removed.length) notes.push('reordered like en.json');
+  if (missing.length) missingByLanguage.push([lng, missing]);
   if (after !== before && !dryRun) writeFileSync(file, after);
   console.log(`${lng}.json: ${notes.length ? notes.join('; ') : 'up to date'}${after !== before && dryRun ? ' (dry run, not written)' : ''}`);
 }
 
-if (missingItalian.length) {
-  console.warn(`\nit.json misses ${missingItalian.length} key(s); write the Italian by hand:`);
-  for (const key of missingItalian) console.warn(`  - ${key}`);
+for (const [lng, missing] of missingByLanguage) {
+  console.warn(`\n${lng}.json misses ${missing.length} key(s); translate them by hand:`);
+  for (const key of missing) console.warn(`  - ${key}`);
 }

@@ -185,6 +185,25 @@ pub async fn game_vehicles(app: AppHandle) -> AppResult<Vec<crate::model::Vehicl
     blocking(move || Ok(current_vehicles(&app).map(|list| list.as_ref().clone()).unwrap_or_default())).await
 }
 
+/// The names of [`game_vehicles`]' vehicles in `language`, code → name, only where they differ
+/// from the English `Vehicle.name` (the UI falls back to it). Empty for English, without a game
+/// folder, when reading the game's files is off, or when they can't be read.
+#[tauri::command]
+pub async fn game_vehicle_names(
+    app: AppHandle,
+    language: crate::model::Language,
+) -> AppResult<std::collections::HashMap<String, String>> {
+    blocking(move || {
+        let settings = app.state::<SettingsStore>().get();
+        if !settings.read_game_data {
+            return Ok(Default::default());
+        }
+        let Ok(root) = crate::library::game_root(&settings) else { return Ok(Default::default()) };
+        Ok(app.state::<catalog::CatalogStore>().names_for(&root, language).unwrap_or_default())
+    })
+    .await
+}
+
 /// The saved game folder's vehicle list (see [`catalog::CatalogStore::load`]); waits for a read
 /// in progress. WT Live calls go through it first, so posts are matched against the game's list
 /// even right after launch. Blocking.

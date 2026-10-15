@@ -4,13 +4,13 @@ declare module '*/scripts/i18n-check.mjs' {
   export type Entry = [key: string, text: string];
   export interface Slot {
     key: string;
-    required: boolean;
     source: string;
+    /** The plural group's base key, for a plural form. */
+    plural?: string;
   }
   export const I18N_DIR: string;
-  export const HAND_TRANSLATED: string[];
-  export const GENERATED: string[];
   export const TARGETS: string[];
+  export const EM_DASH: string;
   export function flatten(obj: object, prefix?: string): Entry[];
   export function unflatten(entries: Entry[]): Record<string, unknown>;
   export function serialize(obj: object): string;
@@ -21,7 +21,7 @@ declare module '*/scripts/i18n-check.mjs' {
     enEntries: Entry[],
     targetEntries: Entry[],
     lng: string,
-  ): { entries: Entry[]; added: string[]; missing: string[]; removed: string[] };
+  ): { entries: Entry[]; filled: string[]; missing: string[]; removed: string[] };
   export function checkLanguage(enEntries: Entry[], targetEntries: Entry[], lng: string): string[];
   export function checkSource(enEntries: Entry[]): string[];
   export function readLocale(lng: string, dir?: string): { file: string; text: string; entries: Entry[] };

@@ -5,3 +5,5 @@
 *.icns binary
 *.dds binary
 *.tga binary
+# The game's CSV layout (CRLF, BOM) kept byte for byte
+src-tauri/tests/fixtures/game/*.csv -text

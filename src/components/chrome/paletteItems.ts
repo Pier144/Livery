@@ -1,4 +1,5 @@
 import { SECTION_KEYS } from '@/hooks/useKeyboardShortcuts';
+import { NO_VEHICLE_NAMES, localVehicleName, type VehicleNames } from '@/lib/vehicleNames';
 import type { Author, Section, Vehicle } from '@/types';
 
 export type PaletteKind = 'skin' | 'vehicle' | 'action';
@@ -9,6 +10,8 @@ export interface PaletteItem {
   label: string;
   /** Vehicle code, "vehicle · author" for skins, the section shortcut for actions. */
   hint: string;
+  /** Also searched, never shown: a vehicle's English name when the label is a local one. */
+  alias?: string;
   run: () => void;
 }
 
@@ -16,7 +19,7 @@ export interface PaletteItem {
 export interface PaletteSkin {
   id: string;
   name: string;
-  vehicle: Pick<Vehicle, 'name'>;
+  vehicle: Pick<Vehicle, 'code' | 'name'>;
   author: Pick<Author, 'name'>;
 }
 
@@ -25,6 +28,8 @@ export type PaletteActionKey = `common.palette.actions.${Section}`;
 export interface PaletteContext {
   t: (key: PaletteActionKey) => string;
   vehicles: readonly Vehicle[];
+  /** Vehicle names in the UI language (`useVehicleNames`); English without it. */
+  vehicleNames?: VehicleNames;
   /** WT Live skins already in the query cache (Explore pages, posts, Following). */
   skins: readonly PaletteSkin[];
   go: (section: Section) => void;
@@ -56,11 +61,13 @@ function actionItems(ctx: PaletteContext): PaletteItem[] {
 }
 
 function vehicleItem(v: Vehicle, ctx: PaletteContext): PaletteItem {
+  const label = localVehicleName(ctx.vehicleNames ?? NO_VEHICLE_NAMES, v);
   return {
     id: `vehicle:${v.code}`,
     kind: 'vehicle',
-    label: v.name,
+    label,
     hint: v.code,
+    alias: label === v.name ? undefined : v.name,
     run: () => {
       ctx.applyVehicle?.(v.code);
       ctx.go('explore');
@@ -73,7 +80,8 @@ function skinItem(s: PaletteSkin, ctx: PaletteContext): PaletteItem {
     id: `skin:${s.id}`,
     kind: 'skin',
     label: s.name,
-    hint: `${s.vehicle.name} · ${s.author.name}`,
+    hint: `${localVehicleName(ctx.vehicleNames ?? NO_VEHICLE_NAMES, s.vehicle)} · ${s.author.name}`,
+    alias: s.vehicle.name,
     run: () => (ctx.openSkin ? ctx.openSkin(s.id) : ctx.go('explore')),
   };
 }
@@ -83,7 +91,7 @@ const RESERVED_FOR_OTHERS = 3;
 
 /**
  * Palette results. Empty query: the 5 actions, then the first 4 vehicles.
- * Otherwise skins → vehicles → actions whose label or hint contains the query
+ * Otherwise skins → vehicles → actions whose label, hint or alias contains the query
  * (case-insensitive), capped at 9. Up to 3 places go to matching vehicles and actions, so
  * thousands of cached WT Live skins never hide the vehicle you typed.
  */
@@ -91,7 +99,8 @@ export function buildPaletteItems(query: string, ctx: PaletteContext): PaletteIt
   const q = query.trim().toLowerCase();
   if (!q) return [...actionItems(ctx), ...ctx.vehicles.slice(0, EMPTY_QUERY_VEHICLES).map((v) => vehicleItem(v, ctx))];
 
-  const matches = (item: PaletteItem) => item.label.toLowerCase().includes(q) || item.hint.toLowerCase().includes(q);
+  const matches = (item: PaletteItem) =>
+    item.label.toLowerCase().includes(q) || item.hint.toLowerCase().includes(q) || Boolean(item.alias?.toLowerCase().includes(q));
   // Each scan stops at the cap, so thousands of cached skins are not all looked at.
   const collect = <T,>(source: readonly T[], toItem: (x: T) => PaletteItem): PaletteItem[] => {
     const out: PaletteItem[] = [];

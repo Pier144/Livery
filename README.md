@@ -36,7 +36,8 @@ them with one click, and keep your `UserSkins` folder tidy.
 - **Collections**: sets of skins you can switch on together.
 - **Checks** each skin for missing textures and problems in its `.blk` file.
 - **Updates itself**: it tells you when a new version is out, and can install it for you.
-- English and Italian.
+- In English, Italiano, Deutsch, Русский, Français, Español, Polski, Português (Brasil) and 简体中文,
+  with vehicle names as the game writes them in your language. It starts in your Windows language.
 
 ## Install
 
@@ -92,7 +93,8 @@ Entertainment). Ti permette di:
 - sfogliare le skin di WT Live, installarle con un clic o provarle prima nel gioco;
 - installare skin da ZIP, 7z, RAR o cartelle;
 - rinominare, disattivare e disinstallare le skin dall'Hangar, sempre con la possibilità di
-  annullare.
+  annullare;
+- usarlo in italiano (e in altre otto lingue), con i nomi dei veicoli come li scrive il gioco.
 
 Scarica l'installer con il pulsante in alto (o dall'[ultima release](https://github.com/Pier144/Livery/releases/latest)). Se
 Windows mostra "Windows ha protetto il PC", scegli **Ulteriori informazioni → Esegui comunque**:

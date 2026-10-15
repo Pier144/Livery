@@ -207,11 +207,11 @@ describe('Install queue — rows', () => {
     expect(screen.getByText('Queue is empty.')).toBeInTheDocument();
     const legend = screen.getByRole('region', { name: 'What the states mean' });
     expect(within(legend).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Ready — vehicle detected, files look good.',
-      'Conflict — a skin with the same folder is installed.',
-      'Needs a look — can’t tell which vehicle it’s for.',
-      'Installed — it’s in My Hangar and in the game.',
-      'Error — it can’t be installed; the row says why.',
+      'Ready · vehicle detected, files look good.',
+      'Conflict · a skin with the same folder is installed.',
+      'Needs a look · can’t tell which vehicle it’s for.',
+      'Installed · it’s in My Hangar and in the game.',
+      'Error · it can’t be installed; the row says why.',
     ]);
 
     const path = screen.getByText('C:\\Users\\me\\Downloads');

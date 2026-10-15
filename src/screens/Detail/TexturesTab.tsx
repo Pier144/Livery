@@ -142,12 +142,12 @@ function TextureTable({ rows }: { rows: TextureInfo[] }) {
                     </span>
                   </td>
                   <td className="py-2.5 pr-3">{resolutionText(row)}</td>
-                  <td className="py-2.5 pr-3">{row.missing ? '—' : (row.format ?? '—')}</td>
+                  <td className="py-2.5 pr-3">{row.missing ? '–' : (row.format ?? '–')}</td>
                   <td className={cn('py-2.5 pr-3.5 text-right', tone)}>
                     {row.missing
                       ? t('detail.textures.missing')
                       : row.sizeBytes === undefined
-                        ? '—'
+                        ? '–'
                         : formatTextureSize(row.sizeBytes)}
                   </td>
                 </tr>

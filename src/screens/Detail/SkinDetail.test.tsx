@@ -574,9 +574,9 @@ describe('Skin detail · textures', () => {
       ['hull_c.dds', '8192×8192', 'BC7', '85.3 MB'],
       ['Very heavy texture (8192²). Load times may suffer.'],
       ['turret_c.dds', '4096×4096', 'BC7', '21.3 MB'],
-      ['turret_n.dds', '—', '—', 'missing'],
+      ['turret_n.dds', '–', '–', 'missing'],
       ['Referenced in skin.blk but not in the archive.'],
-      ['germ_tiger_IIH.blk', '—', 'BLK', '2 KB'],
+      ['germ_tiger_IIH.blk', '–', 'BLK', '2 KB'],
     ]);
     // Localized by kind: the backend's English text isn't shown.
     expect(screen.queryByText('BACKEND ENGLISH')).not.toBeInTheDocument();
@@ -654,7 +654,7 @@ describe('Skin detail · try in game', () => {
     expect(await seriousViolations(container)).toEqual([]);
 
     await user.click(screen.getByRole('button', { name: 'Keep' }));
-    await waitFor(() => expect(toasts()).toEqual(['Kept “Schwarzwald Ambush” — it’s in My Hangar']));
+    await waitFor(() => expect(toasts()).toEqual(['Kept “Schwarzwald Ambush”. It’s in My Hangar.']));
     expect(calls('finalize_try')).toEqual([{ skinId: 's1', keep: true }]);
     expect(await screen.findByRole('heading', { name: 'It’s in My Hangar' })).toBeInTheDocument();
     expect(screen.getByText('Installed')).toBeInTheDocument();

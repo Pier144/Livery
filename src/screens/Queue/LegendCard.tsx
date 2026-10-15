@@ -18,7 +18,7 @@ export function LegendCard() {
           <li key={status} className="flex gap-2.5 text-meta text-ink-3">
             <span aria-hidden className={cn('mt-1 h-2 w-2 flex-none rounded-full', STATUS_TONE[status].dot)} />
             <span>
-              <span className="font-medium text-ink-1">{t(`queue.status.${status}`)}</span> — {t(`queue.legend.${status}`)}
+              <span className="font-medium text-ink-1">{t(`queue.status.${status}`)}</span> · {t(`queue.legend.${status}`)}
             </span>
           </li>
         ))}

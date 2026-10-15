@@ -50,7 +50,8 @@
       "timestampUrl": "",
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["English", "Italian"],
+        "languages": ["English", "Italian", "German", "Russian", "French", "Spanish", "Polish", "PortugueseBR", "SimpChinese"],
+        "customLanguageFiles": { "Polish": "nsis/Polish.nsh" },
         "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico",
         "compression": "lzma",

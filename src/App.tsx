@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CommandPalette } from '@/components/chrome/CommandPalette';
@@ -10,13 +11,13 @@ import { UpdateDialog } from '@/components/chrome/UpdateDialog';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { useInstallEvents } from '@/hooks/useInstallEvents';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { useLanguageSync } from '@/hooks/useLanguageSync';
+import { firstRunLanguage, useLanguageSync } from '@/hooks/useLanguageSync';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useScreenFocus } from '@/hooks/useScreenFocus';
 import { useLaunchUpdateCheck, useUpdateEvents } from '@/hooks/useUpdateEvents';
 import { reportReadyAfterPaint } from '@/lib/startup';
 import { useWtLiveInstallEvents } from '@/store/installs';
-import { useSettings } from '@/queries/settings';
+import { SETTINGS_KEY, useSettings, useUpdateSettings } from '@/queries/settings';
 import { useNetStatusEvents } from '@/queries/wtlive';
 import { Collections } from '@/screens/Collections';
 import { Explore } from '@/screens/Explore';
@@ -45,6 +46,8 @@ const SCREENS: Record<Screen, () => JSX.Element> = {
  */
 function useBootScreen(): boolean {
   const { data, isError } = useSettings();
+  const qc = useQueryClient();
+  const { mutate: updateSettings } = useUpdateSettings();
   const decided = useRef(false);
   const [booted, setBooted] = useState(false);
 
@@ -53,11 +56,20 @@ function useBootScreen(): boolean {
     if (decided.current || (!data && !isError)) return;
     decided.current = true;
     // Unreadable settings: open the app rather than trap the user in First run.
-    if (data && !data.onboarded && !data.gamePath) useUi.getState().go('firstRun');
+    if (data && !data.onboarded && !data.gamePath) {
+      useUi.getState().go('firstRun');
+      // First launch: speak the Windows display language when Livery has it (shown at once,
+      // then saved).
+      const language = firstRunLanguage(data);
+      if (language) {
+        qc.setQueryData(SETTINGS_KEY, { ...data, language });
+        updateSettings({ language });
+      }
+    }
     setBooted(true);
     // Startup timing: tells the backend once the first screen has been painted.
     reportReadyAfterPaint();
-  }, [data, isError]);
+  }, [data, isError, qc, updateSettings]);
 
   return booted;
 }

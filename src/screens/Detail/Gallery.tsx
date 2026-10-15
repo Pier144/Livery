@@ -8,6 +8,7 @@ import type { WtLiveSkin } from '@/types';
 import { Compare } from './Compare';
 import { galleryImages, galleryViews, rovingIndex, sameVehicleSkins, type GalleryView } from './detailModel';
 import { useFocusFallback } from './useFocusFallback';
+import { useVehicleName } from '@/queries/vehicles';
 
 /** "Zoom in" / "Compare" over the image (prototype: rgba(15,16,18,.9) fill). */
 const OVERLAY_BUTTON =
@@ -21,6 +22,7 @@ const OVERLAY_BUTTON =
  */
 export function Gallery({ skin }: { skin: WtLiveSkin }) {
   const { t } = useTranslation();
+  const vehicleName = useVehicleName();
   // The post's pictures, then the ones embedded in its text (the Post tab opens those here too).
   const views = useMemo(() => galleryViews(galleryImages(skin)), [skin]);
   const index = useDetail((s) => Math.min(s.galleryIndex, views.length - 1));
@@ -98,7 +100,7 @@ export function Gallery({ skin }: { skin: WtLiveSkin }) {
                   // ink-3: ink-4 is 4.2–4.5:1 on the stage stripes.
                   className="font-mono text-mono-data text-ink-3"
                 >
-                  {t('detail.gallery.placeholder', { vehicle: skin.vehicle.name, view: viewLabel(view) })}
+                  {t('detail.gallery.placeholder', { vehicle: vehicleName(skin.vehicle), view: viewLabel(view) })}
                 </span>
               )}
             </div>

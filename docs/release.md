@@ -11,7 +11,8 @@ How the Windows installer is built, how to turn on code signing, and how a relea
 | Setting (`bundle.windows.nsis`) | Value | Effect |
 |---|---|---|
 | `installMode` | `currentUser` | Per-user install into `%LOCALAPPDATA%\Livery`, no administrator prompt, registry entries under `HKCU`. |
-| `languages` + `displayLanguageSelector` | `["English", "Italian"]`, `true` | The installer and uninstaller open with a language picker; the Windows language is preselected (English if it's neither). Tauri ships its own strings for both. |
+| `languages` + `displayLanguageSelector` | English, Italian, German, Russian, French, Spanish, Polish, PortugueseBR, SimpChinese; `true` | The installer and uninstaller open with a language picker; the Windows language is preselected (English if it's none of them). Tauri ships its own strings for all but Polish. |
+| `customLanguageFiles` | `{ "Polish": "nsis/Polish.nsh" }` | Polish texts for the pages Tauri adds (tauri-bundler 2.11 has no Polish file); NSIS's own Polish covers the rest. Keep its keys in step with Tauri's `English.nsh` when Tauri is updated. |
 | `installerIcon` | `icons/icon.ico` | The app icon (the paint bucket on graphite) on the setup executable. |
 | `compression` | `lzma` | Smallest installer. |
 | `startMenuFolder` | `Livery` | Shortcut at `Start Menu\Programs\Livery\Livery.lnk`. |
@@ -168,7 +169,7 @@ The workflow needs only `GITHUB_TOKEN` with `contents: write` (declared in the w
 
 | Topic | Decision | Why |
 |---|---|---|
-| Installer | NSIS only, per user (`currentUser`), English + Italian with the language picker, lzma, Start menu folder "Livery", app icon on the installer. | No admin rights needed; the author is Italian; smallest file. |
+| Installer | NSIS only, per user (`currentUser`), the app's nine languages with the language picker, lzma, Start menu folder "Livery", app icon on the installer. | No admin rights needed; the author is Italian; smallest file. |
 | Signing placeholder | `certificateThumbprint: null`, `digestAlgorithm: "sha256"`, `timestampUrl: ""` in `tauri.conf.json`. CI signs through a `--config` overlay only when the secret exists. | Unsigned builds work everywhere today; turning signing on needs no change to the committed config. |
 | Signing inside the build | Signing happens in `tauri build`, not on the finished installer. | The app exe and the uninstaller get signed too. |
 | Draft releases only | CI never publishes; a person does, after the VM test. | Acceptance on a clean VM comes before users see it. |

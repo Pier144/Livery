@@ -3,19 +3,25 @@ import { useTranslation } from 'react-i18next';
 import { TextInput } from '@/components/ui/TextInput';
 import { vehicles as builtIn } from '@/data/vehicles';
 import { cn } from '@/lib/cn';
+import { localNameLower, localVehicleName, type VehicleNames } from '@/lib/vehicleNames';
+import { useVehicleNames } from '@/queries/vehicles';
 import { useExplore } from '@/store/explore';
 import type { Vehicle } from '@/types';
 import { findVehicle, matchVehicles, vehicleLabel } from './exploreModel';
 
-/** The vehicle a typed text stands for: an exact name or code (case-insensitive). */
-function exactVehicle(list: readonly Vehicle[], text: string): Vehicle | undefined {
+/** The vehicle a typed text stands for: an exact code, English name or local name (case-insensitive). */
+function exactVehicle(list: readonly Vehicle[], text: string, names: VehicleNames): Vehicle | undefined {
   const needle = text.trim().toLowerCase();
-  return findVehicle(list, needle) ?? list.find((v) => v.name.toLowerCase() === needle);
+  return (
+    findVehicle(list, needle) ??
+    list.find((v) => v.name.toLowerCase() === needle || localNameLower(names, v) === needle)
+  );
 }
 
 /**
- * 200×28 vehicle filter with an autocomplete menu (WAI-ARIA combobox with a listbox popup): name +
- * mono code, matching either, from the local vehicle list. Picking a suggestion sets the vehicle
+ * 200×28 vehicle filter with an autocomplete menu (WAI-ARIA combobox with a listbox popup): name in
+ * the UI language + mono code, matching the code, the English name or the local one, from the local
+ * vehicle list. Picking a suggestion sets the vehicle
  * code filter. Enter on text that names no suggestion searches it as a code (vehicles missing from
  * the local list). Escape closes only the menu (a second Escape clears the field and the filter);
  * leaving the field restores the filter's name, and leaving it empty clears the filter.
@@ -24,7 +30,8 @@ export function VehicleInput({ list = builtIn }: { list?: readonly Vehicle[] }) 
   const { t } = useTranslation();
   const vehicle = useExplore((s) => s.vehicle);
   const setVehicle = useExplore((s) => s.setVehicle);
-  const display = vehicle ? vehicleLabel(list, vehicle) : '';
+  const names = useVehicleNames();
+  const display = vehicle ? vehicleLabel(list, vehicle, names) : '';
 
   const [text, setText] = useState(display);
   const [open, setOpen] = useState(false);
@@ -36,7 +43,7 @@ export function VehicleInput({ list = builtIn }: { list?: readonly Vehicle[] }) 
     setOpen(false);
   }, [display]);
 
-  const matches = useMemo(() => matchVehicles(list, text), [list, text]);
+  const matches = useMemo(() => matchVehicles(list, text, undefined, names), [list, text, names]);
   const expanded = open && matches.length > 0;
   const current = Math.min(active, Math.max(0, matches.length - 1));
 
@@ -46,7 +53,7 @@ export function VehicleInput({ list = builtIn }: { list?: readonly Vehicle[] }) 
 
   const pick = (v: Vehicle) => {
     setVehicle(v.code);
-    setText(v.name);
+    setText(localVehicleName(names, v));
     setOpen(false);
   };
 
@@ -56,7 +63,7 @@ export function VehicleInput({ list = builtIn }: { list?: readonly Vehicle[] }) 
       setVehicle(null);
       return;
     }
-    const exact = exactVehicle(list, typed);
+    const exact = exactVehicle(list, typed, names);
     if (exact) pick(exact);
     else {
       setVehicle(typed);
@@ -153,7 +160,7 @@ export function VehicleInput({ list = builtIn }: { list?: readonly Vehicle[] }) 
                 i === current && 'bg-bg-4',
               )}
             >
-              <span className="min-w-0 truncate">{v.name}</span>
+              <span className="min-w-0 truncate">{localVehicleName(names, v)}</span>
               {/* ink-4, not the prototype's ink-5: 10px text needs 4.5:1; ink-3 on the highlighted bg-4 (ink-4 is 4.25 there). */}
               <span className={cn('flex-none font-mono text-[10px]', i === current ? 'text-ink-3' : 'text-ink-4')}>{v.code}</span>
             </div>

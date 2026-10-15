@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import i18n from '@/i18n';
+import i18n, { LANGUAGES, resources } from '@/i18n';
 import en from '@/i18n/en.json';
 import itJson from '@/i18n/it.json';
 import { GENERIC_ERROR_CODES, GENERIC_MESSAGES, errorText } from './errors';
@@ -21,10 +21,20 @@ describe('errorText', () => {
     expect(errorText({ code: 'network', message: '  ' }, t)).toBe(en.common.errors.network);
   });
 
-  it('shows English for languages without a translation yet (de/ru/fr)', async () => {
-    await i18n.changeLanguage('de');
-    expect(errorText({ code: 'invalidInput', message: 'No game folder set' }, t)).toBe('No game folder set');
-    expect(errorText({ code: 'io', message: 'Unknown' }, t)).toBe('Unknown');
+  it('translates backend messages and generic texts in every UI language', async () => {
+    type Errors = { backend: Record<string, string> } & Record<string, unknown>;
+    const errorsOf = (lng: string) => (resources[lng as keyof typeof resources].translation as { common: { errors: Errors } }).common.errors;
+    const backendKeys = Object.keys(en.common.errors.backend) as (keyof typeof en.common.errors.backend)[];
+    for (const lng of LANGUAGES.filter((l) => l !== 'en')) {
+      await i18n.changeLanguage(lng);
+      const errors = errorsOf(lng);
+      for (const key of backendKeys) {
+        expect(errorText({ code: 'io', message: en.common.errors.backend[key] }, t), `${lng} ${key}`).toBe(errors.backend[key]);
+      }
+      expect(errorText({ code: 'io', message: 'Disk on fire' }, t), lng).toBe(errors.io);
+      expect(errorText({ code: 'somethingNew', message: 'Unknown thing' }, t), lng).toBe(errors.internal);
+      expect(errors.io, lng).not.toBe(en.common.errors.io);
+    }
   });
 
   it('translates a message the backend is known to send', async () => {

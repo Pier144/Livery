@@ -151,7 +151,7 @@ export const EVENTS = {
 } as const;
 export type ConflictPolicy = 'ask' | 'replace' | 'copy' | 'skip';
 export type GameSource = 'steam' | 'standalone' | 'custom';
-export type Language = 'en' | 'it' | 'de' | 'ru' | 'fr';
+export type Language = 'en' | 'it' | 'de' | 'ru' | 'fr' | 'es' | 'pl' | 'pt-BR' | 'zh-CN';
 
 export interface Settings {
   gamePath?: string;

@@ -477,8 +477,15 @@ function uniqueName(name: string, taken: (candidate: string) => boolean): string
 
 const GAME_SOURCES: readonly GameSource[] = ['steam', 'standalone', 'custom'];
 const CONFLICT_POLICIES: readonly ConflictPolicy[] = ['ask', 'replace', 'copy', 'skip'];
-const LANGUAGES: readonly Language[] = ['en', 'it', 'de', 'ru', 'fr'];
+const LANGUAGES: readonly Language[] = ['en', 'it', 'de', 'ru', 'fr', 'es', 'pl', 'pt-BR', 'zh-CN'];
 const REDUCE_MOTION: readonly ReduceMotion[] = ['system', 'on', 'off'];
+
+/** `game_vehicle_names` samples: code → name where the game's name differs from English. */
+const MOCK_VEHICLE_NAMES: Partial<Record<Language, Record<string, string>>> = {
+  ru: { ussr_t_34_85: 'Т-34-85', germ_pzkpfw_VI_ausf_b_tiger_IIH: 'Тигр II (H)' },
+  'zh-CN': { germ_leopard_2a6: '豹 2A6', germ_pzkpfw_VI_ausf_b_tiger_IIH: '虎 II（H）', f_4e: 'F-4E “鬼怪 II”' },
+  it: { it_c1_ariete: 'C1 Ariete' },
+};
 
 const isString = (v: unknown) => typeof v === 'string';
 const isBool = (v: unknown) => typeof v === 'boolean';
@@ -1772,6 +1779,11 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   set_game_path: setGamePath,
   // The real backend reads every vehicle of the game; the mock has only the built-in list.
   game_vehicles: () => (hasGameFolder() ? builtInVehicles : []),
+  // The real backend reads the names from the game's units.csv; a few samples here.
+  game_vehicle_names: (args) => {
+    const language = (args as { language?: Language } | undefined)?.language ?? 'en';
+    return hasGameFolder() ? (MOCK_VEHICLE_NAMES[language] ?? {}) : {};
+  },
   scan_user_skins: scan,
   import_skins: importSkins,
   get_hangar: () => {

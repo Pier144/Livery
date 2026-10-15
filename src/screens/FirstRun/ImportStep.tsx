@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn';
 import type { HangarSkin } from '@/types';
 import { importSummary, importTag, type ImportTag } from './firstRunMachine';
 import { StepIntro } from './StepTracker';
+import { useVehicleName } from '@/queries/vehicles';
 
 /** Rows listed before "+ N more". */
 const PREVIEW_ROWS = 5;
@@ -99,6 +100,7 @@ function Stat({ value, label, accent, className }: { value: number; label: strin
 
 function ImportRow({ skin }: { skin: HangarSkin }) {
   const { t } = useTranslation();
+  const vehicleName = useVehicleName();
   const tag = importTag(skin);
   // Why it needs attention, for screen readers and as a tooltip.
   const reasons = (skin.attention ?? [])
@@ -115,7 +117,7 @@ function ImportRow({ skin }: { skin: HangarSkin }) {
       <span className="min-w-0 flex-1 truncate text-ink-1" title={skin.name}>
         {skin.name}
       </span>
-      <span className="max-w-[40%] truncate text-ink-3">{skin.vehicle.name}</span>
+      <span className="max-w-[40%] truncate text-ink-3">{vehicleName(skin.vehicle)}</span>
       <span
         title={reasons || undefined}
         className={cn('min-w-[90px] flex-none text-right font-mono text-[10px] leading-[normal]', TAG_COLOR[tag])}

@@ -4,7 +4,9 @@
 //!   `unitClass`; `config/unittags.blk`: the `type_*` tags that tell a light tank from a medium
 //!   one, or a battleship from a cruiser.
 //! - `lang.vromfs.bin` → `lang/units.csv`: the names (`<code>_shop` as in the research tree,
-//!   else `<code>_0`), English column.
+//!   else `<code>_0`). `Vehicle.name` is the English column; the names in Livery's other UI
+//!   languages are kept beside the list ([`LocalNames`], only where they differ from English) and
+//!   sent by `game_vehicle_names`, so codes, hashtag matching and the library stay English.
 //!
 //! Every vehicle of the game is listed, not only the user's own (that lives on Gaijin's
 //! servers). Infantry (`exp_human`) and units without a known nation are left out. The list is
@@ -17,9 +19,9 @@ use super::binblk::{Blk, NameMap};
 use super::vromfs::{Vromfs, NAME_MAP_FILE};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::vehicles;
-use crate::model::{Nation, Vehicle, VehicleType};
+use crate::model::{Language, Nation, Vehicle, VehicleType};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -34,7 +36,11 @@ pub const UNITS_CSV: &str = "lang/units.csv";
 /// The cache file in the app data dir.
 pub const CATALOG_FILE: &str = "vehicles.json";
 /// Format version of [`CATALOG_FILE`] (also bumped when the mapping below changes).
-pub const CATALOG_VERSION: u32 = 1;
+pub const CATALOG_VERSION: u32 = 2;
+
+/// Vehicle names in Livery's UI languages other than English: language → code → name. Only the
+/// names that differ from the English one are kept.
+pub type LocalNames = BTreeMap<Language, HashMap<String, String>>;
 
 /// `notFound` message when a data file the list comes from is missing.
 pub const NO_GAME_DATA: &str = "The game's vehicle data can't be found";
@@ -95,6 +101,8 @@ pub struct GameCatalog {
     /// The archive version, e.g. `2.59.0.65`.
     pub version: Option<String>,
     pub vehicles: Vec<Vehicle>,
+    /// The listed vehicles' names in the other UI languages.
+    pub names: LocalNames,
 }
 
 fn data_missing(path: &Path, what: &str) -> AppError {
@@ -130,13 +138,14 @@ pub fn read_catalog(game_root: &Path) -> AppResult<GameCatalog> {
                 .collect()
         })
         .unwrap_or_default();
-    let unit_names = match Vromfs::open(&game_root.join(LANG_ARCHIVE)) {
-        Ok(lang) => lang.file(UNITS_CSV).map(unit_names).unwrap_or_default(),
+    let mut all_names = match Vromfs::open(&game_root.join(LANG_ARCHIVE)) {
+        Ok(lang) => lang.file(UNITS_CSV).map(names_by_language).unwrap_or_default(),
         Err(e) => {
             tracing::warn!(error = %e, "vehicle names can't be read; codes are shown instead");
-            HashMap::new()
+            BTreeMap::new()
         }
     };
+    let unit_names = all_names.remove(&Language::En).unwrap_or_default();
     let mut found: Vec<(bool, Vehicle)> = wpcost
         .root()
         .children()
@@ -162,32 +171,64 @@ pub fn read_catalog(game_root: &Path) -> AppResult<GameCatalog> {
     let mut list: Vec<Vehicle> = found.into_iter().map(|(_, v)| v).collect();
     let mut seen = std::collections::HashSet::new();
     list.retain(|v| seen.insert(v.code.to_lowercase()));
-    Ok(GameCatalog { version: char.version().map(str::to_owned), vehicles: list })
+    let names = all_names
+        .into_iter()
+        .map(|(language, by_code)| {
+            let local = list
+                .iter()
+                .filter_map(|v| {
+                    let (name, _) = vehicles::clean_name(by_code.get(&v.code)?);
+                    (name != v.name).then(|| (v.code.clone(), name))
+                })
+                .collect();
+            (language, local)
+        })
+        .collect();
+    Ok(GameCatalog { version: char.version().map(str::to_owned), vehicles: list, names })
 }
 
 /// `code` → English name, from `units.csv`: `<code>_shop` (research tree), else `<code>_0`.
 pub fn unit_names(csv: &[u8]) -> HashMap<String, String> {
+    names_by_language(csv).remove(&Language::En).unwrap_or_default()
+}
+
+/// `code` → raw name for each UI language whose column `units.csv` has, picked like
+/// [`unit_names`]: `<code>_shop`, else `<code>_0`. A row without an English name is skipped; an
+/// empty cell in another language takes the English name.
+pub fn names_by_language(csv: &[u8]) -> BTreeMap<Language, HashMap<String, String>> {
     let text = String::from_utf8_lossy(csv);
     let mut rows = CsvRows { rest: text.trim_start_matches('\u{feff}') };
-    let Some(header) = rows.next() else { return HashMap::new() };
+    let Some(header) = rows.next() else { return BTreeMap::new() };
     let id_col = header.iter().position(|h| h.starts_with("<ID")).unwrap_or(0);
-    let Some(en_col) = header.iter().position(|h| h == "<English>") else { return HashMap::new() };
-    let mut shop: HashMap<String, String> = HashMap::new();
-    let mut full: HashMap<String, String> = HashMap::new();
+    let columns: Vec<(Language, usize)> = Language::ALL
+        .iter()
+        .filter_map(|&lang| Some((lang, header.iter().position(|h| h == lang.game_column())?)))
+        .collect();
+    let Some(&(_, en_col)) = columns.iter().find(|(lang, _)| *lang == Language::En) else {
+        return BTreeMap::new();
+    };
+    let mut shop: BTreeMap<Language, HashMap<String, String>> = BTreeMap::new();
+    let mut full: BTreeMap<Language, HashMap<String, String>> = BTreeMap::new();
     for row in rows {
-        let (Some(id), Some(name)) = (row.get(id_col), row.get(en_col)) else { continue };
-        let name = name.trim();
-        if name.is_empty() {
-            continue;
-        }
-        if let Some(code) = id.strip_suffix("_shop") {
-            shop.insert(code.to_owned(), name.to_owned());
+        let Some(id) = row.get(id_col) else { continue };
+        let (target, code) = if let Some(code) = id.strip_suffix("_shop") {
+            (&mut shop, code)
         } else if let Some(code) = id.strip_suffix("_0") {
-            full.insert(code.to_owned(), name.to_owned());
+            (&mut full, code)
+        } else {
+            continue;
+        };
+        let Some(english) = row.get(en_col).map(|n| n.trim()).filter(|n| !n.is_empty()) else { continue };
+        for &(lang, col) in &columns {
+            let name = row.get(col).map(|n| n.trim()).filter(|n| !n.is_empty()).unwrap_or(english);
+            target.entry(lang).or_default().insert(code.to_owned(), name.to_owned());
         }
     }
-    for (code, name) in full {
-        shop.entry(code).or_insert(name);
+    for (lang, names) in full {
+        let picked = shop.entry(lang).or_default();
+        for (code, name) in names {
+            picked.entry(code).or_insert(name);
+        }
     }
     shop
 }
@@ -267,10 +308,12 @@ struct CacheFile {
     #[serde(default)]
     game_version: Option<String>,
     vehicles: Vec<Vehicle>,
+    #[serde(default)]
+    names: LocalNames,
 }
 
-/// The list in memory: game folder key, the archives' stamp, the vehicles.
-type Loaded = (String, Stamp, Arc<Vec<Vehicle>>);
+/// The list in memory: game folder key, the archives' stamp, the vehicles, their other names.
+type Loaded = (String, Stamp, Arc<Vec<Vehicle>>, Arc<LocalNames>);
 
 /// The vehicle list of the current game folder: in memory, in [`CATALOG_FILE`], or read from
 /// the archives. One reader at a time.
@@ -297,12 +340,22 @@ impl CatalogStore {
     /// [`Self::vehicles_for`], logging a failure once per game folder and session (the built-in
     /// list stays in use) instead of returning it.
     pub fn load(&self, game_root: &Path) -> Option<Arc<Vec<Vehicle>>> {
+        self.load_all(game_root).map(|(list, _)| list)
+    }
+
+    /// The vehicles' names in `language` where they differ from English (empty for English), like
+    /// [`Self::load`]: `None` when the list can't be read.
+    pub fn names_for(&self, game_root: &Path, language: Language) -> Option<HashMap<String, String>> {
+        self.load_all(game_root).map(|(_, names)| names.get(&language).cloned().unwrap_or_default())
+    }
+
+    fn load_all(&self, game_root: &Path) -> Option<(Arc<Vec<Vehicle>>, Arc<LocalNames>)> {
         let key = crate::game::root::path_key(game_root);
         if self.failed.lock().unwrap_or_else(|e| e.into_inner()).as_deref() == Some(key.as_str()) {
             return None;
         }
-        match self.vehicles_for(game_root) {
-            Ok(list) => Some(list),
+        match self.read(game_root) {
+            Ok(loaded) => Some(loaded),
             Err(e) => {
                 tracing::warn!(error = %e, "the game's vehicle list can't be read; using the built-in one");
                 *self.failed.lock().unwrap_or_else(|e| e.into_inner()) = Some(key);
@@ -314,16 +367,20 @@ impl CatalogStore {
     /// The vehicles of the install at `game_root`, and makes them the list `library::vehicles`
     /// looks codes up in. Reads the archives only when they changed since the last read.
     pub fn vehicles_for(&self, game_root: &Path) -> AppResult<Arc<Vec<Vehicle>>> {
+        self.read(game_root).map(|(list, _)| list)
+    }
+
+    fn read(&self, game_root: &Path) -> AppResult<(Arc<Vec<Vehicle>>, Arc<LocalNames>)> {
         let _one = self.reading.lock().unwrap_or_else(|e| e.into_inner());
         let root_key = crate::game::root::path_key(game_root);
         let stamp = Stamp::of(game_root).ok_or_else(|| data_missing(game_root, CHAR_ARCHIVE))?;
-        if let Some((key, known, list)) = self.current.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        if let Some((key, known, list, names)) = self.current.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             if *key == root_key && *known == stamp {
-                return Ok(Arc::clone(list));
+                return Ok((Arc::clone(list), Arc::clone(names)));
             }
         }
-        let list = match self.read_cache(&root_key, &stamp) {
-            Some(list) => list,
+        let (list, names) = match self.read_cache(&root_key, &stamp) {
+            Some(cached) => cached,
             None => {
                 let started = std::time::Instant::now();
                 let catalog = read_catalog(game_root)?;
@@ -334,23 +391,24 @@ impl CatalogStore {
                     "vehicle list read from the game"
                 );
                 self.write_cache(&root_key, stamp, &catalog);
-                catalog.vehicles
+                (catalog.vehicles, catalog.names)
             }
         };
-        let list = Arc::new(list);
+        let (list, names) = (Arc::new(list), Arc::new(names));
         vehicles::install(&list);
-        *self.current.lock().unwrap_or_else(|e| e.into_inner()) = Some((root_key, stamp, Arc::clone(&list)));
-        Ok(list)
+        *self.current.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some((root_key, stamp, Arc::clone(&list), Arc::clone(&names)));
+        Ok((list, names))
     }
 
-    fn read_cache(&self, root_key: &str, stamp: &Stamp) -> Option<Vec<Vehicle>> {
+    fn read_cache(&self, root_key: &str, stamp: &Stamp) -> Option<(Vec<Vehicle>, LocalNames)> {
         let bytes = fs::read(&self.path).ok()?;
         let file: CacheFile = serde_json::from_slice(&bytes).ok()?;
         (file.version == CATALOG_VERSION
             && file.game_root == root_key
             && file.stamp == *stamp
             && !file.vehicles.is_empty())
-        .then_some(file.vehicles)
+        .then_some((file.vehicles, file.names))
     }
 
     fn write_cache(&self, root_key: &str, stamp: Stamp, catalog: &GameCatalog) {
@@ -360,6 +418,7 @@ impl CatalogStore {
             stamp,
             game_version: catalog.version.clone(),
             vehicles: catalog.vehicles.clone(),
+            names: catalog.names.clone(),
         };
         let result = (|| -> std::io::Result<()> {
             if let Some(dir) = self.path.parent() {

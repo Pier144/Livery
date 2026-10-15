@@ -98,6 +98,7 @@ pub fn run() {
             game::detect_game,
             game::set_game_path,
             game::game_vehicles,
+            game::game_vehicle_names,
             library::scan_user_skins,
             library::import_skins,
             library::get_hangar,

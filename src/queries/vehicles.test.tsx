@@ -6,7 +6,7 @@ import { vehicles as builtIn } from '@/data/vehicles';
 import { createQueryClient } from '@/queries/client';
 import type { Settings, Vehicle } from '@/types';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from './settings';
-import { useVehicles } from './vehicles';
+import { useVehicleName, useVehicleNames, useVehicles } from './vehicles';
 
 const backend = vi.hoisted(() => ({
   call: vi.fn<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>(),
@@ -22,6 +22,12 @@ vi.mock('@/lib/tauri', async (importOriginal) => ({
 const GAME: Vehicle[] = [
   { code: 'germ_pz_ii', name: 'Pz.II C', nation: 'GER', type: 'ground', class: 'Light tank', rank: 1 },
 ];
+
+function wrap(settings: Partial<Settings>) {
+  const client = createQueryClient();
+  client.setQueryData(SETTINGS_KEY, { ...DEFAULT_SETTINGS, ...settings });
+  return ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 function render(settings: Partial<Settings>) {
   const client = createQueryClient();
@@ -49,5 +55,26 @@ describe('useVehicles', () => {
     const empty = render({ gamePath: 'D:\War Thunder' });
     await waitFor(() => expect(backend.call).toHaveBeenCalled());
     expect(empty.result.current).toBe(builtIn);
+  });
+});
+
+describe('useVehicleNames', () => {
+  it('asks for the names in the UI language and shows them, English as the fallback', async () => {
+    backend.call.mockResolvedValue({ GERM_PZ_II: 'Танк Pz.II C' });
+    const { result } = renderHook(() => ({ names: useVehicleNames(), nameOf: useVehicleName() }), {
+      wrapper: wrap({ gamePath: 'D:\War Thunder', language: 'ru' }),
+    });
+    await waitFor(() => expect(result.current.names.size).toBe(1));
+    expect(backend.call).toHaveBeenCalledWith('game_vehicle_names', { language: 'ru' });
+    expect(result.current.nameOf(GAME[0]!)).toBe('Танк Pz.II C');
+    expect(result.current.nameOf({ code: 'other', name: 'Other' })).toBe('Other');
+  });
+
+  it('asks nothing in English, without a game folder or when the game isn’t read', () => {
+    for (const settings of [{ gamePath: 'D:\WT', language: 'en' as const }, { language: 'ru' as const }, { gamePath: 'D:\WT', language: 'ru' as const, readGameData: false }]) {
+      const { result } = renderHook(() => useVehicleNames(), { wrapper: wrap(settings) });
+      expect(result.current.size).toBe(0);
+    }
+    expect(backend.call).not.toHaveBeenCalled();
   });
 });

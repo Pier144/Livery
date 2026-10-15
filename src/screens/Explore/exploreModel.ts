@@ -8,6 +8,7 @@ import { WTLIVE_KEY } from '@/queries/wtlive';
 import { NATION_ORDER, TYPE_ORDER } from '@/screens/Hangar/hangarModel';
 import type { ExploreFilterKey, ExploreFilters } from '@/store/explore';
 import type { Category, InstallStep, Nation, SearchParams, SortOrder, Vehicle, VehicleType, WtLiveSkin } from '@/types';
+import { NO_VEHICLE_NAMES, localNameLower, localVehicleName, type VehicleNames } from '@/lib/vehicleNames';
 
 // ── Options ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,8 @@ export interface FilterLabels {
   category: (category: Category) => string;
   /** Vehicle code → shown name. */
   vehicle: (code: string) => string;
+  /** English class → shown name (as is without it). */
+  vehicleClass?: (vehicleClass: string) => string;
   /** Free text → shown label (quoted). */
   query: (q: string) => string;
 }
@@ -72,7 +75,7 @@ export function activeFilters(filters: ExploreFilters, labels: FilterLabels): Ac
   const out: ActiveFilter[] = [];
   if (filters.nation) out.push({ key: 'nation', label: labels.nation(filters.nation) });
   if (filters.type) out.push({ key: 'type', label: labels.type(filters.type) });
-  if (filters.class) out.push({ key: 'class', label: filters.class });
+  if (filters.class) out.push({ key: 'class', label: labels.vehicleClass?.(filters.class) ?? filters.class });
   if (filters.vehicle) out.push({ key: 'vehicle', label: labels.vehicle(filters.vehicle) });
   if (filters.category) out.push({ key: 'category', label: labels.category(filters.category) });
   const q = filters.q.trim();
@@ -90,25 +93,33 @@ export function findVehicle(list: readonly Vehicle[], code: string): Vehicle | u
   return list.find((v) => v.code.toLowerCase() === needle);
 }
 
-/** Shown name of a vehicle code; codes missing from the local list show as themselves. */
-export function vehicleLabel(list: readonly Vehicle[], code: string): string {
-  return findVehicle(list, code)?.name ?? code;
+/**
+ * Shown name of a vehicle code, in the UI language when `names` has it; codes missing from the local
+ * list show as themselves.
+ */
+export function vehicleLabel(list: readonly Vehicle[], code: string, names: VehicleNames = NO_VEHICLE_NAMES): string {
+  const found = findVehicle(list, code);
+  return found ? localVehicleName(names, found) : code;
 }
 
 /**
- * Vehicles whose name or internal code contains the text (case-insensitive), those starting with
- * it first, capped at `max`. Blank text → none.
+ * Vehicles whose English name, name in the UI language (`names`) or internal code contains the text
+ * (case-insensitive), those starting with it first, capped at `max`. Blank text → none.
  */
-export function matchVehicles(list: readonly Vehicle[], text: string, max = VEHICLE_SUGGESTIONS): Vehicle[] {
+export function matchVehicles(
+  list: readonly Vehicle[],
+  text: string,
+  max = VEHICLE_SUGGESTIONS,
+  names: VehicleNames = NO_VEHICLE_NAMES,
+): Vehicle[] {
   const needle = text.trim().toLowerCase();
   if (!needle) return [];
   const starts: Vehicle[] = [];
   const contains: Vehicle[] = [];
   for (const v of list) {
-    const name = v.name.toLowerCase();
-    const code = v.code.toLowerCase();
-    if (name.startsWith(needle) || code.startsWith(needle)) starts.push(v);
-    else if (name.includes(needle) || code.includes(needle)) contains.push(v);
+    const keys = [v.name.toLowerCase(), v.code.toLowerCase(), localNameLower(names, v) ?? ''];
+    if (keys.some((k) => k.startsWith(needle))) starts.push(v);
+    else if (keys.some((k) => k.includes(needle))) contains.push(v);
   }
   return [...starts, ...contains].slice(0, max);
 }

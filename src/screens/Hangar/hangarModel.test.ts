@@ -93,6 +93,23 @@ describe('presentValues', () => {
   });
 });
 
+describe('vehicle names in the UI language', () => {
+  const names = new Map([['ussr_t_34_85', 'Т-34-85'], ['germ_pzkpfw_vi_ausf_e_tiger', 'Тигр H1']]);
+
+  it('finds skins by the English or the local vehicle name', () => {
+    expect(filterSkins(SKINS, 'тигр', NO_FILTERS, names).map((s) => s.name)).toEqual(['Ambush', 'desert tan']);
+    expect(filterSkins(SKINS, 'tiger', NO_FILTERS, names).map((s) => s.name)).toEqual(['Ambush', 'desert tan']);
+    expect(filterSkins(SKINS, 'тигр', NO_FILTERS)).toEqual([]);
+  });
+
+  it('titles groups with the local name', () => {
+    const titles = groupSkins(SKINS, 'Unknown', names).map((g) => g.title);
+    expect(titles).toContain('Тигр H1');
+    expect(titles).toContain('Т-34-85');
+    expect(titles).toContain('F-4E Phantom II');
+  });
+});
+
 describe('groupSkins', () => {
   const groups = groupSkins(SKINS, 'Unknown');
 

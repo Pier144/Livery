@@ -691,29 +691,27 @@ describe('Settings · WT Live', () => {
 // ── Language ────────────────────────────────────────────────────────────────
 
 describe('Settings · Language', () => {
-  it('switches the UI language at once; untranslated languages say they show English', async () => {
+  it('lists every language in itself and switches the UI at once', async () => {
     const { user } = renderSettings('language');
     const group = screen.getByRole('radiogroup', { name: 'Language' });
-    const names = within(group).getAllByRole('radio').map((r) => r.getAttribute('aria-labelledby'));
-    expect(names).toHaveLength(5);
+    const names = within(group).getAllByRole('radio').map((r) => r.textContent);
+    expect(names).toEqual(['English', 'Italiano', 'Deutsch', 'Русский', 'Français', 'Español', 'Polski', 'Português (Brasil)', '简体中文']);
     expect(within(group).getByRole('radio', { name: 'English' })).toBeChecked();
-    expect(within(group).getByRole('radio', { name: 'Italiano' })).not.toHaveAccessibleDescription();
-    expect(within(group).getByRole('radio', { name: 'Deutsch' })).toHaveAccessibleDescription('English for now');
-    expect(within(group).getByRole('radio', { name: 'Русский' })).toHaveAccessibleDescription('English for now');
-    expect(within(group).getByRole('radio', { name: 'Français' })).toHaveAccessibleDescription('English for now');
+    expect(within(group).getByRole('radio', { name: 'Deutsch' })).not.toHaveAccessibleDescription();
     expect(within(group).getByText('Русский')).toHaveAttribute('lang', 'ru');
+    expect(within(group).getByText('简体中文')).toHaveAttribute('lang', 'zh-CN');
 
     await user.click(within(group).getByRole('radio', { name: 'Italiano' }));
     expect(await screen.findByRole('heading', { name: 'Lingua' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Generale' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Deutsch' })).toHaveAccessibleDescription('Per ora in inglese');
     expect(document.documentElement.lang).toBe('it');
     expect(settings.language).toBe('it');
 
     await user.keyboard('{ArrowDown}');
-    expect(await screen.findByRole('heading', { name: 'Language' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sprache' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Allgemein' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Deutsch' })).toBeChecked();
-    expect(document.documentElement.lang).toBe('en');
+    expect(document.documentElement.lang).toBe('de');
     expect(settings.language).toBe('de');
   });
 });

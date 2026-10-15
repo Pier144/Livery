@@ -4,10 +4,12 @@
 
 use livery_lib::error::ErrorCode;
 use livery_lib::game::binblk::{Blk, NameMap, Value};
-use livery_lib::game::catalog::{kind_of, nation_of, read_catalog, unit_names, CatalogStore, CATALOG_FILE};
+use livery_lib::game::catalog::{
+    kind_of, names_by_language, nation_of, read_catalog, unit_names, CatalogStore, CATALOG_FILE,
+};
 use livery_lib::game::vromfs::{deobfuscate, Vromfs, NAME_MAP_FILE};
 use livery_lib::library::vehicles;
-use livery_lib::model::{Nation, VehicleType};
+use livery_lib::model::{Language, Nation, VehicleType};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -470,4 +472,78 @@ fn names_lose_the_game_s_variant_marks() {
     assert_eq!(vehicles::clean_name("\u{f059}Spitfire"), ("Spitfire".to_owned(), true));
     assert_eq!(vehicles::clean_name("\"Black Cat\" M18"), ("\"Black Cat\" M18".to_owned(), false));
     assert_eq!(vehicles::clean_name("\u{2622}"), ("\u{2622}".to_owned(), false), "nothing left: kept as is");
+}
+
+// ── Names in the other UI languages ─────────────────────────────────────────
+
+/// `units.csv` with the game's full header (every language column, BOM, CRLF), synthetic rows.
+const UNITS_LOCALIZED: &[u8] = include_bytes!("fixtures/game/units_localized.csv");
+
+#[test]
+fn units_csv_columns_give_each_ui_language_its_names() {
+    let all = names_by_language(UNITS_LOCALIZED);
+    assert_eq!(all.keys().copied().collect::<Vec<_>>(), Language::ALL, "every UI language has its column");
+    let name = |lang: Language, code: &str| all[&lang].get(code).cloned();
+    assert_eq!(name(Language::En, "us_iowa").as_deref(), Some("USS \"Iowa\""));
+    assert_eq!(name(Language::Ru, "us_iowa").as_deref(), Some("USS «Айова»"));
+    assert_eq!(name(Language::Pl, "us_iowa").as_deref(), Some("USS \"Iowa\""), "an empty cell takes the English name");
+    assert_eq!(name(Language::ZhCn, "germ_pz_ii").as_deref(), Some("二号坦克 C 型"), "the shop name wins over `_0`");
+    assert_eq!(name(Language::De, "germ_pz_ii").as_deref(), Some("Pz.II C"));
+    assert_eq!(unit_names(UNITS_LOCALIZED), all[&Language::En], "unit_names is the English column");
+    // Without an English column nothing is read.
+    assert!(names_by_language("\"<ID|readonly|noverify>\";\"<Russian>\"\n\"a_shop\";\"б\"\n".as_bytes()).is_empty());
+}
+
+#[test]
+fn the_list_keeps_only_the_names_that_differ_from_english() {
+    let game = Game::new("local");
+    fs::write(game.0.join("lang.vromfs.bin"), vromfs(&[("lang/units.csv", UNITS_LOCALIZED)], true)).unwrap();
+    let catalog = read_catalog(&game.0).unwrap();
+    let english = |code: &str| catalog.vehicles.iter().find(|v| v.code == code).unwrap().name.clone();
+    assert_eq!(english("ussr_mig_15"), "MiG-15", "Vehicle.name stays English");
+    assert_eq!(english("it_leopard_2a6"), "Leopard 2A6");
+    assert!(!catalog.names.contains_key(&Language::En));
+    let ru = &catalog.names[&Language::Ru];
+    assert_eq!(ru.get("ussr_mig_15").map(String::as_str), Some("МиГ-15"));
+    assert_eq!(ru.get("us_iowa").map(String::as_str), Some("USS «Айова»"));
+    assert!(!ru.contains_key("germ_pz_ii"), "same as English: not kept");
+    let zh = &catalog.names[&Language::ZhCn];
+    assert_eq!(zh.get("ussr_mig_15").map(String::as_str), Some("米格-15"), "zero-width spaces go");
+    assert_eq!(zh.get("it_leopard_2a6").map(String::as_str), Some("豹 2A6"), "the variant mark goes");
+    assert_eq!(zh.get("germ_leopard_2a6").map(String::as_str), Some("豹 2A6"));
+    assert!(catalog.names[&Language::It].is_empty(), "nothing differs in Italian");
+}
+
+#[test]
+fn local_names_are_cached_with_the_list() {
+    let game = Game::new("localcache");
+    fs::write(game.0.join("lang.vromfs.bin"), vromfs(&[("lang/units.csv", UNITS_LOCALIZED)], true)).unwrap();
+    let data = game.0.join("data");
+    let store = CatalogStore::new(data.join(CATALOG_FILE));
+    let ru = store.names_for(&game.0, Language::Ru).unwrap();
+    assert_eq!(ru.get("ussr_mig_15").map(String::as_str), Some("МиГ-15"));
+    assert!(store.names_for(&game.0, Language::En).unwrap().is_empty(), "English needs no extra names");
+    // Another session gets them from the cache file.
+    let cached = CatalogStore::new(data.join(CATALOG_FILE));
+    let text = fs::read_to_string(data.join(CATALOG_FILE)).unwrap();
+    assert!(text.contains("\"version\":2") && text.contains("\"zh-CN\""), "{text}");
+    assert_eq!(
+        cached.names_for(&game.0, Language::ZhCn).unwrap().get("ussr_mig_15").map(String::as_str),
+        Some("米格-15")
+    );
+    // Codes and lookups stay English.
+    assert_eq!(vehicles::lookup("ussr_mig_15").map(|v| v.name).as_deref(), Some("MiG-15"));
+    // A version 1 cache (no names) is read again from the archives.
+    let old = text.replace("\"version\":2", "\"version\":1");
+    fs::write(data.join(CATALOG_FILE), old).unwrap();
+    let again = CatalogStore::new(data.join(CATALOG_FILE));
+    assert!(!again.names_for(&game.0, Language::Ru).unwrap().is_empty());
+    assert!(fs::read_to_string(data.join(CATALOG_FILE)).unwrap().contains("\"version\":2"), "rewritten");
+    vehicles::reset_to_seed();
+}
+
+#[test]
+fn chinese_names_keep_their_quotes() {
+    assert_eq!(vehicles::clean_name("\u{201c}豹\u{201d}\u{200b}2A6"), ("\u{201c}豹\u{201d}2A6".to_owned(), false));
+    assert_eq!(vehicles::clean_name("\u{25d4}豹\u{200b}2A6"), ("豹2A6".to_owned(), true));
 }

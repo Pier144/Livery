@@ -3,6 +3,7 @@
 
 import type { HangarFilters, HangarView } from '@/store/hangar';
 import type { HangarSkin, Nation, Origin, VehicleType } from '@/types';
+import { NO_VEHICLE_NAMES, localNameLower, localVehicleName, type VehicleNames } from '@/lib/vehicleNames';
 
 /** Game order for the Nation chip (the `UNK` fallback last). */
 export const NATION_ORDER: readonly Nation[] = ['USA', 'GER', 'USSR', 'GBR', 'JPN', 'CHN', 'ITA', 'FRA', 'SWE', 'ISR', 'UNK'];
@@ -16,25 +17,34 @@ export function normalizeQuery(q: string): string {
   return q.trim().toLowerCase();
 }
 
-/** `needle` (normalized) is in the skin name, the vehicle name or the vehicle code. */
-export function matchesQuery(skin: HangarSkin, needle: string): boolean {
+/**
+ * `needle` (normalized) is in the skin name, the vehicle's English name, its name in the UI language
+ * (`names`) or the vehicle code.
+ */
+export function matchesQuery(skin: HangarSkin, needle: string, names: VehicleNames = NO_VEHICLE_NAMES): boolean {
   if (needle === '') return true;
   return (
     skin.name.toLowerCase().includes(needle) ||
     skin.vehicle.name.toLowerCase().includes(needle) ||
-    skin.vehicle.code.toLowerCase().includes(needle)
+    skin.vehicle.code.toLowerCase().includes(needle) ||
+    Boolean(localNameLower(names, skin.vehicle)?.includes(needle))
   );
 }
 
 /** Search and chip filters combine with AND. */
-export function filterSkins(skins: readonly HangarSkin[], q: string, filters: HangarFilters): HangarSkin[] {
+export function filterSkins(
+  skins: readonly HangarSkin[],
+  q: string,
+  filters: HangarFilters,
+  names: VehicleNames = NO_VEHICLE_NAMES,
+): HangarSkin[] {
   const needle = normalizeQuery(q);
   return skins.filter(
     (s) =>
       (filters.nation === null || s.vehicle.nation === filters.nation) &&
       (filters.type === null || s.vehicle.type === filters.type) &&
       (filters.origin === null || s.origin === filters.origin) &&
-      matchesQuery(s, needle),
+      matchesQuery(s, needle, names),
   );
 }
 
@@ -98,7 +108,7 @@ function byName(a: HangarSkin, b: HangarSkin): number {
  * Groups by vehicle code. Groups are sorted by title (the unknown-vehicle group last, since it is
  * not a vehicle), skins inside a group by name.
  */
-export function groupSkins(skins: readonly HangarSkin[], unknownTitle: string): SkinGroup[] {
+export function groupSkins(skins: readonly HangarSkin[], unknownTitle: string, names: VehicleNames = NO_VEHICLE_NAMES): SkinGroup[] {
   const byCode = new Map<string, SkinGroup>();
   for (const skin of skins) {
     const code = skin.vehicle.code;
@@ -106,7 +116,7 @@ export function groupSkins(skins: readonly HangarSkin[], unknownTitle: string): 
     let group = byCode.get(key);
     if (!group) {
       const unknown = code === '';
-      group = { key, code, title: unknown ? unknownTitle : skin.vehicle.name.trim() || code, unknown, skins: [] };
+      group = { key, code, title: unknown ? unknownTitle : localVehicleName(names, skin.vehicle).trim() || code, unknown, skins: [] };
       byCode.set(key, group);
     }
     group.skins.push(skin);

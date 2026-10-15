@@ -118,7 +118,7 @@ describe('textures', () => {
 
   it('formats resolutions and sizes like the Textures tab', () => {
     expect(resolutionText(rows[1]!)).toBe('8192×8192');
-    expect(resolutionText(rows[2]!)).toBe('—');
+    expect(resolutionText(rows[2]!)).toBe('–');
     expect(formatTextureSize(2048)).toBe('2 KB');
     expect(formatTextureSize(300)).toBe('1 KB');
     expect(formatTextureSize(21.3 * MB)).toBe('21.3 MB');
@@ -156,7 +156,7 @@ describe('formatting', () => {
     expect(formatPosted('2026-06-12T12:00:00Z', 'en')).toBe('12 Jun 2026');
     expect(formatPosted('2026-09-10T12:00:00Z', 'en')).toBe('10 Sep 2026');
     expect(formatPosted('2026-06-12T12:00:00Z', 'it')).toBe('12 giu 2026');
-    expect(formatPosted('not a date', 'en')).toBe('—');
+    expect(formatPosted('not a date', 'en')).toBe('–');
     expect(formatCount(24120, 'en')).toBe('24,120');
     expect(formatCount(24120, 'it')).toBe('24.120');
   });

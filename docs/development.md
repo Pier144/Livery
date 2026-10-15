@@ -9,7 +9,7 @@ This page is for developers.
 ## Stack
 
 - **Desktop shell:** Tauri 2 (Rust 1.80+), frameless window, NSIS installer. Windows is the only release target.
-- **Frontend:** React 18, TypeScript (strict), Vite, Tailwind 3.4 with the tokens in `tokens/`, Zustand, TanStack Query + TanStack Virtual, react-i18next (English and Italian), Lucide icons.
+- **Frontend:** React 18, TypeScript (strict), Vite, Tailwind 3.4 with the tokens in `tokens/`, Zustand, TanStack Query + TanStack Virtual, react-i18next (9 languages), Lucide icons.
 - **Tests:** Vitest + React Testing Library (+ axe-core) for the frontend, `cargo test` for the backend.
 
 ## Prerequisites
@@ -42,9 +42,9 @@ pnpm dev:mock       # or: the UI in a browser against the mock backend
 | `pnpm preview` | Serves the built `dist/`. |
 | `pnpm test` / `pnpm test:watch` | Vitest, once or in watch mode. |
 | `pnpm typecheck` | `tsc --noEmit`. |
-| `pnpm i18n:check` | Checks `src/i18n/` against `en.json`, the source: `it.json` must have exactly its keys (translated by hand); `de`/`ru`/`fr` are English copies with the same keys and the plural forms each language uses; placeholders and tags must match, no text may be empty. Exits 1 with a list. CI runs it. |
+| `pnpm i18n:check` | Checks `src/i18n/` against `en.json`, the source: every language (it, de, ru, fr, es, pl, pt-BR, zh-CN, all translated by hand) must have exactly its keys in its order, with the plural forms of its own language; placeholders and tags must match; no text may be empty or contain an em dash. Exits 1 with a list. CI runs it. |
 | `pnpm notices` | Regenerates `public/licenses/rust.txt` (every Rust crate's licence, shown in About → Licenses and attached to releases) with cargo-about (`cargo install cargo-about --locked --features cli`). Run it when `Cargo.lock` changes. The JavaScript list is written by the build (`dist/licenses/javascript.txt`). |
-| `pnpm i18n:sync` | Fixes what doesn't need a translator: orders keys like `en.json`, removes stale keys, fills `de`/`ru`/`fr` with English. Missing Italian keys are only listed. `--dry-run` writes nothing. |
+| `pnpm i18n:sync` | Fixes what doesn't need a translator: orders keys like `en.json`, removes stale keys and plural forms a language doesn't use, fills a missing plural form from the same language's `_other` (listed for review). It never writes English into another language: missing keys are listed. `--dry-run` writes nothing. |
 
 Rust commands (from the repo root; or run them inside `src-tauri/` without `--manifest-path`):
 
@@ -80,7 +80,7 @@ src/                     React app
   queries/               TanStack Query hooks, one file per backend domain
   hooks/                 shortcuts, file drop, backend events, language, reduce motion
   lib/                   the Tauri bridge (tauri.ts: call, isTauri), event listening, formatting
-  i18n/                  en.json (source), it.json, de/ru/fr (English copies); keys namespaced per screen
+  i18n/                  en.json (source) and it, de, ru, fr, es, pl, pt-BR, zh-CN; keys namespaced per screen
   dev/                   mock backend for `pnpm dev:mock` (never shipped)
   data/vehicles.json     built-in vehicle seed (the game's own list replaces it when read)
   types.ts               shared types, mirrored by src-tauri/src/model.rs
@@ -102,7 +102,7 @@ scripts/                 i18n-check.mjs / i18n-sync.mjs,
 ## Conventions and testing
 
 - Tailwind classes built from the tokens only, no ad-hoc hex values; a missing value becomes a new token.
-- Every user-visible string goes through `t('key')`, with English in `src/i18n/en.json` and Italian in `it.json`.
+- Every user-visible string goes through `t('key')`, with English in `src/i18n/en.json` and every other language in its own file. A new key needs its text in all nine files (`pnpm i18n:check` lists what's missing). No em dashes in any text.
 - No spinners (skeletons instead); animation only under `motion-safe:`. Anything a user can regret goes through `toast.undoable()` backed by a backend backup.
 - Rust commands return `Result<T, AppError>` (serialized as `{ code, message, detail? }`); disk work runs off the UI thread; long operations emit events.
 - **Frontend tests** sit next to the code as `*.test.ts(x)` and run in jsdom. Test store logic and reducers; smoke-test components with the helpers in `src/test/` (`resetStores()` in `beforeEach`).
@@ -111,7 +111,7 @@ scripts/                 i18n-check.mjs / i18n-sync.mjs,
 
 ## Releases
 
-NSIS installer, per user, English and Italian, self-updating through signed GitHub releases; Authenticode signing is prepared but off. How to build, sign and publish: [release.md](release.md).
+NSIS installer, per user, in the app's nine languages, self-updating through signed GitHub releases; Authenticode signing is prepared but off. How to build, sign and publish: [release.md](release.md).
 
 ## License
 

@@ -15,6 +15,7 @@ import { filterSkins, groupSkins, hangarStats, hasFilters, orderedIds } from './
 import { HangarToolbar } from './Hangar/HangarToolbar';
 import { useHangarActions } from './Hangar/useHangarActions';
 import { ScreenFrame, ScreenHeader } from './ScreenHeader';
+import { useVehicleNames } from '@/queries/vehicles';
 
 const NO_SKINS: HangarSkin[] = [];
 
@@ -58,9 +59,10 @@ export function Hangar() {
 
   const skins = useMemo(() => withPending(query.data ?? NO_SKINS), [withPending, query.data]);
   const stats = useMemo(() => hangarStats(skins), [skins]);
-  const visible = useMemo(() => filterSkins(skins, q, filters), [skins, q, filters]);
+  const names = useVehicleNames();
+  const visible = useMemo(() => filterSkins(skins, q, filters, names), [skins, q, filters, names]);
   const unknownTitle = t('hangar.unknownVehicle');
-  const groups = useMemo(() => groupSkins(visible, unknownTitle), [visible, unknownTitle]);
+  const groups = useMemo(() => groupSkins(visible, unknownTitle, names), [visible, unknownTitle, names]);
   const visibleIds = useMemo(() => orderedIds(groups), [groups]);
   const selectedIds = useMemo(() => visibleIds.filter((id) => selection.has(id)), [visibleIds, selection]);
   const allVisibleSelected = visibleIds.length > 0 && selectedIds.length === visibleIds.length;

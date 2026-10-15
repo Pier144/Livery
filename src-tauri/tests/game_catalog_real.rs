@@ -3,7 +3,7 @@
 
 use livery_lib::game::catalog::read_catalog;
 use livery_lib::game::{detect, DetectInputs};
-use livery_lib::model::{Nation, VehicleType};
+use livery_lib::model::{Language, Nation, VehicleType};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -40,4 +40,14 @@ fn reads_the_real_vehicle_list() {
     assert_eq!((leopard.nation, leopard.vehicle_type), (Nation::Ger, VehicleType::Ground));
     assert_eq!(leopard.name, "Leopard 2A6");
     assert!(catalog.vehicles.iter().all(|v| !v.name.is_empty() && v.nation != Nation::Unknown));
+    // Names in the other UI languages: only those that differ from English.
+    for language in Language::ALL {
+        let names = catalog.names.get(&language);
+        let sample = ["germ_leopard_2a6", "ussr_t_34_85", "su_27"].map(|c| names.and_then(|n| n.get(c)).cloned());
+        println!("  {language:?}: {} local names, e.g. {sample:?}", names.map_or(0, |n| n.len()));
+    }
+    assert!(catalog.names[&Language::Ru].len() > 100);
+    assert!(catalog.names[&Language::ZhCn].len() > 1000);
+    let zero_width = char::from_u32(0x200b).unwrap();
+    assert!(catalog.names.values().flat_map(|n| n.values()).all(|n| !n.contains(zero_width) && !n.trim().is_empty()));
 }

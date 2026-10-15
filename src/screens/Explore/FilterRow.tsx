@@ -9,6 +9,7 @@ import { useExplore } from '@/store/explore';
 import type { SortOrder, VehicleType } from '@/types';
 import { classOptions, EXPLORE_CATEGORIES, EXPLORE_NATIONS, EXPLORE_SORTS, EXPLORE_TYPES } from './exploreModel';
 import { VehicleInput } from './VehicleInput';
+import { vehicleClassLabel } from '@/lib/vehicleClass';
 
 type TypeValue = VehicleType | 'all';
 
@@ -53,7 +54,7 @@ export const FilterRow = forwardRef<HTMLDivElement>(function FilterRow(_, ref) {
       <ChipDropdown
         label={t('explore.filters.class')}
         value={klass}
-        options={classOptions(vehicles, type, klass).map((c) => ({ value: c, label: c }))}
+        options={classOptions(vehicles, type, klass).map((c) => ({ value: c, label: vehicleClassLabel(t, c) }))}
         onChange={setClass}
         menuWidthClass="min-w-[180px]"
       />

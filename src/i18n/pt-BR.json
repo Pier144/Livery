@@ -1,0 +1,1101 @@
+{
+  "common": {
+    "appName": "Livery",
+    "brand": "LIVERY",
+    "unofficial": "Ferramenta não oficial, sem afiliação com a Gaijin Entertainment.",
+    "undo": "Desfazer",
+    "dismiss": "Fechar",
+    "retry": "Repetir",
+    "cancel": "Cancelar",
+    "showPath": "Mostrar caminho",
+    "hidePath": "Ocultar caminho",
+    "showInExplorer": "Mostrar no Explorador",
+    "explorerFailed": "Não foi possível abrir essa pasta no Explorador de Arquivos.",
+    "link": {
+      "copied": "O Livery não conseguiu abrir o navegador, então o link foi copiado para a área de transferência. Cole-o lá.",
+      "failed": "Não foi possível abrir o link: {{url}}",
+      "refused": "Esse link não leva ao WT Live, então o Livery não o abriu."
+    },
+    "comingIn": "Em breve ({{milestone}})",
+    "loading": "Carregando",
+    "any": "Qualquer",
+    "all": "Todos",
+    "clear": "Limpar",
+    "installed": {
+      "toast": "“{{name}}” instalada",
+      "toastPlain": "Instalada. Já está no seu hangar."
+    },
+    "titlebar": {
+      "offline": "OFFLINE · só biblioteca",
+      "search": "Buscar skins, veículos, autores",
+      "searchShortcut": "Ctrl K",
+      "minimize": "Minimizar",
+      "maximize": "Maximizar",
+      "restore": "Restaurar",
+      "close": "Fechar"
+    },
+    "nav": {
+      "label": "Seções",
+      "explore": "Explorar",
+      "hangar": "Meu hangar",
+      "collections": "Coleções",
+      "queue": "Para instalar",
+      "settings": "Configurações",
+      "queueBadge_one": "{{count}} arquivo aguardando",
+      "queueBadge_many": "{{count}} arquivos aguardando",
+      "queueBadge_other": "{{count}} arquivos aguardando",
+      "collapse": "Recolher barra lateral",
+      "expand": "Expandir barra lateral"
+    },
+    "status": {
+      "game": "War Thunder",
+      "source": {
+        "steam": "STEAM",
+        "standalone": "STANDALONE",
+        "custom": "MANUAL",
+        "none": "INDEFINIDO"
+      },
+      "hangar": "Hangar {{count, number}} · {{size}}"
+    },
+    "update": {
+      "title": "Livery {{version}} está disponível",
+      "body": "Você tem a {{current}}. A instalação fecha o Livery, atualiza e abre de novo.",
+      "whatsNew": "Novidades",
+      "later": "Depois"
+    },
+    "palette": {
+      "label": "Paleta de comandos",
+      "input": "Comando",
+      "placeholder": "Ir para um veículo, skin ou ação…",
+      "esc": "Esc",
+      "results": "Resultados",
+      "kind": {
+        "skin": "Skin",
+        "vehicle": "Veículo",
+        "action": "Ação"
+      },
+      "actions": {
+        "explore": "Ir para Explorar",
+        "hangar": "Ir para Meu hangar",
+        "collections": "Ir para Coleções",
+        "queue": "Abrir a fila de instalação",
+        "settings": "Abrir as configurações"
+      },
+      "empty": "Nenhum resultado",
+      "hintNavigate": "↑↓ navegar",
+      "hintOpen": "↵ abrir",
+      "hintClose": "Ctrl K fechar"
+    },
+    "drop": {
+      "title": "Solte para adicionar à fila de instalação",
+      "formats": "ZIP · RAR · 7Z · PASTA",
+      "analyzing": "Analisando o arquivo…",
+      "queued_one": "{{count}} arquivo adicionado à fila de instalação",
+      "queued_many": "{{count}} arquivos adicionados à fila de instalação",
+      "queued_other": "{{count}} arquivos adicionados à fila de instalação"
+    },
+    "toasts": {
+      "region": "Notificações"
+    },
+    "errors": {
+      "io": "Algo deu errado ao ler ou gravar arquivos. Verifique se a pasta ainda existe e não está aberta em outro programa, depois tente de novo.",
+      "notFound": "Algo de que o Livery precisa não está mais lá. Pode ter sido movido ou excluído fora do Livery.",
+      "parse": "Não foi possível ler um arquivo: o conteúdo não é o que o Livery espera.",
+      "invalidInput": "O Livery não pôde aceitar essa solicitação. Nada foi alterado.",
+      "conflict": "Já existe algo com o mesmo nome.",
+      "unsupported": "Isso ainda não está disponível nesta versão do Livery.",
+      "network": "Não foi possível acessar o WT Live. Verifique sua conexão e tente de novo.",
+      "noBackend": "Isso requer o app desktop do Livery.",
+      "internal": "Algo deu errado dentro do Livery. Tente de novo e, se continuar acontecendo, reinicie o app.",
+      "templates": {
+        "unreadableAtLaunch": "O Livery não conseguiu ler {{file}} ao iniciar, então não vai sobrescrevê-lo. Feche outros programas que o estejam usando e reinicie o Livery."
+      },
+      "backend": {
+        "noGameFolder": "Nenhuma pasta do jogo definida",
+        "gameFolderGone": "A pasta do jogo não foi encontrada",
+        "notAGameFolder": "Essa pasta não parece uma instalação do War Thunder",
+        "createUserSkinsFailed": "Não foi possível criar a pasta UserSkins",
+        "steamLibraryUnreadable": "Não foi possível ler um arquivo da biblioteca Steam",
+        "userSkinsGone": "A pasta UserSkins não foi encontrada",
+        "userSkinsUnreadable": "Não foi possível ler a pasta UserSkins",
+        "notInLibrary": "Esta skin não está na biblioteca",
+        "skinFolderGone": "A pasta da skin não foi encontrada",
+        "skinFolderUnreadable": "Não foi possível ler a pasta da skin",
+        "blkUnreadable": "Não foi possível ler um arquivo .blk",
+        "badFolderName": "Não é um nome de pasta de skin válido",
+        "nameTaken": "Outra pasta de skin já tem este nome",
+        "someFoldersNotMoved": "Não foi possível mover algumas pastas de skins",
+        "someFoldersMissing": "Algumas pastas de skins estão faltando",
+        "deleteFailed": "Não foi possível excluir a skin",
+        "someSkinsNotRestored": "Não foi possível restaurar algumas skins",
+        "someBackupsGone": "Alguns backups não estão mais disponíveis",
+        "someBackupsNotRemoved": "Não foi possível remover alguns backups",
+        "exportFolderGone": "A pasta de exportação não foi encontrada",
+        "exportFailed": "Não foi possível exportar a skin",
+        "collectionNotFound": "Coleção não encontrada",
+        "collectionNeedsName": "Uma coleção precisa de um nome",
+        "collectionExists": "Esta coleção já existe",
+        "archiveUnsafePath": "Este arquivo compactado contém um caminho que não é seguro extrair",
+        "archiveLink": "Este arquivo compactado contém um link em vez de um arquivo",
+        "archiveEncrypted": "Este arquivo compactado é protegido por senha, então o Livery não pode extraí-lo",
+        "archiveSplit": "Esta é uma parte de um arquivo compactado dividido. O Livery só extrai arquivos compactados de um único arquivo",
+        "archiveMethod": "Este arquivo compactado usa um método de compressão que o Livery não consegue extrair",
+        "archiveDamaged": "Este arquivo compactado está danificado e não pode ser extraído",
+        "notAnArchive": "Este arquivo não é um arquivo ZIP, RAR ou 7z",
+        "archiveTooBig": "Este arquivo compactado gera dados demais ao ser extraído para ser uma skin",
+        "archiveTooManyFiles": "Este arquivo compactado contém arquivos demais para ser uma skin",
+        "notASource": "Não é uma pasta de skin nem um arquivo compactado",
+        "sourceGone": "O arquivo ou a pasta não foi encontrado",
+        "openFailed": "Não foi possível abrir o arquivo ou a pasta",
+        "tooManyFiles": "Esta pasta contém arquivos demais para ser uma skin",
+        "pathOutsideSkin": "O caminho não está dentro da pasta da skin",
+        "noBlk": "Não há arquivo .blk dentro, então o jogo não pode usá-la",
+        "notInQueue": "Este item não está mais na fila",
+        "waitForInstall": "Aguarde o fim da instalação",
+        "itemInstalling": "Este item já está sendo instalado",
+        "itemInstalled": "Este item já está instalado",
+        "pickVehicle": "Escolha um veículo primeiro",
+        "vehicleNotInFolder": "Esse veículo não está nesta pasta",
+        "alreadyInstalled": "Esta skin já está instalada",
+        "fileInTheWay": "Já existe um arquivo com este nome",
+        "startFailed": "Não foi possível iniciar a instalação",
+        "prepareFailed": "Não foi possível preparar a instalação",
+        "copyFailed": "Não foi possível copiar os arquivos da skin",
+        "copyUnreadable": "Não foi possível ler a skin copiada",
+        "copyIncomplete": "A cópia está incompleta",
+        "backUpFailed": "Não foi possível fazer backup da versão instalada",
+        "installFailed": "Não foi possível instalar a skin",
+        "backupGone": "Este backup não está mais disponível",
+        "backupMismatch": "Este backup não é uma versão anterior dessa skin",
+        "undoReplaceFailed": "Não foi possível restaurar a versão anterior",
+        "watchFolderGone": "A pasta monitorada não foi encontrada",
+        "watchInsideUserSkins": "A pasta monitorada não pode ficar dentro de UserSkins",
+        "noDownloadsFolder": "A pasta Downloads não foi encontrada. Escolha uma pasta para monitorar.",
+        "watchStartFailed": "Não foi possível começar a monitorar as pastas",
+        "wtliveUnsupported": "Não é possível acessar o WT Live a partir desta versão.",
+        "wtliveOff": "A navegação no WT Live está desativada nas Configurações",
+        "followingNotSaved": "Não foi possível salvar a lista Seguindo",
+        "wtliveUnreadable": "O WT Live respondeu de um jeito que o Livery não consegue ler",
+        "wtliveErrorAnswer": "O WT Live respondeu com um erro",
+        "hiddenNotSaved": "Não foi possível salvar as skins ocultas",
+        "wtlivePostGone": "Esta skin não está mais no WT Live",
+        "archiveNotSaved": "Não foi possível salvar o arquivo da skin",
+        "httpClientFailed": "Não foi possível iniciar o cliente HTTP",
+        "wtlivePaused": "O WT Live não está respondendo; o Livery vai tentar de novo em alguns minutos",
+        "wtliveUnreachable": "Não foi possível acessar o WT Live",
+        "wtliveRobots": "O robots.txt do WT Live pede que ferramentas como o Livery não leiam esta página",
+        "archiveTooLarge": "O arquivo da skin é maior do que o esperado",
+        "notADownloadLink": "Não é um link de download do WT Live",
+        "postNotAnArchive": "O arquivo deste post não é um arquivo ZIP, 7z ou RAR",
+        "skinInstalling": "Esta skin já está sendo instalada",
+        "notTried": "Esta skin não está em teste no jogo",
+        "installedFolderGone": "A pasta da versão instalada não existe mais",
+        "updateCheckFailed": "O Livery não conseguiu verificar atualizações",
+        "updateDownloadFailed": "Não foi possível baixar a atualização",
+        "updateBadSignature": "A atualização não está assinada pelo Livery, então não foi instalada",
+        "updateInstallFailed": "Não foi possível instalar a atualização",
+        "updateUpToDate": "O Livery já está atualizado",
+        "updateBusy": "A atualização já está sendo baixada",
+        "skinNeedsName": "Uma skin precisa de um nome",
+        "renameFailed": "Não foi possível renomear a pasta da skin"
+      }
+    },
+    "vehicleClass": {
+      "fighter": "Caça",
+      "strike_aircraft": "Avião de ataque",
+      "bomber": "Bombardeiro",
+      "attack_helicopter": "Helicóptero de ataque",
+      "utility_helicopter": "Helicóptero utilitário",
+      "helicopter": "Helicóptero",
+      "light_tank": "Tanque leve",
+      "medium_tank": "Tanque médio",
+      "tank": "Tanque",
+      "heavy_tank": "Tanque pesado",
+      "tank_destroyer": "Caça-tanques",
+      "spaa": "AAAP",
+      "mbt": "MBT",
+      "frigate": "Fragata",
+      "destroyer": "Contratorpedeiro",
+      "battleship": "Encouraçado",
+      "battlecruiser": "Cruzador de batalha",
+      "heavy_cruiser": "Cruzador pesado",
+      "light_cruiser": "Cruzador leve",
+      "cruiser": "Cruzador",
+      "torpedo_boat": "Torpedeiro",
+      "gunboat": "Canhoneiro",
+      "torpedo_gunboat": "Torpedeiro canhoneiro",
+      "submarine_chaser": "Caça-submarino",
+      "naval_ferry_barge": "Barcaça armada"
+    }
+  },
+  "firstRun": {
+    "label": "Primeira execução",
+    "steps": {
+      "label": "Etapas de configuração",
+      "detect": "01 DETECTAR",
+      "confirm": "02 CONFIRMAR",
+      "import": "03 IMPORTAR"
+    },
+    "detect": {
+      "title": "Procurando o War Thunder",
+      "body": "Verificando os locais de sempre. Leva só um segundo.",
+      "progress": "Progresso da detecção",
+      "sources": {
+        "steam": "Biblioteca Steam",
+        "standalone": "Launcher standalone",
+        "custom": "Local personalizado"
+      },
+      "state": {
+        "queued": "na fila",
+        "checking": "verificando…",
+        "found": "encontrado",
+        "notFound": "não encontrado",
+        "notInstalled": "não instalado",
+        "skipped": "ignorado"
+      },
+      "doneFound": "Detecção concluída. War Thunder encontrado: {{source}}.",
+      "doneNotFound": "Detecção concluída. O War Thunder não foi encontrado nos locais de sempre."
+    },
+    "found": {
+      "title": "War Thunder encontrado",
+      "body": "O Livery vai instalar as skins nesta cópia do jogo.",
+      "game": "War Thunder",
+      "meta_one": "Versão {{version}} · {{count}} skin já em UserSkins",
+      "meta_many": "Versão {{version}} · {{count}} skins já em UserSkins",
+      "meta_other": "Versão {{version}} · {{count}} skins já em UserSkins",
+      "metaNoVersion_one": "{{count}} skin já em UserSkins",
+      "metaNoVersion_many": "{{count}} skins já em UserSkins",
+      "metaNoVersion_other": "{{count}} skins já em UserSkins",
+      "use": "Usar esta instalação",
+      "other": "Escolher outra pasta"
+    },
+    "notFound": {
+      "title": "War Thunder não encontrado",
+      "body": "Escolha a pasta onde o jogo está instalado. O Livery procura a pasta UserSkins dentro dela.",
+      "choose": "Escolher pasta do jogo",
+      "drop": "ou solte aqui",
+      "pickerTitle": "Escolha a pasta do War Thunder",
+      "invalid": "Essa pasta não parece ser do War Thunder. Escolha a pasta que contém launcher.exe ou UserSkins.",
+      "dropOverlay": "Solte a pasta do War Thunder",
+      "dropFormats": "PASTA",
+      "skip": "Pular por enquanto",
+      "back": "Voltar",
+      "backToSettings": "Voltar para Configurações"
+    },
+    "import": {
+      "title": "Skins já no disco",
+      "body": "O Livery encontrou skins na sua pasta UserSkins. Adicione-as ao Meu hangar para gerenciá-las aqui.",
+      "stats": {
+        "skins": "skins",
+        "vehicles": "veículos",
+        "attention": "requerem atenção"
+      },
+      "tag": {
+        "ok": "ok",
+        "mine": "criada por você",
+        "attention": "requer atenção"
+      },
+      "more": "+ {{count}} a mais",
+      "import": "Importar e continuar",
+      "skip": "Pular importação",
+      "scanFailed": "Não foi possível ler a pasta UserSkins."
+    },
+    "toast": {
+      "imported_one": "{{count}} skin adicionada ao Meu hangar",
+      "imported_many": "{{count}} skins adicionadas ao Meu hangar",
+      "imported_other": "{{count}} skins adicionadas ao Meu hangar",
+      "gameSet": "Pasta do jogo definida",
+      "later": "Você pode definir a pasta do jogo depois, nas Configurações"
+    },
+    "anim": {
+      "hull": "CASCO 200 × 120 × 110",
+      "sheet": "FOLHA 00 · DETECTANDO INSTALAÇÃO",
+      "unofficial": "FERRAMENTA NÃO OFICIAL"
+    }
+  },
+  "detail": {
+    "label": "Detalhes da skin",
+    "backTo": {
+      "explore": "Voltar para Explorar",
+      "hangar": "Voltar para Meu hangar",
+      "collections": "Voltar para Coleções",
+      "queue": "Voltar para a fila de instalação",
+      "settings": "Voltar para Configurações"
+    },
+    "loading": "Carregando a skin",
+    "tabs": {
+      "label": "Detalhes da skin",
+      "gallery": "Galeria",
+      "post": "Post",
+      "textures": "Texturas",
+      "try": "Testar no jogo"
+    },
+    "post": {
+      "fromAuthor": "Por {{name}}",
+      "noText": "O autor não escreveu mais nada sobre esta skin.",
+      "tags": "Hashtags",
+      "tagHint": "Buscar #{{tag}} em Explorar",
+      "pictures_one": "{{count, number}} imagem no post",
+      "pictures_many": "{{count, number}} imagens no post",
+      "pictures_other": "{{count, number}} imagens no post",
+      "openPicture": "Abrir a imagem {{n}} do post na galeria",
+      "linkHint": "Abre no WT Live. Links para outros sites passam antes pela página de aviso do WT Live.",
+      "source": "Texto e imagens do post original no WT Live, como o autor os escreveu.",
+      "emptyTitle": "Nada mais neste post",
+      "emptyBody": "O autor não adicionou texto, hashtags nem outras imagens."
+    },
+    "noSkin": {
+      "title": "Nenhuma skin selecionada",
+      "body": "Escolha uma skin em Explorar para ver a galeria, as texturas e os arquivos dela."
+    },
+    "offline": {
+      "title": "Não foi possível acessar o WT Live",
+      "body": "Sua biblioteca funciona normalmente. Navegar e instalar pelo WT Live volta a funcionar quando você estiver online de novo.",
+      "hangar": "Abrir Meu hangar"
+    },
+    "off": {
+      "title": "O WT Live está desativado",
+      "body": "O Livery não envia nenhuma requisição ao WT Live enquanto a navegação estiver desativada. Sua biblioteca funciona normalmente.",
+      "settings": "Abrir Configurações"
+    },
+    "error": {
+      "title": "Não foi possível carregar esta skin"
+    },
+    "gallery": {
+      "views": "Vistas",
+      "view": {
+        "front": "Frente",
+        "side": "Lateral",
+        "rear": "Traseira",
+        "detail": "Detalhe"
+      },
+      "image": "Imagem {{n}}",
+      "imageAlt": "{{name}}, {{view}}",
+      "placeholder": "screenshot · {{vehicle}} · vista {{view}}",
+      "counter": "{{n}} / {{total}}",
+      "zoomIn": "Ampliar",
+      "zoomOut": "Reduzir",
+      "compare": "Comparar",
+      "compareHint": "Comparar com outra skin do mesmo veículo",
+      "compareA": "A · {{name}}",
+      "compareB": "B · {{name}} · por {{author}}",
+      "compareWith": "COMPARAR COM · mesmo veículo",
+      "comparePlaceholder": "screenshot · {{name}}",
+      "exitCompare": "Sair da comparação"
+    },
+    "textures": {
+      "loading": "Lendo as texturas",
+      "loadFailedTitle": "Não foi possível ler as texturas",
+      "title": "Texturas no arquivo",
+      "meta_one": "{{count}} arquivo · {{size}}",
+      "meta_many": "{{count}} arquivos · {{size}}",
+      "meta_other": "{{count}} arquivos · {{size}}",
+      "attention_one": "{{count}} arquivo requer atenção. A skin é instalada mesmo assim; o jogo pode ignorar a parte afetada.",
+      "attention_many": "{{count}} arquivos requerem atenção. A skin é instalada mesmo assim; o jogo pode ignorar a parte afetada.",
+      "attention_other": "{{count}} arquivos requerem atenção. A skin é instalada mesmo assim; o jogo pode ignorar a parte afetada.",
+      "empty": "Não há texturas neste arquivo.",
+      "col": {
+        "file": "Arquivo",
+        "resolution": "Resolução",
+        "format": "Formato",
+        "size": "Tamanho"
+      },
+      "missing": "ausente",
+      "warning": {
+        "heavy": "Textura muito pesada ({{size}}²). O carregamento pode ficar lento.",
+        "notSquarePow2": "Não é um quadrado com lado em potência de dois ({{resolution}}). O jogo pode não carregá-la.",
+        "unreadable": "Não foi possível ler o cabeçalho. O arquivo pode estar danificado.",
+        "missing": "Citada no skin.blk, mas ausente do arquivo."
+      }
+    },
+    "try": {
+      "idleTitle": "Teste antes de ficar com ela",
+      "idleBody": "O Livery instala a skin temporariamente. Veja-a no jogo e depois decida. Nada entra no seu hangar até você clicar em Manter.",
+      "steps": "Como funciona",
+      "step1": "O Livery copia os arquivos para UserSkins",
+      "step2": "No War Thunder, abra a Personalização do veículo e clique no botão <b>atualizar</b>",
+      "step3": "Volte aqui e escolha Manter ou Descartar",
+      "start": "Testar no jogo · {{size}}",
+      "busy": "Esta skin está sendo instalada agora.",
+      "offline": "Não foi possível acessar o WT Live. Tente de novo quando estiver online.",
+      "failed": "Não foi possível instalá-la para teste: {{message}}",
+      "installingTitle": "Instalando temporariamente…",
+      "installingBody": "Baixando e extraindo {{size}}.",
+      "installingLabel": "Instalando temporariamente",
+      "activeTitle": "A skin está no jogo",
+      "activeBody": "Abra <b>{{vehicle}}</b> → Personalização → clique em <b>atualizar</b> e selecione “{{name}}”.",
+      "temporary": "Temporária · será removida ao descartar",
+      "keep": "Manter",
+      "discard": "Descartar",
+      "kept": "“{{name}}” mantida. Ela está no seu hangar.",
+      "discarded": "“{{name}}” descartada. Arquivos do jogo restaurados.",
+      "finalizeFailed": "Não foi possível concluir o teste: {{message}}",
+      "keptTitle": "Está no seu hangar",
+      "keptBody": "“{{name}}” está instalada. Abra <b>{{vehicle}}</b> → Personalização para vê-la no jogo."
+    },
+    "side": {
+      "label": "Sobre esta skin"
+    },
+    "author": {
+      "label": "Autor",
+      "onWtLive": "no WT Live",
+      "openPost": "Abrir post original",
+      "openPostHint": "Abre o post no WT Live no seu navegador",
+      "openAuthor": "Abrir a página de {{name}} no WT Live"
+    },
+    "hide": {
+      "action": "Ocultar do Explorar",
+      "hint": "Mantém esta skin fora de Explorar e Seguindo. Se estiver instalada, ela continua no seu hangar.",
+      "hidden": "“{{name}}” ocultada",
+      "failed": "Não foi possível atualizar as skins ocultas: {{message}}"
+    },
+    "vehicle": {
+      "label": "Veículo",
+      "open": "Mostrar as skins deste veículo em Explorar",
+      "meta": "{{code}} · {{nation}} · {{class}}",
+      "inPack_one": "Instalado deste post: {{count, number}} veículo",
+      "inPack_many": "Instalados deste post: {{count, number}} veículos",
+      "inPack_other": "Instalados deste post: {{count, number}} veículos"
+    },
+    "follow": {
+      "follow": "Seguir",
+      "following": "Seguindo",
+      "followName": "Seguir {{name}}",
+      "followingName": "Seguindo {{name}}",
+      "followed": "Agora você segue “{{name}}”",
+      "unfollowed": "Você deixou de seguir “{{name}}”",
+      "failed": "Não foi possível atualizar Seguindo: {{message}}"
+    },
+    "stats": {
+      "downloads": "Downloads",
+      "likes": "Curtidas",
+      "category": "Categoria",
+      "posted": "Publicada"
+    },
+    "category": {
+      "Historical": "Histórica",
+      "Semi-historical": "Semi-histórica",
+      "Fictional": "Fictícia",
+      "Camouflage": "Camuflagem",
+      "Other": "Outra"
+    },
+    "files": {
+      "label": "Arquivos incluídos",
+      "meta": "{{count}} · {{size}}",
+      "none": "O post não lista seus arquivos."
+    },
+    "install": {
+      "install": "Instalar",
+      "progressLabel": "Instalando “{{name}}”",
+      "step": {
+        "download": "Download",
+        "extract": "Extrair",
+        "verify": "Verificar",
+        "done": "Concluído"
+      },
+      "running": {
+        "download": "Baixando",
+        "extract": "Extraindo",
+        "verify": "Verificando"
+      },
+      "stepNow": "{{step}} {{pct}}%",
+      "installed": "Instalada",
+      "inHangar": "no hangar",
+      "trying": "Em teste no jogo",
+      "tryingAction": "Manter ou descartar",
+      "failed": "Falha na instalação",
+      "asCopy": "Instalar como cópia",
+      "offline": "Não foi possível acessar o WT Live. Tente de novo quando estiver online."
+    },
+    "collections": {
+      "add": "Adicionar à coleção",
+      "installFirst": "Instale primeiro",
+      "none": "Nenhuma coleção ainda",
+      "member": "já está nela",
+      "added": "Adicionada a “{{name}}”",
+      "already": "Já está em “{{name}}”",
+      "failed": "Não foi possível adicioná-la: {{message}}"
+    }
+  },
+  "explore": {
+    "title": "Explorar",
+    "following": "Seguindo",
+    "tabs": "Visualizações de Explorar",
+    "newCount_one": "{{count, number}} nova",
+    "newCount_many": "{{count, number}} novas",
+    "newCount_other": "{{count, number}} novas",
+    "results_one": "{{count, number}} resultado",
+    "results_many": "{{count, number}} resultados",
+    "results_other": "{{count, number}} resultados",
+    "resultsAtLeast_one": "{{count, number}}+ resultados",
+    "resultsAtLeast_many": "{{count, number}}+ resultados",
+    "resultsAtLeast_other": "{{count, number}}+ resultados",
+    "filters": {
+      "label": "Filtros",
+      "nation": "Nação",
+      "class": "Classe",
+      "category": "Categoria",
+      "type": "Tipo de veículo",
+      "allTypes": "Todos os tipos",
+      "vehicle": "Veículo",
+      "vehiclePlaceholder": "Veículo…",
+      "vehicleSuggestions": "Veículos correspondentes",
+      "sort": "Ordenar",
+      "active_one": "{{count}} filtro",
+      "active_many": "{{count}} filtros combinados",
+      "active_other": "{{count}} filtros combinados",
+      "remove": "Remover filtro: {{label}}",
+      "clearAll": "Limpar tudo",
+      "query": "“{{q}}”"
+    },
+    "category": {
+      "Historical": "Histórica",
+      "Semi-historical": "Semi-histórica",
+      "Fictional": "Fictícia",
+      "Camouflage": "Camuflagem",
+      "Other": "Outra"
+    },
+    "sort": {
+      "downloads": "Mais baixadas",
+      "likes": "Mais curtidas",
+      "newest": "Mais recentes",
+      "name": "Nome A–Z"
+    },
+    "grid": {
+      "label": "Skins do WT Live",
+      "moreFailed": "Não foi possível carregar mais skins."
+    },
+    "card": {
+      "new": "Nova",
+      "by": "por <author>{{author}}</author>",
+      "stats": "{{downloads}} dl · {{likes}} curtidas",
+      "statsFull": "{{downloads, number}} downloads, {{likes, number}} curtidas",
+      "install": "Instalar",
+      "installed": "Instalada",
+      "inHangar": "no hangar",
+      "trying": "Em teste no jogo",
+      "tryingHint": "Mantenha ou descarte na página da skin",
+      "failed": "Falha na instalação",
+      "retry": "Repetir",
+      "installCopy": "Instalar como cópia",
+      "progress": "Instalando",
+      "steps": {
+        "download": "Download",
+        "extract": "Extrair",
+        "verify": "Verificar",
+        "done": "Concluído"
+      },
+      "stepsNow": {
+        "download": "Baixando",
+        "extract": "Extraindo",
+        "verify": "Verificando",
+        "done": "Concluído"
+      },
+      "stepPct": "{{step}} {{pct}}%",
+      "errors": {
+        "network": "Não foi possível acessar o WT Live. Verifique sua conexão e tente de novo.",
+        "unavailable": "Instalar pelo WT Live ainda não está disponível nesta versão.",
+        "conflict": "Ela já está no seu hangar.",
+        "notFound": "Esta skin não está mais no WT Live."
+      }
+    },
+    "empty": {
+      "title": "Nenhuma skin encontrada",
+      "body": "Tente usar menos filtros ou busque pelo código do veículo.",
+      "clear": "Limpar todos os filtros"
+    },
+    "offline": {
+      "title": "Não foi possível acessar o WT Live",
+      "body": "Sua biblioteca funciona normalmente. Navegar e instalar pelo WT Live volta a funcionar quando você estiver online de novo.",
+      "hangar": "Abrir Meu hangar",
+      "stillOffline": "Ainda offline. Sua biblioteca está totalmente disponível."
+    },
+    "off": {
+      "title": "O WT Live está desativado",
+      "body": "O Livery não envia nenhuma requisição ao WT Live enquanto a navegação estiver desativada. Sua biblioteca funciona normalmente.",
+      "settings": "Abrir Configurações"
+    },
+    "error": {
+      "title": "O WT Live não respondeu como esperado",
+      "body": "Sua biblioteca funciona normalmente. Tente de novo daqui a pouco."
+    },
+    "follow": {
+      "label": "Seguindo · {{count, number}}",
+      "listLabel": "Veículos e autores seguidos",
+      "vehicle": "Veículo · {{code}}",
+      "author": "Autor",
+      "authorCount_one": "Autor · {{count, number}} skin no WT Live",
+      "authorCount_many": "Autor · {{count, number}} skins no WT Live",
+      "authorCount_other": "Autor · {{count, number}} skins no WT Live",
+      "unfollow": "Deixar de seguir {{name}}",
+      "unfollowed": "Você deixou de seguir “{{name}}”",
+      "unfollowFailed": "Não foi possível deixar de seguir “{{name}}”",
+      "refollowFailed": "Não foi possível seguir “{{name}}” de novo",
+      "newTitle": "Novidades de pessoas e veículos que você segue",
+      "newMeta": "{{vehicle}} · por <author>{{author}}</author> · {{date}}",
+      "nothingNew": "Nada de novo desde a sua última visita.",
+      "offline": "As skins novas aparecem aqui quando o WT Live estiver acessível.",
+      "emptyTitle": "Você ainda não segue ninguém",
+      "emptyBody": "Abra uma skin e clique em Seguir ao lado do autor. As skins novas das pessoas e dos veículos que você segue aparecem aqui.",
+      "browse": "Ver skins"
+    }
+  },
+  "hangar": {
+    "title": "Meu hangar",
+    "emptyTitle": "Nada aqui ainda",
+    "emptyBody": "Instale uma skin pelo Explorar ou solte um ZIP em qualquer lugar desta janela.",
+    "emptyAction": "Navegar no WT Live",
+    "attention": {
+      "missingTexture": "{{file}} está faltando",
+      "unknownBlkBlock": "{{file}} tem um bloco desconhecido",
+      "partialExtract": "o arquivo foi extraído só em parte",
+      "noBlk": "não há arquivo .blk, então o jogo não pode usá-la",
+      "unreadableBlk": "não foi possível ler {{file}}"
+    },
+    "unknownVehicle": "Veículo desconhecido",
+    "stats": {
+      "skins_one": "{{count, number}} skin",
+      "skins_many": "{{count, number}} skins",
+      "skins_other": "{{count, number}} skins",
+      "active_one": "{{count, number}} ativa",
+      "active_many": "{{count, number}} ativas",
+      "active_other": "{{count, number}} ativas",
+      "size": "{{size}} no disco",
+      "attention_one": "{{count, number}} requer atenção",
+      "attention_many": "{{count, number}} requerem atenção",
+      "attention_other": "{{count, number}} requerem atenção"
+    },
+    "search": "Buscar nas suas skins…",
+    "searchLabel": "Buscar em Meu hangar",
+    "filters": {
+      "nation": "Nação",
+      "type": "Tipo",
+      "origin": "Origem",
+      "anyNation": "Todas as nações",
+      "anyType": "Todos os tipos",
+      "anyOrigin": "Todas as origens"
+    },
+    "nation": {
+      "USA": "EUA",
+      "GER": "Alemanha",
+      "USSR": "URSS",
+      "GBR": "Grã-Bretanha",
+      "JPN": "Japão",
+      "CHN": "China",
+      "ITA": "Itália",
+      "FRA": "França",
+      "SWE": "Suécia",
+      "ISR": "Israel",
+      "UNK": "Desconhecida"
+    },
+    "type": {
+      "ground": "Terrestres",
+      "air": "Aeronaves",
+      "heli": "Helicópteros",
+      "naval": "Navios"
+    },
+    "origin": {
+      "wtlive": "WT Live",
+      "imported": "Importada",
+      "mine": "Minha"
+    },
+    "selectAll": "Selecionar tudo",
+    "clearSelection": "Limpar seleção",
+    "view": {
+      "label": "Visualização",
+      "grid": "Visualização em grade",
+      "list": "Visualização em lista"
+    },
+    "skins": "Suas skins",
+    "groupCount_one": "{{count, number}} skin",
+    "groupCount_many": "{{count, number}} skins",
+    "groupCount_other": "{{count, number}} skins",
+    "card": {
+      "select": "Selecionar {{name}}",
+      "needsAttention": "REQUER ATENÇÃO",
+      "active": "Ativa",
+      "inactive": "Inativa",
+      "activeToggle": "Ativa no jogo",
+      "recheck": "Reverificar",
+      "uninstall": "Desinstalar",
+      "rename": "Renomear",
+      "renameLabel": "Novo nome para {{name}}",
+      "attentionMore": "{{message}} +{{count}}",
+      "authorYou": "você",
+      "noAuthor": "–",
+      "hintOpen": "Pressione Enter para abrir a página da skin e Espaço para selecioná-la.",
+      "hintSelect": "Pressione Enter ou Espaço para selecioná-la. Skins locais não têm página."
+    },
+    "rename": {
+      "empty": "Uma skin precisa de um nome.",
+      "invalid": "O nome de uma skin não pode conter < > : \" / \\ | ? * nem começar ou terminar com ponto."
+    },
+    "noResultsTitle": "Nenhuma skin encontrada",
+    "noResultsBody": "Tente usar menos filtros ou busque pelo código do veículo.",
+    "clearFilters": "Limpar filtros",
+    "loadErrorTitle": "Não foi possível ler o Meu hangar",
+    "confirm": {
+      "uninstallTitle": "Desinstalar “{{name}}”?",
+      "uninstallBody": "O War Thunder não vai mais mostrá-la. O Livery guarda um backup, então você pode desfazer pela notificação.",
+      "deleteTitle_one": "Excluir {{count, number}} skin?",
+      "deleteTitle_many": "Excluir {{count, number}} skins?",
+      "deleteTitle_other": "Excluir {{count, number}} skins?",
+      "deleteBody_one": "A pasta dela é removida do jogo. O Livery guarda um backup, então você pode desfazer pela notificação.",
+      "deleteBody_many": "As pastas delas são removidas do jogo. O Livery guarda um backup, então você pode desfazer pela notificação.",
+      "deleteBody_other": "As pastas delas são removidas do jogo. O Livery guarda um backup, então você pode desfazer pela notificação.",
+      "delete_one": "Excluir skin",
+      "delete_many": "Excluir {{count, number}} skins",
+      "delete_other": "Excluir {{count, number}} skins"
+    },
+    "bulk": {
+      "label": "Skins selecionadas",
+      "selected_one": "{{count, number}} skin selecionada",
+      "selected_many": "{{count, number}} skins selecionadas",
+      "selected_other": "{{count, number}} skins selecionadas",
+      "f6Hint": "Pressione F6 para chegar às ações da seleção.",
+      "activate": "Ativar",
+      "deactivate": "Desativar",
+      "move": "Mover para coleção",
+      "noCollections": "Nenhuma coleção ainda",
+      "export": "Exportar",
+      "exportTitle": "Escolha onde exportar as skins",
+      "delete": "Excluir"
+    },
+    "toast": {
+      "activated_one": "{{count, number}} skin ativada",
+      "activated_many": "{{count, number}} skins ativadas",
+      "activated_other": "{{count, number}} skins ativadas",
+      "deactivated_one": "{{count, number}} skin desativada",
+      "deactivated_many": "{{count, number}} skins desativadas",
+      "deactivated_other": "{{count, number}} skins desativadas",
+      "deleted_one": "{{count, number}} skin excluída",
+      "deleted_many": "{{count, number}} skins excluídas",
+      "deleted_other": "{{count, number}} skins excluídas",
+      "restored_one": "{{count, number}} skin restaurada",
+      "restored_many": "{{count, number}} skins restauradas",
+      "restored_other": "{{count, number}} skins restauradas",
+      "uninstalled": "“{{name}}” desinstalada",
+      "reinstalled": "“{{name}}” voltou ao jogo",
+      "renamed": "Renomeada para “{{name}}”. O War Thunder mostra este nome.",
+      "moved_one": "{{count, number}} skin movida para “{{collection}}”",
+      "moved_many": "{{count, number}} skins movidas para “{{collection}}”",
+      "moved_other": "{{count, number}} skins movidas para “{{collection}}”",
+      "exported_one": "{{count, number}} skin exportada para “{{folder}}”",
+      "exported_many": "{{count, number}} skins exportadas para “{{folder}}”",
+      "exported_other": "{{count, number}} skins exportadas para “{{folder}}”",
+      "recheckOk": "“{{name}}” agora está ok",
+      "recheckStill": "“{{name}}” ainda requer atenção",
+      "recheckGone": "“{{name}}” não está mais em UserSkins"
+    }
+  },
+  "collections": {
+    "title": "Coleções",
+    "new": "Nova",
+    "newCollection": "Nova coleção",
+    "newName": "Nova coleção",
+    "helper": "Ative uma coleção para usar no jogo só as skins dela. As outras continuam instaladas, apenas inativas.",
+    "activeBadge": "Ativa",
+    "inUse": "Em uso",
+    "count_one": "{{count}} skin",
+    "count_many": "{{count}} skins",
+    "count_other": "{{count}} skins",
+    "meta_one": "{{count}} skin · {{size}}",
+    "meta_many": "{{count}} skins · {{size}}",
+    "meta_other": "{{count}} skins · {{size}}",
+    "nameLabel": "Nome da coleção",
+    "descriptionLabel": "Descrição da coleção",
+    "addDescription": "Adicionar uma descrição",
+    "activeInGame": "Ativa no jogo",
+    "activate": "Ativar",
+    "delete": "Excluir coleção",
+    "members": "Skins em “{{name}}”",
+    "remove": "Remover",
+    "removeLabel": "Remover “{{name}}” desta coleção",
+    "addFromHangar": "Adicione skins do Meu hangar\n(selecione → Mover para coleção)",
+    "emptyTitle": "Nenhuma coleção ainda",
+    "loadFailed": "Não foi possível carregar suas coleções",
+    "toast": {
+      "activated_one": "“{{name}}” ativada · {{count}} skin",
+      "activated_many": "“{{name}}” ativada · {{count}} skins",
+      "activated_other": "“{{name}}” ativada · {{count}} skins",
+      "deleted": "“{{name}}” excluída",
+      "removed": "Removida de “{{name}}”"
+    }
+  },
+  "queue": {
+    "title": "Fila de instalação",
+    "dropZone": "Solte arquivos ZIP, RAR ou 7z em qualquer lugar da janela",
+    "browse": "ou clique para procurar",
+    "browseTitle": "Adicionar arquivos de skins",
+    "browseFilter": "Arquivos de skins",
+    "chooseFolder": "Escolha uma pasta de skin",
+    "empty": "A fila está vazia.",
+    "list": "Itens na fila",
+    "meta": {
+      "items_one": "{{count}} arquivo",
+      "items_many": "{{count}} arquivos",
+      "items_other": "{{count}} arquivos",
+      "ready_one": "{{count}} pronto",
+      "ready_many": "{{count}} prontos",
+      "ready_other": "{{count}} prontos"
+    },
+    "clearDone": "Limpar instalados",
+    "installReady_one": "Instalar {{count}} pronto",
+    "installReady_many": "Instalar {{count}} prontos",
+    "installReady_other": "Instalar {{count}} prontos",
+    "status": {
+      "analyzing": "Analisando",
+      "ready": "Pronto",
+      "conflict": "Conflito",
+      "needsLook": "Verificar",
+      "installing": "Instalando",
+      "done": "Instalado",
+      "error": "Erro"
+    },
+    "note": {
+      "files_one": "{{count}} arquivo",
+      "files_many": "{{count}} arquivos",
+      "files_other": "{{count}} arquivos",
+      "textures_one": "{{count}} textura",
+      "textures_many": "{{count}} texturas",
+      "textures_other": "{{count}} texturas",
+      "analyzing": "Analisando…",
+      "blkOk": "skin.blk ok",
+      "blkBad": "skin.blk tem problemas",
+      "conflict": "Mesmo nome de pasta que “{{installed}}” (instalada)",
+      "conflictQueued": "Mesmo nome de pasta que “{{installed}}” (na fila)",
+      "needsLookOne": "Não foi possível detectar o veículo. Escolha-o para continuar.",
+      "needsLook_one": "Não foi possível detectar o veículo: há {{count}} pasta dentro. Escolha-a para continuar.",
+      "needsLook_many": "Não foi possível detectar o veículo: há {{count}} pastas dentro. Escolha uma para continuar.",
+      "needsLook_other": "Não foi possível detectar o veículo: há {{count}} pastas dentro. Escolha uma para continuar.",
+      "installed": "Agora está no seu hangar",
+      "error": "Algo deu errado."
+    },
+    "action": {
+      "install": "Instalar",
+      "resolve": "Resolver",
+      "pickVehicle": "Escolher veículo",
+      "installed": "Instalado",
+      "remove": "Remover {{name}} da fila"
+    },
+    "progress": {
+      "label": "Instalando {{name}}",
+      "extract": "Extrair",
+      "verify": "Verificar",
+      "done": "Concluído",
+      "extracting": "Extraindo {{pct}}%",
+      "verifying": "Verificando {{pct}}%"
+    },
+    "watch": {
+      "title": "Monitorar a pasta Downloads",
+      "helper": "Novos arquivos de skins são instalados automaticamente.",
+      "showFolder": "Mostrar pasta",
+      "hideFolder": "Ocultar pasta",
+      "defaultFolder": "Downloads (padrão)",
+      "change": "Alterar",
+      "pickTitle": "Escolha a pasta a monitorar"
+    },
+    "legend": {
+      "title": "O que os estados significam",
+      "ready": "veículo detectado, os arquivos estão ok.",
+      "conflict": "já há uma skin instalada com a mesma pasta.",
+      "needsLook": "não dá para saber de qual veículo é.",
+      "done": "está no seu hangar e no jogo.",
+      "error": "não pode ser instalado; a linha explica o motivo."
+    },
+    "conflict": {
+      "title": "Esta skin já está instalada",
+      "body": "<file>{{file}}</file> usa a mesma pasta que “{{installed}}” em {{vehicle}}.",
+      "bodyNoVehicle": "<file>{{file}}</file> usa a mesma pasta que “{{installed}}”.",
+      "replace": "Substituir, manter backup",
+      "replaceHelp": "A versão antiga vai para Backups. Dá para desfazer.",
+      "copy": "Instalar como cópia",
+      "copyHelp": "As duas versões ficam. A nova recebe “(2)” no nome.",
+      "skip": "Pular",
+      "skipHelp": "Deixa a versão instalada como está.",
+      "footer": "Altere o padrão em Configurações → Conflitos"
+    },
+    "toast": {
+      "notSkinOne": "“{{name}}” não é um arquivo nem uma pasta de skin",
+      "notSkin_one": "{{count}} item não é um arquivo nem uma pasta de skin",
+      "notSkin_many": "{{count}} itens não são arquivos nem pastas de skins",
+      "notSkin_other": "{{count}} itens não são arquivos nem pastas de skins",
+      "installed": "“{{name}}” instalada",
+      "installedMany_one": "{{count}} skin instalada",
+      "installedMany_many": "{{count}} skins instaladas",
+      "installedMany_other": "{{count}} skins instaladas",
+      "replaced": "“{{name}}” substituída · backup mantido",
+      "replacedPlain": "“{{name}}” substituída",
+      "restored": "Versão anterior restaurada",
+      "copied": "Instalada como cópia",
+      "skipped": "Pulada. Nada mudou."
+    },
+    "announce": {
+      "done": "{{name}}: instalado",
+      "error": "Não foi possível instalar {{name}}. {{message}}"
+    }
+  },
+  "settings": {
+    "saved": "Salvo",
+    "title": "Configurações",
+    "sections": "Seções das configurações",
+    "nav": {
+      "general": "Geral",
+      "game": "Jogo",
+      "conflicts": "Conflitos",
+      "backups": "Backups",
+      "wtlive": "WT Live",
+      "language": "Idioma",
+      "updates": "Atualizações",
+      "about": "Sobre"
+    },
+    "general": {
+      "autostart": "Iniciar com o Windows",
+      "autostartHelper": "O Livery abre quando você entra no Windows.",
+      "autostartFailed": "Não foi possível alterar Iniciar com o Windows: {{message}}",
+      "reduceMotion": "Reduzir animações",
+      "reduceMotionHelper": "Por padrão, segue a configuração do Windows.",
+      "motion": {
+        "system": "Sistema",
+        "on": "Sim",
+        "off": "Não"
+      },
+      "shortcuts": "Atalhos de teclado",
+      "keys": {
+        "search": "Ctrl K",
+        "sections": "1–5",
+        "sidebar": "[ ]",
+        "undo": "Ctrl Z",
+        "close": "Esc"
+      },
+      "actions": {
+        "search": "buscar",
+        "sections": "seções",
+        "sidebar": "barra lateral",
+        "undo": "desfazer",
+        "close": "fechar"
+      }
+    },
+    "game": {
+      "game": "War Thunder · {{source}}",
+      "source": {
+        "steam": "Steam",
+        "standalone": "Standalone",
+        "custom": "Pasta personalizada"
+      },
+      "change": "Alterar",
+      "none": "Nenhuma pasta do jogo definida",
+      "noneHelper": "O Livery instala as skins na pasta UserSkins do jogo.",
+      "choose": "Escolher",
+      "watched": "Pasta monitorada",
+      "downloadsDefault": "Downloads (padrão)",
+      "watchPickTitle": "Escolha a pasta a monitorar",
+      "readGameData": "Ler a lista de veículos do jogo",
+      "readGameDataHelper": "O Livery lê os nomes dos veículos nos próprios arquivos do jogo (somente leitura) para reconhecer as skins. Desativado: usa uma lista interna menor."
+    },
+    "conflicts": {
+      "intro": "O que fazer quando um arquivo compactado tem a mesma pasta de uma skin instalada.",
+      "policy": {
+        "ask": "Perguntar sempre",
+        "replace": "Substituir e manter um backup",
+        "copy": "Instalar como cópia",
+        "skip": "Pular"
+      }
+    },
+    "backups": {
+      "keep": "Manter um backup ao substituir ou excluir",
+      "keepHelper_one": "Permite desfazer por {{count}} dia.",
+      "keepHelper_many": "Permite desfazer por {{count}} dias.",
+      "keepHelper_other": "Permite desfazer por {{count}} dias.",
+      "onDisk": "Backups no disco",
+      "summary_one": "{{count}} item · {{size}}",
+      "summary_many": "{{count}} itens · {{size}}",
+      "summary_other": "{{count}} itens · {{size}}",
+      "unavailable": "Não é possível ler os backups agora",
+      "clear": "Limpar",
+      "cleared_one": "{{count}} backup excluído",
+      "cleared_many": "{{count}} backups excluídos",
+      "cleared_other": "{{count}} backups excluídos"
+    },
+    "wtlive": {
+      "browse": "Navegar no WT Live",
+      "browseHelper": "Explorar, Seguindo e instalações pelo WT Live. Se desativar, o Livery não envia nenhuma requisição ao WT Live.",
+      "cache": "Cache",
+      "cacheHelper": "Páginas e arquivos baixados do WT Live ficam guardados por até 24 horas.",
+      "clearCache": "Limpar cache",
+      "cacheCleared": "Cache do WT Live limpo",
+      "hidden": "Skins ocultas",
+      "hiddenHelper": "As skins que você ocultou ficam fora de Explorar e Seguindo.",
+      "hiddenCount_one": "{{count, number}} skin",
+      "hiddenCount_many": "{{count, number}} skins",
+      "hiddenCount_other": "{{count, number}} skins",
+      "showAgain": "Mostrar de novo",
+      "unhidden": "As skins ocultas voltaram para Explorar",
+      "unavailable": "Não é possível ler isso agora",
+      "attribution": "As skins e as imagens pertencem aos seus autores no WT Live."
+    },
+    "language": {
+      "names": {
+        "en": "English",
+        "it": "Italiano",
+        "de": "Deutsch",
+        "ru": "Русский",
+        "fr": "Français",
+        "es": "Español",
+        "pl": "Polski",
+        "pt-BR": "Português (Brasil)",
+        "zh-CN": "简体中文"
+      }
+    },
+    "updates": {
+      "version": "Livery {{version}}",
+      "upToDate": "Livery {{version}} · Você tem a versão mais recente.",
+      "checking": "Procurando atualizações…",
+      "check": "Verificar agora",
+      "available": "Livery {{version}} está disponível",
+      "availableHelper": "Você tem a {{current}}.",
+      "install": "Instalar e reiniciar",
+      "downloading": "Baixando o Livery {{version}}",
+      "downloadingHelper": "O Livery fecha e abre de novo quando terminar.",
+      "downloadingBackground": "Em segundo plano. A instalação acontece quando você fechar o Livery.",
+      "ready": "Livery {{version}} está pronto",
+      "readyHelper": "A instalação acontece quando você fechar o Livery.",
+      "readyManualHelper": "Reinicie para instalar.",
+      "restart": "Reiniciar e atualizar",
+      "installing": "Instalando o Livery {{version}}…",
+      "installingHelper": "O Livery fecha e abre de novo na nova versão.",
+      "readyToast": "Livery {{version}} está pronto. A instalação acontece quando você fechar o Livery.",
+      "auto": "Instalar atualizações automaticamente",
+      "autoHelper": "Baixa as novas versões em segundo plano e as instala quando você fecha o Livery."
+    },
+    "about": {
+      "build": "{{version}} · Windows x64",
+      "description": "Um gerenciador de skins de usuário para War Thunder. Navegue pelo WT Live, instale com um clique e mantenha seu hangar organizado.",
+      "privacyTitle": "Privacidade",
+      "privacy": "Sem conta, sem anúncios, sem telemetria. O Livery só se conecta ao WT Live (live.warthunder.com e seu servidor de imagens) quando você navega ou instala skins, e ao GitHub para verificar atualizações. Suas configurações e sua biblioteca ficam neste PC. Ele lê os arquivos do jogo sem alterá-los.",
+      "links": "Links",
+      "source": "Código-fonte",
+      "sourceHint": "Abre o repositório do Livery no GitHub",
+      "report": "Relatar um problema",
+      "reportHint": "Abre a página de issues do Livery no GitHub",
+      "licenses": "Licenças"
+    },
+    "licenses": {
+      "title": "Licenças",
+      "intro": "O Livery é feito com fontes e bibliotecas de código aberto. Obrigado a todos que as criam.",
+      "fonts": "Fontes",
+      "notices": "Avisos de terceiros",
+      "all": "Todas as licenças de terceiros",
+      "allNames": {
+        "rust": "App desktop: todos os crates Rust",
+        "javascript": "Interface: todos os pacotes JavaScript"
+      },
+      "allMissing": "Esta lista é gerada quando o app é compilado; ela não está nesta versão de desenvolvimento.",
+      "libraries": "Bibliotecas",
+      "showText": "Mostrar texto da licença",
+      "hideText": "Ocultar texto da licença",
+      "text": "Texto da licença de {{name}}",
+      "close": "Fechar"
+    }
+  }
+}

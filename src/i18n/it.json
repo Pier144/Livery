@@ -42,6 +42,7 @@
       "queue": "Da installare",
       "settings": "Impostazioni",
       "queueBadge_one": "{{count}} archivio in attesa",
+      "queueBadge_many": "{{count}} archivi in attesa",
       "queueBadge_other": "{{count}} archivi in attesa",
       "collapse": "Comprimi barra laterale",
       "expand": "Espandi barra laterale"
@@ -90,6 +91,7 @@
       "formats": "ZIP · RAR · 7Z · CARTELLA",
       "analyzing": "Analisi dell'archivio…",
       "queued_one": "{{count}} archivio aggiunto alla coda di installazione",
+      "queued_many": "{{count}} archivi aggiunti alla coda di installazione",
       "queued_other": "{{count}} archivi aggiunti alla coda di installazione"
     },
     "toasts": {
@@ -197,6 +199,33 @@
         "skinNeedsName": "Una skin ha bisogno di un nome",
         "renameFailed": "Impossibile rinominare la cartella della skin"
       }
+    },
+    "vehicleClass": {
+      "fighter": "Caccia",
+      "strike_aircraft": "Aereo d’attacco",
+      "bomber": "Bombardiere",
+      "attack_helicopter": "Elicottero d’attacco",
+      "utility_helicopter": "Elicottero multiruolo",
+      "helicopter": "Elicottero",
+      "light_tank": "Carro leggero",
+      "medium_tank": "Carro medio",
+      "tank": "Carro armato",
+      "heavy_tank": "Carro pesante",
+      "tank_destroyer": "Cacciacarri",
+      "spaa": "Antiaerea",
+      "mbt": "MBT",
+      "frigate": "Fregata",
+      "destroyer": "Cacciatorpediniere",
+      "battleship": "Corazzata",
+      "battlecruiser": "Incrociatore da battaglia",
+      "heavy_cruiser": "Incrociatore pesante",
+      "light_cruiser": "Incrociatore leggero",
+      "cruiser": "Incrociatore",
+      "torpedo_boat": "Motosilurante",
+      "gunboat": "Cannoniera",
+      "torpedo_gunboat": "Motosilurante cannoniera",
+      "submarine_chaser": "Cacciasommergibili",
+      "naval_ferry_barge": "Motozattera"
     }
   },
   "firstRun": {
@@ -232,8 +261,10 @@
       "body": "Livery installerà le skin in questa copia del gioco.",
       "game": "War Thunder",
       "meta_one": "Versione {{version}} · {{count}} skin già in UserSkins",
+      "meta_many": "Versione {{version}} · {{count}} skin già in UserSkins",
       "meta_other": "Versione {{version}} · {{count}} skin già in UserSkins",
       "metaNoVersion_one": "{{count}} skin già in UserSkins",
+      "metaNoVersion_many": "{{count}} skin già in UserSkins",
       "metaNoVersion_other": "{{count}} skin già in UserSkins",
       "use": "Usa questa installazione",
       "other": "Scegli un'altra cartella"
@@ -271,6 +302,7 @@
     },
     "toast": {
       "imported_one": "{{count}} skin aggiunta a Il mio hangar",
+      "imported_many": "{{count}} skin aggiunte a Il mio hangar",
       "imported_other": "{{count}} skin aggiunte a Il mio hangar",
       "gameSet": "Cartella del gioco impostata",
       "later": "Potrai impostare la cartella del gioco più tardi nelle Impostazioni"
@@ -304,6 +336,7 @@
       "tags": "Hashtag",
       "tagHint": "Cerca #{{tag}} in Esplora",
       "pictures_one": "{{count, number}} immagine nel post",
+      "pictures_many": "{{count, number}} immagini nel post",
       "pictures_other": "{{count, number}} immagini nel post",
       "openPicture": "Apri l’immagine {{n}} del post nella galleria",
       "linkHint": "Si apre su WT Live. I link ad altri siti passano prima dalla pagina di avviso di WT Live.",
@@ -355,8 +388,10 @@
       "loadFailedTitle": "Impossibile leggere le texture",
       "title": "Texture nell’archivio",
       "meta_one": "{{count}} file · {{size}}",
+      "meta_many": "{{count}} file · {{size}}",
       "meta_other": "{{count}} file · {{size}}",
       "attention_one": "{{count}} file richiede attenzione. La skin si installa comunque; il gioco potrebbe saltare la parte interessata.",
+      "attention_many": "{{count}} file richiedono attenzione. La skin si installa comunque; il gioco potrebbe saltare la parte interessata.",
       "attention_other": "{{count}} file richiedono attenzione. La skin si installa comunque; il gioco potrebbe saltare la parte interessata.",
       "empty": "Nessuna texture in questo archivio.",
       "col": {
@@ -419,6 +454,7 @@
       "open": "Mostra in Esplora le skin di questo veicolo",
       "meta": "{{code}} · {{nation}} · {{class}}",
       "inPack_one": "Installato da questo post: {{count, number}} veicolo",
+      "inPack_many": "Installati da questo post: {{count, number}} veicoli",
       "inPack_other": "Installati da questo post: {{count, number}} veicoli"
     },
     "follow": {
@@ -486,10 +522,13 @@
     "following": "Seguiti",
     "tabs": "Viste di Esplora",
     "newCount_one": "{{count, number}} nuova",
+    "newCount_many": "{{count, number}} nuove",
     "newCount_other": "{{count, number}} nuove",
     "results_one": "{{count, number}} risultato",
+    "results_many": "{{count, number}} risultati",
     "results_other": "{{count, number}} risultati",
     "resultsAtLeast_one": "{{count, number}}+ risultati",
+    "resultsAtLeast_many": "{{count, number}}+ risultati",
     "resultsAtLeast_other": "{{count, number}}+ risultati",
     "filters": {
       "label": "Filtri",
@@ -503,6 +542,7 @@
       "vehicleSuggestions": "Veicoli corrispondenti",
       "sort": "Ordina",
       "active_one": "{{count}} filtro",
+      "active_many": "{{count}} filtri combinati",
       "active_other": "{{count}} filtri combinati",
       "remove": "Rimuovi il filtro: {{label}}",
       "clearAll": "Azzera tutto",
@@ -585,6 +625,7 @@
       "vehicle": "Veicolo · {{code}}",
       "author": "Autore",
       "authorCount_one": "Autore · {{count, number}} skin su WT Live",
+      "authorCount_many": "Autore · {{count, number}} skin su WT Live",
       "authorCount_other": "Autore · {{count, number}} skin su WT Live",
       "unfollow": "Smetti di seguire {{name}}",
       "unfollowed": "Non segui più “{{name}}”",
@@ -614,11 +655,14 @@
     "unknownVehicle": "Veicolo sconosciuto",
     "stats": {
       "skins_one": "{{count, number}} skin",
+      "skins_many": "{{count, number}} skin",
       "skins_other": "{{count, number}} skin",
       "active_one": "{{count, number}} attiva",
+      "active_many": "{{count, number}} attive",
       "active_other": "{{count, number}} attive",
       "size": "{{size}} su disco",
       "attention_one": "{{count, number}} da controllare",
+      "attention_many": "{{count, number}} da controllare",
       "attention_other": "{{count, number}} da controllare"
     },
     "search": "Cerca tra le tue skin…",
@@ -664,6 +708,7 @@
     },
     "skins": "Le tue skin",
     "groupCount_one": "{{count, number}} skin",
+    "groupCount_many": "{{count, number}} skin",
     "groupCount_other": "{{count, number}} skin",
     "card": {
       "select": "Seleziona {{name}}",
@@ -677,7 +722,7 @@
       "renameLabel": "Nuovo nome per {{name}}",
       "attentionMore": "{{message}} +{{count}}",
       "authorYou": "tu",
-      "noAuthor": "—",
+      "noAuthor": "–",
       "hintOpen": "Premi Invio per aprire la pagina della skin, Spazio per selezionarla.",
       "hintSelect": "Premi Invio o Spazio per selezionarla. Le skin locali non hanno una pagina."
     },
@@ -693,15 +738,19 @@
       "uninstallTitle": "Disinstallare “{{name}}”?",
       "uninstallBody": "War Thunder non la mostrerà più. Livery ne tiene un backup, quindi puoi annullare dalla notifica.",
       "deleteTitle_one": "Eliminare {{count, number}} skin?",
+      "deleteTitle_many": "Eliminare {{count, number}} skin?",
       "deleteTitle_other": "Eliminare {{count, number}} skin?",
       "deleteBody_one": "La sua cartella viene rimossa dal gioco. Livery ne tiene un backup, quindi puoi annullare dalla notifica.",
+      "deleteBody_many": "Le loro cartelle vengono rimosse dal gioco. Livery ne tiene un backup, quindi puoi annullare dalla notifica.",
       "deleteBody_other": "Le loro cartelle vengono rimosse dal gioco. Livery ne tiene un backup, quindi puoi annullare dalla notifica.",
       "delete_one": "Elimina skin",
+      "delete_many": "Elimina {{count, number}} skin",
       "delete_other": "Elimina {{count, number}} skin"
     },
     "bulk": {
       "label": "Skin selezionate",
       "selected_one": "{{count, number}} skin selezionata",
+      "selected_many": "{{count, number}} skin selezionate",
       "selected_other": "{{count, number}} skin selezionate",
       "f6Hint": "Premi F6 per raggiungere le azioni sulla selezione.",
       "activate": "Attiva",
@@ -714,19 +763,25 @@
     },
     "toast": {
       "activated_one": "{{count, number}} skin attivata",
+      "activated_many": "{{count, number}} skin attivate",
       "activated_other": "{{count, number}} skin attivate",
       "deactivated_one": "{{count, number}} skin disattivata",
+      "deactivated_many": "{{count, number}} skin disattivate",
       "deactivated_other": "{{count, number}} skin disattivate",
       "deleted_one": "{{count, number}} skin eliminata",
+      "deleted_many": "{{count, number}} skin eliminate",
       "deleted_other": "{{count, number}} skin eliminate",
       "restored_one": "{{count, number}} skin ripristinata",
+      "restored_many": "{{count, number}} skin ripristinate",
       "restored_other": "{{count, number}} skin ripristinate",
       "uninstalled": "“{{name}}” disinstallata",
       "reinstalled": "“{{name}}” è di nuovo nel gioco",
       "renamed": "Rinominata in “{{name}}”. War Thunder mostra questo nome.",
       "moved_one": "{{count, number}} skin spostata in “{{collection}}”",
+      "moved_many": "{{count, number}} skin spostate in “{{collection}}”",
       "moved_other": "{{count, number}} skin spostate in “{{collection}}”",
       "exported_one": "{{count, number}} skin esportata in “{{folder}}”",
+      "exported_many": "{{count, number}} skin esportate in “{{folder}}”",
       "exported_other": "{{count, number}} skin esportate in “{{folder}}”",
       "recheckOk": "“{{name}}” ora è a posto",
       "recheckStill": "“{{name}}” va ancora controllata",
@@ -742,8 +797,10 @@
     "activeBadge": "Attiva",
     "inUse": "In uso",
     "count_one": "{{count}} skin",
+    "count_many": "{{count}} skin",
     "count_other": "{{count}} skin",
     "meta_one": "{{count}} skin · {{size}}",
+    "meta_many": "{{count}} skin · {{size}}",
     "meta_other": "{{count}} skin · {{size}}",
     "nameLabel": "Nome della collezione",
     "descriptionLabel": "Descrizione della collezione",
@@ -759,6 +816,7 @@
     "loadFailed": "Impossibile caricare le collezioni",
     "toast": {
       "activated_one": "“{{name}}” attivata · {{count}} skin",
+      "activated_many": "“{{name}}” attivata · {{count}} skin",
       "activated_other": "“{{name}}” attivata · {{count}} skin",
       "deleted": "“{{name}}” eliminata",
       "removed": "Rimossa da “{{name}}”"
@@ -775,12 +833,15 @@
     "list": "Elementi in coda",
     "meta": {
       "items_one": "{{count}} archivio",
+      "items_many": "{{count}} archivi",
       "items_other": "{{count}} archivi",
       "ready_one": "{{count}} pronto",
+      "ready_many": "{{count}} pronti",
       "ready_other": "{{count}} pronti"
     },
     "clearDone": "Rimuovi installati",
     "installReady_one": "Installa {{count}} pronto",
+    "installReady_many": "Installa {{count}} pronti",
     "installReady_other": "Installa {{count}} pronti",
     "status": {
       "analyzing": "Analisi",
@@ -793,15 +854,19 @@
     },
     "note": {
       "files_one": "{{count}} file",
+      "files_many": "{{count}} file",
       "files_other": "{{count}} file",
       "textures_one": "{{count}} texture",
+      "textures_many": "{{count}} texture",
       "textures_other": "{{count}} texture",
       "analyzing": "Analisi in corso…",
       "blkOk": "skin.blk ok",
       "blkBad": "skin.blk ha problemi",
       "conflict": "Stesso nome di cartella di “{{installed}}” (installata)",
       "conflictQueued": "Stesso nome di cartella di “{{installed}}” (in coda)",
-      "needsLook_one": "Impossibile riconoscere il veicolo. Sceglilo per continuare.",
+      "needsLookOne": "Impossibile riconoscere il veicolo. Sceglilo per continuare.",
+      "needsLook_one": "Impossibile riconoscere il veicolo: dentro c’è {{count}} cartella. Sceglila per continuare.",
+      "needsLook_many": "Impossibile riconoscere il veicolo: dentro ci sono {{count}} cartelle. Scegline una per continuare.",
       "needsLook_other": "Impossibile riconoscere il veicolo: dentro ci sono {{count}} cartelle. Scegline una per continuare.",
       "installed": "Ora è nel tuo hangar",
       "error": "Qualcosa è andato storto."
@@ -851,10 +916,13 @@
       "footer": "Cambia l’impostazione predefinita in Impostazioni → Conflitti"
     },
     "toast": {
-      "notSkin_one": "“{{name}}” non è un archivio o una cartella di skin",
+      "notSkinOne": "“{{name}}” non è un archivio o una cartella di skin",
+      "notSkin_one": "{{count}} elemento non è un archivio o una cartella di skin",
+      "notSkin_many": "{{count}} elementi non sono archivi o cartelle di skin",
       "notSkin_other": "{{count}} elementi non sono archivi o cartelle di skin",
       "installed": "“{{name}}” installata",
       "installedMany_one": "{{count}} skin installata",
+      "installedMany_many": "{{count}} skin installate",
       "installedMany_other": "{{count}} skin installate",
       "replaced": "“{{name}}” sostituita · backup conservato",
       "replacedPlain": "“{{name}}” sostituita",
@@ -937,13 +1005,16 @@
     "backups": {
       "keep": "Conserva un backup quando sostituisci o elimini",
       "keepHelper_one": "Puoi annullare per {{count}} giorno.",
+      "keepHelper_many": "Puoi annullare per {{count}} giorni.",
       "keepHelper_other": "Puoi annullare per {{count}} giorni.",
       "onDisk": "Backup su disco",
       "summary_one": "{{count}} elemento · {{size}}",
+      "summary_many": "{{count}} elementi · {{size}}",
       "summary_other": "{{count}} elementi · {{size}}",
       "unavailable": "Impossibile leggere i backup in questo momento",
       "clear": "Svuota",
       "cleared_one": "Eliminato {{count}} backup",
+      "cleared_many": "Eliminati {{count}} backup",
       "cleared_other": "Eliminati {{count}} backup"
     },
     "wtlive": {
@@ -956,6 +1027,7 @@
       "hidden": "Skin nascoste",
       "hiddenHelper": "Le skin che hai nascosto restano fuori da Esplora e Seguiti.",
       "hiddenCount_one": "{{count, number}} skin",
+      "hiddenCount_many": "{{count, number}} skin",
       "hiddenCount_other": "{{count, number}} skin",
       "showAgain": "Mostrale di nuovo",
       "unhidden": "Le skin nascoste sono di nuovo in Esplora",
@@ -968,9 +1040,12 @@
         "it": "Italiano",
         "de": "Deutsch",
         "ru": "Русский",
-        "fr": "Français"
-      },
-      "englishForNow": "Per ora in inglese"
+        "fr": "Français",
+        "es": "Español",
+        "pl": "Polski",
+        "pt-BR": "Português (Brasil)",
+        "zh-CN": "简体中文"
+      }
     },
     "updates": {
       "version": "Livery {{version}}",

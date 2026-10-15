@@ -99,7 +99,7 @@ export const texturesTotal = (rows: readonly TextureInfo[]) => rows.reduce((sum,
 
 /** "4096×4096", or "—" when missing or unknown. */
 export function resolutionText(t: TextureInfo): string {
-  if (t.missing || t.width === undefined || t.height === undefined) return '—';
+  if (t.missing || t.width === undefined || t.height === undefined) return '–';
   return `${t.width}×${t.height}`;
 }
 
@@ -159,7 +159,7 @@ export function stepParts(step: InstallStep): StepParts {
 export const intlLocale = (language: string) => (language.startsWith('en') ? 'en-GB' : language);
 
 /** POSTED cell: "12 Jun 2026" / "12 giu 2026"; "—" for a date that can't be read. */
-export const formatPosted = (iso: string, language: string): string => formatShortDate(iso, language) ?? '—';
+export const formatPosted = (iso: string, language: string): string => formatShortDate(iso, language) ?? '–';
 
 /** Full counts in the stat cells: "24,120" / "24.120". */
 export const formatCount = (n: number, language: string) => new Intl.NumberFormat(intlLocale(language)).format(n);

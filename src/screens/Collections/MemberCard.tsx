@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 import type { HangarSkin } from '@/types';
+import { useVehicleName } from '@/queries/vehicles';
 
 interface MemberCardProps {
   skin: HangarSkin;
@@ -15,12 +16,13 @@ interface MemberCardProps {
 /** A skin in the open collection: 16:9 placeholder, name, vehicle and a "Remove" link. */
 export function MemberCard({ skin, onRemove, entering = false, leaving = false }: MemberCardProps) {
   const { t } = useTranslation();
+  const vehicleName = useVehicleName();
   const ref = useRef<HTMLLIElement>(null);
   useLayoutEffect(() => {
     if (leaving && ref.current) ref.current.inert = true;
   }, [leaving]);
   // A folder without a .blk has no vehicle code (the backend's name for it is English-only).
-  const vehicle = skin.vehicle.code ? skin.vehicle.name || skin.vehicle.code : t('hangar.unknownVehicle');
+  const vehicle = skin.vehicle.code ? vehicleName(skin.vehicle) || skin.vehicle.code : t('hangar.unknownVehicle');
   return (
     <li
       ref={ref}

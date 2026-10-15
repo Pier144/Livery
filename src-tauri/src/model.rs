@@ -21,7 +21,8 @@ pub enum ConflictPolicy {
     Skip,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// The UI language. Codes are i18next's (`pt-BR`, `zh-CN` keep their region).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Language {
     #[default]
@@ -30,6 +31,41 @@ pub enum Language {
     De,
     Ru,
     Fr,
+    Es,
+    Pl,
+    #[serde(rename = "pt-BR")]
+    PtBr,
+    #[serde(rename = "zh-CN")]
+    ZhCn,
+}
+
+impl Language {
+    pub const ALL: [Language; 9] = [
+        Language::En,
+        Language::It,
+        Language::De,
+        Language::Ru,
+        Language::Fr,
+        Language::Es,
+        Language::Pl,
+        Language::PtBr,
+        Language::ZhCn,
+    ];
+
+    /// The column header of the game's `lang/*.csv` files for this language.
+    pub fn game_column(self) -> &'static str {
+        match self {
+            Language::En => "<English>",
+            Language::It => "<Italian>",
+            Language::De => "<German>",
+            Language::Ru => "<Russian>",
+            Language::Fr => "<French>",
+            Language::Es => "<Spanish>",
+            Language::Pl => "<Polish>",
+            Language::PtBr => "<Portuguese>",
+            Language::ZhCn => "<Chinese>",
+        }
+    }
 }
 
 /// Persisted as JSON in the app data dir. Unknown fields are ignored and missing ones take

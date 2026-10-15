@@ -20,6 +20,8 @@ import { useUi } from '@/store/ui';
 import type { AppError, ConflictPolicy, FollowEntry, FollowKind, HangarSkin, Vehicle, WtLiveSkin } from '@/types';
 import { formatCount, formatPosted, initialOf, stepParts } from './detailModel';
 import { useFocusFallback } from './useFocusFallback';
+import { useVehicleName } from '@/queries/vehicles';
+import { vehicleClassLabel } from '@/lib/vehicleClass';
 
 interface SidePanelProps {
   skin: WtLiveSkin;
@@ -171,6 +173,7 @@ function useInstalledVehicles(postId: string): Vehicle[] {
 
 function VehicleBlock({ skin, onOpen }: { skin: WtLiveSkin; onOpen: () => void }) {
   const { t } = useTranslation();
+  const vehicleName = useVehicleName();
   const { vehicle } = skin;
   const headingId = useId();
   const installed = useInstalledVehicles(skin.id);
@@ -182,7 +185,7 @@ function VehicleBlock({ skin, onOpen }: { skin: WtLiveSkin; onOpen: () => void }
           {t('detail.vehicle.label')}
         </h2>
         {/* A sibling of the card button, never inside it (no nested interactive controls). */}
-        <FollowButton kind="vehicle" id={vehicle.code} name={vehicle.name} small />
+        <FollowButton kind="vehicle" id={vehicle.code} name={vehicleName(vehicle)} small />
       </div>
       <button
         type="button"
@@ -190,12 +193,12 @@ function VehicleBlock({ skin, onOpen }: { skin: WtLiveSkin; onOpen: () => void }
         onClick={onOpen}
         className="flex flex-col gap-[3px] rounded-ctl border border-line-2 bg-bg-3 px-3 py-2.5 text-left hover:border-line-4 motion-safe:transition-colors motion-safe:duration-120"
       >
-        <span className="text-body font-medium leading-[normal] text-ink-1">{vehicle.name}</span>
+        <span className="text-body font-medium leading-[normal] text-ink-1">{vehicleName(vehicle)}</span>
         <span className="font-mono text-[10px] leading-[normal] text-ink-4 [overflow-wrap:anywhere]">
           {t('detail.vehicle.meta', {
             code: vehicle.code,
             nation: t(`hangar.nation.${vehicle.nation}`),
-            class: vehicle.class,
+            class: vehicleClassLabel(t, vehicle.class),
           })}
         </span>
       </button>
@@ -205,7 +208,7 @@ function VehicleBlock({ skin, onOpen }: { skin: WtLiveSkin; onOpen: () => void }
           <ul className="flex flex-wrap gap-1.5">
             {installed.map((v) => (
               <li key={v.code} className="rounded-tag border border-line-3 px-1.5 py-0.5 text-[11px] leading-[normal] text-ink-2">
-                {v.name}
+                {vehicleName(v)}
               </li>
             ))}
           </ul>

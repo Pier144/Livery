@@ -11,6 +11,7 @@ import { useUi } from '@/store/ui';
 import type { FollowEntry, WtLiveSkin } from '@/types';
 import { authorSkinCount, cachedWtLiveSkins, formatPostDate } from './exploreModel';
 import { SkinImage } from './SkinCard';
+import { useVehicleName } from '@/queries/vehicles';
 
 /** New skins of one follow: its vehicle's, or its author's. */
 export function newFor(entry: FollowEntry, skins: readonly WtLiveSkin[]): number {
@@ -34,6 +35,7 @@ let pendingMark: ReturnType<typeof setTimeout> | null = null;
  */
 export function Following() {
   const { t, i18n } = useTranslation();
+  const vehicleName = useVehicleName();
   const qc = useQueryClient();
   const following = useFollowing();
   const entries = following.data;
@@ -207,7 +209,7 @@ export function Following() {
                   <span className="text-meta leading-[normal] text-ink-3">
                     <Trans
                       i18nKey="explore.follow.newMeta"
-                      values={{ vehicle: s.vehicle.name, author: s.author.name, date: formatPostDate(s.postedAt, i18n.language) }}
+                      values={{ vehicle: vehicleName(s.vehicle), author: s.author.name, date: formatPostDate(s.postedAt, i18n.language) }}
                       components={{ author: <span className="text-ink-2" /> }}
                     />
                   </span>

@@ -4,11 +4,13 @@
 //   pnpm i18n:sync    fixes what can be fixed without a translator (scripts/i18n-sync.mjs)
 //
 // Rules:
-// - it.json is translated by hand: it must have exactly en.json's keys. It may also carry the extra
-//   plural forms Italian has (`_many`); src/i18n/index.ts fills a missing one from `_other`.
-// - de/ru/fr are generated, translation-ready copies: en.json's keys in en.json's order, with every
-//   plural form their language uses (ru: _one/_few/_many/_other). New keys get the English text.
+// - Every language is translated by hand and has exactly en.json's keys, in en.json's order. A plural
+//   group has the plural forms of its own language (CLDR, as i18next picks them): ru/pl
+//   _one/_few/_many/_other, fr/es/it/pt-BR _one/_many/_other, de _one/_other, zh-CN _other only.
 // - A key's {{placeholders}} and <tags> must be the ones en.json uses for it; no text may be empty.
+// - No text may contain an em dash (U+2014), English included (author request, 0.3.2).
+// - `pnpm i18n:sync` never invents text: it reorders, drops stale keys, fills a missing plural form
+//   from the same language's `_other` (listed for review) and lists the other missing keys.
 //
 // This module is also imported by src/i18n/i18n.test.ts (the same checks run under `pnpm test`)
 // and by scripts/i18n-sync.mjs. It has no dependencies.
@@ -20,11 +22,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // Not `new URL(…, import.meta.url)`: Vite (Vitest) rewrites that pattern into an asset URL.
 export const I18N_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../src/i18n');
 
-/** Translated by hand. */
-export const HAND_TRANSLATED = ['it'];
-/** English copies until someone translates them (keys present, English fallback). */
-export const GENERATED = ['de', 'ru', 'fr'];
-export const TARGETS = [...HAND_TRANSLATED, ...GENERATED];
+/** Every language besides English; src/i18n/index.ts and src/types.ts list the same ones. */
+export const TARGETS = ['it', 'de', 'ru', 'fr', 'es', 'pl', 'pt-BR', 'zh-CN'];
+
+/** Not allowed in any text. */
+export const EM_DASH = '\u2014';
 
 /** CLDR order, used inside a plural group. */
 const CATEGORY_ORDER = ['zero', 'one', 'two', 'few', 'many', 'other'];
@@ -78,31 +80,28 @@ function pluralOf(key, groups) {
 
 /**
  * The keys a language's file should have, in file order: en.json's order, with each plural group
- * expanded in place. `required` must be there; the others may be (it.json's extra plural forms).
- * `source` is the English text a new key starts from and the one its placeholders are checked against.
+ * expanded in place to the language's own plural forms. `source` is the English key its
+ * placeholders are checked against (English's `_other` for a form English doesn't have).
  */
 export function layout(enEntries, lng) {
   const groups = pluralGroups(enEntries);
-  const generated = GENERATED.includes(lng);
-  const own = pluralCategories(lng);
+  const own = [...pluralCategories(lng)].sort(byCategory);
   const slots = [];
   const done = new Set();
   for (const [key] of enEntries) {
     const plural = pluralOf(key, groups);
     if (!plural) {
-      slots.push({ key, required: true, source: key });
+      slots.push({ key, source: key });
       continue;
     }
     if (done.has(plural.base)) continue;
     done.add(plural.base);
     const english = groups.get(plural.base);
-    for (const category of [...new Set([...english, ...own])].sort(byCategory)) {
-      const inEnglish = english.includes(category);
+    for (const category of own) {
       slots.push({
         key: `${plural.base}_${category}`,
-        // Generated files carry every form; the hand-translated one must have English's forms.
-        required: inEnglish || generated,
-        source: inEnglish ? `${plural.base}_${category}` : `${plural.base}_other`,
+        source: english.includes(category) ? `${plural.base}_${category}` : `${plural.base}_other`,
+        plural: plural.base,
       });
     }
   }
@@ -111,30 +110,29 @@ export function layout(enEntries, lng) {
 
 /**
  * The synced version of one language: keys follow en.json, existing texts are kept, keys en.json no
- * longer has are removed. Missing generated keys get the English text; missing Italian ones are only
- * reported (no invented Italian).
+ * longer has (or plural forms the language doesn't use) are removed. A missing plural form is
+ * filled from the same language's `_other` (`filled`); any other missing key is only reported.
  */
 export function syncLanguage(enEntries, targetEntries, lng) {
-  const en = new Map(enEntries);
   const target = new Map(targetEntries);
-  const generated = GENERATED.includes(lng);
   const slots = layout(enEntries, lng);
   const entries = [];
-  const added = [];
+  const filled = [];
   const missing = [];
   for (const slot of slots) {
+    const other = slot.plural ? target.get(`${slot.plural}_other`) : undefined;
     if (target.has(slot.key)) {
       entries.push([slot.key, target.get(slot.key)]);
-    } else if (slot.required && generated) {
-      entries.push([slot.key, en.get(slot.source)]);
-      added.push(slot.key);
-    } else if (slot.required) {
+    } else if (other !== undefined) {
+      entries.push([slot.key, other]);
+      filled.push(slot.key);
+    } else {
       missing.push(slot.key);
     }
   }
   const allowed = new Set(slots.map((s) => s.key));
   const removed = targetEntries.map(([k]) => k).filter((k) => !allowed.has(k));
-  return { entries, added, missing, removed };
+  return { entries, filled, missing, removed };
 }
 
 const PLACEHOLDER = /\{\{\s*([^\s,}]+)[^}]*\}\}/g;
@@ -149,19 +147,18 @@ export function checkLanguage(enEntries, targetEntries, lng) {
   const en = new Map(enEntries);
   const slots = layout(enEntries, lng);
   const bySlot = new Map(slots.map((s) => [s.key, s]));
-  const generated = GENERATED.includes(lng);
-  const { added, missing, removed } = syncLanguage(enEntries, targetEntries, lng);
-  for (const key of generated ? added : missing) problems.push(`missing key ${key}`);
-  for (const key of removed) problems.push(`extra key ${key} (not in en.json)`);
-  if (generated && !added.length && !removed.length) {
-    const want = slots.map((s) => s.key);
-    if (!sameList(want, targetEntries.map(([k]) => k))) problems.push('keys are not in en.json’s order');
+  const keys = new Set(targetEntries.map(([k]) => k));
+  for (const slot of slots) if (!keys.has(slot.key)) problems.push(`missing key ${slot.key}`);
+  for (const [key] of targetEntries) if (!bySlot.has(key)) problems.push(`extra key ${key} (not in en.json)`);
+  if (!problems.length && !sameList(slots.map((s) => s.key), targetEntries.map(([k]) => k))) {
+    problems.push('keys are not in en.json’s order');
   }
   for (const [key, text] of targetEntries) {
     if (typeof text !== 'string' || !text.trim()) {
       problems.push(`empty text for ${key}`);
       continue;
     }
+    if (text.includes(EM_DASH)) problems.push(`em dash in ${key}`);
     const slot = bySlot.get(key);
     const source = slot ? en.get(slot.source) : undefined;
     if (typeof source !== 'string') continue;
@@ -181,7 +178,10 @@ export function checkLanguage(enEntries, targetEntries, lng) {
 
 /** Problems in en.json itself. */
 export function checkSource(enEntries) {
-  return enEntries.filter(([, v]) => typeof v !== 'string' || !v.trim()).map(([k]) => `empty text for ${k}`);
+  return enEntries.flatMap(([k, v]) => {
+    if (typeof v !== 'string' || !v.trim()) return [`empty text for ${k}`];
+    return v.includes(EM_DASH) ? [`em dash in ${k}`] : [];
+  });
 }
 
 export function readLocale(lng, dir = I18N_DIR) {
@@ -219,10 +219,7 @@ function main() {
     console.error(`\n${file}`);
     for (const line of report[file]) console.error(`  - ${line}`);
   }
-  const hints = [];
-  if (files.some((f) => GENERATED.some((l) => f === `${l}.json`))) hints.push('Run `pnpm i18n:sync` to update de/ru/fr.');
-  if (report['it.json']) hints.push('Italian texts are written by hand in src/i18n/it.json (`pnpm i18n:sync` only drops stale keys).');
-  console.error(`\ni18n check failed. ${hints.join(' ')}`);
+  console.error('\ni18n check failed. `pnpm i18n:sync` fixes order, stale keys and missing plural forms; texts are written by hand.');
   process.exitCode = 1;
 }
 

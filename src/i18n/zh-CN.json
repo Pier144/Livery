@@ -1,0 +1,1015 @@
+{
+  "common": {
+    "appName": "Livery",
+    "brand": "LIVERY",
+    "unofficial": "非官方工具，与 Gaijin Entertainment 无关联。",
+    "undo": "撤销",
+    "dismiss": "关闭",
+    "retry": "重试",
+    "cancel": "取消",
+    "showPath": "显示路径",
+    "hidePath": "隐藏路径",
+    "showInExplorer": "在文件资源管理器中显示",
+    "explorerFailed": "无法在文件资源管理器中打开该文件夹。",
+    "link": {
+      "copied": "Livery 无法打开您的浏览器，已将链接复制到剪贴板，请粘贴到浏览器中。",
+      "failed": "无法打开链接：{{url}}",
+      "refused": "该链接并非指向 WT Live，因此 Livery 没有打开它。"
+    },
+    "comingIn": "将在 {{milestone}} 中推出",
+    "loading": "正在加载",
+    "any": "任意",
+    "all": "全部",
+    "clear": "清除",
+    "installed": {
+      "toast": "已安装“{{name}}”",
+      "toastPlain": "已安装，现已在我的基地中。"
+    },
+    "titlebar": {
+      "offline": "离线 · 仅本地库",
+      "search": "搜索涂装、载具、作者",
+      "searchShortcut": "Ctrl K",
+      "minimize": "最小化",
+      "maximize": "最大化",
+      "restore": "还原",
+      "close": "关闭"
+    },
+    "nav": {
+      "label": "导航",
+      "explore": "发现",
+      "hangar": "我的基地",
+      "collections": "合集",
+      "queue": "安装队列",
+      "settings": "设置",
+      "queueBadge_other": "{{count}} 个压缩包待安装",
+      "collapse": "收起侧边栏",
+      "expand": "展开侧边栏"
+    },
+    "status": {
+      "game": "War Thunder",
+      "source": {
+        "steam": "STEAM",
+        "standalone": "独立版",
+        "custom": "自定义",
+        "none": "未设置"
+      },
+      "hangar": "基地 {{count, number}} · {{size}}"
+    },
+    "update": {
+      "title": "Livery {{version}} 已发布",
+      "body": "您当前的版本为 {{current}}。安装时会关闭 Livery，完成更新后重新打开。",
+      "whatsNew": "更新内容",
+      "later": "稍后"
+    },
+    "palette": {
+      "label": "命令面板",
+      "input": "命令",
+      "placeholder": "跳转到载具、涂装或操作…",
+      "esc": "Esc",
+      "results": "结果",
+      "kind": {
+        "skin": "涂装",
+        "vehicle": "载具",
+        "action": "操作"
+      },
+      "actions": {
+        "explore": "前往发现",
+        "hangar": "前往我的基地",
+        "collections": "前往合集",
+        "queue": "打开安装队列",
+        "settings": "打开设置"
+      },
+      "empty": "无匹配结果",
+      "hintNavigate": "↑↓ 选择",
+      "hintOpen": "↵ 打开",
+      "hintClose": "Ctrl K 关闭"
+    },
+    "drop": {
+      "title": "拖放到此处以加入安装队列",
+      "formats": "ZIP · RAR · 7Z · 文件夹",
+      "analyzing": "正在分析压缩包…",
+      "queued_other": "已将 {{count}} 个压缩包加入安装队列"
+    },
+    "toasts": {
+      "region": "通知"
+    },
+    "errors": {
+      "io": "读写文件时出错。请检查文件夹是否仍然存在、是否被其他程序占用，然后重试。",
+      "notFound": "Livery 所需的某些内容已不存在，可能已在 Livery 之外被移动或删除。",
+      "parse": "无法读取某个文件：其内容与 Livery 的预期不符。",
+      "invalidInput": "Livery 无法接受该请求，未做任何更改。",
+      "conflict": "已存在同名项目。",
+      "unsupported": "此版本的 Livery 尚不支持该功能。",
+      "network": "无法连接 WT Live。请检查网络连接，然后重试。",
+      "noBackend": "此功能需要 Livery 桌面应用。",
+      "internal": "Livery 内部出错。请重试，如果问题持续出现，请重启应用。",
+      "templates": {
+        "unreadableAtLaunch": "Livery 启动时无法读取 {{file}}，因此不会覆盖它。请关闭正在使用该文件的其他程序，然后重启 Livery。"
+      },
+      "backend": {
+        "noGameFolder": "未设置游戏文件夹",
+        "gameFolderGone": "找不到游戏文件夹",
+        "notAGameFolder": "该文件夹似乎不是 War Thunder 的安装目录",
+        "createUserSkinsFailed": "无法创建 UserSkins 文件夹",
+        "steamLibraryUnreadable": "无法读取 Steam 库文件",
+        "userSkinsGone": "找不到 UserSkins 文件夹",
+        "userSkinsUnreadable": "无法读取 UserSkins 文件夹",
+        "notInLibrary": "该涂装不在本地库中",
+        "skinFolderGone": "找不到涂装文件夹",
+        "skinFolderUnreadable": "无法读取涂装文件夹",
+        "blkUnreadable": "无法读取 .blk 文件",
+        "badFolderName": "不是有效的涂装文件夹名称",
+        "nameTaken": "已有其他涂装文件夹使用此名称",
+        "someFoldersNotMoved": "部分涂装文件夹无法移动",
+        "someFoldersMissing": "部分涂装文件夹缺失",
+        "deleteFailed": "无法删除该涂装",
+        "someSkinsNotRestored": "部分涂装无法恢复",
+        "someBackupsGone": "部分备份已不可用",
+        "someBackupsNotRemoved": "部分备份无法删除",
+        "exportFolderGone": "找不到导出文件夹",
+        "exportFailed": "无法导出该涂装",
+        "collectionNotFound": "找不到该合集",
+        "collectionNeedsName": "合集需要名称",
+        "collectionExists": "该合集已存在",
+        "archiveUnsafePath": "此压缩包包含不安全的文件路径，无法解压",
+        "archiveLink": "此压缩包包含链接而非文件",
+        "archiveEncrypted": "此压缩包受密码保护，Livery 无法解压",
+        "archiveSplit": "这是分卷压缩包的一部分。Livery 仅支持解压单个文件的压缩包",
+        "archiveMethod": "此压缩包使用了 Livery 无法解压的压缩方式",
+        "archiveDamaged": "此压缩包已损坏，无法解压",
+        "notAnArchive": "此文件不是 ZIP、RAR 或 7z 压缩包",
+        "archiveTooBig": "此压缩包解压后的数据量过大，不像是涂装",
+        "archiveTooManyFiles": "此压缩包包含的文件过多，不像是涂装",
+        "notASource": "不是涂装文件夹或压缩包",
+        "sourceGone": "找不到该文件或文件夹",
+        "openFailed": "无法打开该文件或文件夹",
+        "tooManyFiles": "此文件夹包含的文件过多，不像是涂装",
+        "pathOutsideSkin": "该路径不在涂装文件夹内",
+        "noBlk": "其中没有 .blk 文件，游戏无法使用",
+        "notInQueue": "该项目已不在队列中",
+        "waitForInstall": "请等待安装完成",
+        "itemInstalling": "该项目正在安装",
+        "itemInstalled": "该项目已安装",
+        "pickVehicle": "请先选择载具",
+        "vehicleNotInFolder": "该载具不在此文件夹中",
+        "alreadyInstalled": "该涂装已安装",
+        "fileInTheWay": "已存在同名文件，无法继续",
+        "startFailed": "无法开始安装",
+        "prepareFailed": "无法准备安装",
+        "copyFailed": "无法复制涂装文件",
+        "copyUnreadable": "无法读取复制后的涂装",
+        "copyIncomplete": "复制不完整",
+        "backUpFailed": "无法备份已安装的版本",
+        "installFailed": "无法安装该涂装",
+        "backupGone": "该备份已不可用",
+        "backupMismatch": "该备份不是此涂装的旧版本",
+        "undoReplaceFailed": "无法恢复之前的版本",
+        "watchFolderGone": "找不到监视的文件夹",
+        "watchInsideUserSkins": "监视的文件夹不能位于 UserSkins 内",
+        "noDownloadsFolder": "找不到“下载”文件夹。请选择要监视的文件夹。",
+        "watchStartFailed": "无法开始监视文件夹",
+        "wtliveUnsupported": "此版本无法连接 WT Live。",
+        "wtliveOff": "已在设置中关闭 WT Live 浏览",
+        "followingNotSaved": "无法保存关注列表",
+        "wtliveUnreadable": "WT Live 返回的内容 Livery 无法读取",
+        "wtliveErrorAnswer": "WT Live 返回了错误",
+        "hiddenNotSaved": "无法保存隐藏的涂装",
+        "wtlivePostGone": "该涂装已不在 WT Live 上",
+        "archiveNotSaved": "无法保存涂装压缩包",
+        "httpClientFailed": "HTTP 客户端无法启动",
+        "wtlivePaused": "WT Live 无响应，Livery 将在几分钟后重试",
+        "wtliveUnreachable": "无法连接 WT Live",
+        "wtliveRobots": "WT Live 的 robots.txt 要求 Livery 这类工具不要读取此页面",
+        "archiveTooLarge": "涂装压缩包大于预期",
+        "notADownloadLink": "不是 WT Live 下载链接",
+        "postNotAnArchive": "该帖子的文件不是 ZIP、7z 或 RAR 压缩包",
+        "skinInstalling": "该涂装正在安装",
+        "notTried": "该涂装未在游戏中试用",
+        "installedFolderGone": "已安装版本的文件夹已不存在",
+        "updateCheckFailed": "Livery 无法检查更新",
+        "updateDownloadFailed": "无法下载更新",
+        "updateBadSignature": "该更新未经 Livery 签名，因此没有安装",
+        "updateInstallFailed": "无法安装更新",
+        "updateUpToDate": "Livery 已是最新版本",
+        "updateBusy": "更新正在下载中",
+        "skinNeedsName": "涂装需要名称",
+        "renameFailed": "无法重命名涂装文件夹"
+      }
+    },
+    "vehicleClass": {
+      "fighter": "战斗机",
+      "strike_aircraft": "攻击机",
+      "bomber": "轰炸机",
+      "attack_helicopter": "攻击直升机",
+      "utility_helicopter": "通用直升机",
+      "helicopter": "直升机",
+      "light_tank": "轻型坦克",
+      "medium_tank": "中型坦克",
+      "tank": "坦克",
+      "heavy_tank": "重型坦克",
+      "tank_destroyer": "坦克歼击车",
+      "spaa": "自行防空炮",
+      "mbt": "主战坦克",
+      "frigate": "护卫舰",
+      "destroyer": "驱逐舰",
+      "battleship": "战列舰",
+      "battlecruiser": "战列巡洋舰",
+      "heavy_cruiser": "重巡洋舰",
+      "light_cruiser": "轻巡洋舰",
+      "cruiser": "巡洋舰",
+      "torpedo_boat": "鱼雷艇",
+      "gunboat": "炮艇",
+      "torpedo_gunboat": "鱼雷炮艇",
+      "submarine_chaser": "猎潜艇",
+      "naval_ferry_barge": "海军驳渡船"
+    }
+  },
+  "firstRun": {
+    "label": "首次运行",
+    "steps": {
+      "label": "设置步骤",
+      "detect": "01 检测",
+      "confirm": "02 确认",
+      "import": "03 导入"
+    },
+    "detect": {
+      "title": "正在查找 War Thunder",
+      "body": "正在检查常用位置，只需片刻。",
+      "progress": "检测进度",
+      "sources": {
+        "steam": "Steam 库",
+        "standalone": "独立启动器",
+        "custom": "自定义位置"
+      },
+      "state": {
+        "queued": "等待中",
+        "checking": "检查中…",
+        "found": "已找到",
+        "notFound": "未找到",
+        "notInstalled": "未安装",
+        "skipped": "已跳过"
+      },
+      "doneFound": "检测完成。已找到 War Thunder：{{source}}。",
+      "doneNotFound": "检测完成。未在常用位置找到 War Thunder。"
+    },
+    "found": {
+      "title": "已找到 War Thunder",
+      "body": "Livery 会将涂装安装到这个游戏目录中。",
+      "game": "War Thunder",
+      "meta_other": "版本 {{version}} · UserSkins 中已有 {{count}} 个涂装",
+      "metaNoVersion_other": "UserSkins 中已有 {{count}} 个涂装",
+      "use": "使用此安装",
+      "other": "选择其他文件夹"
+    },
+    "notFound": {
+      "title": "找不到 War Thunder",
+      "body": "请选择游戏的安装文件夹。Livery 会在其中查找 UserSkins 文件夹。",
+      "choose": "选择游戏文件夹",
+      "drop": "或拖放到此处",
+      "pickerTitle": "选择 War Thunder 文件夹",
+      "invalid": "该文件夹似乎不是 War Thunder。请选择包含 launcher.exe 或 UserSkins 的文件夹。",
+      "dropOverlay": "拖放 War Thunder 文件夹",
+      "dropFormats": "文件夹",
+      "skip": "暂时跳过",
+      "back": "返回",
+      "backToSettings": "返回设置"
+    },
+    "import": {
+      "title": "磁盘上已有的涂装",
+      "body": "Livery 在您的 UserSkins 文件夹中找到了涂装。将它们添加到我的基地，即可在这里管理。",
+      "stats": {
+        "skins": "涂装",
+        "vehicles": "载具",
+        "attention": "需要注意"
+      },
+      "tag": {
+        "ok": "正常",
+        "mine": "您创建的",
+        "attention": "需要注意"
+      },
+      "more": "+ 另外 {{count}} 个",
+      "import": "导入并继续",
+      "skip": "跳过导入",
+      "scanFailed": "无法读取 UserSkins 文件夹。"
+    },
+    "toast": {
+      "imported_other": "已将 {{count}} 个涂装添加到我的基地",
+      "gameSet": "已设置游戏文件夹",
+      "later": "您可以稍后在设置中设置游戏文件夹"
+    },
+    "anim": {
+      "hull": "车体 200 × 120 × 110",
+      "sheet": "图纸 00 · 正在检测安装",
+      "unofficial": "非官方工具"
+    }
+  },
+  "detail": {
+    "label": "涂装详情",
+    "backTo": {
+      "explore": "返回发现",
+      "hangar": "返回我的基地",
+      "collections": "返回合集",
+      "queue": "返回安装队列",
+      "settings": "返回设置"
+    },
+    "loading": "正在加载涂装",
+    "tabs": {
+      "label": "涂装详情",
+      "gallery": "图库",
+      "post": "帖子",
+      "textures": "纹理",
+      "try": "游戏内试用"
+    },
+    "post": {
+      "fromAuthor": "来自 {{name}}",
+      "noText": "作者没有为此涂装写其他内容。",
+      "tags": "话题标签",
+      "tagHint": "在发现中搜索 #{{tag}}",
+      "pictures_other": "帖子中有 {{count, number}} 张图片",
+      "openPicture": "在图库中打开帖子的第 {{n}} 张图片",
+      "linkHint": "在 WT Live 上打开。指向其他网站的链接会先经过 WT Live 的警告页面。",
+      "source": "文字和图片来自 WT Live 上的原帖，均为作者原文。",
+      "emptyTitle": "此帖子没有其他内容",
+      "emptyBody": "作者没有添加任何文字、话题标签或其他图片。"
+    },
+    "noSkin": {
+      "title": "未选择涂装",
+      "body": "在发现中选择一个涂装，即可查看其图库、纹理和文件。"
+    },
+    "offline": {
+      "title": "无法连接 WT Live",
+      "body": "您的本地库照常可用。恢复联网后，即可继续从 WT Live 浏览和安装。",
+      "hangar": "打开我的基地"
+    },
+    "off": {
+      "title": "WT Live 已关闭",
+      "body": "浏览功能关闭期间，Livery 不会向 WT Live 发送任何请求。您的本地库照常可用。",
+      "settings": "打开设置"
+    },
+    "error": {
+      "title": "无法加载此涂装"
+    },
+    "gallery": {
+      "views": "视角",
+      "view": {
+        "front": "正面",
+        "side": "侧面",
+        "rear": "背面",
+        "detail": "细节"
+      },
+      "image": "图片 {{n}}",
+      "imageAlt": "{{name}}，{{view}}",
+      "placeholder": "截图 · {{vehicle}} · {{view}}视角",
+      "counter": "{{n}} / {{total}}",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "compare": "对比",
+      "compareHint": "与同一载具的其他涂装对比",
+      "compareA": "A · {{name}}",
+      "compareB": "B · {{name}} · 作者 {{author}}",
+      "compareWith": "对比 · 同一载具",
+      "comparePlaceholder": "截图 · {{name}}",
+      "exitCompare": "退出对比"
+    },
+    "textures": {
+      "loading": "正在读取纹理",
+      "loadFailedTitle": "无法读取纹理",
+      "title": "压缩包中的纹理",
+      "meta_other": "{{count}} 个文件 · {{size}}",
+      "attention_other": "{{count}} 个文件需要注意。涂装仍可安装，但游戏可能会跳过受影响的部分。",
+      "empty": "此压缩包中没有纹理。",
+      "col": {
+        "file": "文件",
+        "resolution": "分辨率",
+        "format": "格式",
+        "size": "大小"
+      },
+      "missing": "缺失",
+      "warning": {
+        "heavy": "纹理非常大（{{size}}²），可能会延长加载时间。",
+        "notSquarePow2": "尺寸不是 2 的幂次方正方形（{{resolution}}），游戏可能无法加载。",
+        "unreadable": "无法读取文件头，文件可能已损坏。",
+        "missing": "skin.blk 中引用了该文件，但压缩包中没有。"
+      }
+    },
+    "try": {
+      "idleTitle": "先试用，再决定",
+      "idleBody": "Livery 会临时安装此涂装。请在游戏中查看后再做决定。在您按下“保留”之前，不会向我的基地添加任何内容。",
+      "steps": "使用方法",
+      "step1": "Livery 将文件复制到 UserSkins",
+      "step2": "在 War Thunder 中打开该载具的外观定制，然后按<b>刷新</b>按钮",
+      "step3": "回到这里，选择保留或放弃",
+      "start": "游戏内试用 · {{size}}",
+      "busy": "此涂装正在安装中。",
+      "offline": "无法连接 WT Live。请在恢复联网后重试。",
+      "failed": "无法安装以供试用：{{message}}",
+      "installingTitle": "正在临时安装…",
+      "installingBody": "正在下载并解压 {{size}}。",
+      "installingLabel": "正在临时安装",
+      "activeTitle": "涂装已进入游戏",
+      "activeBody": "打开 <b>{{vehicle}}</b> → 外观定制 → 按<b>刷新</b>，然后选择“{{name}}”。",
+      "temporary": "临时 · 放弃后将被移除",
+      "keep": "保留",
+      "discard": "放弃",
+      "kept": "已保留“{{name}}”，现已在我的基地中。",
+      "discarded": "已放弃“{{name}}”，游戏文件已恢复。",
+      "finalizeFailed": "无法完成试用：{{message}}",
+      "keptTitle": "已在我的基地中",
+      "keptBody": "“{{name}}”已安装。打开 <b>{{vehicle}}</b> → 外观定制，即可在游戏中查看。"
+    },
+    "side": {
+      "label": "关于此涂装"
+    },
+    "author": {
+      "label": "作者",
+      "onWtLive": "来自 WT Live",
+      "openPost": "打开原帖",
+      "openPostHint": "在浏览器中打开 WT Live 上的帖子",
+      "openAuthor": "在 WT Live 上打开 {{name}} 的主页"
+    },
+    "hide": {
+      "action": "从发现中隐藏",
+      "hint": "此涂装将不再出现在发现和关注中。如果已安装，它会保留在我的基地中。",
+      "hidden": "已隐藏“{{name}}”",
+      "failed": "无法更新隐藏的涂装：{{message}}"
+    },
+    "vehicle": {
+      "label": "载具",
+      "open": "在发现中显示此载具的涂装",
+      "meta": "{{code}} · {{nation}} · {{class}}",
+      "inPack_other": "从此帖子安装：{{count, number}} 个载具"
+    },
+    "follow": {
+      "follow": "关注",
+      "following": "已关注",
+      "followName": "关注 {{name}}",
+      "followingName": "已关注 {{name}}",
+      "followed": "已关注“{{name}}”",
+      "unfollowed": "已取消关注“{{name}}”",
+      "failed": "无法更新关注：{{message}}"
+    },
+    "stats": {
+      "downloads": "下载量",
+      "likes": "点赞",
+      "category": "分类",
+      "posted": "发布时间"
+    },
+    "category": {
+      "Historical": "史实",
+      "Semi-historical": "半史实",
+      "Fictional": "虚构",
+      "Camouflage": "迷彩",
+      "Other": "其他"
+    },
+    "files": {
+      "label": "包含的文件",
+      "meta": "{{count}} · {{size}}",
+      "none": "该帖子未列出其文件。"
+    },
+    "install": {
+      "install": "安装",
+      "progressLabel": "正在安装“{{name}}”",
+      "step": {
+        "download": "下载",
+        "extract": "解压",
+        "verify": "校验",
+        "done": "完成"
+      },
+      "running": {
+        "download": "正在下载",
+        "extract": "正在解压",
+        "verify": "正在校验"
+      },
+      "stepNow": "{{step}} {{pct}}%",
+      "installed": "已安装",
+      "inHangar": "在基地中",
+      "trying": "游戏内试用中",
+      "tryingAction": "保留或放弃",
+      "failed": "安装失败",
+      "asCopy": "安装为副本",
+      "offline": "无法连接 WT Live。请在恢复联网后重试。"
+    },
+    "collections": {
+      "add": "添加到合集",
+      "installFirst": "请先安装",
+      "none": "暂无合集",
+      "member": "已在其中",
+      "added": "已添加到“{{name}}”",
+      "already": "已在“{{name}}”中",
+      "failed": "无法添加：{{message}}"
+    }
+  },
+  "explore": {
+    "title": "发现",
+    "following": "关注",
+    "tabs": "发现视图",
+    "newCount_other": "新增 {{count, number}}",
+    "results_other": "{{count, number}} 个结果",
+    "resultsAtLeast_other": "{{count, number}}+ 个结果",
+    "filters": {
+      "label": "筛选",
+      "nation": "国家",
+      "class": "兵种",
+      "category": "分类",
+      "type": "载具类型",
+      "allTypes": "所有类型",
+      "vehicle": "载具",
+      "vehiclePlaceholder": "载具…",
+      "vehicleSuggestions": "匹配的载具",
+      "sort": "排序",
+      "active_other": "已组合 {{count}} 个筛选条件",
+      "remove": "移除筛选条件：{{label}}",
+      "clearAll": "全部清除",
+      "query": "“{{q}}”"
+    },
+    "category": {
+      "Historical": "史实",
+      "Semi-historical": "半史实",
+      "Fictional": "虚构",
+      "Camouflage": "迷彩",
+      "Other": "其他"
+    },
+    "sort": {
+      "downloads": "下载最多",
+      "likes": "点赞最多",
+      "newest": "最新",
+      "name": "名称 A–Z"
+    },
+    "grid": {
+      "label": "WT Live 涂装",
+      "moreFailed": "无法加载更多涂装。"
+    },
+    "card": {
+      "new": "新",
+      "by": "作者 <author>{{author}}</author>",
+      "stats": "{{downloads}} 下载 · {{likes}} 赞",
+      "statsFull": "{{downloads, number}} 次下载，{{likes, number}} 个赞",
+      "install": "安装",
+      "installed": "已安装",
+      "inHangar": "在基地中",
+      "trying": "游戏内试用中",
+      "tryingHint": "请在涂装页面中选择保留或放弃",
+      "failed": "安装失败",
+      "retry": "重试",
+      "installCopy": "安装为副本",
+      "progress": "正在安装",
+      "steps": {
+        "download": "下载",
+        "extract": "解压",
+        "verify": "校验",
+        "done": "完成"
+      },
+      "stepsNow": {
+        "download": "正在下载",
+        "extract": "正在解压",
+        "verify": "正在校验",
+        "done": "完成"
+      },
+      "stepPct": "{{step}} {{pct}}%",
+      "errors": {
+        "network": "无法连接 WT Live。请检查网络连接，然后重试。",
+        "unavailable": "此版本尚不支持从 WT Live 安装。",
+        "conflict": "它已在我的基地中。",
+        "notFound": "该涂装已不在 WT Live 上。"
+      }
+    },
+    "empty": {
+      "title": "没有匹配的涂装",
+      "body": "请减少筛选条件，或改用载具代号搜索。",
+      "clear": "清除所有筛选条件"
+    },
+    "offline": {
+      "title": "无法连接 WT Live",
+      "body": "您的本地库照常可用。恢复联网后，即可继续从 WT Live 浏览和安装。",
+      "hangar": "打开我的基地",
+      "stillOffline": "仍处于离线状态。您的本地库完全可用。"
+    },
+    "off": {
+      "title": "WT Live 已关闭",
+      "body": "浏览功能关闭期间，Livery 不会向 WT Live 发送任何请求。您的本地库照常可用。",
+      "settings": "打开设置"
+    },
+    "error": {
+      "title": "WT Live 的响应异常",
+      "body": "您的本地库照常可用。请稍后重试。"
+    },
+    "follow": {
+      "label": "关注 · {{count, number}}",
+      "listLabel": "已关注的载具和作者",
+      "vehicle": "载具 · {{code}}",
+      "author": "作者",
+      "authorCount_other": "作者 · WT Live 上有 {{count, number}} 个涂装",
+      "unfollow": "取消关注 {{name}}",
+      "unfollowed": "已取消关注“{{name}}”",
+      "unfollowFailed": "无法取消关注“{{name}}”",
+      "refollowFailed": "无法重新关注“{{name}}”",
+      "newTitle": "您关注的作者和载具的新内容",
+      "newMeta": "{{vehicle}} · 作者 <author>{{author}}</author> · {{date}}",
+      "nothingNew": "自上次查看以来没有新内容。",
+      "offline": "可以连接 WT Live 时，新涂装会显示在这里。",
+      "emptyTitle": "您还没有任何关注",
+      "emptyBody": "打开一个涂装，然后点击作者旁边的“关注”。您关注的作者和载具的新涂装会显示在这里。",
+      "browse": "浏览涂装"
+    }
+  },
+  "hangar": {
+    "title": "我的基地",
+    "emptyTitle": "这里还没有内容",
+    "emptyBody": "从发现中安装涂装，或将 ZIP 拖放到此窗口的任意位置。",
+    "emptyAction": "浏览 WT Live",
+    "attention": {
+      "missingTexture": "缺少 {{file}}",
+      "unknownBlkBlock": "{{file}} 包含未知的块",
+      "partialExtract": "压缩包仅部分解压",
+      "noBlk": "没有 .blk 文件，游戏无法使用",
+      "unreadableBlk": "无法读取 {{file}}"
+    },
+    "unknownVehicle": "未知载具",
+    "stats": {
+      "skins_other": "{{count, number}} 个涂装",
+      "active_other": "{{count, number}} 个已启用",
+      "size": "占用 {{size}}",
+      "attention_other": "{{count, number}} 个需要注意"
+    },
+    "search": "搜索您的涂装…",
+    "searchLabel": "搜索我的基地",
+    "filters": {
+      "nation": "国家",
+      "type": "类型",
+      "origin": "来源",
+      "anyNation": "所有国家",
+      "anyType": "所有类型",
+      "anyOrigin": "所有来源"
+    },
+    "nation": {
+      "USA": "美国",
+      "GER": "德国",
+      "USSR": "苏联",
+      "GBR": "英国",
+      "JPN": "日本",
+      "CHN": "中国",
+      "ITA": "意大利",
+      "FRA": "法国",
+      "SWE": "瑞典",
+      "ISR": "以色列",
+      "UNK": "未知"
+    },
+    "type": {
+      "ground": "地面",
+      "air": "空中",
+      "heli": "直升机",
+      "naval": "海军"
+    },
+    "origin": {
+      "wtlive": "WT Live",
+      "imported": "导入",
+      "mine": "自制"
+    },
+    "selectAll": "全选",
+    "clearSelection": "清除选择",
+    "view": {
+      "label": "视图",
+      "grid": "网格视图",
+      "list": "列表视图"
+    },
+    "skins": "您的涂装",
+    "groupCount_other": "{{count, number}} 个涂装",
+    "card": {
+      "select": "选择 {{name}}",
+      "needsAttention": "需要注意",
+      "active": "已启用",
+      "inactive": "未启用",
+      "activeToggle": "在游戏中启用",
+      "recheck": "重新检查",
+      "uninstall": "卸载",
+      "rename": "重命名",
+      "renameLabel": "{{name}} 的新名称",
+      "attentionMore": "{{message}} +{{count}}",
+      "authorYou": "您",
+      "noAuthor": "–",
+      "hintOpen": "按 Enter 键打开涂装页面，按空格键选择。",
+      "hintSelect": "按 Enter 键或空格键选择。本地涂装没有涂装页面。"
+    },
+    "rename": {
+      "empty": "涂装需要名称。",
+      "invalid": "涂装名称不能包含 < > : \" / \\ | ? *，也不能以句点开头或结尾。"
+    },
+    "noResultsTitle": "没有匹配的涂装",
+    "noResultsBody": "请减少筛选条件，或改用载具代号搜索。",
+    "clearFilters": "清除筛选",
+    "loadErrorTitle": "无法读取我的基地",
+    "confirm": {
+      "uninstallTitle": "卸载“{{name}}”？",
+      "uninstallBody": "War Thunder 将不再显示它。Livery 会保留备份，您可以通过通知撤销。",
+      "deleteTitle_other": "删除 {{count, number}} 个涂装？",
+      "deleteBody_other": "它们的文件夹将从游戏中移除。Livery 会保留备份，您可以通过通知撤销。",
+      "delete_other": "删除 {{count, number}} 个涂装"
+    },
+    "bulk": {
+      "label": "已选涂装",
+      "selected_other": "已选择 {{count, number}} 个涂装",
+      "f6Hint": "按 F6 键可跳转到所选项的操作。",
+      "activate": "启用",
+      "deactivate": "停用",
+      "move": "移至合集",
+      "noCollections": "暂无合集",
+      "export": "导出",
+      "exportTitle": "选择涂装的导出位置",
+      "delete": "删除"
+    },
+    "toast": {
+      "activated_other": "已启用 {{count, number}} 个涂装",
+      "deactivated_other": "已停用 {{count, number}} 个涂装",
+      "deleted_other": "已删除 {{count, number}} 个涂装",
+      "restored_other": "已恢复 {{count, number}} 个涂装",
+      "uninstalled": "已卸载“{{name}}”",
+      "reinstalled": "“{{name}}”已回到游戏中",
+      "renamed": "已重命名为“{{name}}”。War Thunder 中将显示此名称。",
+      "moved_other": "已将 {{count, number}} 个涂装移至“{{collection}}”",
+      "exported_other": "已将 {{count, number}} 个涂装导出到“{{folder}}”",
+      "recheckOk": "“{{name}}”现已正常",
+      "recheckStill": "“{{name}}”仍需要注意",
+      "recheckGone": "“{{name}}”已不在 UserSkins 中"
+    }
+  },
+  "collections": {
+    "title": "合集",
+    "new": "新建",
+    "newCollection": "新建合集",
+    "newName": "新合集",
+    "helper": "启用合集后，游戏中只使用其中的涂装。其他涂装仍保持安装，只是处于停用状态。",
+    "activeBadge": "已启用",
+    "inUse": "使用中",
+    "count_other": "{{count}} 个涂装",
+    "meta_other": "{{count}} 个涂装 · {{size}}",
+    "nameLabel": "合集名称",
+    "descriptionLabel": "合集描述",
+    "addDescription": "添加描述",
+    "activeInGame": "在游戏中启用",
+    "activate": "启用",
+    "delete": "删除合集",
+    "members": "“{{name}}”中的涂装",
+    "remove": "移除",
+    "removeLabel": "从此合集中移除“{{name}}”",
+    "addFromHangar": "从我的基地添加涂装\n（选择 → 移至合集）",
+    "emptyTitle": "暂无合集",
+    "loadFailed": "无法加载您的合集",
+    "toast": {
+      "activated_other": "已启用“{{name}}” · {{count}} 个涂装",
+      "deleted": "已删除“{{name}}”",
+      "removed": "已从“{{name}}”中移除"
+    }
+  },
+  "queue": {
+    "title": "安装队列",
+    "dropZone": "将 ZIP、RAR 或 7z 压缩包拖放到窗口任意位置",
+    "browse": "或点击浏览",
+    "browseTitle": "添加涂装压缩包",
+    "browseFilter": "涂装压缩包",
+    "chooseFolder": "选择涂装文件夹",
+    "empty": "队列为空。",
+    "list": "队列中的项目",
+    "meta": {
+      "items_other": "{{count}} 个压缩包",
+      "ready_other": "{{count}} 个就绪"
+    },
+    "clearDone": "清除已安装",
+    "installReady_other": "安装 {{count}} 个就绪项",
+    "status": {
+      "analyzing": "分析中",
+      "ready": "就绪",
+      "conflict": "冲突",
+      "needsLook": "需检查",
+      "installing": "安装中",
+      "done": "已安装",
+      "error": "错误"
+    },
+    "note": {
+      "files_other": "{{count}} 个文件",
+      "textures_other": "{{count}} 个纹理",
+      "analyzing": "分析中…",
+      "blkOk": "skin.blk 正常",
+      "blkBad": "skin.blk 有问题",
+      "conflict": "与“{{installed}}”（已安装）的文件夹同名",
+      "conflictQueued": "与“{{installed}}”（队列中）的文件夹同名",
+      "needsLookOne": "无法识别载具。请选择载具以继续。",
+      "needsLook_other": "无法识别载具：其中有 {{count}} 个文件夹。请选择一个以继续。",
+      "installed": "现已在我的基地中",
+      "error": "出现问题。"
+    },
+    "action": {
+      "install": "安装",
+      "resolve": "解决",
+      "pickVehicle": "选择载具",
+      "installed": "已安装",
+      "remove": "从队列中移除 {{name}}"
+    },
+    "progress": {
+      "label": "正在安装 {{name}}",
+      "extract": "解压",
+      "verify": "校验",
+      "done": "完成",
+      "extracting": "正在解压 {{pct}}%",
+      "verifying": "正在校验 {{pct}}%"
+    },
+    "watch": {
+      "title": "监视“下载”文件夹",
+      "helper": "新的涂装压缩包会自动安装。",
+      "showFolder": "显示文件夹",
+      "hideFolder": "隐藏文件夹",
+      "defaultFolder": "下载（默认）",
+      "change": "更改",
+      "pickTitle": "选择要监视的文件夹"
+    },
+    "legend": {
+      "title": "状态说明",
+      "ready": "已识别载具，文件正常。",
+      "conflict": "已安装使用相同文件夹的涂装。",
+      "needsLook": "无法判断适用于哪个载具。",
+      "done": "已在我的基地和游戏中。",
+      "error": "无法安装，原因见该行说明。"
+    },
+    "conflict": {
+      "title": "此涂装已安装",
+      "body": "<file>{{file}}</file> 与 {{vehicle}} 上的“{{installed}}”使用相同的文件夹。",
+      "bodyNoVehicle": "<file>{{file}}</file> 与“{{installed}}”使用相同的文件夹。",
+      "replace": "替换并保留备份",
+      "replaceHelp": "旧版本将移至备份，可撤销。",
+      "copy": "安装为副本",
+      "copyHelp": "两个版本都会保留，新版本的名称后会加上“(2)”。",
+      "skip": "跳过",
+      "skipHelp": "保持已安装的版本不变。",
+      "footer": "可在“设置 → 冲突”中更改默认操作"
+    },
+    "toast": {
+      "notSkinOne": "“{{name}}”不是涂装压缩包或文件夹",
+      "notSkin_other": "{{count}} 个项目不是涂装压缩包或文件夹",
+      "installed": "已安装“{{name}}”",
+      "installedMany_other": "已安装 {{count}} 个涂装",
+      "replaced": "已替换“{{name}}” · 已保留备份",
+      "replacedPlain": "已替换“{{name}}”",
+      "restored": "已恢复之前的版本",
+      "copied": "已安装为副本",
+      "skipped": "已跳过，未做任何更改。"
+    },
+    "announce": {
+      "done": "{{name}}：已安装",
+      "error": "{{name}} 无法安装。{{message}}"
+    }
+  },
+  "settings": {
+    "saved": "已保存",
+    "title": "设置",
+    "sections": "设置分区",
+    "nav": {
+      "general": "常规",
+      "game": "游戏",
+      "conflicts": "冲突",
+      "backups": "备份",
+      "wtlive": "WT Live",
+      "language": "语言",
+      "updates": "更新",
+      "about": "关于"
+    },
+    "general": {
+      "autostart": "随 Windows 启动",
+      "autostartHelper": "登录 Windows 时自动打开 Livery。",
+      "autostartFailed": "无法更改“随 Windows 启动”：{{message}}",
+      "reduceMotion": "减少动态效果",
+      "reduceMotionHelper": "默认跟随 Windows 设置。",
+      "motion": {
+        "system": "系统",
+        "on": "开",
+        "off": "关"
+      },
+      "shortcuts": "键盘快捷键",
+      "keys": {
+        "search": "Ctrl K",
+        "sections": "1–5",
+        "sidebar": "[ ]",
+        "undo": "Ctrl Z",
+        "close": "Esc"
+      },
+      "actions": {
+        "search": "搜索",
+        "sections": "分区",
+        "sidebar": "侧边栏",
+        "undo": "撤销",
+        "close": "关闭"
+      }
+    },
+    "game": {
+      "game": "War Thunder · {{source}}",
+      "source": {
+        "steam": "Steam",
+        "standalone": "独立版",
+        "custom": "自定义文件夹"
+      },
+      "change": "更改",
+      "none": "未设置游戏文件夹",
+      "noneHelper": "Livery 会将涂装安装到游戏的 UserSkins 文件夹中。",
+      "choose": "选择",
+      "watched": "监视的文件夹",
+      "downloadsDefault": "下载（默认）",
+      "watchPickTitle": "选择要监视的文件夹",
+      "readGameData": "从游戏读取载具列表",
+      "readGameDataHelper": "Livery 会从游戏自身的文件中读取载具名称（只读），用于识别涂装。关闭后将使用较小的内置列表。"
+    },
+    "conflicts": {
+      "intro": "当压缩包与已安装的涂装使用相同文件夹时的处理方式。",
+      "policy": {
+        "ask": "每次询问",
+        "replace": "替换并保留备份",
+        "copy": "安装为副本",
+        "skip": "跳过"
+      }
+    },
+    "backups": {
+      "keep": "替换或删除时保留备份",
+      "keepHelper_other": "可在 {{count}} 天内撤销。",
+      "onDisk": "磁盘上的备份",
+      "summary_other": "{{count}} 个项目 · {{size}}",
+      "unavailable": "暂时无法读取备份",
+      "clear": "清除",
+      "cleared_other": "已清除 {{count}} 个备份"
+    },
+    "wtlive": {
+      "browse": "浏览 WT Live",
+      "browseHelper": "发现、关注以及从 WT Live 安装。关闭后，Livery 不会向 WT Live 发送任何请求。",
+      "cache": "缓存",
+      "cacheHelper": "从 WT Live 获取的页面和压缩包最多保留 24 小时。",
+      "clearCache": "清除缓存",
+      "cacheCleared": "已清除 WT Live 缓存",
+      "hidden": "隐藏的涂装",
+      "hiddenHelper": "您隐藏的涂装不会出现在发现和关注中。",
+      "hiddenCount_other": "{{count, number}} 个涂装",
+      "showAgain": "重新显示",
+      "unhidden": "隐藏的涂装已重新出现在发现中",
+      "unavailable": "暂时无法读取",
+      "attribution": "涂装和图片归 WT Live 上的各自作者所有。"
+    },
+    "language": {
+      "names": {
+        "en": "English",
+        "it": "Italiano",
+        "de": "Deutsch",
+        "ru": "Русский",
+        "fr": "Français",
+        "es": "Español",
+        "pl": "Polski",
+        "pt-BR": "Português (Brasil)",
+        "zh-CN": "简体中文"
+      }
+    },
+    "updates": {
+      "version": "Livery {{version}}",
+      "upToDate": "Livery {{version}} · 已是最新版本。",
+      "checking": "正在检查更新…",
+      "check": "立即检查",
+      "available": "Livery {{version}} 已发布",
+      "availableHelper": "您当前的版本为 {{current}}。",
+      "install": "安装并重启",
+      "downloading": "正在下载 Livery {{version}}",
+      "downloadingHelper": "完成后 Livery 将关闭并重新打开。",
+      "downloadingBackground": "正在后台下载，将在您关闭 Livery 时安装。",
+      "ready": "Livery {{version}} 已准备就绪",
+      "readyHelper": "将在您关闭 Livery 时安装。",
+      "readyManualHelper": "重启即可安装。",
+      "restart": "重启并更新",
+      "installing": "正在安装 Livery {{version}}…",
+      "installingHelper": "Livery 将关闭，并以新版本重新打开。",
+      "readyToast": "Livery {{version}} 已准备就绪，将在您关闭 Livery 时安装。",
+      "auto": "自动安装更新",
+      "autoHelper": "在后台下载新版本，并在您关闭 Livery 时安装。"
+    },
+    "about": {
+      "build": "{{version}} · Windows x64",
+      "description": "War Thunder 用户涂装管理器。浏览 WT Live，一键安装，让您的基地井井有条。",
+      "privacyTitle": "隐私",
+      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件，不会做任何更改。",
+      "links": "链接",
+      "source": "源代码",
+      "sourceHint": "在 GitHub 上打开 Livery 的代码仓库",
+      "report": "报告问题",
+      "reportHint": "在 GitHub 上打开 Livery 的问题页面",
+      "licenses": "许可证"
+    },
+    "licenses": {
+      "title": "许可证",
+      "intro": "Livery 使用开源字体和库构建。感谢所有开发它们的人。",
+      "fonts": "字体",
+      "notices": "第三方声明",
+      "all": "所有第三方许可证",
+      "allNames": {
+        "rust": "桌面应用：所有 Rust crate",
+        "javascript": "界面：所有 JavaScript 包"
+      },
+      "allMissing": "此列表在构建应用时生成，当前开发版本中没有。",
+      "libraries": "库",
+      "showText": "显示许可证文本",
+      "hideText": "隐藏许可证文本",
+      "text": "{{name}} 许可证文本",
+      "close": "关闭"
+    }
+  }
+}

@@ -10,6 +10,7 @@ import type { InstallTrack } from '@/store/queue';
 import type { QueueItem } from '@/types';
 import { AMBER_OUTLINE_28, ICON_28, PRIMARY_28, SECONDARY_28 } from './controls';
 import { rowLine, stepsView, STATUS_TONE } from './queueModel';
+import { useVehicleName } from '@/queries/vehicles';
 
 export interface QueueRowProps {
   item: QueueItem;
@@ -56,7 +57,8 @@ export const QueueRow = memo(function QueueRow({
   // A row that finished installing while on screen: its check pops in.
   const justDone = useJustEntered(item.status === 'done');
   const tone = STATUS_TONE[item.status];
-  const line = rowLine(item, t, installedName, conflictQueued);
+  const vehicleName = useVehicleName();
+  const line = rowLine(item, t, installedName, conflictQueued, vehicleName);
   const candidates = item.candidates ?? [];
 
   return (
@@ -118,8 +120,8 @@ export const QueueRow = memo(function QueueRow({
           <Menu
             items={candidates.map((v) => ({
               value: v.code,
-              label: v.name,
-              textValue: v.name,
+              label: vehicleName(v),
+              textValue: vehicleName(v),
               // ink-3 on the highlighted item (bg-4), where ink-4 is 4.25:1.
               hint: <span className="font-mono text-[10px] text-ink-4 group-hover:text-ink-3 group-focus-visible:text-ink-3">{v.code}</span>,
             }))}

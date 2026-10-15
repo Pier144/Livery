@@ -27,3 +27,16 @@ fn serializes_camel_case_without_empty_optionals() {
     assert!(!obj.contains_key("gamePath"));
     assert_eq!(json["language"], "en");
 }
+
+#[test]
+fn language_codes_match_the_ui() {
+    let codes: Vec<String> =
+        Language::ALL.iter().map(|l| serde_json::to_value(l).unwrap().as_str().unwrap().to_owned()).collect();
+    assert_eq!(codes, ["en", "it", "de", "ru", "fr", "es", "pl", "pt-BR", "zh-CN"]);
+    for code in &codes {
+        let s: Settings = serde_json::from_str(&format!(r#"{{ "language": "{code}" }}"#)).unwrap();
+        assert_eq!(&serde_json::to_value(s.language).unwrap(), code);
+    }
+    // A code Livery doesn't know is refused, not silently read as English.
+    assert!(serde_json::from_str::<Settings>(r#"{ "language": "pt_br" }"#).is_err());
+}

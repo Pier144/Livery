@@ -159,10 +159,11 @@ pub fn by_name(squashed: &str, nation: Option<Nation>) -> Option<Vehicle> {
 
 /// A name as the game writes it, cleaned for display: the leading symbol the game uses to mark
 /// a foreign or special variant (`◔Leopard 2A4`, `␠Tiger`) goes, non-breaking spaces become
-/// spaces. Also says whether there was such a mark.
+/// spaces and zero-width spaces (line-break hints in the Chinese names) go. Also says whether
+/// there was such a mark.
 pub fn clean_name(raw: &str) -> (String, bool) {
-    let spaced = raw.replace('\u{a0}', " ");
-    let marker = |c: char| !c.is_alphanumeric() && !matches!(c, '"' | '\'' | '(' | '«' | '[');
+    let spaced = raw.replace('\u{a0}', " ").replace('\u{200b}', "");
+    let marker = |c: char| !c.is_alphanumeric() && !matches!(c, '"' | '\'' | '(' | '«' | '[' | '“' | '„' | '「');
     let trimmed = spaced.trim_start_matches(|c: char| marker(c) || c.is_whitespace());
     let marked = trimmed.len() != spaced.trim_start().len();
     let cleaned = trimmed.trim().to_owned();

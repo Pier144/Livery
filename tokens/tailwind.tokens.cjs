@@ -10,7 +10,11 @@ module.exports = {
     onAmber: '#131416',
     overlay: 'rgba(11,11,12,.6)',
   },
-  fontFamily: { sans: ['Geist', 'system-ui', 'sans-serif'], mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'] },
+  // Simplified Chinese (zh-CN) has no glyphs in Geist or Plex Mono: Windows' own YaHei draws it (0.3.2).
+  fontFamily: {
+    sans: ['Geist', '"Microsoft YaHei UI"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'],
+    mono: ['"IBM Plex Mono"', '"Microsoft YaHei UI"', '"Microsoft YaHei"', 'ui-monospace', 'monospace'],
+  },
   fontSize: {
     display: ['30px', { lineHeight: '1.15', letterSpacing: '-0.01em', fontWeight: '500' }],
     title: ['20px', { lineHeight: '1.2', fontWeight: '500' }],

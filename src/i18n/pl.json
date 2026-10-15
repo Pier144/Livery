@@ -1,0 +1,1144 @@
+{
+  "common": {
+    "appName": "Livery",
+    "brand": "LIVERY",
+    "unofficial": "Nieoficjalne narzędzie, niepowiązane z Gaijin Entertainment.",
+    "undo": "Cofnij",
+    "dismiss": "Odrzuć",
+    "retry": "Ponów",
+    "cancel": "Anuluj",
+    "showPath": "Pokaż ścieżkę",
+    "hidePath": "Ukryj ścieżkę",
+    "showInExplorer": "Pokaż w Eksploratorze",
+    "explorerFailed": "Nie udało się otworzyć tego folderu w Eksploratorze plików.",
+    "link": {
+      "copied": "Livery nie może otworzyć przeglądarki, więc link jest w schowku. Wklej go tam.",
+      "failed": "Nie udało się otworzyć linku: {{url}}",
+      "refused": "Ten link nie prowadzi do WT Live, więc Livery go nie otwiera."
+    },
+    "comingIn": "Dostępne w {{milestone}}",
+    "loading": "Wczytywanie",
+    "any": "Dowolny",
+    "all": "Wszystkie",
+    "clear": "Wyczyść",
+    "installed": {
+      "toast": "Zainstalowano „{{name}}”",
+      "toastPlain": "Zainstalowano. Jest już w Moim hangarze."
+    },
+    "titlebar": {
+      "offline": "OFFLINE · tylko biblioteka",
+      "search": "Szukaj kamuflaży, maszyn, autorów",
+      "searchShortcut": "Ctrl K",
+      "minimize": "Minimalizuj",
+      "maximize": "Maksymalizuj",
+      "restore": "Przywróć",
+      "close": "Zamknij"
+    },
+    "nav": {
+      "label": "Sekcje",
+      "explore": "Odkrywaj",
+      "hangar": "Mój hangar",
+      "collections": "Kolekcje",
+      "queue": "Kolejka",
+      "settings": "Ustawienia",
+      "queueBadge_one": "{{count}} archiwum czeka",
+      "queueBadge_few": "{{count}} archiwa czekają",
+      "queueBadge_many": "{{count}} archiwów czeka",
+      "queueBadge_other": "{{count}} archiwum czeka",
+      "collapse": "Zwiń pasek boczny",
+      "expand": "Rozwiń pasek boczny"
+    },
+    "status": {
+      "game": "War Thunder",
+      "source": {
+        "steam": "STEAM",
+        "standalone": "STANDALONE",
+        "custom": "WŁASNY",
+        "none": "BRAK"
+      },
+      "hangar": "Hangar {{count, number}} · {{size}}"
+    },
+    "update": {
+      "title": "Dostępna jest wersja Livery {{version}}",
+      "body": "Masz wersję {{current}}. Instalacja zamknie Livery, zaktualizuje aplikację i uruchomi ją ponownie.",
+      "whatsNew": "Co nowego",
+      "later": "Później"
+    },
+    "palette": {
+      "label": "Paleta poleceń",
+      "input": "Polecenie",
+      "placeholder": "Przejdź do maszyny, kamuflażu lub akcji…",
+      "esc": "Esc",
+      "results": "Wyniki",
+      "kind": {
+        "skin": "Kamuflaż",
+        "vehicle": "Maszyna",
+        "action": "Akcja"
+      },
+      "actions": {
+        "explore": "Przejdź do sekcji Odkrywaj",
+        "hangar": "Przejdź do Mojego hangaru",
+        "collections": "Przejdź do Kolekcji",
+        "queue": "Otwórz kolejkę instalacji",
+        "settings": "Otwórz Ustawienia"
+      },
+      "empty": "Brak wyników",
+      "hintNavigate": "↑↓ nawigacja",
+      "hintOpen": "↵ otwórz",
+      "hintClose": "Ctrl K zamknij"
+    },
+    "drop": {
+      "title": "Upuść, aby dodać do kolejki instalacji",
+      "formats": "ZIP · RAR · 7Z · FOLDER",
+      "analyzing": "Analizowanie archiwum…",
+      "queued_one": "Dodano {{count}} archiwum do kolejki instalacji",
+      "queued_few": "Dodano {{count}} archiwa do kolejki instalacji",
+      "queued_many": "Dodano {{count}} archiwów do kolejki instalacji",
+      "queued_other": "Dodano {{count}} archiwum do kolejki instalacji"
+    },
+    "toasts": {
+      "region": "Powiadomienia"
+    },
+    "errors": {
+      "io": "Wystąpił problem z odczytem lub zapisem plików. Sprawdź, czy folder nadal istnieje i nie jest otwarty w innym programie, a potem spróbuj ponownie.",
+      "notFound": "Czegoś, czego potrzebuje Livery, już nie ma. Mogło zostać przeniesione lub usunięte poza Livery.",
+      "parse": "Nie udało się odczytać pliku: jego zawartość nie jest taka, jakiej oczekuje Livery.",
+      "invalidInput": "Livery nie może przyjąć tego żądania. Nic nie zostało zmienione.",
+      "conflict": "Coś o tej samej nazwie już istnieje.",
+      "unsupported": "Ta funkcja nie jest jeszcze dostępna w tej wersji Livery.",
+      "network": "Brak połączenia z WT Live. Sprawdź połączenie i spróbuj ponownie.",
+      "noBackend": "To wymaga aplikacji desktopowej Livery.",
+      "internal": "Wystąpił błąd wewnątrz Livery. Spróbuj ponownie, a jeśli problem się powtarza, uruchom aplikację ponownie.",
+      "templates": {
+        "unreadableAtLaunch": "Przy uruchomieniu nie udało się odczytać pliku {{file}}, więc Livery go nie nadpisze. Zamknij inne programy, które go używają, i uruchom Livery ponownie."
+      },
+      "backend": {
+        "noGameFolder": "Nie ustawiono folderu gry",
+        "gameFolderGone": "Nie można znaleźć folderu gry",
+        "notAGameFolder": "Ten folder nie wygląda na instalację War Thunder",
+        "createUserSkinsFailed": "Nie udało się utworzyć folderu UserSkins",
+        "steamLibraryUnreadable": "Nie udało się odczytać pliku biblioteki Steam",
+        "userSkinsGone": "Nie można znaleźć folderu UserSkins",
+        "userSkinsUnreadable": "Nie udało się odczytać folderu UserSkins",
+        "notInLibrary": "Tego kamuflażu nie ma w bibliotece",
+        "skinFolderGone": "Nie można znaleźć folderu kamuflażu",
+        "skinFolderUnreadable": "Nie udało się odczytać folderu kamuflażu",
+        "blkUnreadable": "Nie udało się odczytać pliku .blk",
+        "badFolderName": "To nie jest nazwa folderu kamuflażu",
+        "nameTaken": "Inny folder kamuflażu ma już tę nazwę",
+        "someFoldersNotMoved": "Nie udało się przenieść niektórych folderów kamuflaży",
+        "someFoldersMissing": "Brakuje niektórych folderów kamuflaży",
+        "deleteFailed": "Nie udało się usunąć kamuflażu",
+        "someSkinsNotRestored": "Nie udało się przywrócić niektórych kamuflaży",
+        "someBackupsGone": "Niektóre kopie zapasowe nie są już dostępne",
+        "someBackupsNotRemoved": "Nie udało się usunąć niektórych kopii zapasowych",
+        "exportFolderGone": "Nie można znaleźć folderu eksportu",
+        "exportFailed": "Nie udało się wyeksportować kamuflażu",
+        "collectionNotFound": "Nie znaleziono kolekcji",
+        "collectionNeedsName": "Kolekcja musi mieć nazwę",
+        "collectionExists": "Ta kolekcja już istnieje",
+        "archiveUnsafePath": "To archiwum zawiera ścieżkę pliku, której nie można bezpiecznie rozpakować",
+        "archiveLink": "To archiwum zawiera dowiązanie zamiast pliku",
+        "archiveEncrypted": "To archiwum jest chronione hasłem, więc Livery nie może go rozpakować",
+        "archiveSplit": "To jedna część archiwum wieloczęściowego. Livery rozpakowuje tylko archiwa jednoplikowe",
+        "archiveMethod": "To archiwum używa metody kompresji nieobsługiwanej przez Livery",
+        "archiveDamaged": "To archiwum jest uszkodzone i nie można go rozpakować",
+        "notAnArchive": "Ten plik nie jest archiwum ZIP, RAR ani 7z",
+        "archiveTooBig": "Po rozpakowaniu to archiwum zajmuje za dużo jak na kamuflaż",
+        "archiveTooManyFiles": "To archiwum zawiera za dużo plików jak na kamuflaż",
+        "notASource": "To nie jest folder ani archiwum kamuflażu",
+        "sourceGone": "Nie można znaleźć pliku ani folderu",
+        "openFailed": "Nie udało się otworzyć pliku ani folderu",
+        "tooManyFiles": "Ten folder zawiera za dużo plików jak na kamuflaż",
+        "pathOutsideSkin": "Ta ścieżka nie leży w folderze kamuflażu",
+        "noBlk": "Brak pliku .blk, więc gra nie może go użyć",
+        "notInQueue": "Tego elementu nie ma już w kolejce",
+        "waitForInstall": "Poczekaj na zakończenie instalacji",
+        "itemInstalling": "Ten element jest już instalowany",
+        "itemInstalled": "Ten element jest już zainstalowany",
+        "pickVehicle": "Najpierw wybierz maszynę",
+        "vehicleNotInFolder": "Tej maszyny nie ma w tym folderze",
+        "alreadyInstalled": "Ten kamuflaż jest już zainstalowany",
+        "fileInTheWay": "Przeszkadza plik o tej samej nazwie",
+        "startFailed": "Nie udało się rozpocząć instalacji",
+        "prepareFailed": "Nie udało się przygotować instalacji",
+        "copyFailed": "Nie udało się skopiować plików kamuflażu",
+        "copyUnreadable": "Nie można odczytać skopiowanego kamuflażu",
+        "copyIncomplete": "Kopia jest niekompletna",
+        "backUpFailed": "Nie udało się utworzyć kopii zapasowej zainstalowanej wersji",
+        "installFailed": "Nie udało się zainstalować kamuflażu",
+        "backupGone": "Ta kopia zapasowa nie jest już dostępna",
+        "backupMismatch": "Ta kopia zapasowa nie jest starszą wersją tego kamuflażu",
+        "undoReplaceFailed": "Nie udało się przywrócić poprzedniej wersji",
+        "watchFolderGone": "Nie można znaleźć obserwowanego folderu",
+        "watchInsideUserSkins": "Obserwowany folder nie może leżeć w UserSkins",
+        "noDownloadsFolder": "Nie można znaleźć folderu Pobrane. Wybierz folder do obserwowania.",
+        "watchStartFailed": "Nie udało się rozpocząć obserwowania folderów",
+        "wtliveUnsupported": "Ta wersja nie może łączyć się z WT Live.",
+        "wtliveOff": "Przeglądanie WT Live jest wyłączone w Ustawieniach",
+        "followingNotSaved": "Nie udało się zapisać listy Obserwowane",
+        "wtliveUnreadable": "Livery nie potrafi odczytać odpowiedzi WT Live",
+        "wtliveErrorAnswer": "WT Live zwraca błąd",
+        "hiddenNotSaved": "Nie udało się zapisać ukrytych kamuflaży",
+        "wtlivePostGone": "Tego kamuflażu nie ma już na WT Live",
+        "archiveNotSaved": "Nie udało się zapisać archiwum kamuflażu",
+        "httpClientFailed": "Nie można uruchomić klienta HTTP",
+        "wtlivePaused": "WT Live nie odpowiada; Livery spróbuje ponownie za kilka minut",
+        "wtliveUnreachable": "Brak połączenia z WT Live",
+        "wtliveRobots": "Plik robots.txt WT Live prosi narzędzia takie jak Livery, aby nie czytały tej strony",
+        "archiveTooLarge": "Archiwum kamuflażu jest większe, niż oczekiwano",
+        "notADownloadLink": "To nie jest link do pobrania z WT Live",
+        "postNotAnArchive": "Plik z tego wpisu nie jest archiwum ZIP, 7z ani RAR",
+        "skinInstalling": "Ten kamuflaż jest już instalowany",
+        "notTried": "Ten kamuflaż nie jest testowany w grze",
+        "installedFolderGone": "Folder zainstalowanej wersji zniknął",
+        "updateCheckFailed": "Nie udało się sprawdzić aktualizacji",
+        "updateDownloadFailed": "Nie udało się pobrać aktualizacji",
+        "updateBadSignature": "Aktualizacja nie jest podpisana przez Livery, więc nie została zainstalowana",
+        "updateInstallFailed": "Nie udało się zainstalować aktualizacji",
+        "updateUpToDate": "Masz już najnowszą wersję Livery",
+        "updateBusy": "Aktualizacja jest już pobierana",
+        "skinNeedsName": "Kamuflaż musi mieć nazwę",
+        "renameFailed": "Nie udało się zmienić nazwy folderu kamuflażu"
+      }
+    },
+    "vehicleClass": {
+      "fighter": "Myśliwiec",
+      "strike_aircraft": "Samolot szturmowy",
+      "bomber": "Bombowiec",
+      "attack_helicopter": "Śmigłowiec szturmowy",
+      "utility_helicopter": "Śmigłowiec wielozadaniowy",
+      "helicopter": "Śmigłowiec",
+      "light_tank": "Czołg lekki",
+      "medium_tank": "Czołg średni",
+      "tank": "Czołg",
+      "heavy_tank": "Czołg ciężki",
+      "tank_destroyer": "Niszczyciel czołgów",
+      "spaa": "Działo plot.",
+      "mbt": "Czołg podstawowy",
+      "frigate": "Fregata",
+      "destroyer": "Niszczyciel",
+      "battleship": "Pancernik",
+      "battlecruiser": "Krążownik liniowy",
+      "heavy_cruiser": "Krążownik ciężki",
+      "light_cruiser": "Krążownik lekki",
+      "cruiser": "Krążownik",
+      "torpedo_boat": "Kuter torpedowy",
+      "gunboat": "Kanonierka",
+      "torpedo_gunboat": "Kuter torpedowo-artyleryjski",
+      "submarine_chaser": "Kuter ZOP",
+      "naval_ferry_barge": "Pływająca bateria"
+    }
+  },
+  "firstRun": {
+    "label": "Pierwsze uruchomienie",
+    "steps": {
+      "label": "Kroki konfiguracji",
+      "detect": "01 WYKRYJ",
+      "confirm": "02 POTWIERDŹ",
+      "import": "03 IMPORTUJ"
+    },
+    "detect": {
+      "title": "Wyszukiwanie War Thunder",
+      "body": "Sprawdzanie typowych lokalizacji. To zajmie chwilę.",
+      "progress": "Postęp wykrywania",
+      "sources": {
+        "steam": "Biblioteka Steam",
+        "standalone": "Samodzielny launcher",
+        "custom": "Własna lokalizacja"
+      },
+      "state": {
+        "queued": "w kolejce",
+        "checking": "sprawdzanie…",
+        "found": "znaleziono",
+        "notFound": "nie znaleziono",
+        "notInstalled": "nie zainstalowano",
+        "skipped": "pominięto"
+      },
+      "doneFound": "Wykrywanie zakończone. Znaleziono War Thunder: {{source}}.",
+      "doneNotFound": "Wykrywanie zakończone. Nie znaleziono War Thunder w typowych lokalizacjach."
+    },
+    "found": {
+      "title": "Znaleziono War Thunder",
+      "body": "Livery będzie instalować kamuflaże w tej kopii gry.",
+      "game": "War Thunder",
+      "meta_one": "Wersja {{version}} · {{count}} kamuflaż już w UserSkins",
+      "meta_few": "Wersja {{version}} · {{count}} kamuflaże już w UserSkins",
+      "meta_many": "Wersja {{version}} · {{count}} kamuflaży już w UserSkins",
+      "meta_other": "Wersja {{version}} · {{count}} kamuflażu już w UserSkins",
+      "metaNoVersion_one": "{{count}} kamuflaż już w UserSkins",
+      "metaNoVersion_few": "{{count}} kamuflaże już w UserSkins",
+      "metaNoVersion_many": "{{count}} kamuflaży już w UserSkins",
+      "metaNoVersion_other": "{{count}} kamuflażu już w UserSkins",
+      "use": "Użyj tej instalacji",
+      "other": "Wybierz inny folder"
+    },
+    "notFound": {
+      "title": "Nie znaleziono War Thunder",
+      "body": "Wybierz folder, w którym zainstalowano grę. Livery szuka w nim folderu UserSkins.",
+      "choose": "Wybierz folder gry",
+      "drop": "lub upuść go tutaj",
+      "pickerTitle": "Wybierz folder War Thunder",
+      "invalid": "Ten folder nie wygląda na War Thunder. Wybierz folder zawierający launcher.exe lub UserSkins.",
+      "dropOverlay": "Upuść folder War Thunder",
+      "dropFormats": "FOLDER",
+      "skip": "Pomiń na razie",
+      "back": "Wstecz",
+      "backToSettings": "Wróć do Ustawień"
+    },
+    "import": {
+      "title": "Kamuflaże już na dysku",
+      "body": "W Twoim folderze UserSkins są już kamuflaże. Dodaj je do Mojego hangaru, aby zarządzać nimi tutaj.",
+      "stats": {
+        "skins": "kamuflaże",
+        "vehicles": "maszyny",
+        "attention": "do sprawdzenia"
+      },
+      "tag": {
+        "ok": "ok",
+        "mine": "Twój",
+        "attention": "do sprawdzenia"
+      },
+      "more": "+ {{count}} więcej",
+      "import": "Importuj i kontynuuj",
+      "skip": "Pomiń import",
+      "scanFailed": "Nie udało się odczytać folderu UserSkins."
+    },
+    "toast": {
+      "imported_one": "Dodano {{count}} kamuflaż do Mojego hangaru",
+      "imported_few": "Dodano {{count}} kamuflaże do Mojego hangaru",
+      "imported_many": "Dodano {{count}} kamuflaży do Mojego hangaru",
+      "imported_other": "Dodano {{count}} kamuflażu do Mojego hangaru",
+      "gameSet": "Ustawiono folder gry",
+      "later": "Folder gry możesz ustawić później w Ustawieniach"
+    },
+    "anim": {
+      "hull": "KADŁUB 200 × 120 × 110",
+      "sheet": "ARKUSZ 00 · WYKRYWANIE INSTALACJI",
+      "unofficial": "NIEOFICJALNE NARZĘDZIE"
+    }
+  },
+  "detail": {
+    "label": "Szczegóły kamuflażu",
+    "backTo": {
+      "explore": "Wróć do sekcji Odkrywaj",
+      "hangar": "Wróć do Mojego hangaru",
+      "collections": "Wróć do Kolekcji",
+      "queue": "Wróć do kolejki instalacji",
+      "settings": "Wróć do Ustawień"
+    },
+    "loading": "Wczytywanie kamuflażu",
+    "tabs": {
+      "label": "Szczegóły kamuflażu",
+      "gallery": "Galeria",
+      "post": "Wpis",
+      "textures": "Tekstury",
+      "try": "Testuj w grze"
+    },
+    "post": {
+      "fromAuthor": "Autor: {{name}}",
+      "noText": "Autor nie napisał nic więcej o tym kamuflażu.",
+      "tags": "Hashtagi",
+      "tagHint": "Szukaj #{{tag}} w sekcji Odkrywaj",
+      "pictures_one": "{{count, number}} obraz we wpisie",
+      "pictures_few": "{{count, number}} obrazy we wpisie",
+      "pictures_many": "{{count, number}} obrazów we wpisie",
+      "pictures_other": "{{count, number}} obrazu we wpisie",
+      "openPicture": "Otwórz obraz {{n}} z wpisu w galerii",
+      "linkHint": "Otwiera się na WT Live. Linki do innych stron najpierw prowadzą przez stronę ostrzeżenia WT Live.",
+      "source": "Tekst i obrazy pochodzą z oryginalnego wpisu na WT Live, w takiej formie, w jakiej opublikował je autor.",
+      "emptyTitle": "Nic więcej w tym wpisie",
+      "emptyBody": "Autor nie dodał tekstu, hashtagów ani dodatkowych obrazów."
+    },
+    "noSkin": {
+      "title": "Nie wybrano kamuflażu",
+      "body": "Wybierz kamuflaż w sekcji Odkrywaj, aby zobaczyć jego galerię, tekstury i pliki."
+    },
+    "offline": {
+      "title": "Brak połączenia z WT Live",
+      "body": "Twoja biblioteka działa normalnie. Przeglądanie i instalowanie z WT Live wróci, gdy znów będziesz online.",
+      "hangar": "Otwórz Mój hangar"
+    },
+    "off": {
+      "title": "Przeglądanie WT Live jest wyłączone",
+      "body": "Gdy przeglądanie jest wyłączone, Livery nie wysyła żadnych żądań do WT Live. Twoja biblioteka działa normalnie.",
+      "settings": "Otwórz Ustawienia"
+    },
+    "error": {
+      "title": "Nie można wczytać tego kamuflażu"
+    },
+    "gallery": {
+      "views": "Widoki",
+      "view": {
+        "front": "Przód",
+        "side": "Bok",
+        "rear": "Tył",
+        "detail": "Detal"
+      },
+      "image": "Obraz {{n}}",
+      "imageAlt": "{{name}}, {{view}}",
+      "placeholder": "zrzut ekranu · {{vehicle}} · widok: {{view}}",
+      "counter": "{{n}} / {{total}}",
+      "zoomIn": "Powiększ",
+      "zoomOut": "Pomniejsz",
+      "compare": "Porównaj",
+      "compareHint": "Porównaj z innym kamuflażem dla tej samej maszyny",
+      "compareA": "A · {{name}}",
+      "compareB": "B · {{name}} · autor: {{author}}",
+      "compareWith": "PORÓWNAJ Z · ta sama maszyna",
+      "comparePlaceholder": "zrzut ekranu · {{name}}",
+      "exitCompare": "Zakończ porównanie"
+    },
+    "textures": {
+      "loading": "Odczytywanie tekstur",
+      "loadFailedTitle": "Nie można odczytać tekstur",
+      "title": "Tekstury w archiwum",
+      "meta_one": "{{count}} plik · {{size}}",
+      "meta_few": "{{count}} pliki · {{size}}",
+      "meta_many": "{{count}} plików · {{size}}",
+      "meta_other": "{{count}} pliku · {{size}}",
+      "attention_one": "{{count}} plik wymaga uwagi. Kamuflaż i tak się zainstaluje; gra może pominąć problematyczną część.",
+      "attention_few": "{{count}} pliki wymagają uwagi. Kamuflaż i tak się zainstaluje; gra może pominąć problematyczną część.",
+      "attention_many": "{{count}} plików wymaga uwagi. Kamuflaż i tak się zainstaluje; gra może pominąć problematyczną część.",
+      "attention_other": "{{count}} pliku wymaga uwagi. Kamuflaż i tak się zainstaluje; gra może pominąć problematyczną część.",
+      "empty": "Brak tekstur w tym archiwum.",
+      "col": {
+        "file": "Plik",
+        "resolution": "Rozdzielczość",
+        "format": "Format",
+        "size": "Rozmiar"
+      },
+      "missing": "brak",
+      "warning": {
+        "heavy": "Bardzo ciężka tekstura ({{size}}²). Może wydłużyć wczytywanie.",
+        "notSquarePow2": "Rozmiar nie jest kwadratową potęgą dwójki ({{resolution}}). Gra może jej nie wczytać.",
+        "unreadable": "Nie można odczytać nagłówka. Plik może być uszkodzony.",
+        "missing": "Wymieniona w skin.blk, ale nieobecna w archiwum."
+      }
+    },
+    "try": {
+      "idleTitle": "Wypróbuj, zanim zatrzymasz",
+      "idleBody": "Livery instaluje kamuflaż tymczasowo. Obejrzyj go w grze, a potem zdecyduj. Nic nie trafi do Mojego hangaru, dopóki nie naciśniesz Zachowaj.",
+      "steps": "Jak to działa",
+      "step1": "Livery kopiuje pliki do UserSkins",
+      "step2": "W War Thunder otwórz Malowanie maszyny i naciśnij przycisk <b>odśwież</b>",
+      "step3": "Wróć tutaj i wybierz Zachowaj lub Odrzuć",
+      "start": "Testuj w grze · {{size}}",
+      "busy": "Ten kamuflaż jest właśnie instalowany.",
+      "offline": "Brak połączenia z WT Live. Spróbuj ponownie, gdy znów będziesz online.",
+      "failed": "Nie udało się zainstalować do testu: {{message}}",
+      "installingTitle": "Instalowanie tymczasowe…",
+      "installingBody": "Pobieranie i rozpakowywanie {{size}}.",
+      "installingLabel": "Instalowanie tymczasowe",
+      "activeTitle": "Kamuflaż jest w grze",
+      "activeBody": "Otwórz <b>{{vehicle}}</b> → Malowanie → naciśnij <b>odśwież</b>, a potem wybierz „{{name}}”.",
+      "temporary": "Tymczasowy · zniknie po kliknięciu Odrzuć",
+      "keep": "Zachowaj",
+      "discard": "Odrzuć",
+      "kept": "Zachowano „{{name}}”. Jest w Moim hangarze.",
+      "discarded": "Odrzucono „{{name}}”. Pliki gry przywrócone.",
+      "finalizeFailed": "Nie udało się zakończyć testu: {{message}}",
+      "keptTitle": "Jest w Moim hangarze",
+      "keptBody": "Zainstalowano „{{name}}”. Otwórz <b>{{vehicle}}</b> → Malowanie, aby zobaczyć go w grze."
+    },
+    "side": {
+      "label": "O tym kamuflażu"
+    },
+    "author": {
+      "label": "Autor",
+      "onWtLive": "na WT Live",
+      "openPost": "Otwórz oryginalny wpis",
+      "openPostHint": "Otwiera wpis na WT Live w przeglądarce",
+      "openAuthor": "Otwórz stronę autora {{name}} na WT Live"
+    },
+    "hide": {
+      "action": "Ukryj w sekcji Odkrywaj",
+      "hint": "Ten kamuflaż nie będzie widoczny w sekcjach Odkrywaj i Obserwowane. Jeśli jest zainstalowany, zostaje w Moim hangarze.",
+      "hidden": "Ukryto „{{name}}”",
+      "failed": "Nie udało się zaktualizować ukrytych kamuflaży: {{message}}"
+    },
+    "vehicle": {
+      "label": "Maszyna",
+      "open": "Pokaż kamuflaże tej maszyny w sekcji Odkrywaj",
+      "meta": "{{code}} · {{nation}} · {{class}}",
+      "inPack_one": "Zainstalowano z tego wpisu: {{count, number}} maszyna",
+      "inPack_few": "Zainstalowano z tego wpisu: {{count, number}} maszyny",
+      "inPack_many": "Zainstalowano z tego wpisu: {{count, number}} maszyn",
+      "inPack_other": "Zainstalowano z tego wpisu: {{count, number}} maszyny"
+    },
+    "follow": {
+      "follow": "Obserwuj",
+      "following": "Obserwujesz",
+      "followName": "Obserwuj: {{name}}",
+      "followingName": "Obserwujesz: {{name}}",
+      "followed": "Obserwujesz „{{name}}”",
+      "unfollowed": "Nie obserwujesz już „{{name}}”",
+      "failed": "Nie udało się zaktualizować listy Obserwowane: {{message}}"
+    },
+    "stats": {
+      "downloads": "Pobrania",
+      "likes": "Polubienia",
+      "category": "Kategoria",
+      "posted": "Opublikowano"
+    },
+    "category": {
+      "Historical": "Historyczny",
+      "Semi-historical": "Półhistoryczny",
+      "Fictional": "Fikcyjny",
+      "Camouflage": "Maskujący",
+      "Other": "Inny"
+    },
+    "files": {
+      "label": "Zawarte pliki",
+      "meta": "{{count}} · {{size}}",
+      "none": "Wpis nie podaje listy plików."
+    },
+    "install": {
+      "install": "Zainstaluj",
+      "progressLabel": "Instalowanie „{{name}}”",
+      "step": {
+        "download": "Pobierz",
+        "extract": "Rozpakuj",
+        "verify": "Sprawdź",
+        "done": "Gotowe"
+      },
+      "running": {
+        "download": "Pobieranie",
+        "extract": "Rozpakowywanie",
+        "verify": "Sprawdzanie"
+      },
+      "stepNow": "{{step}} {{pct}}%",
+      "installed": "Zainstalowany",
+      "inHangar": "w hangarze",
+      "trying": "Test w grze",
+      "tryingAction": "Zachowaj lub odrzuć",
+      "failed": "Błąd instalacji",
+      "asCopy": "Zainstaluj jako kopię",
+      "offline": "Brak połączenia z WT Live. Spróbuj ponownie, gdy znów będziesz online."
+    },
+    "collections": {
+      "add": "Dodaj do kolekcji",
+      "installFirst": "Najpierw go zainstaluj",
+      "none": "Brak kolekcji",
+      "member": "już w niej jest",
+      "added": "Dodano do „{{name}}”",
+      "already": "Już jest w „{{name}}”",
+      "failed": "Nie udało się dodać: {{message}}"
+    }
+  },
+  "explore": {
+    "title": "Odkrywaj",
+    "following": "Obserwowane",
+    "tabs": "Widoki sekcji Odkrywaj",
+    "newCount_one": "{{count, number}} nowy",
+    "newCount_few": "{{count, number}} nowe",
+    "newCount_many": "{{count, number}} nowych",
+    "newCount_other": "{{count, number}} nowego",
+    "results_one": "{{count, number}} wynik",
+    "results_few": "{{count, number}} wyniki",
+    "results_many": "{{count, number}} wyników",
+    "results_other": "{{count, number}} wyniku",
+    "resultsAtLeast_one": "{{count, number}}+ wynik",
+    "resultsAtLeast_few": "{{count, number}}+ wyniki",
+    "resultsAtLeast_many": "{{count, number}}+ wyników",
+    "resultsAtLeast_other": "{{count, number}}+ wyniku",
+    "filters": {
+      "label": "Filtry",
+      "nation": "Kraj",
+      "class": "Klasa",
+      "category": "Kategoria",
+      "type": "Typ maszyny",
+      "allTypes": "Wszystkie typy",
+      "vehicle": "Maszyna",
+      "vehiclePlaceholder": "Maszyna…",
+      "vehicleSuggestions": "Pasujące maszyny",
+      "sort": "Sortuj",
+      "active_one": "{{count}} filtr",
+      "active_few": "{{count}} filtry łącznie",
+      "active_many": "{{count}} filtrów łącznie",
+      "active_other": "{{count}} filtra łącznie",
+      "remove": "Usuń filtr: {{label}}",
+      "clearAll": "Wyczyść wszystko",
+      "query": "„{{q}}”"
+    },
+    "category": {
+      "Historical": "Historyczny",
+      "Semi-historical": "Półhistoryczny",
+      "Fictional": "Fikcyjny",
+      "Camouflage": "Maskujący",
+      "Other": "Inny"
+    },
+    "sort": {
+      "downloads": "Najczęściej pobierane",
+      "likes": "Najwięcej polubień",
+      "newest": "Najnowsze",
+      "name": "Nazwa A–Z"
+    },
+    "grid": {
+      "label": "Kamuflaże z WT Live",
+      "moreFailed": "Nie udało się wczytać kolejnych kamuflaży."
+    },
+    "card": {
+      "new": "Nowy",
+      "by": "autor: <author>{{author}}</author>",
+      "stats": "{{downloads}} pobr. · {{likes}} polub.",
+      "statsFull": "Pobrania: {{downloads, number}}, polubienia: {{likes, number}}",
+      "install": "Zainstaluj",
+      "installed": "Zainstalowany",
+      "inHangar": "w hangarze",
+      "trying": "Test w grze",
+      "tryingHint": "Zachowaj go lub odrzuć na stronie kamuflażu",
+      "failed": "Błąd instalacji",
+      "retry": "Ponów",
+      "installCopy": "Zainstaluj jako kopię",
+      "progress": "Instalowanie",
+      "steps": {
+        "download": "Pobierz",
+        "extract": "Rozpakuj",
+        "verify": "Sprawdź",
+        "done": "Gotowe"
+      },
+      "stepsNow": {
+        "download": "Pobieranie",
+        "extract": "Rozpakowywanie",
+        "verify": "Sprawdzanie",
+        "done": "Gotowe"
+      },
+      "stepPct": "{{step}} {{pct}}%",
+      "errors": {
+        "network": "Brak połączenia z WT Live. Sprawdź połączenie i ponów próbę.",
+        "unavailable": "Instalowanie z WT Live nie jest jeszcze dostępne w tej wersji.",
+        "conflict": "Jest już w Moim hangarze.",
+        "notFound": "Tego kamuflażu nie ma już na WT Live."
+      }
+    },
+    "empty": {
+      "title": "Brak pasujących kamuflaży",
+      "body": "Użyj mniej filtrów albo szukaj według kodu maszyny.",
+      "clear": "Wyczyść wszystkie filtry"
+    },
+    "offline": {
+      "title": "Brak połączenia z WT Live",
+      "body": "Twoja biblioteka działa normalnie. Przeglądanie i instalowanie z WT Live wróci, gdy znów będziesz online.",
+      "hangar": "Otwórz Mój hangar",
+      "stillOffline": "Nadal offline. Twoja biblioteka jest w pełni dostępna."
+    },
+    "off": {
+      "title": "Przeglądanie WT Live jest wyłączone",
+      "body": "Gdy przeglądanie jest wyłączone, Livery nie wysyła żadnych żądań do WT Live. Twoja biblioteka działa normalnie.",
+      "settings": "Otwórz Ustawienia"
+    },
+    "error": {
+      "title": "Nieoczekiwana odpowiedź WT Live",
+      "body": "Twoja biblioteka działa normalnie. Spróbuj ponownie za chwilę."
+    },
+    "follow": {
+      "label": "Obserwowane · {{count, number}}",
+      "listLabel": "Obserwowane maszyny i autorzy",
+      "vehicle": "Maszyna · {{code}}",
+      "author": "Autor",
+      "authorCount_one": "Autor · {{count, number}} kamuflaż na WT Live",
+      "authorCount_few": "Autor · {{count, number}} kamuflaże na WT Live",
+      "authorCount_many": "Autor · {{count, number}} kamuflaży na WT Live",
+      "authorCount_other": "Autor · {{count, number}} kamuflażu na WT Live",
+      "unfollow": "Przestań obserwować: {{name}}",
+      "unfollowed": "Nie obserwujesz już „{{name}}”",
+      "unfollowFailed": "Nie udało się przestać obserwować „{{name}}”",
+      "refollowFailed": "Nie udało się ponownie obserwować „{{name}}”",
+      "newTitle": "Nowości od obserwowanych autorów i maszyn",
+      "newMeta": "{{vehicle}} · autor: <author>{{author}}</author> · {{date}}",
+      "nothingNew": "Nic nowego od Twojej ostatniej wizyty.",
+      "offline": "Nowe kamuflaże pojawią się tutaj, gdy połączenie z WT Live będzie możliwe.",
+      "emptyTitle": "Jeszcze nikogo nie obserwujesz",
+      "emptyBody": "Otwórz kamuflaż i naciśnij Obserwuj obok jego autora. Nowe kamuflaże od obserwowanych autorów i maszyn pojawią się tutaj.",
+      "browse": "Przeglądaj kamuflaże"
+    }
+  },
+  "hangar": {
+    "title": "Mój hangar",
+    "emptyTitle": "Jeszcze nic tu nie ma",
+    "emptyBody": "Zainstaluj kamuflaż z sekcji Odkrywaj albo upuść plik ZIP w dowolnym miejscu tego okna.",
+    "emptyAction": "Przeglądaj WT Live",
+    "attention": {
+      "missingTexture": "brak pliku {{file}}",
+      "unknownBlkBlock": "{{file}} ma nieznany blok",
+      "partialExtract": "archiwum rozpakowano tylko częściowo",
+      "noBlk": "brak pliku .blk, więc gra nie może go użyć",
+      "unreadableBlk": "nie można odczytać {{file}}"
+    },
+    "unknownVehicle": "Nieznana maszyna",
+    "stats": {
+      "skins_one": "{{count, number}} kamuflaż",
+      "skins_few": "{{count, number}} kamuflaże",
+      "skins_many": "{{count, number}} kamuflaży",
+      "skins_other": "{{count, number}} kamuflażu",
+      "active_one": "{{count, number}} aktywny",
+      "active_few": "{{count, number}} aktywne",
+      "active_many": "{{count, number}} aktywnych",
+      "active_other": "{{count, number}} aktywnego",
+      "size": "{{size}} na dysku",
+      "attention_one": "{{count, number}} do sprawdzenia",
+      "attention_few": "{{count, number}} do sprawdzenia",
+      "attention_many": "{{count, number}} do sprawdzenia",
+      "attention_other": "{{count, number}} do sprawdzenia"
+    },
+    "search": "Szukaj w swoich kamuflażach…",
+    "searchLabel": "Szukaj w Moim hangarze",
+    "filters": {
+      "nation": "Kraj",
+      "type": "Typ",
+      "origin": "Źródło",
+      "anyNation": "Wszystkie kraje",
+      "anyType": "Wszystkie typy",
+      "anyOrigin": "Wszystkie źródła"
+    },
+    "nation": {
+      "USA": "USA",
+      "GER": "Niemcy",
+      "USSR": "ZSRR",
+      "GBR": "Wielka Brytania",
+      "JPN": "Japonia",
+      "CHN": "Chiny",
+      "ITA": "Włochy",
+      "FRA": "Francja",
+      "SWE": "Szwecja",
+      "ISR": "Izrael",
+      "UNK": "Nieznany"
+    },
+    "type": {
+      "ground": "Naziemne",
+      "air": "Lotnictwo",
+      "heli": "Śmigłowce",
+      "naval": "Flota"
+    },
+    "origin": {
+      "wtlive": "WT Live",
+      "imported": "Zaimportowane",
+      "mine": "Moje"
+    },
+    "selectAll": "Zaznacz wszystko",
+    "clearSelection": "Wyczyść zaznaczenie",
+    "view": {
+      "label": "Widok",
+      "grid": "Widok siatki",
+      "list": "Widok listy"
+    },
+    "skins": "Twoje kamuflaże",
+    "groupCount_one": "{{count, number}} kamuflaż",
+    "groupCount_few": "{{count, number}} kamuflaże",
+    "groupCount_many": "{{count, number}} kamuflaży",
+    "groupCount_other": "{{count, number}} kamuflażu",
+    "card": {
+      "select": "Zaznacz {{name}}",
+      "needsAttention": "DO SPRAWDZENIA",
+      "active": "Aktywny",
+      "inactive": "Nieaktywny",
+      "activeToggle": "Aktywny w grze",
+      "recheck": "Sprawdź ponownie",
+      "uninstall": "Odinstaluj",
+      "rename": "Zmień nazwę",
+      "renameLabel": "Nowa nazwa dla {{name}}",
+      "attentionMore": "{{message}} +{{count}}",
+      "authorYou": "Ty",
+      "noAuthor": "–",
+      "hintOpen": "Naciśnij Enter, aby otworzyć stronę kamuflażu, lub Spację, aby go zaznaczyć.",
+      "hintSelect": "Naciśnij Enter lub Spację, aby go zaznaczyć. Lokalne kamuflaże nie mają strony."
+    },
+    "rename": {
+      "empty": "Kamuflaż musi mieć nazwę.",
+      "invalid": "Nazwa kamuflażu nie może zawierać znaków < > : \" / \\ | ? * ani zaczynać się lub kończyć kropką."
+    },
+    "noResultsTitle": "Brak pasujących kamuflaży",
+    "noResultsBody": "Użyj mniej filtrów albo szukaj według kodu maszyny.",
+    "clearFilters": "Wyczyść filtry",
+    "loadErrorTitle": "Nie udało się odczytać Mojego hangaru",
+    "confirm": {
+      "uninstallTitle": "Odinstalować „{{name}}”?",
+      "uninstallBody": "War Thunder przestanie go pokazywać. Livery zachowuje kopię zapasową, więc możesz to cofnąć w powiadomieniu.",
+      "deleteTitle_one": "Usunąć {{count, number}} kamuflaż?",
+      "deleteTitle_few": "Usunąć {{count, number}} kamuflaże?",
+      "deleteTitle_many": "Usunąć {{count, number}} kamuflaży?",
+      "deleteTitle_other": "Usunąć {{count, number}} kamuflażu?",
+      "deleteBody_one": "Jego folder zostanie usunięty z gry. Livery zachowuje kopię zapasową, więc możesz to cofnąć w powiadomieniu.",
+      "deleteBody_few": "Ich foldery zostaną usunięte z gry. Livery zachowuje kopię zapasową, więc możesz to cofnąć w powiadomieniu.",
+      "deleteBody_many": "Ich foldery zostaną usunięte z gry. Livery zachowuje kopię zapasową, więc możesz to cofnąć w powiadomieniu.",
+      "deleteBody_other": "Ich foldery zostaną usunięte z gry. Livery zachowuje kopię zapasową, więc możesz to cofnąć w powiadomieniu.",
+      "delete_one": "Usuń kamuflaż",
+      "delete_few": "Usuń {{count, number}} kamuflaże",
+      "delete_many": "Usuń {{count, number}} kamuflaży",
+      "delete_other": "Usuń {{count, number}} kamuflażu"
+    },
+    "bulk": {
+      "label": "Zaznaczone kamuflaże",
+      "selected_one": "Zaznaczono {{count, number}} kamuflaż",
+      "selected_few": "Zaznaczono {{count, number}} kamuflaże",
+      "selected_many": "Zaznaczono {{count, number}} kamuflaży",
+      "selected_other": "Zaznaczono {{count, number}} kamuflażu",
+      "f6Hint": "Naciśnij F6, aby przejść do akcji dla zaznaczenia.",
+      "activate": "Aktywuj",
+      "deactivate": "Dezaktywuj",
+      "move": "Przenieś do kolekcji",
+      "noCollections": "Brak kolekcji",
+      "export": "Eksportuj",
+      "exportTitle": "Wybierz, dokąd wyeksportować kamuflaże",
+      "delete": "Usuń"
+    },
+    "toast": {
+      "activated_one": "Aktywowano {{count, number}} kamuflaż",
+      "activated_few": "Aktywowano {{count, number}} kamuflaże",
+      "activated_many": "Aktywowano {{count, number}} kamuflaży",
+      "activated_other": "Aktywowano {{count, number}} kamuflażu",
+      "deactivated_one": "Dezaktywowano {{count, number}} kamuflaż",
+      "deactivated_few": "Dezaktywowano {{count, number}} kamuflaże",
+      "deactivated_many": "Dezaktywowano {{count, number}} kamuflaży",
+      "deactivated_other": "Dezaktywowano {{count, number}} kamuflażu",
+      "deleted_one": "Usunięto {{count, number}} kamuflaż",
+      "deleted_few": "Usunięto {{count, number}} kamuflaże",
+      "deleted_many": "Usunięto {{count, number}} kamuflaży",
+      "deleted_other": "Usunięto {{count, number}} kamuflażu",
+      "restored_one": "Przywrócono {{count, number}} kamuflaż",
+      "restored_few": "Przywrócono {{count, number}} kamuflaże",
+      "restored_many": "Przywrócono {{count, number}} kamuflaży",
+      "restored_other": "Przywrócono {{count, number}} kamuflażu",
+      "uninstalled": "Odinstalowano „{{name}}”",
+      "reinstalled": "„{{name}}” jest znów w grze",
+      "renamed": "Zmieniono nazwę na „{{name}}”. War Thunder pokazuje tę nazwę.",
+      "moved_one": "Przeniesiono {{count, number}} kamuflaż do „{{collection}}”",
+      "moved_few": "Przeniesiono {{count, number}} kamuflaże do „{{collection}}”",
+      "moved_many": "Przeniesiono {{count, number}} kamuflaży do „{{collection}}”",
+      "moved_other": "Przeniesiono {{count, number}} kamuflażu do „{{collection}}”",
+      "exported_one": "Wyeksportowano {{count, number}} kamuflaż do „{{folder}}”",
+      "exported_few": "Wyeksportowano {{count, number}} kamuflaże do „{{folder}}”",
+      "exported_many": "Wyeksportowano {{count, number}} kamuflaży do „{{folder}}”",
+      "exported_other": "Wyeksportowano {{count, number}} kamuflażu do „{{folder}}”",
+      "recheckOk": "„{{name}}” wygląda teraz dobrze",
+      "recheckStill": "„{{name}}” nadal wymaga uwagi",
+      "recheckGone": "Nie ma już „{{name}}” w UserSkins"
+    }
+  },
+  "collections": {
+    "title": "Kolekcje",
+    "new": "Nowa",
+    "newCollection": "Nowa kolekcja",
+    "newName": "Nowa kolekcja",
+    "helper": "Aktywuj kolekcję, aby używać w grze tylko jej kamuflaży. Pozostałe zostają zainstalowane, ale nieaktywne.",
+    "activeBadge": "Aktywna",
+    "inUse": "W użyciu",
+    "count_one": "{{count}} kamuflaż",
+    "count_few": "{{count}} kamuflaże",
+    "count_many": "{{count}} kamuflaży",
+    "count_other": "{{count}} kamuflażu",
+    "meta_one": "{{count}} kamuflaż · {{size}}",
+    "meta_few": "{{count}} kamuflaże · {{size}}",
+    "meta_many": "{{count}} kamuflaży · {{size}}",
+    "meta_other": "{{count}} kamuflażu · {{size}}",
+    "nameLabel": "Nazwa kolekcji",
+    "descriptionLabel": "Opis kolekcji",
+    "addDescription": "Dodaj opis",
+    "activeInGame": "Aktywna w grze",
+    "activate": "Aktywuj",
+    "delete": "Usuń kolekcję",
+    "members": "Kamuflaże w „{{name}}”",
+    "remove": "Usuń",
+    "removeLabel": "Usuń „{{name}}” z tej kolekcji",
+    "addFromHangar": "Dodaj kamuflaże z Mojego hangaru\n(zaznacz → Przenieś do kolekcji)",
+    "emptyTitle": "Brak kolekcji",
+    "loadFailed": "Nie udało się wczytać Twoich kolekcji",
+    "toast": {
+      "activated_one": "Aktywowano „{{name}}” · {{count}} kamuflaż",
+      "activated_few": "Aktywowano „{{name}}” · {{count}} kamuflaże",
+      "activated_many": "Aktywowano „{{name}}” · {{count}} kamuflaży",
+      "activated_other": "Aktywowano „{{name}}” · {{count}} kamuflażu",
+      "deleted": "Usunięto „{{name}}”",
+      "removed": "Usunięto z „{{name}}”"
+    }
+  },
+  "queue": {
+    "title": "Kolejka instalacji",
+    "dropZone": "Upuść archiwa ZIP, RAR lub 7z w dowolnym miejscu okna",
+    "browse": "lub kliknij, aby wybrać",
+    "browseTitle": "Dodaj archiwa kamuflaży",
+    "browseFilter": "Archiwa kamuflaży",
+    "chooseFolder": "Wybierz folder kamuflażu",
+    "empty": "Kolejka jest pusta.",
+    "list": "Elementy w kolejce",
+    "meta": {
+      "items_one": "{{count}} archiwum",
+      "items_few": "{{count}} archiwa",
+      "items_many": "{{count}} archiwów",
+      "items_other": "{{count}} archiwum",
+      "ready_one": "{{count}} gotowe",
+      "ready_few": "{{count}} gotowe",
+      "ready_many": "{{count}} gotowych",
+      "ready_other": "{{count}} gotowego"
+    },
+    "clearDone": "Wyczyść zainstalowane",
+    "installReady_one": "Zainstaluj {{count}} gotowe",
+    "installReady_few": "Zainstaluj {{count}} gotowe",
+    "installReady_many": "Zainstaluj {{count}} gotowych",
+    "installReady_other": "Zainstaluj {{count}} gotowego",
+    "status": {
+      "analyzing": "Analiza",
+      "ready": "Gotowe",
+      "conflict": "Konflikt",
+      "needsLook": "Do sprawdzenia",
+      "installing": "Instalowanie",
+      "done": "Zainstalowane",
+      "error": "Błąd"
+    },
+    "note": {
+      "files_one": "{{count}} plik",
+      "files_few": "{{count}} pliki",
+      "files_many": "{{count}} plików",
+      "files_other": "{{count}} pliku",
+      "textures_one": "{{count}} tekstura",
+      "textures_few": "{{count}} tekstury",
+      "textures_many": "{{count}} tekstur",
+      "textures_other": "{{count}} tekstury",
+      "analyzing": "Analizowanie…",
+      "blkOk": "skin.blk ok",
+      "blkBad": "skin.blk ma problemy",
+      "conflict": "Ta sama nazwa folderu co „{{installed}}” (zainstalowany)",
+      "conflictQueued": "Ta sama nazwa folderu co „{{installed}}” (w kolejce)",
+      "needsLookOne": "Nie można rozpoznać maszyny. Wybierz ją, aby kontynuować.",
+      "needsLook_one": "Nie można rozpoznać maszyny: w środku jest {{count}} folder. Wybierz go, aby kontynuować.",
+      "needsLook_few": "Nie można rozpoznać maszyny: w środku są {{count}} foldery. Wybierz jeden, aby kontynuować.",
+      "needsLook_many": "Nie można rozpoznać maszyny: w środku jest {{count}} folderów. Wybierz jeden, aby kontynuować.",
+      "needsLook_other": "Nie można rozpoznać maszyny: w środku jest {{count}} folderu. Wybierz jeden, aby kontynuować.",
+      "installed": "Jest już w Moim hangarze",
+      "error": "Coś poszło nie tak."
+    },
+    "action": {
+      "install": "Zainstaluj",
+      "resolve": "Rozwiąż",
+      "pickVehicle": "Wybierz maszynę",
+      "installed": "Zainstalowane",
+      "remove": "Usuń {{name}} z kolejki"
+    },
+    "progress": {
+      "label": "Instalowanie {{name}}",
+      "extract": "Rozpakuj",
+      "verify": "Sprawdź",
+      "done": "Gotowe",
+      "extracting": "Rozpakowywanie {{pct}}%",
+      "verifying": "Sprawdzanie {{pct}}%"
+    },
+    "watch": {
+      "title": "Obserwuj folder Pobrane",
+      "helper": "Nowe archiwa kamuflaży instalują się automatycznie.",
+      "showFolder": "Pokaż folder",
+      "hideFolder": "Ukryj folder",
+      "defaultFolder": "Pobrane (domyślny)",
+      "change": "Zmień",
+      "pickTitle": "Wybierz folder do obserwowania"
+    },
+    "legend": {
+      "title": "Co oznaczają stany",
+      "ready": "maszyna rozpoznana, pliki wyglądają dobrze.",
+      "conflict": "zainstalowano już kamuflaż z tym samym folderem.",
+      "needsLook": "nie wiadomo, dla której maszyny jest przeznaczony.",
+      "done": "jest w Moim hangarze i w grze.",
+      "error": "nie można go zainstalować; wiersz podaje powód."
+    },
+    "conflict": {
+      "title": "Ten kamuflaż jest już zainstalowany",
+      "body": "<file>{{file}}</file> używa tego samego folderu co „{{installed}}” dla {{vehicle}}.",
+      "bodyNoVehicle": "<file>{{file}}</file> używa tego samego folderu co „{{installed}}”.",
+      "replace": "Zastąp i zachowaj kopię",
+      "replaceHelp": "Stara wersja trafia do kopii zapasowych. Można to cofnąć.",
+      "copy": "Zainstaluj jako kopię",
+      "copyHelp": "Obie wersje zostają. Nowa dostaje w nazwie „(2)”.",
+      "skip": "Pomiń",
+      "skipHelp": "Zostaw zainstalowaną wersję bez zmian.",
+      "footer": "Zmień domyślne zachowanie w Ustawieniach → Konflikty"
+    },
+    "toast": {
+      "notSkinOne": "„{{name}}” nie jest archiwum ani folderem kamuflażu",
+      "notSkin_one": "{{count}} element nie jest archiwum ani folderem kamuflażu",
+      "notSkin_few": "{{count}} elementy nie są archiwami ani folderami kamuflaży",
+      "notSkin_many": "{{count}} elementów nie jest archiwami ani folderami kamuflaży",
+      "notSkin_other": "{{count}} elementu nie jest archiwum ani folderem kamuflażu",
+      "installed": "Zainstalowano „{{name}}”",
+      "installedMany_one": "Zainstalowano {{count}} kamuflaż",
+      "installedMany_few": "Zainstalowano {{count}} kamuflaże",
+      "installedMany_many": "Zainstalowano {{count}} kamuflaży",
+      "installedMany_other": "Zainstalowano {{count}} kamuflażu",
+      "replaced": "Zastąpiono „{{name}}” · kopia zachowana",
+      "replacedPlain": "Zastąpiono „{{name}}”",
+      "restored": "Przywrócono poprzednią wersję",
+      "copied": "Zainstalowano jako kopię",
+      "skipped": "Pominięto. Nic się nie zmieniło."
+    },
+    "announce": {
+      "done": "{{name}}: zainstalowano",
+      "error": "Nie można zainstalować {{name}}. {{message}}"
+    }
+  },
+  "settings": {
+    "saved": "Zapisano",
+    "title": "Ustawienia",
+    "sections": "Sekcje ustawień",
+    "nav": {
+      "general": "Ogólne",
+      "game": "Gra",
+      "conflicts": "Konflikty",
+      "backups": "Kopie zapasowe",
+      "wtlive": "WT Live",
+      "language": "Język",
+      "updates": "Aktualizacje",
+      "about": "O programie"
+    },
+    "general": {
+      "autostart": "Uruchamiaj z Windows",
+      "autostartHelper": "Livery otwiera się po zalogowaniu do Windows.",
+      "autostartFailed": "Nie udało się zmienić opcji Uruchamiaj z Windows: {{message}}",
+      "reduceMotion": "Ogranicz animacje",
+      "reduceMotionHelper": "Domyślnie zgodnie z ustawieniem Windows.",
+      "motion": {
+        "system": "System",
+        "on": "Wł.",
+        "off": "Wył."
+      },
+      "shortcuts": "Skróty klawiszowe",
+      "keys": {
+        "search": "Ctrl K",
+        "sections": "1–5",
+        "sidebar": "[ ]",
+        "undo": "Ctrl Z",
+        "close": "Esc"
+      },
+      "actions": {
+        "search": "szukaj",
+        "sections": "sekcje",
+        "sidebar": "pasek boczny",
+        "undo": "cofnij",
+        "close": "zamknij"
+      }
+    },
+    "game": {
+      "game": "War Thunder · {{source}}",
+      "source": {
+        "steam": "Steam",
+        "standalone": "Standalone",
+        "custom": "Własny folder"
+      },
+      "change": "Zmień",
+      "none": "Nie ustawiono folderu gry",
+      "noneHelper": "Livery instaluje kamuflaże w folderze UserSkins gry.",
+      "choose": "Wybierz",
+      "watched": "Obserwowany folder",
+      "downloadsDefault": "Pobrane (domyślny)",
+      "watchPickTitle": "Wybierz folder do obserwowania",
+      "readGameData": "Wczytuj listę maszyn z gry",
+      "readGameDataHelper": "Livery odczytuje nazwy maszyn z plików gry (tylko do odczytu), aby rozpoznawać kamuflaże. Wyłączone: używa mniejszej, wbudowanej listy."
+    },
+    "conflicts": {
+      "intro": "Co zrobić, gdy archiwum ma ten sam folder co zainstalowany kamuflaż.",
+      "policy": {
+        "ask": "Pytaj za każdym razem",
+        "replace": "Zastąp i zachowaj kopię zapasową",
+        "copy": "Zainstaluj jako kopię",
+        "skip": "Pomiń"
+      }
+    },
+    "backups": {
+      "keep": "Zachowuj kopię zapasową przy zastępowaniu lub usuwaniu",
+      "keepHelper_one": "Pozwala cofnąć zmiany przez {{count}} dzień.",
+      "keepHelper_few": "Pozwala cofnąć zmiany przez {{count}} dni.",
+      "keepHelper_many": "Pozwala cofnąć zmiany przez {{count}} dni.",
+      "keepHelper_other": "Pozwala cofnąć zmiany przez {{count}} dnia.",
+      "onDisk": "Kopie zapasowe na dysku",
+      "summary_one": "{{count}} element · {{size}}",
+      "summary_few": "{{count}} elementy · {{size}}",
+      "summary_many": "{{count}} elementów · {{size}}",
+      "summary_other": "{{count}} elementu · {{size}}",
+      "unavailable": "Nie można teraz odczytać kopii zapasowych",
+      "clear": "Wyczyść",
+      "cleared_one": "Usunięto {{count}} kopię zapasową",
+      "cleared_few": "Usunięto {{count}} kopie zapasowe",
+      "cleared_many": "Usunięto {{count}} kopii zapasowych",
+      "cleared_other": "Usunięto {{count}} kopii zapasowej"
+    },
+    "wtlive": {
+      "browse": "Przeglądaj WT Live",
+      "browseHelper": "Sekcje Odkrywaj, Obserwowane i instalacje z WT Live. Gdy to wyłączysz, Livery nie wysyła żadnych żądań do WT Live.",
+      "cache": "Pamięć podręczna",
+      "cacheHelper": "Strony i archiwa pobrane z WT Live są przechowywane do 24 godzin.",
+      "clearCache": "Wyczyść pamięć podręczną",
+      "cacheCleared": "Wyczyszczono pamięć podręczną WT Live",
+      "hidden": "Ukryte kamuflaże",
+      "hiddenHelper": "Ukryte przez Ciebie kamuflaże nie pojawiają się w sekcjach Odkrywaj i Obserwowane.",
+      "hiddenCount_one": "{{count, number}} kamuflaż",
+      "hiddenCount_few": "{{count, number}} kamuflaże",
+      "hiddenCount_many": "{{count, number}} kamuflaży",
+      "hiddenCount_other": "{{count, number}} kamuflażu",
+      "showAgain": "Pokaż je ponownie",
+      "unhidden": "Ukryte kamuflaże wróciły do sekcji Odkrywaj",
+      "unavailable": "Nie można tego teraz odczytać",
+      "attribution": "Kamuflaże i obrazy należą do ich autorów na WT Live."
+    },
+    "language": {
+      "names": {
+        "en": "English",
+        "it": "Italiano",
+        "de": "Deutsch",
+        "ru": "Русский",
+        "fr": "Français",
+        "es": "Español",
+        "pl": "Polski",
+        "pt-BR": "Português (Brasil)",
+        "zh-CN": "简体中文"
+      }
+    },
+    "updates": {
+      "version": "Livery {{version}}",
+      "upToDate": "Livery {{version}} · Masz najnowszą wersję.",
+      "checking": "Sprawdzanie aktualizacji…",
+      "check": "Sprawdź teraz",
+      "available": "Dostępna jest wersja Livery {{version}}",
+      "availableHelper": "Masz wersję {{current}}.",
+      "install": "Zainstaluj i uruchom ponownie",
+      "downloading": "Pobieranie Livery {{version}}",
+      "downloadingHelper": "Po zakończeniu Livery zamknie się i uruchomi ponownie.",
+      "downloadingBackground": "W tle. Instalacja nastąpi po zamknięciu Livery.",
+      "ready": "Wersja Livery {{version}} jest gotowa",
+      "readyHelper": "Zainstaluje się po zamknięciu Livery.",
+      "readyManualHelper": "Uruchom ponownie, aby ją zainstalować.",
+      "restart": "Uruchom ponownie i zaktualizuj",
+      "installing": "Instalowanie Livery {{version}}…",
+      "installingHelper": "Livery zamknie się i uruchomi ponownie w nowej wersji.",
+      "readyToast": "Wersja Livery {{version}} jest gotowa. Zainstaluje się po zamknięciu Livery.",
+      "auto": "Instaluj aktualizacje automatycznie",
+      "autoHelper": "Pobiera nowe wersje w tle i instaluje je po zamknięciu Livery."
+    },
+    "about": {
+      "build": "{{version}} · Windows x64",
+      "description": "Menedżer kamuflaży użytkowników dla War Thunder. Przeglądaj WT Live, instaluj jednym kliknięciem, utrzymuj porządek w hangarze.",
+      "privacyTitle": "Prywatność",
+      "privacy": "Bez konta, bez reklam, bez telemetrii. Livery łączy się tylko z WT Live (live.warthunder.com i jego serwerem obrazów), gdy przeglądasz lub instalujesz kamuflaże, oraz z serwisem GitHub, aby sprawdzić aktualizacje. Twoje ustawienia i biblioteka zostają na tym komputerze. Livery odczytuje pliki gry, nie zmieniając ich.",
+      "links": "Linki",
+      "source": "Kod źródłowy",
+      "sourceHint": "Otwiera repozytorium Livery w serwisie GitHub",
+      "report": "Zgłoś problem",
+      "reportHint": "Otwiera stronę zgłoszeń Livery w serwisie GitHub",
+      "licenses": "Licencje"
+    },
+    "licenses": {
+      "title": "Licencje",
+      "intro": "Livery korzysta z otwartoźródłowych czcionek i bibliotek. Dziękujemy wszystkim, którzy je tworzą.",
+      "fonts": "Czcionki",
+      "notices": "Informacje o licencjach zewnętrznych",
+      "all": "Wszystkie licencje zewnętrzne",
+      "allNames": {
+        "rust": "Aplikacja desktopowa: wszystkie pakiety (crate) Rust",
+        "javascript": "Interfejs: wszystkie pakiety JavaScript"
+      },
+      "allMissing": "Ta lista jest generowana podczas budowania aplikacji; nie ma jej w tej wersji deweloperskiej.",
+      "libraries": "Biblioteki",
+      "showText": "Pokaż tekst licencji",
+      "hideText": "Ukryj tekst licencji",
+      "text": "Tekst licencji {{name}}",
+      "close": "Zamknij"
+    }
+  }
+}
