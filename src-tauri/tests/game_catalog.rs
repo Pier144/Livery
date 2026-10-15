@@ -236,6 +236,13 @@ const UNITS_CSV: &str = "\u{feff}\"<ID|readonly|noverify>\";\"<English>\";\"<Ita
 \"ussr_mig_15_1\";\"MiG-15\";\"MiG-15\"\n\
 \"it_leopard_2a6_shop\";\"\u{25d4}Leopard\u{a0}2A6\";\"x\"\n";
 
+/// Tests that install a list into `library::vehicles` (one global catalog) run one at a time.
+static GLOBAL_CATALOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn global_catalog() -> std::sync::MutexGuard<'static, ()> {
+    GLOBAL_CATALOG.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 struct Game(PathBuf);
 
 impl Game {
@@ -412,6 +419,7 @@ fn units_csv_handles_quotes_and_line_breaks() {
 
 #[test]
 fn the_list_is_cached_until_the_game_changes_and_drives_lookups() {
+    let _one = global_catalog();
     let game = Game::new("cache");
     let data = game.0.join("data");
     let store = CatalogStore::new(data.join(CATALOG_FILE));
@@ -454,6 +462,7 @@ fn the_list_is_cached_until_the_game_changes_and_drives_lookups() {
 
 #[test]
 fn a_cache_from_another_game_folder_isnt_used() {
+    let _one = global_catalog();
     let first = Game::new("first");
     let second = Game::new("second");
     let data = first.0.join("data");
@@ -516,6 +525,7 @@ fn the_list_keeps_only_the_names_that_differ_from_english() {
 
 #[test]
 fn local_names_are_cached_with_the_list() {
+    let _one = global_catalog();
     let game = Game::new("localcache");
     fs::write(game.0.join("lang.vromfs.bin"), vromfs(&[("lang/units.csv", UNITS_LOCALIZED)], true)).unwrap();
     let data = game.0.join("data");
