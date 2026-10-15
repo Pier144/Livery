@@ -728,6 +728,28 @@ describe('Skin detail · side panel', () => {
     expect(calls('following_set')).toEqual([{ kind: 'vehicle', id: 'germ_tiger_IIH', name: 'Tiger II (H)', follow: true }]);
   });
 
+  it('lists the vehicles a pack actually installed, read from its skins', async () => {
+    const sherman: Vehicle = { ...TIGER, code: 'us_m4_sherman', name: 'M4 Sherman' };
+    const jumbo: Vehicle = { ...TIGER, code: 'us_m4a3e2_sherman', name: 'M4A3E2' };
+    db.hangar = [
+      hangarSkin({ vehicle: sherman }),
+      hangarSkin({ id: 'h-s1-2', vehicle: jumbo }),
+      hangarSkin({ id: 'h-s1-3', vehicle: jumbo }),
+      hangarSkin({ id: 'h-other', vehicle: TIGER, sourceId: 's9' }),
+    ];
+    await renderLoaded();
+    expect(await screen.findByText('Installed from this post: 2 vehicles')).toBeInTheDocument();
+    const list = screen.getByText('M4 Sherman').closest('ul') as HTMLElement;
+    expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['M4 Sherman', 'M4A3E2']);
+  });
+
+  it('shows no pack list for a single skin of the post’s own vehicle', async () => {
+    db.hangar = [hangarSkin()];
+    await renderLoaded();
+    await waitFor(() => expect(calls('get_hangar').length).toBeGreaterThan(0));
+    expect(screen.queryByText(/Installed from this post/)).not.toBeInTheDocument();
+  });
+
   it('opens Explore filtered by the vehicle from the vehicle card', async () => {
     const { user } = await renderLoaded();
     useExplore.setState({ nation: 'USA', q: 'desert' });

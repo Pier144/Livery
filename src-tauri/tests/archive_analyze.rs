@@ -241,14 +241,33 @@ fn a_ready_item_carries_vehicle_target_files_and_note() {
 }
 
 #[test]
-fn a_pack_needs_a_look_with_one_candidate_per_skin() {
+fn a_pack_becomes_one_ready_item_per_skin_with_its_own_vehicle() {
     let env = Env::new("pack");
-    let item = env.analyze(&fixture("Desert Pack"));
-    assert_eq!(item.status, QueueStatus::NeedsLook);
-    let codes: Vec<&str> = item.candidates.iter().map(|v| v.code.as_str()).collect();
-    assert_eq!(codes, ["bf-109g-6", "f_4e", "su_27"]);
-    assert_eq!(item.note.as_deref(), Some("Can't detect the vehicle: 3 folders inside. Pick one to continue."));
-    assert!(item.vehicle.is_none() && item.target_folder.is_none() && item.files.is_empty());
+    let first = env.analyze(&fixture("Desert Pack"));
+    let items = env.queue.list();
+    let rows: Vec<(QueueStatus, &str, &str)> = items
+        .iter()
+        .map(|i| (i.status, i.vehicle.as_ref().unwrap().code.as_str(), i.target_folder.as_deref().unwrap()))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (QueueStatus::Ready, "bf-109g-6", "Gustav Desert"),
+            (QueueStatus::Ready, "f_4e", "Phantom Desert"),
+            (QueueStatus::Ready, "su_27", "Su-27 Desert"),
+        ]
+    );
+    assert_eq!(first, items[0], "the first skin is the answer");
+    for item in &items {
+        assert_eq!(item.file_name, "Desert Pack");
+        assert!(item.candidates.is_empty());
+        assert_eq!(item.size_bytes, item.files.iter().map(|f| f.size_bytes).sum::<u64>(), "this skin's size");
+    }
+
+    // Analysed again: the same items, same ids, same order.
+    env.analyze(&fixture("Desert Pack"));
+    let again: Vec<String> = env.queue.list().into_iter().map(|i| i.id).collect();
+    assert_eq!(again, items.iter().map(|i| i.id.clone()).collect::<Vec<_>>());
 }
 
 #[test]
@@ -305,7 +324,7 @@ fn paths_that_are_not_skins_are_refused_and_not_stored() {
 fn the_queue_is_newest_first_and_a_path_is_queued_once() {
     let env = Env::new("order");
     let first = env.analyze(&fixture("Winter Tiger"));
-    let second = env.analyze(&fixture("Desert Pack"));
+    let second = env.analyze(&fixture("Nested Download"));
     assert_eq!(
         env.queue.list().iter().map(|i| i.id.clone()).collect::<Vec<_>>(),
         [second.id.clone(), first.id.clone()]
@@ -434,20 +453,18 @@ fn textures_of_a_queued_skin_come_from_the_source() {
 }
 
 #[test]
-fn textures_of_a_pack_list_every_skin_prefixed_by_its_folder() {
+fn textures_of_each_skin_of_a_pack_are_its_own() {
     let env = Env::new("textures-pack");
-    let item = env.analyze(&fixture("Desert Pack"));
-    let files: Vec<String> = textures_for_queue(&env.queue, &item.id).unwrap().into_iter().map(|t| t.file).collect();
+    env.analyze(&fixture("Desert Pack"));
+    let files: Vec<Vec<String>> = env
+        .queue
+        .list()
+        .iter()
+        .map(|item| textures_for_queue(&env.queue, &item.id).unwrap().into_iter().map(|t| t.file).collect())
+        .collect();
     assert_eq!(
         files,
-        [
-            "Gustav Desert/bf109_c.dds",
-            "Gustav Desert/bf-109g-6.blk",
-            "Phantom Desert/f4e_c.dds",
-            "Phantom Desert/f_4e.blk",
-            "Su-27 Desert/su27_c.dds",
-            "Su-27 Desert/su_27.blk",
-        ]
+        [vec!["bf109_c.dds", "bf-109g-6.blk"], vec!["f4e_c.dds", "f_4e.blk"], vec!["su27_c.dds", "su_27.blk"],]
     );
     assert_eq!(err(textures_for_queue(&env.queue, "q-unknown")).code, ErrorCode::NotFound);
 }

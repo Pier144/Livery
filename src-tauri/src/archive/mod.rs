@@ -137,27 +137,27 @@ impl QueueStore {
 
     /// Stores a fresh analysis (see `analyze_path` for how a path already queued is handled),
     /// then brings every waiting item's clash status up to date.
-    pub(crate) fn put(&self, mut entry: Entry, user_skins: Option<&Path>, library: &Library) -> Queued {
-        let key = root::path_key(&entry.source);
+    /// Stores what one source holds: one entry, or one per skin of a pack (all with the same
+    /// source). A source already waiting is replaced in place, keeping its ids in order; one with
+    /// an item installing is left alone. Returns the first item, the others in `changed`.
+    pub(crate) fn put_all(&self, mut fresh: Vec<Entry>, user_skins: Option<&Path>, library: &Library) -> Queued {
+        let key = root::path_key(&fresh.first().expect("put_all needs an entry").source);
         let mut entries = self.lock();
         let before = items_of(&entries);
-        let same = entries.iter().position(|e| e.item.status != QueueStatus::Done && root::path_key(&e.source) == key);
-        let id = match same {
-            Some(pos) if entries[pos].item.status == QueueStatus::Installing => {
-                return Queued { item: entries[pos].item.clone(), changed: Vec::new() };
-            }
-            Some(pos) => {
-                entry.item.id = entries[pos].item.id.clone();
-                entries[pos] = entry;
-                entries[pos].item.id.clone()
-            }
-            None => {
-                entry.item.id = library::index::new_id_with("q");
-                let id = entry.item.id.clone();
-                entries.insert(0, entry);
-                id
-            }
-        };
+        let same = |e: &Entry| e.item.status != QueueStatus::Done && root::path_key(&e.source) == key;
+        if let Some(busy) = entries.iter().find(|e| same(e) && e.item.status == QueueStatus::Installing) {
+            return Queued { item: busy.item.clone(), changed: Vec::new() };
+        }
+        let at = entries.iter().position(same).unwrap_or(0);
+        let mut old_ids: Vec<String> = entries.iter().filter(|e| same(e)).map(|e| e.item.id.clone()).collect();
+        entries.retain(|e| !same(e));
+        old_ids.reverse();
+        for entry in &mut fresh {
+            entry.item.id = old_ids.pop().unwrap_or_else(|| library::index::new_id_with("q"));
+        }
+        let id = fresh[0].item.id.clone();
+        let at = at.min(entries.len());
+        entries.splice(at..at, fresh);
         refresh(&mut entries, user_skins, library);
         let item = entries.iter().find(|e| e.item.id == id).map(|e| e.item.clone()).expect("the item was just stored");
         let changed = changed_since(&before, &entries).into_iter().filter(|i| i.id != id).collect();

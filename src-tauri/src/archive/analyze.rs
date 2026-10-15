@@ -446,14 +446,33 @@ pub fn analyze_path(
         note: None,
         error: None,
     };
-    let entry = Entry {
-        item: describe(&base, &analysis.roots, failure.as_ref()),
-        source: path.to_path_buf(),
-        roots: analysis.roots,
-        failure,
-        installed_skin: None,
+    // A pack with several skins becomes one item per skin (its vehicle read from its own .blk),
+    // so each installs, clashes and is undone on its own; they share the source.
+    let entries: Vec<Entry> = if analysis.roots.len() > 1 {
+        analysis
+            .roots
+            .into_iter()
+            .map(|root| {
+                let item = QueueItem { size_bytes: root.files.iter().map(|f| f.size_bytes).sum(), ..base.clone() };
+                Entry {
+                    item: describe(&item, std::slice::from_ref(&root), None),
+                    source: path.to_path_buf(),
+                    roots: vec![root],
+                    failure: None,
+                    installed_skin: None,
+                }
+            })
+            .collect()
+    } else {
+        vec![Entry {
+            item: describe(&base, &analysis.roots, failure.as_ref()),
+            source: path.to_path_buf(),
+            roots: analysis.roots,
+            failure,
+            installed_skin: None,
+        }]
     };
-    let queued = queue.put(entry, user_skins, &library.snapshot());
+    let queued = queue.put_all(entries, user_skins, &library.snapshot());
     tracing::info!(
         queue_id = %queued.item.id,
         status = ?queued.item.status,

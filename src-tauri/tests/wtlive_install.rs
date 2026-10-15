@@ -24,6 +24,8 @@ struct FakeClient {
     dir: PathBuf,
     author: Mutex<String>,
     empty_archive: bool,
+    /// Serves `tests/fixtures/sources/Desert Pack` (three skins) instead.
+    pack: bool,
 }
 
 impl FakeClient {
@@ -68,6 +70,23 @@ impl WtLiveClient for FakeClient {
         if self.empty_archive {
             zip.start_file("readme.txt", options).unwrap();
             zip.write_all(b"no skin here").unwrap();
+        } else if self.pack {
+            let pack = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sources/Desert Pack");
+            let mut skins: Vec<_> = fs::read_dir(&pack).unwrap().map(|e| e.unwrap().path()).collect();
+            skins.sort();
+            for skin in skins.iter().filter(|p| p.is_dir()) {
+                let mut files: Vec<_> = fs::read_dir(skin).unwrap().map(|e| e.unwrap().path()).collect();
+                files.sort();
+                for file in files.iter().filter(|p| p.is_file()) {
+                    let rel = format!(
+                        "pack/{}/{}",
+                        skin.file_name().unwrap().to_string_lossy(),
+                        file.file_name().unwrap().to_string_lossy()
+                    );
+                    zip.start_file(rel, options).unwrap();
+                    zip.write_all(&fs::read(file).unwrap()).unwrap();
+                }
+            }
         } else {
             let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sources/Winter Tiger");
             for rel in
@@ -99,6 +118,12 @@ impl Env {
         Self::with(name, false)
     }
 
+    fn pack(name: &str) -> Self {
+        let mut env = Self::with(name, false);
+        env.client.pack = true;
+        env
+    }
+
     fn with(name: &str, empty_archive: bool) -> Self {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
         let root = std::env::temp_dir().join(format!("livery-wtlive-install-{name}-{}-{nanos}", std::process::id()));
@@ -107,7 +132,7 @@ impl Env {
         fs::create_dir_all(&user_skins).unwrap();
         fs::create_dir_all(&downloads).unwrap();
         let store = LibraryStore::load(root.join("library.json"));
-        let client = FakeClient { dir: downloads, author: Mutex::new("Ostwind".into()), empty_archive };
+        let client = FakeClient { dir: downloads, author: Mutex::new("Ostwind".into()), empty_archive, pack: false };
         Self { root, user_skins, store, settings: Settings::default(), client, installing: Installing::default() }
     }
 
@@ -264,6 +289,36 @@ fn the_same_post_cant_install_twice_at_once() {
 }
 
 #[test]
+fn a_pack_installs_every_skin_with_its_own_vehicle() {
+    let env = Env::pack("pack");
+    let main = env.installed("101", InstallMode::Normal);
+    // The post's vehicle (a Tiger) isn't in the pack: the first skin is the main one.
+    assert_eq!(main.vehicle.code, "bf-109g-6");
+    assert_eq!(main.name, "Winter Tiger 101");
+    assert_eq!(env.folders(), ["bf-109g-6_Ostwind", "f_4e_Ostwind", "su_27_Ostwind"]);
+    let skins = env.skins();
+    assert_eq!(skins.len(), 3);
+    assert!(skins.iter().all(|s| s.source_id.as_deref() == Some("101") && s.origin == Origin::Wtlive && s.active));
+    let codes: Vec<&str> = skins.iter().map(|s| s.vehicle.code.as_str()).collect();
+    assert_eq!(codes, ["bf-109g-6", "f_4e", "su_27"]);
+    assert!(skins[1].name.starts_with("Winter Tiger 101 · "), "{}", skins[1].name);
+    assert!(env.staging_is_empty());
+
+    // Installed again with Copy: the post counts as installed, so only the main skin is copied.
+    env.install("101", InstallMode::Normal, Some(ConflictPolicy::Copy)).0.unwrap();
+    assert_eq!(env.skins().len(), 4);
+}
+
+#[test]
+fn trying_a_pack_in_game_installs_only_its_main_skin() {
+    let env = Env::pack("pack-try");
+    let tried = env.installed("101", InstallMode::Temporary);
+    assert!(tried.temporary);
+    assert_eq!(env.skins().len(), 1);
+    assert_eq!(env.folders(), ["bf-109g-6_Ostwind"]);
+}
+
+#[test]
 fn an_archive_without_a_skin_fails_and_leaves_nothing() {
     let env = Env::with("empty", true);
     let (result, events) = env.install("101", InstallMode::Normal, None);
@@ -386,7 +441,8 @@ fn errors_say_what_failed() {
         }
     }
     let env = Env::new("down");
-    let down = Down(FakeClient { dir: env.root.clone(), author: Mutex::new("x".into()), empty_archive: false });
+    let down =
+        Down(FakeClient { dir: env.root.clone(), author: Mutex::new("x".into()), empty_archive: false, pack: false });
     let ctx = Ctx { user_skins: &env.user_skins, library: &env.store, settings: &env.settings, client: &down };
     let job = install::prepare(&ctx, &env.installing, "101", InstallMode::Normal, None).unwrap();
     let mut events = Vec::new();

@@ -432,20 +432,25 @@ fn a_zip_whose_folder_is_taken_is_a_conflict() {
 }
 
 #[test]
-fn a_zip_holding_several_skins_needs_a_pick() {
+fn a_zip_holding_several_skins_installs_every_one_into_its_own_folder() {
     let env = Env::new("zip-multi");
     let zip = write_zip(&env.download("desert_pack.zip"), &packed("Desert Pack"));
-    let item = env.analyze(&zip);
-    assert_eq!(item.status, QueueStatus::NeedsLook);
-    assert_eq!(item.candidates.len(), 3);
-    assert_eq!(err(env.prepare(&item.id, None, None)).code, ErrorCode::InvalidInput, "pick first");
-    assert_done(&env.install(&item.id, Some("su_27"), None));
-    assert_eq!(tree(&env.user_skins.join("Su-27 Desert")), tree(&source_fixture("Desert Pack").join("Su-27 Desert")));
-    assert_eq!(
-        fs::read_dir(&env.user_skins).unwrap().filter(|e| e.as_ref().unwrap().file_type().unwrap().is_dir()).count(),
-        2,
-        "Su-27 Desert and .livery"
-    );
+    env.analyze(&zip);
+    let items = env.queue.list();
+    assert_eq!(items.len(), 3, "one item per skin");
+    for item in &items {
+        assert_eq!(item.status, QueueStatus::Ready);
+        assert_done(&env.install(&item.id, None, None));
+    }
+    for folder in ["Gustav Desert", "Phantom Desert", "Su-27 Desert"] {
+        assert_eq!(tree(&env.user_skins.join(folder)), tree(&source_fixture("Desert Pack").join(folder)), "{folder}");
+    }
+    let codes: Vec<String> = env.store.all().into_iter().map(|s| s.vehicle.code).collect();
+    assert_eq!(codes.len(), 3);
+    for code in ["bf-109g-6", "f_4e", "su_27"] {
+        assert!(codes.iter().any(|c| c == code), "{code} in {codes:?}");
+    }
+    env.assert_clean();
 }
 
 #[test]
@@ -650,13 +655,15 @@ fn a_ready_7z_installs_exactly_like_its_folder_solid_or_not() {
 }
 
 #[test]
-fn a_7z_holding_several_skins_needs_a_pick_and_installs_one() {
+fn a_7z_holding_several_skins_installs_one_of_them_on_its_own() {
     let env = Env::new("7z-multi");
     let archive = write_7z(&env.download("desert_pack.7z"), &packed("Desert Pack"), true);
-    let item = env.analyze(&archive);
-    assert_eq!(item.status, QueueStatus::NeedsLook);
-    assert_eq!(item.candidates.len(), 3);
-    assert_done(&env.install(&item.id, Some("f_4e"), None));
+    env.analyze(&archive);
+    let items = env.queue.list();
+    assert_eq!(items.len(), 3);
+    let phantom = items.iter().find(|i| i.vehicle.as_ref().is_some_and(|v| v.code == "f_4e")).unwrap();
+    assert_done(&env.install(&phantom.id, None, None));
+    assert!(!env.user_skins.join("Su-27 Desert").exists(), "the others wait");
     assert_eq!(
         tree(&env.user_skins.join("Phantom Desert")),
         tree(&source_fixture("Desert Pack").join("Phantom Desert"))

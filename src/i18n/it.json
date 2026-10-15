@@ -397,7 +397,9 @@
     "vehicle": {
       "label": "Veicolo",
       "open": "Mostra in Esplora le skin di questo veicolo",
-      "meta": "{{code}} · {{nation}} · {{class}}"
+      "meta": "{{code}} · {{nation}} · {{class}}",
+      "inPack_one": "Installato da questo post: {{count, number}} veicolo",
+      "inPack_other": "Installati da questo post: {{count, number}} veicoli"
     },
     "follow": {
       "follow": "Segui",

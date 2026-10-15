@@ -174,19 +174,27 @@ fn execute(ctx: &Ctx, job: &Job, reporter: &mut Reporter) -> AppResult<(HangarSk
     reporter.mark(InstallStep::Download, DOWNLOAD_END);
     let post = ctx.client.post(&job.post_id)?;
     let source = open_source(&archive)?;
-    let root = pick_root(source.as_ref(), &post)?;
+    let (root, extras) = pick_roots(source.as_ref(), &post)?;
     let folder = folder_for(&root, &post);
     reporter.rebase(DOWNLOAD_END);
     let staged = stage(ctx.user_skins, &job.install_id, &root, &folder, source.as_ref(), reporter)?;
-    commit(ctx, job, &post, &folder, staged)
+    let installed = commit(ctx, job, &post, &folder, staged)?;
+    // A pack: the other skins install too, each in its own folder with the vehicle of its own
+    // .blk. Only on a first, normal install: a try or a replace stays one skin.
+    if job.mode == InstallMode::Normal && job.policy.is_none() && !extras.is_empty() {
+        let count = install_extras(ctx, job, &post, extras, source.as_ref());
+        tracing::info!(post = %post.id, extra = count, "WT Live pack: the other skins installed too");
+    }
+    Ok(installed)
 }
 
-/// The skin inside the archive: the only one, or the one for the post's vehicle, else the first.
-fn pick_root(source: &dyn SkinSource, post: &WtLiveSkin) -> AppResult<SkinRoot> {
+/// The skins inside the archive: the main one (the only one, or the one for the post's vehicle,
+/// else the first) and the others, in archive order.
+fn pick_roots(source: &dyn SkinSource, post: &WtLiveSkin) -> AppResult<(SkinRoot, Vec<SkinRoot>)> {
     let analysis = analyze::analyze_source(source, &post.name)?;
     let mut roots = analysis.roots;
-    if roots.len() > 1 {
-        tracing::info!(roots = roots.len(), post = %post.id, "WT Live archive holds several skins; installing one");
+    if roots.is_empty() {
+        return Err(AppError::new(ErrorCode::InvalidInput, NO_BLK_ERROR).with_detail(post.id.clone()));
     }
     let code = post.vehicle.code.as_str();
     let pos = roots
@@ -195,10 +203,76 @@ fn pick_root(source: &dyn SkinSource, post: &WtLiveSkin) -> AppResult<SkinRoot> 
             !code.is_empty() && (r.vehicle.code.eq_ignore_ascii_case(code) || r.blk_stem().eq_ignore_ascii_case(code))
         })
         .unwrap_or(0);
-    if roots.is_empty() {
-        return Err(AppError::new(ErrorCode::InvalidInput, NO_BLK_ERROR).with_detail(post.id.clone()));
+    let main = roots.remove(pos);
+    Ok((main, roots))
+}
+
+/// Installs the other skins of a pack next to the main one, quietly (the post's progress is the
+/// main skin's). A skin that fails is logged and skipped. Returns how many went in.
+fn install_extras(ctx: &Ctx, job: &Job, post: &WtLiveSkin, extras: Vec<SkinRoot>, source: &dyn SkinSource) -> usize {
+    let mut installed = 0;
+    for (n, root) in extras.into_iter().enumerate() {
+        let install_id = format!("{}-{}", job.install_id, n + 2);
+        let mut quiet = |_: &InstallProgress| {};
+        let mut reporter = Reporter::for_install(&mut quiet, install_id.clone(), None);
+        let folder = folder_for(&root, post);
+        let result = stage(ctx.user_skins, &install_id, &root, &folder, source, &mut reporter)
+            .and_then(|staged| commit_extra(ctx, post, &root, &folder, staged));
+        match result {
+            Ok(skin) => {
+                installed += 1;
+                tracing::debug!(post = %post.id, skin = %skin.id, vehicle = %skin.vehicle.code, "pack skin installed");
+            }
+            Err(e) => tracing::warn!(post = %post.id, folder, error = %e, "a skin of the pack couldn't be installed"),
+        }
     }
-    Ok(roots.swap_remove(pos))
+    installed
+}
+
+/// The Livery name of a pack's other skin: the post's name and the skin's vehicle.
+pub fn extra_name(post: &WtLiveSkin, root: &SkinRoot) -> String {
+    let vehicle =
+        if root.vehicle.name.trim().is_empty() { root.target_folder.as_str() } else { root.vehicle.name.as_str() };
+    format!("{} · {vehicle}", post.name)
+}
+
+/// Moves one more staged skin of a pack into `UserSkins` (a free folder name) and indexes it.
+fn commit_extra(
+    ctx: &Ctx,
+    post: &WtLiveSkin,
+    root: &SkinRoot,
+    base_folder: &str,
+    staged: Staged,
+) -> AppResult<HangarSkin> {
+    let user_skins = ctx.user_skins;
+    let now = SystemTime::now();
+    ctx.library.transact(|library, journal| {
+        let folder = match find_clash(user_skins, library, base_folder) {
+            None => base_folder.to_owned(),
+            Some(_) => free_name(user_skins, library, base_folder),
+        };
+        let dest = layout::skin_path(user_skins, &folder, true).ok_or_else(|| {
+            AppError::new(ErrorCode::InvalidInput, "Not a skin folder name").with_detail(folder.clone())
+        })?;
+        if layout::occupied(&dest) {
+            return Err(AppError::new(ErrorCode::Conflict, NAME_TAKEN).with_detail(folder));
+        }
+        rename_retrying(journal, &staged.dir, &dest).map_err(install_error)?;
+        let skin = HangarSkin {
+            id: new_id(),
+            name: extra_name(post, root),
+            folder,
+            origin: Origin::Wtlive,
+            author: Some(post.author.clone()),
+            active: true,
+            installed_at: time::rfc3339_utc(now),
+            source_id: Some(post.id.clone()),
+            temporary: false,
+            ..staged.scanned.clone()
+        };
+        library.skins.push(skin.clone());
+        Ok(skin)
+    })
 }
 
 /// `<vehicle code>_<author>` (the `.blk` stem when the code is unknown), as a valid folder name.

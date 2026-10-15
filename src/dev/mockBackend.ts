@@ -35,7 +35,9 @@
 //                          `unsupported` with the same message)
 //   *.part1.rar …          an `error` item: one part of a split archive (same)
 //   "notaskin"             rejects invalidInput "Not a skin folder or archive"
-//   contains "pack"        `needsLook`: three skin folders inside (Su-27, F-4E, Bf 109 G-6)
+//   contains "pack"        three skin folders inside (Su-27, F-4E, Bf 109 G-6): one `ready` item
+//                          per skin, as the Rust analysis splits a pack (the seeded "unknown_pack"
+//                          keeps the prototype's `needsLook` row)
 //   an installed folder    `conflict` with that skin, e.g. "germ_leopard_2a6_Kessler_Wolf"
 //   anything else          `ready`, installing as that folder; the vehicle is guessed from the name
 // Items are kept newest first, like the Install queue lists them. `install_from_archive` answers
@@ -1104,16 +1106,23 @@ function analyze(path: string): StoredQueueItem {
     // Only the file's size is known without unpacking it.
     const sizeBytes = (20 + (nameHash(name) % 120)) * 1024 * 1024;
     stored = { item: { id, path, fileName: name, sizeBytes, status: 'error', error: archiveError }, roots: [] };
-  } else if (ARCHIVE_EXT.test(name)) {
-    // Analysed like the folder it holds; the row shows the archive's own size.
+  } else {
+    // An archive reads like the folder it holds; a folder named like an installed skin holds a
+    // version of that skin (same vehicle).
     const folder = name.replace(ARCHIVE_EXT, '');
     const roots = sourceRoots(folder, installedAt(state, folder)?.vehicle);
+    if (roots.length > 1) {
+      // A pack: one item per skin, the first one on top.
+      const items = roots.map((root, i) => ({
+        item: { ...describeSource(state, i === 0 ? id : newId('q'), path, [root]), fileName: name },
+        roots: [root],
+      }));
+      state.queue.unshift(...items);
+      return items[0]!;
+    }
     const item = describeSource(state, id, path, roots);
-    stored = { item: { ...item, sizeBytes: Math.round(item.sizeBytes * 0.6) }, roots };
-  } else {
-    // A folder named like an installed skin holds a version of that skin (same vehicle).
-    const roots = sourceRoots(name, installedAt(state, name)?.vehicle);
-    stored = { item: describeSource(state, id, path, roots), roots };
+    // The row shows an archive's own size.
+    stored = { item: ARCHIVE_EXT.test(name) ? { ...item, sizeBytes: Math.round(item.sizeBytes * 0.6) } : item, roots };
   }
   state.queue.unshift(stored);
   return stored;

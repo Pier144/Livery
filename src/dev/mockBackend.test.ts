@@ -513,8 +513,11 @@ describe('mock backend · install queue', () => {
     expect(split.error).toMatch(/^This is one part of a split archive/);
 
     const pack = await call<QueueItem>('analyze_archive', { path: 'D:\\Downloads\\winter_pack\\' });
-    expect(pack).toMatchObject({ status: 'needsLook', fileName: 'winter_pack' });
-    expect(pack.candidates).toHaveLength(3);
+    // A pack becomes one ready item per skin, each with its own vehicle.
+    expect(pack).toMatchObject({ status: 'ready', fileName: 'winter_pack' });
+    const packItems = (await call<QueueItem[]>('list_queue')).slice(0, 3);
+    expect(packItems.map((q) => q.vehicle?.code)).toEqual(['su_27', 'f_4e', 'bf-109g-6']);
+    expect(packItems[0]?.id).toBe(pack.id);
 
     const clash = await call<QueueItem>('analyze_archive', { path: 'E:\\skins\\Berlin 1945' });
     expect(clash).toMatchObject({
@@ -539,7 +542,14 @@ describe('mock backend · install queue', () => {
       detail: 'E:\\notaskin',
     });
     const queue = await call<QueueItem[]>('list_queue');
-    expect(queue.slice(0, 6).map((q) => q.id)).toEqual([ready.id, clash.id, pack.id, split.id, locked.id, zip.id]);
+    expect(queue.slice(0, 8).map((q) => q.id)).toEqual([
+      ready.id,
+      clash.id,
+      ...packItems.map((q) => q.id),
+      split.id,
+      locked.id,
+      zip.id,
+    ]);
   });
 
   it('install answers at once, then emits progress up to done', async () => {

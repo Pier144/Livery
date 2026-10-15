@@ -404,7 +404,10 @@
     "vehicle": {
       "label": "Vehicle",
       "open": "Show this vehicle’s skins in Explore",
-      "meta": "{{code}} · {{nation}} · {{class}}"
+      "meta": "{{code}} · {{nation}} · {{class}}",
+      "inPack_one": "Installed from this post: {{count, number}} vehicle",
+      "inPack_many": "Installed from this post: {{count, number}} vehicles",
+      "inPack_other": "Installed from this post: {{count, number}} vehicles"
     },
     "follow": {
       "follow": "Follow",

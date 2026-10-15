@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, ExternalLink, EyeOff } from 'lucide-react';
-import { useId, useRef } from 'react';
+import { useId, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Menu, type MenuItem } from '@/components/ui/Menu';
@@ -10,11 +10,12 @@ import { formatBytes } from '@/lib/format';
 import { isWtLiveUrl, openLink } from '@/lib/opener';
 import { call, toAppError } from '@/lib/tauri';
 import { useCollections, useSetCollectionSkins } from '@/queries/collections';
+import { useHangar } from '@/queries/hangar';
 import { FOLLOWING_KEY, isOfflineError, useFollowing, useSetFollow, useSetWtLiveHidden } from '@/queries/wtlive';
 import type { WtInstall, WtInstallState } from '@/store/installs';
 import { toast } from '@/store/toasts';
 import { useUi } from '@/store/ui';
-import type { AppError, ConflictPolicy, FollowEntry, FollowKind, HangarSkin, WtLiveSkin } from '@/types';
+import type { AppError, ConflictPolicy, FollowEntry, FollowKind, HangarSkin, Vehicle, WtLiveSkin } from '@/types';
 import { formatCount, formatPosted, initialOf, stepParts } from './detailModel';
 import { useFocusFallback } from './useFocusFallback';
 
@@ -151,10 +152,27 @@ function HideButton({ skin }: { skin: WtLiveSkin }) {
   );
 }
 
+/**
+ * The vehicles of the skins installed from this post, read from their own .blk files (a pack holds
+ * several; a post's own vehicle is only a guess from its tags and title). Empty until installed.
+ */
+function useInstalledVehicles(postId: string): Vehicle[] {
+  const { data } = useHangar();
+  return useMemo(() => {
+    const seen = new Map<string, Vehicle>();
+    for (const s of data ?? []) {
+      if (s.sourceId === postId && !seen.has(s.vehicle.code)) seen.set(s.vehicle.code, s.vehicle);
+    }
+    return [...seen.values()];
+  }, [data, postId]);
+}
+
 function VehicleBlock({ skin, onOpen }: { skin: WtLiveSkin; onOpen: () => void }) {
   const { t } = useTranslation();
   const { vehicle } = skin;
   const headingId = useId();
+  const installed = useInstalledVehicles(skin.id);
+  const showInstalled = installed.length > 1 || (installed.length === 1 && installed[0]?.code !== vehicle.code);
   return (
     <div role="group" aria-labelledby={headingId} className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
@@ -179,6 +197,18 @@ function VehicleBlock({ skin, onOpen }: { skin: WtLiveSkin; onOpen: () => void }
           })}
         </span>
       </button>
+      {showInstalled && (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-mono text-[10px] leading-[normal] text-ink-4">{t('detail.vehicle.inPack', { count: installed.length })}</span>
+          <ul className="flex flex-wrap gap-1.5">
+            {installed.map((v) => (
+              <li key={v.code} className="rounded-tag border border-line-3 px-1.5 py-0.5 text-[11px] leading-[normal] text-ink-2">
+                {v.name}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

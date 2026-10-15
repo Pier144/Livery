@@ -375,36 +375,36 @@ fn the_settings_policy_applies_when_the_install_doesnt_choose() {
 // ── Picking a vehicle ───────────────────────────────────────────────────────
 
 #[test]
-fn a_pack_needs_a_vehicle_and_installs_only_that_skin() {
+fn a_pack_installs_each_skin_as_its_own_item() {
     let env = Env::new("pick");
-    let item = env.analyze(&fixture("Desert Pack"));
-    let e = err(env.prepare(&item.id, None, None));
-    assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, "Pick a vehicle first"));
-    let e = err(env.prepare(&item.id, Some("us_m1a2_sep"), None));
-    assert_eq!(e.code, ErrorCode::InvalidInput);
-    assert_eq!(env.queue.get(&item.id).unwrap().status, QueueStatus::NeedsLook, "a refused pick changes nothing");
+    env.analyze(&fixture("Desert Pack"));
+    let items = env.queue.list();
+    assert_eq!(items.len(), 3);
+    let phantom = items.iter().find(|i| i.target_folder.as_deref() == Some("Phantom Desert")).unwrap();
 
-    let installed = env.install(&item.id, Some("F_4E"), None);
+    let installed = env.install(&phantom.id, None, None);
     assert!(installed.last().skin_id.is_some());
     assert_eq!(names_in(&env.user_skins), [".livery", "Phantom Desert"]);
-    let after = env.queue.get(&item.id).unwrap();
+    let after = env.queue.get(&phantom.id).unwrap();
     assert_eq!(after.status, QueueStatus::Done);
-    assert_eq!(after.vehicle.unwrap().code, "f_4e", "the pick is final: the item is that skin now");
-    assert!(after.candidates.is_empty());
+    assert_eq!(after.vehicle.unwrap().code, "f_4e");
+    for other in items.iter().filter(|i| i.id != phantom.id) {
+        assert_eq!(env.queue.get(&other.id).unwrap().status, QueueStatus::Ready, "the others still wait");
+    }
 }
 
 #[test]
-fn a_pick_that_clashes_turns_the_item_into_a_conflict_and_can_be_resolved() {
+fn a_skin_of_a_pack_that_clashes_is_a_conflict_on_its_own() {
     let env = Env::new("pick-clash");
     env.installed("Su-27 Desert", "su_27");
-    let item = env.analyze(&fixture("Desert Pack"));
-    let e = err(env.prepare(&item.id, Some("su_27"), None));
+    env.analyze(&fixture("Desert Pack"));
+    let items = env.queue.list();
+    let su = items.iter().find(|i| i.target_folder.as_deref() == Some("Su-27 Desert")).unwrap();
+    assert_eq!(su.status, QueueStatus::Conflict);
+    assert!(items.iter().filter(|i| i.id != su.id).all(|i| i.status == QueueStatus::Ready));
+    let e = err(env.prepare(&su.id, None, Some(ConflictPolicy::Ask)));
     assert_eq!(e.code, ErrorCode::Conflict);
-    let after = env.queue.get(&item.id).unwrap();
-    assert_eq!(after.status, QueueStatus::Conflict);
-    assert_eq!(after.target_folder.as_deref(), Some("Su-27 Desert"));
-    // The UI sends the same pick again with the user's choice.
-    let installed = env.install(&item.id, Some("su_27"), Some(ConflictPolicy::Copy));
+    let installed = env.install(&su.id, None, Some(ConflictPolicy::Copy));
     assert!(installed.last().skin_id.is_some());
     assert!(env.user_skins.join("Su-27 Desert (2)").is_dir());
 }
