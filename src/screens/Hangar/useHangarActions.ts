@@ -165,6 +165,46 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
     [runBulk, deleteSkins, restoreBackups, endBulk, t],
   );
 
+  /**
+   * One skin from its card or row ("Uninstall", or Delete on the card): its folder goes, with a
+   * backup, and the toast offers Undo. It leaves the selection too. Resolves to whether it went.
+   */
+  const removing = useRef(new Set<string>());
+  const uninstall = useCallback(
+    async (skin: HangarSkin): Promise<boolean> => {
+      if (removing.current.has(skin.id)) return false;
+      removing.current.add(skin.id);
+      let backupIds: string[];
+      try {
+        ({ backupIds } = await deleteSkins([skin.id]));
+      } catch (e) {
+        reportError(e);
+        return false;
+      } finally {
+        removing.current.delete(skin.id);
+      }
+      useHangarStore.setState((s) => {
+        if (!s.selection.has(skin.id)) return s;
+        const selection = new Set(s.selection);
+        selection.delete(skin.id);
+        return { selection };
+      });
+      const message = t('hangar.toast.uninstalled', { name: skin.name });
+      if (backupIds.length === 0) toast(message);
+      else
+        toast.undoable(message, async () => {
+          try {
+            await restoreBackups(backupIds);
+            toast(t('hangar.toast.reinstalled', { name: skin.name }));
+          } catch (e) {
+            reportError(e);
+          }
+        });
+      return true;
+    },
+    [deleteSkins, restoreBackups, t],
+  );
+
   const moveMany = useCallback(
     (ids: string[], collection: Collection) =>
       runBulk(async () => {
@@ -207,7 +247,7 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
   );
 
   return useMemo(
-    () => ({ withPending, toggleActive, recheck, rechecking, bulkBusy, activateMany, deleteMany, moveMany, exportMany }),
-    [withPending, toggleActive, recheck, rechecking, bulkBusy, activateMany, deleteMany, moveMany, exportMany],
+    () => ({ withPending, toggleActive, recheck, rechecking, bulkBusy, activateMany, deleteMany, uninstall, moveMany, exportMany }),
+    [withPending, toggleActive, recheck, rechecking, bulkBusy, activateMany, deleteMany, uninstall, moveMany, exportMany],
   );
 }

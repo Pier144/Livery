@@ -69,6 +69,27 @@ export function Hangar() {
   order.current = visibleIds;
   const onSelect = useCallback((id: string, range: boolean) => (range ? selectRange(order.current, id) : toggle(id)), [selectRange, toggle]);
 
+  // Uninstall from a card or row: focus moves to the next skin (the previous one at the end), so
+  // the keyboard stays in the list while the card disappears.
+  const { uninstall } = actions;
+  const onUninstall = useCallback(
+    (skin: HangarSkin) => {
+      const ids = order.current;
+      const at = ids.indexOf(skin.id);
+      const neighbour = ids[at + 1] ?? ids[at - 1];
+      const hadFocus = !!document.activeElement?.closest(`[data-skin-id="${CSS.escape(skin.id)}"]`);
+      void uninstall(skin).then((removed) => {
+        if (!removed || !hadFocus) return;
+        requestAnimationFrame(() => {
+          const next = neighbour ? document.querySelector<HTMLElement>(`[data-skin-id="${CSS.escape(neighbour)}"] [role="button"]`) : null;
+          if (next) next.focus();
+          else restoreFocus([skin.id]);
+        });
+      });
+    },
+    [uninstall, restoreFocus],
+  );
+
   const clearSelection = useCallback(() => {
     clear();
     restoreFocus();
@@ -151,6 +172,7 @@ export function Hangar() {
                 onSelect={onSelect}
                 onToggleActive={actions.toggleActive}
                 onRecheck={actions.recheck}
+                onUninstall={onUninstall}
               />
             )}
           </div>

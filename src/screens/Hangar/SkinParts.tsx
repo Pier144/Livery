@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { Trash2 } from 'lucide-react';
 import { createContext, useContext, useId, useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
@@ -15,6 +16,8 @@ export interface SkinItemProps {
   onSelect: (id: string, range: boolean) => void;
   onToggleActive: (skin: HangarSkin) => void;
   onRecheck: (skin: HangarSkin) => void;
+  /** Removes the skin from the game (undoable). */
+  onUninstall: (skin: HangarSkin) => void;
 }
 
 /**
@@ -34,9 +37,9 @@ export function attentionText(t: TFunction, skin: HangarSkin): string | null {
  * A skin that came from WT Live (`sourceId`) opens its Skin detail on click or Enter, as in the
  * prototype; Space, Ctrl/Cmd+click and the checkbox select it. A local skin has no page: click,
  * Enter and Space toggle its selection. Shift (click, Enter or Space) always extends the selection
- * from the last toggled skin.
+ * from the last toggled skin. Delete uninstalls it.
  */
-export function itemHandlers(skin: HangarSkin, onSelect: SkinItemProps['onSelect']) {
+export function itemHandlers(skin: HangarSkin, onSelect: SkinItemProps['onSelect'], onUninstall: SkinItemProps['onUninstall']) {
   const source = skin.sourceId;
   return {
     onClick: (e: MouseEvent<HTMLElement>) => {
@@ -44,6 +47,11 @@ export function itemHandlers(skin: HangarSkin, onSelect: SkinItemProps['onSelect
       else onSelect(skin.id, e.shiftKey);
     },
     onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
+      if (e.key === 'Delete' && !e.repeat) {
+        e.preventDefault();
+        onUninstall(skin);
+        return;
+      }
       if (e.key !== 'Enter' && e.key !== ' ') return;
       // Space would scroll the list; Enter would repeat while held.
       e.preventDefault();
@@ -142,6 +150,27 @@ export function RecheckLink({ busy, onClick }: { busy: boolean; onClick: () => v
       className="relative z-[1] flex-none whitespace-nowrap text-[11px] leading-[normal] text-ink-3 underline underline-offset-[3px] hover:text-ink-1 aria-disabled:cursor-default aria-disabled:opacity-50 motion-safe:transition-colors motion-safe:duration-120"
     >
       {t('hangar.card.recheck')}
+    </button>
+  );
+}
+
+/**
+ * 24px "Uninstall" icon button (Lucide `trash-2`): removes the skin's folder from the game, with a
+ * backup and Undo in the toast. Danger colour on hover. The card's group names the skin.
+ */
+export function UninstallButton({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+  const label = t('hangar.card.uninstall');
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-keyshortcuts="Delete"
+      title={label}
+      className="relative z-[1] flex h-6 w-6 flex-none items-center justify-center rounded-[5px] border border-line-3 bg-bg-4 text-ink-3 hover:border-danger-40 hover:text-danger motion-safe:transition-colors motion-safe:duration-120"
+    >
+      <Trash2 aria-hidden size={14} strokeWidth={1.75} />
     </button>
   );
 }

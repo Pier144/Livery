@@ -7,6 +7,7 @@ import i18n from '@/i18n';
 import { createQueryClient } from '@/queries/client';
 import { COLLECTIONS_KEY } from '@/queries/collections';
 import { HANGAR_KEY } from '@/queries/hangar';
+import { useHangarStore } from '@/store/hangar';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
@@ -459,6 +460,51 @@ describe('My Hangar', () => {
     expect(calls('restore_backups')).toEqual([{ backupIds: ['b-h3', 'b-h5'] }]);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ambush' })).toBeInTheDocument());
     expect(screen.getByText('Restored 2 skins')).toBeInTheDocument();
+  });
+
+  it('Uninstall on a card removes only that skin, keeps focus in the list, and Undo puts it back', async () => {
+    const user = userEvent.setup();
+    renderHangar();
+    await user.click(card('Desert tan'));
+    const uninstall = within(cardOf('Ambush')).getByRole('button', { name: 'Uninstall' });
+    expect(uninstall).toHaveAttribute('aria-keyshortcuts', 'Delete');
+    await user.click(uninstall);
+
+    await waitFor(() => expect(toastTexts()).toContain('Uninstalled “Ambush”'));
+    expect(calls('delete_skins')).toEqual([{ ids: ['h3'] }]);
+    expect(screen.queryByRole('button', { name: 'Ambush' })).not.toBeInTheDocument();
+    // The selection is untouched; focus moved on to the next skin.
+    expect(within(bar()).getByText('1 skin selected')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Desert tan' })).toHaveFocus());
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(calls('restore_backups')).toEqual([{ backupIds: ['b-h3'] }]);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ambush' })).toBeInTheDocument());
+    expect(toastTexts()).toContain('“Ambush” is back in the game');
+  });
+
+  it('Delete on a focused card uninstalls it; a selected skin leaves the selection', async () => {
+    const user = userEvent.setup();
+    renderHangar();
+    await user.click(card('SEA Camo'));
+    screen.getByRole('button', { name: 'SEA Camo' }).focus();
+    await user.keyboard('{Delete}');
+    await waitFor(() => expect(toastTexts()).toContain('Uninstalled “SEA Camo”'));
+    expect(calls('delete_skins')).toEqual([{ ids: ['h5'] }]);
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Factory olive' })).toHaveFocus());
+  });
+
+  it('the list view has Uninstall on every row', async () => {
+    const user = userEvent.setup();
+    useHangarStore.setState({ view: 'list' });
+    renderHangar();
+    // One per rendered row (the list is virtualized).
+    const rows = document.querySelectorAll('[data-skin-id]');
+    expect(rows.length).toBeGreaterThan(1);
+    rows.forEach((row) => expect(within(row as HTMLElement).getByRole('button', { name: 'Uninstall' })).toBeInTheDocument());
+    await user.click(within(cardOf('Factory olive')).getByRole('button', { name: 'Uninstall' }));
+    await waitFor(() => expect(calls('delete_skins')).toEqual([{ ids: ['h2'] }]));
   });
 
   it('still reports a Delete whose folders were already gone (no backup, no Undo)', async () => {
