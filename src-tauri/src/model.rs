@@ -39,6 +39,11 @@ pub enum Language {
     ZhCn,
 }
 
+fn lenient_language<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Language, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(Language::deserialize(value).unwrap_or_default())
+}
+
 impl Language {
     pub const ALL: [Language; 9] = [
         Language::En,
@@ -85,6 +90,9 @@ pub struct Settings {
     pub conflict_policy: ConflictPolicy,
     pub backups: bool,
     pub backup_days: u32,
+    /// A code this version doesn't know (written by a newer Livery) reads as English instead of
+    /// making the whole file unreadable.
+    #[serde(deserialize_with = "lenient_language")]
     pub language: Language,
     pub auto_update: bool,
     pub start_with_windows: bool,

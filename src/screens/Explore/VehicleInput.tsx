@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TextInput } from '@/components/ui/TextInput';
 import { vehicles as builtIn } from '@/data/vehicles';
@@ -37,11 +37,18 @@ export function VehicleInput({ list = builtIn }: { list?: readonly Vehicle[] }) 
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
 
-  // The filter changed elsewhere (a removed filter, Clear all, the palette, Following).
+  // The filter changed elsewhere (a removed filter, Clear all, the palette, Following): show it.
+  // Only the shown name changed (the local names arrived, the language changed): update the text
+  // unless the user is typing in the field.
+  const inputRef = useRef<HTMLInputElement>(null);
+  const shownFor = useRef(vehicle);
   useEffect(() => {
+    const filterChanged = shownFor.current !== vehicle;
+    shownFor.current = vehicle;
+    if (!filterChanged && document.activeElement === inputRef.current) return;
     setText(display);
     setOpen(false);
-  }, [display]);
+  }, [display, vehicle]);
 
   const matches = useMemo(() => matchVehicles(list, text, undefined, names), [list, text, names]);
   const expanded = open && matches.length > 0;
@@ -116,6 +123,7 @@ export function VehicleInput({ list = builtIn }: { list?: readonly Vehicle[] }) 
   return (
     <div className="relative">
       <TextInput
+        ref={inputRef}
         type="text"
         clearable
         role="combobox"

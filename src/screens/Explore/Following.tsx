@@ -36,6 +36,8 @@ let pendingMark: ReturnType<typeof setTimeout> | null = null;
 export function Following() {
   const { t, i18n } = useTranslation();
   const vehicleName = useVehicleName();
+  /** A followed vehicle is saved with its English name; it shows in the UI language. */
+  const followName = (e: FollowEntry) => (e.kind === 'vehicle' ? vehicleName({ code: e.id, name: e.name }) : e.name);
   const qc = useQueryClient();
   const following = useFollowing();
   const entries = following.data;
@@ -97,14 +99,14 @@ export function Following() {
     setFollow
       .mutateAsync({ ...args, follow: false })
       .then(() => {
-        toast.undoable(t('explore.follow.unfollowed', { name: entry.name }), async () => {
+        toast.undoable(t('explore.follow.unfollowed', { name: followName(entry) }), async () => {
           // A failed Undo would silently lose the follow: say so.
-          await setFollow.mutateAsync(refollow).catch(() => toast(t('explore.follow.refollowFailed', { name: entry.name })));
+          await setFollow.mutateAsync(refollow).catch(() => toast(t('explore.follow.refollowFailed', { name: followName(entry) })));
         });
       })
       .catch(() => {
         pendingFocus.current = null;
-        toast(t('explore.follow.unfollowFailed', { name: entry.name }));
+        toast(t('explore.follow.unfollowFailed', { name: followName(entry) }));
       });
   };
 
@@ -160,7 +162,7 @@ export function Following() {
                   className="flex w-full items-center gap-2.5 rounded-ctl border border-line-2 bg-bg-3 py-2.5 pl-3 pr-10 text-left hover:border-line-4 motion-safe:transition-colors motion-safe:duration-120"
                 >
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-body font-medium leading-[normal] text-ink-1">{e.name}</span>
+                    <span className="truncate text-body font-medium leading-[normal] text-ink-1">{followName(e)}</span>
                     <span className="truncate font-mono text-[10px] leading-[normal] text-ink-4">{sub(e)}</span>
                   </span>
                   {n > 0 && (
@@ -171,8 +173,8 @@ export function Following() {
                 </button>
                 <button
                   type="button"
-                  aria-label={t('explore.follow.unfollow', { name: e.name })}
-                  title={t('explore.follow.unfollow', { name: e.name })}
+                  aria-label={t('explore.follow.unfollow', { name: followName(e) })}
+                  title={t('explore.follow.unfollow', { name: followName(e) })}
                   onClick={() => unfollow(e, i)}
                   className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-menu text-ink-4 hover:bg-bg-4 hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120"
                 >

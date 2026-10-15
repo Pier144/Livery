@@ -37,6 +37,7 @@ fn language_codes_match_the_ui() {
         let s: Settings = serde_json::from_str(&format!(r#"{{ "language": "{code}" }}"#)).unwrap();
         assert_eq!(&serde_json::to_value(s.language).unwrap(), code);
     }
-    // A code Livery doesn't know is refused, not silently read as English.
-    assert!(serde_json::from_str::<Settings>(r#"{ "language": "pt_br" }"#).is_err());
+    // A code this version doesn't know (a newer Livery's) reads as English; the rest of the file stays.
+    let newer: Settings = serde_json::from_str(r#"{ "language": "ja", "backups": false }"#).unwrap();
+    assert_eq!((newer.language, newer.backups), (Language::En, false));
 }

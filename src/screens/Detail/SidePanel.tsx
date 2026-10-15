@@ -185,7 +185,7 @@ function VehicleBlock({ skin, onOpen }: { skin: WtLiveSkin; onOpen: () => void }
           {t('detail.vehicle.label')}
         </h2>
         {/* A sibling of the card button, never inside it (no nested interactive controls). */}
-        <FollowButton kind="vehicle" id={vehicle.code} name={vehicleName(vehicle)} small />
+        <FollowButton kind="vehicle" id={vehicle.code} name={vehicle.name} shownName={vehicleName(vehicle)} small />
       </div>
       <button
         type="button"
@@ -222,7 +222,20 @@ function VehicleBlock({ skin, onOpen }: { skin: WtLiveSkin; onOpen: () => void }
  * Follow / Following for an author or a vehicle. Unfollowing is undoable: Undo follows again from
  * the entry's old "last seen", so its "N new" in Following comes back exactly.
  */
-function FollowButton({ kind, id, name, small = false }: { kind: FollowKind; id: string; name: string; small?: boolean }) {
+/** `name` is saved with the follow (English for a vehicle); `shownName` is what the UI says (the local name). */
+function FollowButton({
+  kind,
+  id,
+  name,
+  shownName = name,
+  small = false,
+}: {
+  kind: FollowKind;
+  id: string;
+  name: string;
+  shownName?: string;
+  small?: boolean;
+}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data } = useFollowing();
@@ -243,11 +256,11 @@ function FollowButton({ kind, id, name, small = false }: { kind: FollowKind; id:
     setFollow.mutateAsync({ kind, id, name, follow }).then(
       () => {
         if (follow) {
-          toast(t('detail.follow.followed', { name }));
+          toast(t('detail.follow.followed', { name: shownName }));
           return;
         }
         // Undo outlives this screen: it talks to the backend directly, not through the hook.
-        toast.undoable(t('detail.follow.unfollowed', { name }), async () => {
+        toast.undoable(t('detail.follow.unfollowed', { name: shownName }), async () => {
           try {
             const args = lastSeenAt ? { kind, id, name, follow: true, lastSeenAt } : { kind, id, name, follow: true };
             qc.setQueryData(FOLLOWING_KEY, await call<FollowEntry[]>('following_set', args));
@@ -266,7 +279,7 @@ function FollowButton({ kind, id, name, small = false }: { kind: FollowKind; id:
       type="button"
       // The name carries the state ("Follow X" / "Following X") and keeps the visible text (WCAG
       // 2.5.3); no aria-pressed, since a toggle's name must not change with its state (APG).
-      aria-label={following ? t('detail.follow.followingName', { name }) : t('detail.follow.followName', { name })}
+      aria-label={following ? t('detail.follow.followingName', { name: shownName }) : t('detail.follow.followName', { name: shownName })}
       aria-disabled={setFollow.isPending || undefined}
       onClick={toggle}
       className={cn(

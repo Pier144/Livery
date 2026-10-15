@@ -55,17 +55,21 @@ describe('firstRunLanguage', () => {
   const fresh = { ...DEFAULT_SETTINGS };
 
   it('takes the Windows display language on a fresh install', () => {
-    expect(firstRunLanguage(fresh, ['it-IT', 'en-US'])).toBe('it');
-    expect(firstRunLanguage(fresh, ['pt-BR'])).toBe('pt-BR');
-    expect(firstRunLanguage(fresh, ['zh-Hans-CN'])).toBe('zh-CN');
+    expect(firstRunLanguage(fresh, ['it-IT', 'en-US'], false)).toBe('it');
+    expect(firstRunLanguage(fresh, ['pt-BR'], false)).toBe('pt-BR');
+    expect(firstRunLanguage(fresh, ['zh-Hans-CN'], false)).toBe('zh-CN');
+  });
+
+  it('runs only once per install', () => {
+    expect(firstRunLanguage(fresh, ['de-DE'], true)).toBeNull();
   });
 
   it('changes nothing for English, unknown languages or settings already made', () => {
-    expect(firstRunLanguage(fresh, ['en-GB'])).toBeNull();
-    expect(firstRunLanguage(fresh, ['ja-JP'])).toBeNull();
-    expect(firstRunLanguage(fresh, [])).toBeNull();
-    expect(firstRunLanguage({ ...fresh, onboarded: true }, ['de-DE'])).toBeNull();
-    expect(firstRunLanguage({ ...fresh, gamePath: 'D:\WT' }, ['de-DE'])).toBeNull();
-    expect(firstRunLanguage({ ...fresh, language: 'fr' }, ['de-DE'])).toBeNull();
+    expect(firstRunLanguage(fresh, ['en-GB'], false)).toBeNull();
+    expect(firstRunLanguage(fresh, ['ja-JP'], false)).toBeNull();
+    expect(firstRunLanguage(fresh, [], false)).toBeNull();
+    expect(firstRunLanguage({ ...fresh, onboarded: true }, ['de-DE'], false)).toBeNull();
+    expect(firstRunLanguage({ ...fresh, gamePath: 'D:\WT' }, ['de-DE'], false)).toBeNull();
+    expect(firstRunLanguage({ ...fresh, language: 'fr' }, ['de-DE'], false)).toBeNull();
   });
 });

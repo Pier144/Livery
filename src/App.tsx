@@ -11,7 +11,8 @@ import { UpdateDialog } from '@/components/chrome/UpdateDialog';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { useInstallEvents } from '@/hooks/useInstallEvents';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { firstRunLanguage, useLanguageSync } from '@/hooks/useLanguageSync';
+import { firstRunLanguage, markLanguageDetected, useLanguageSync } from '@/hooks/useLanguageSync';
+import { setLanguage } from '@/i18n';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useScreenFocus } from '@/hooks/useScreenFocus';
 import { useLaunchUpdateCheck, useUpdateEvents } from '@/hooks/useUpdateEvents';
@@ -27,7 +28,7 @@ import { Queue } from '@/screens/Queue';
 import { SkinDetail } from '@/screens/Detail/SkinDetail';
 import { Settings } from '@/screens/Settings';
 import { useUi } from '@/store/ui';
-import type { Screen } from '@/types';
+import type { Screen, Settings as SettingsData } from '@/types';
 
 const SCREENS: Record<Screen, () => JSX.Element> = {
   explore: Explore,
@@ -58,12 +59,14 @@ function useBootScreen(): boolean {
     // Unreadable settings: open the app rather than trap the user in First run.
     if (data && !data.onboarded && !data.gamePath) {
       useUi.getState().go('firstRun');
-      // First launch: speak the Windows display language when Livery has it (shown at once,
-      // then saved).
+      // First launch: speak the Windows display language when Livery has it (shown before the
+      // first paint, then saved; back to English if it can't be saved). Only ever once.
       const language = firstRunLanguage(data);
+      markLanguageDetected();
       if (language) {
+        setLanguage(language);
         qc.setQueryData(SETTINGS_KEY, { ...data, language });
-        updateSettings({ language });
+        updateSettings({ language }, { onError: () => qc.setQueryData<SettingsData>(SETTINGS_KEY, (s) => (s ? { ...s, language: 'en' } : s)) });
       }
     }
     setBooted(true);
