@@ -78,7 +78,7 @@ jobs:
         run: pnpm build
 
       # The in-memory mock backend (src/dev) must never ship: every dynamic import of it sits
-      # behind an inline `import.meta.env.VITE_MOCK_BACKEND === '1'` check (HANDOFF.md, Gotchas).
+      # behind an inline `import.meta.env.VITE_MOCK_BACKEND === '1'` check (see docs/development.md).
       - name: No mock backend in dist/
         run: |
           found=0

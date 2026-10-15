@@ -1,4 +1,4 @@
-//! M5 settings contract (DESIGN_NOTES "M5 · Foundation contracts"): Settings → General →
+//! Settings contract for WT Live: Settings → General →
 //! Reduce motion is `reduceMotion` (`system` / `on` / `off`, default `system`).
 
 use livery_lib::model::{ReduceMotion, Settings, SettingsPatch};

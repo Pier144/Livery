@@ -1,5 +1,5 @@
 //! Livery backend. One module per domain; commands return `Result<T, AppError>` and long
-//! operations emit events (see design_handoff_livery/DATA_MODEL.md).
+//! operations emit events.
 //!
 //! Commands that touch the disk are `async` and do their work on a blocking thread
 //! (`tauri::async_runtime::spawn_blocking`) so the UI thread never waits on I/O.

@@ -1,10 +1,10 @@
 # Developing Livery
 
-Livery is a Windows desktop skin manager for War Thunder: it finds the game folder, keeps a library of the user skins in `UserSkins`, installs skins from archives, folders and WT Live through a queue with conflict handling and undo, organises them into collections, and updates itself from GitHub releases. The user-facing overview is the [README](../README.md); current status is in [HANDOFF.md](../HANDOFF.md).
+Livery is a Windows desktop skin manager for War Thunder: it finds the game folder, keeps a library of the user skins in `UserSkins`, installs skins from archives, folders and WT Live through a queue with conflict handling and undo, organises them into collections, and updates itself from GitHub releases. The user-facing overview is the [README](../README.md).
 
 **Unofficial tool, not affiliated with Gaijin Entertainment.**
 
-This page is for developers. The product spec is the design handoff in [`design_handoff_livery/`](../design_handoff_livery/): `README.md` (screens), `DATA_MODEL.md` (types, commands, events), `BUILD_PLAN.md` (milestones). The `.dc.html` files are interactive design references, not code to copy.
+This page is for developers.
 
 ## Stack
 
@@ -36,10 +36,9 @@ pnpm dev:mock       # or: the UI in a browser against the mock backend
 |---|---|
 | `pnpm dev` | Vite dev server on port 1420 (`strictPort`). `pnpm tauri dev` starts it for you; opened in a plain browser it has no backend. |
 | `pnpm dev:mock` | Vite in `mock` mode (`.env.mock` sets `VITE_MOCK_BACKEND=1`) on port 1420: the UI runs in a browser against the in-memory mock backend in `src/dev/`. State resets on reload. Start-up switches (query string, combinable): `?onboarded=1` (game folder already set, skips First run), `?empty=1` (empty library, no collections, backups or follows), `?notfound=1` (First run detection finds no game), `?many=1` (1,000 hangar skins and 1,284 WT Live posts), `?watch=1` (watched Downloads folder with auto-install; a new skin arrives a few seconds after load), `?offline=1` (WT Live unreachable). Each switch can also be set in localStorage as `livery.mock.<name>` = `1`. |
-| `pnpm handoff` | Serves `design_handoff_livery/` on http://localhost:4599 so the `.dc.html` prototypes can load `support.js`. |
 | `pnpm tauri dev` | Builds the Rust backend in debug mode and opens the app on the Vite dev server. |
 | `pnpm tauri build` | Release build and NSIS installer in `src-tauri/target/release/bundle/nsis/` (runs `pnpm build` first; needs the updater key, see [release.md](release.md)). |
-| `pnpm build` | Typecheck and production frontend build into `dist/`. The mock backend must not ship: `dist/` must not contain `mockCall`, `mockListen`, `livery.mock` or `mockDetectGame` (CI checks it). |
+| `pnpm build` | Typecheck and production frontend build into `dist/`. The mock backend must not ship: `dist/` must not contain `mockCall`, `mockListen`, `livery.mock` or `mockDetectGame` (CI checks it). Every dynamic `import('@/dev/mockBackend')` must sit behind an **inline** `import.meta.env.VITE_MOCK_BACKEND === '1'` check, not an imported constant, or Rollup still emits the mock chunk. |
 | `pnpm preview` | Serves the built `dist/`. |
 | `pnpm test` / `pnpm test:watch` | Vitest, once or in watch mode. |
 | `pnpm typecheck` | `tsc --noEmit`. |
@@ -93,18 +92,16 @@ src-tauri/               Tauri app (crate `livery`, lib `livery_lib`)
   tests/                 integration tests; fixtures in tests/fixtures
   capabilities/  icons/  tauri.conf.json
 tokens/                  design tokens (tailwind.tokens.cjs, spread into tailwind.config.cjs)
-design_handoff_livery/   the design handoff (spec + prototypes)
-docs/                    development.md (this page), release.md, wtlive-terms.md, a11y.md, brand/
-scripts/                 serve-handoff.mjs (pnpm handoff), i18n-check.mjs / i18n-sync.mjs,
+docs/                    development.md (this page), release.md
+public/licenses/         rust.txt (third-party notices, `pnpm notices`)
+scripts/                 i18n-check.mjs / i18n-sync.mjs,
                          updater-manifest.mjs (release feed), capture-window.ps1 (screenshots of the native window)
 .github/workflows/       ci.yml, release.yml
 ```
 
 ## Conventions and testing
 
-The full list is in [`CLAUDE.md`](../CLAUDE.md). The short version:
-
-- Tailwind classes built from the tokens only, no ad-hoc hex values; a missing value becomes a new token, noted in `DESIGN_NOTES.md`.
+- Tailwind classes built from the tokens only, no ad-hoc hex values; a missing value becomes a new token.
 - Every user-visible string goes through `t('key')`, with English in `src/i18n/en.json` and Italian in `it.json`.
 - No spinners (skeletons instead); animation only under `motion-safe:`. Anything a user can regret goes through `toast.undoable()` backed by a backend backup.
 - Rust commands return `Result<T, AppError>` (serialized as `{ code, message, detail? }`); disk work runs off the UI thread; long operations emit events.
@@ -115,12 +112,6 @@ The full list is in [`CLAUDE.md`](../CLAUDE.md). The short version:
 ## Releases
 
 NSIS installer, per user, English and Italian, self-updating through signed GitHub releases; Authenticode signing is prepared but off. How to build, sign and publish: [release.md](release.md).
-
-## Where decisions live
-
-- [`DESIGN_NOTES.md`](../DESIGN_NOTES.md): every decision taken during implementation that the handoff left open, plus tokens and copy added.
-- [`HANDOFF.md`](../HANDOFF.md): current status, next steps, pending dependency approvals and gotchas. Read it first when you pick the project up.
-- [`CLAUDE.md`](../CLAUDE.md): stack and conventions.
 
 ## License
 

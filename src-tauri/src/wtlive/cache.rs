@@ -1,4 +1,4 @@
-//! WT Live's answers and archives, kept on disk for a while (docs/wtlive-terms.md §7.5):
+//! WT Live's answers and archives, kept on disk for a while (a day at most, clearable in Settings):
 //! `<appData>/wtlive-cache/pages/<hash>.bin` (the request key on the first line, the answer
 //! after it) and `<appData>/wtlive-cache/archives/<postId>.<zip|7z|rar>`.
 //!

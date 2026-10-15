@@ -40,7 +40,7 @@ pub const INSTALL_FAILED: &str = "The update couldn't be installed";
 pub const UP_TO_DATE: &str = "Livery is already up to date";
 pub const BUSY: &str = "The update is already downloading";
 
-/// What `check_update` answers (DATA_MODEL `{ current, latest?, notes? }`, plus `ready`).
+/// What `check_update` answers: `{ current, latest?, notes?, ready }`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {

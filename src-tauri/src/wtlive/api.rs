@@ -1,4 +1,4 @@
-//! WT Live's JSON, read the way the site's own pages read it (docs/wtlive-terms.md §6).
+//! WT Live's JSON, read the way the site's own pages read it.
 //!
 //! - `POST /api/feed/get_regular/` (`content=camouflage`, `sort`, `page`, `searchString`) and
 //!   `POST /api/feed/get_user/` (`user=<id>`) answer `{ status: "OK", data: { list: [post…] } }`,

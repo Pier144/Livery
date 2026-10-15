@@ -1,4 +1,4 @@
-//! WT Live posts the user hid from Explore and Following (docs/wtlive-terms.md §7.8: a way to
+//! WT Live posts the user hid from Explore and Following (a way to
 //! take a single entry out, for the day an author asks). Persisted as
 //! `<appData>/wtlive-hidden.json` = `{ "version": 1, "ids": ["1191507", …] }`.
 //!

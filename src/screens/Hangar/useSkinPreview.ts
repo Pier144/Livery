@@ -4,7 +4,7 @@ import { WTLIVE_KEY } from '@/queries/wtlive';
 import type { HangarSkin, WtLiveSkin } from '@/types';
 
 /**
- * The picture a Hangar card shows, without asking WT Live anything (docs/wtlive-terms.md: only a
+ * The picture a Hangar card shows, without asking WT Live anything (only a
  * user action reaches WT Live):
  * 1. `HangarSkin.preview`, the post's picture stored at install, or when the user last opened the
  *    post's page (the backend stores it then for skins installed before pictures were kept);

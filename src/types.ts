@@ -1,6 +1,6 @@
-// Shared shapes — keep in sync with src-tauri/src/model.rs (see design_handoff_livery/DATA_MODEL.md).
+// Shared shapes — keep in sync with src-tauri/src/model.rs.
 
-/** `UNK`: a vehicle code missing from the local catalog whose nation can't be inferred (see DESIGN_NOTES). */
+/** `UNK`: a vehicle code missing from the local catalog whose nation can't be inferred. */
 export type Nation = 'USA' | 'GER' | 'USSR' | 'GBR' | 'JPN' | 'CHN' | 'ITA' | 'FRA' | 'SWE' | 'ISR' | 'UNK';
 export type VehicleType = 'ground' | 'air' | 'heli' | 'naval';
 export type Category = 'Historical' | 'Semi-historical' | 'Fictional' | 'Camouflage' | 'Other';
@@ -150,13 +150,13 @@ export interface Settings {
   language: Language;
   autoUpdate: boolean;
   startWithWindows: boolean;
-  /** First run finished or skipped; the app then opens on Explore. (Not in DATA_MODEL; see DESIGN_NOTES.) */
+  /** First run finished or skipped; the app then opens on Explore. */
   onboarded: boolean;
-  /** Settings → General → Reduce motion; `system` follows Windows. (Not in DATA_MODEL; see DESIGN_NOTES.) */
+  /** Settings → General → Reduce motion; `system` follows Windows. */
   reduceMotion: ReduceMotion;
   /**
    * Settings → WT Live → Browse WT Live (default true). Off: Explore, Following, the WT Live Skin
-   * detail and installs from WT Live send no request at all. (Not in DATA_MODEL; see DESIGN_NOTES.)
+   * detail and installs from WT Live send no request at all.
    */
   wtliveEnabled: boolean;
   /** Settings → Game: read the vehicle list from the game's data archives (off: built-in list). */
@@ -262,7 +262,7 @@ export interface WtLiveStorage {
   hiddenCount: number;
 }
 
-/** `check_update`: DATA_MODEL `{ current, latest?, notes? }`, plus `ready` (already downloaded). */
+/** `check_update`: `{ current, latest?, notes? }`, plus `ready` (already downloaded). */
 export interface UpdateInfo {
   current: string;
   /** The newer version on offer; absent when Livery is up to date. */

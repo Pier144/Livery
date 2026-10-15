@@ -12,7 +12,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri",
-    "handoff": "node scripts/serve-handoff.mjs",
     "dev:mock": "vite --mode mock",
     "i18n:sync": "node scripts/i18n-sync.mjs",
     "i18n:check": "node scripts/i18n-check.mjs",

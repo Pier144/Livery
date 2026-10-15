@@ -5,7 +5,7 @@
 //! - [`live`]: the real client, [`LiveClient`]: WT Live's JSON endpoints ([`api`]) through a
 //!   polite HTTPS transport ([`net`]: one request a second, backoff, robots.txt, WT Live hosts
 //!   only), a disk cache of at most a day ([`cache`]) and the posts the user hid ([`hidden`]).
-//!   docs/wtlive-terms.md §7 is the posture it follows.
+//!   The README's Privacy section is the posture it follows.
 //! - [`install`]: installs from WT Live, Try in game (Keep / Discard), textures before installing.
 //! - [`following`] keeps `<appData>/following.json`.
 //! - this file: the managed state [`WtLive`], the commands, and the plain functions behind them

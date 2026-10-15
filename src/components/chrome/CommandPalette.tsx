@@ -160,7 +160,7 @@ function PalettePanel() {
                     highlighted && 'bg-bg-hover',
                   )}
                 >
-                  {/* The kind tells results apart, so it needs 4.5:1: ink-4 on bg-3, ink-3 on the highlighted bg-hover (docs/a11y.md). */}
+                  {/* The kind tells results apart, so it needs 4.5:1: ink-4 on bg-3, ink-3 on the highlighted bg-hover. */}
                   <span className={cn('min-w-[56px] font-mono text-[10px] tracking-[.06em]', highlighted ? 'text-ink-3' : 'text-ink-4')}>
                     {t(`common.palette.kind.${item.kind}`)}
                   </span>
@@ -183,7 +183,7 @@ function PalettePanel() {
             )}
           </div>
         </div>
-        {/* ink-4, not ink-5: 10px text needs 4.5:1 on bg-3 (docs/a11y.md). */}
+        {/* ink-4, not ink-5: 10px text needs 4.5:1 on bg-3. */}
         <div className="flex gap-3.5 border-t border-line-2 px-3.5 py-2 font-mono text-[10px] leading-[normal] text-ink-4">
           <span>{t('common.palette.hintNavigate')}</span>
           <span>{t('common.palette.hintOpen')}</span>

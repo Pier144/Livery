@@ -20,7 +20,7 @@ Other behaviour worth knowing:
 
 - **WebView2:** left at Tauri's default (`downloadBootstrapper`, silent). If the runtime is missing, which is rare on Windows 10 and doesn't happen on 11, the installer downloads it, so it needs a connection in that case.
 - **Uninstall** removes the program and offers a "delete app data" checkbox (`%APPDATA%\app.livery.desktop`: settings, following, library indexes). It never touches the game folder, so skins in `UserSkins` and the backups in `UserSkins\.livery\backups` stay.
-- **Publisher:** not set, so Tauri uses the middle segment of the identifier: "livery", shown in Settings → Apps. It also names the registry key `HKCU\Software\livery\Livery`. Decide the publisher (and the identifier, see DESIGN_NOTES "App identifier") **before the first public release**: changing either later splits upgrades from existing installs (the identifier also moves the app data folder).
+- **Publisher:** not set, so Tauri uses the middle segment of the identifier: "livery", shown in Settings → Apps. It also names the registry key `HKCU\Software\livery\Livery`. Decide the publisher (and the identifier, `app.livery.desktop` today) **before the first public release**: changing either later splits upgrades from existing installs (the identifier also moves the app data folder).
 - **Updater:** on (see "Updates" below). `createUpdaterArtifacts: true` makes `tauri build` also write `<installer>.sig`, so **every build needs the updater signing key** in `TAURI_SIGNING_PRIVATE_KEY`.
 
 ### Build locally
@@ -146,7 +146,7 @@ Livery updates itself with `tauri-plugin-updater` (Rust side only, `src-tauri/sr
 
 ## Cut a release
 
-0. Re-read Gaijin's terms (https://legal.gaijin.net/termsofservice, /contribution, /contentrules, /community-guidelines-live-sandbox): if the dates changed since `docs/wtlive-terms.md` was last updated, check the clauses it quotes before releasing. Run `pnpm notices` if `Cargo.lock` changed (needs `cargo install cargo-about --locked --features cli`), so `public/licenses/rust.txt` lists the crates being shipped.
+0. Re-read Gaijin's terms (https://legal.gaijin.net/termsofservice, /contribution, /contentrules, /community-guidelines-live-sandbox): if the dates changed since the last release, check what changed before releasing. Run `pnpm notices` if `Cargo.lock` changed (needs `cargo install cargo-about --locked --features cli`), so `public/licenses/rust.txt` lists the crates being shipped.
 1. Bump the version in **three** places: `package.json`, `src-tauri/Cargo.toml` (then `cargo check --manifest-path src-tauri/Cargo.toml` to refresh `Cargo.lock`) and `src-tauri/tauri.conf.json`. The installer name and the tag check use `tauri.conf.json`.
 2. Commit, then tag and push:
    ```bash
@@ -171,8 +171,8 @@ The workflow needs only `GITHUB_TOKEN` with `contents: write` (declared in the w
 | Installer | NSIS only, per user (`currentUser`), English + Italian with the language picker, lzma, Start menu folder "Livery", app icon on the installer. | No admin rights needed; the author is Italian; smallest file. |
 | Signing placeholder | `certificateThumbprint: null`, `digestAlgorithm: "sha256"`, `timestampUrl: ""` in `tauri.conf.json`. CI signs through a `--config` overlay only when the secret exists. | Unsigned builds work everywhere today; turning signing on needs no change to the committed config. |
 | Signing inside the build | Signing happens in `tauri build`, not on the finished installer. | The app exe and the uninstaller get signed too. |
-| Draft releases only | CI never publishes; a person does, after the VM test. | Acceptance on a clean VM (BUILD_PLAN M6) comes before users see it. |
-| Official actions only | `actions/checkout@v7`, `actions/setup-node@v7`, `actions/cache@v6`; the rest are shell steps with preinstalled tools (rustup, gh, pwsh). | CLAUDE.md / author: no third-party actions. |
+| Draft releases only | CI never publishes; a person does, after the VM test. | Acceptance on a clean VM comes before users see it. |
+| Official actions only | `actions/checkout@v7`, `actions/setup-node@v7`, `actions/cache@v6`; the rest are shell steps with preinstalled tools (rustup, gh, pwsh). | The author: no third-party actions. |
 | Node 24, pnpm pinned | Node 24 because it still bundles corepack (Node 25+ doesn't); pnpm 10.32.1 pinned in both workflows (`PNPM_VERSION`). | `package.json` has no `packageManager` field; the pin keeps CI on the version that wrote the lockfile. Update both workflows when you upgrade pnpm locally. |
 | Release caches | Restore-only for the pnpm store and cargo registry; the release build starts from a clean `target/`. | A release never writes caches, and its binaries don't depend on a cached build. |
 | Updater | `tauri-plugin-updater`, Rust side only; feed = `latest.json` on the latest published GitHub release; passive NSIS install; automatic updates install on close. | Approved by the author on 2026-10-15. No JS plugin package or extra capability: the commands are Livery's own (`check_update`, `install_update`). |

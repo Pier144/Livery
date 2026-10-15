@@ -26,7 +26,7 @@ function Value({ children, loading }: { children: ReactNode; loading: boolean })
 }
 
 /**
- * WT Live (docs/wtlive-terms.md §7): the kill switch (Browse WT Live off → Livery sends WT Live no
+ * WT Live: the kill switch (Browse WT Live off → Livery sends WT Live no
  * request at all), the cache kept from WT Live and the skins hidden from Explore. Cache and hidden
  * skins are local (`wtlive_storage`), so the section works offline and with browsing off. Clearing
  * the cache isn't undoable (it is only a cache); hidden skins come back all at once.

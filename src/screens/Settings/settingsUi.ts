@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { useUi } from '@/store/ui';
 
-/** Left-nav order (README §7; WT Live added after Backups, see DESIGN_NOTES). */
+/** Left-nav order (WT Live sits after Backups). */
 export const SECTIONS = ['general', 'game', 'conflicts', 'backups', 'wtlive', 'language', 'updates', 'about'] as const;
 export type SettingsSection = (typeof SECTIONS)[number];
 

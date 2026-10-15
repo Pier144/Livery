@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 256 256">
-<!-- Livery app icon: "Secchio · tecnico" (docs/brand/logos). Amber = oklch(0.78 0.16 70) ≈ #F7A224 (resvg has no oklch). -->
+<!-- Livery app icon: "Secchio · tecnico" (a paint bucket). Amber = oklch(0.78 0.16 70) ≈ #F7A224 (resvg has no oklch). -->
 <defs><clipPath id="secchio-tecnicoTtile"><rect x="16" y="16" width="224" height="224" rx="50"/></clipPath></defs>
 <rect x="16" y="16" width="224" height="224" rx="50" fill="#131416"/>
 <rect x="17" y="17" width="222" height="222" rx="49" fill="none" stroke="#2e2f35" stroke-width="2"/>

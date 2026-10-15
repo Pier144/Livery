@@ -96,7 +96,7 @@ export const nextSearchPage = (last: SearchResult, pages: readonly SearchResult[
   last.hasMore ? pages.length : undefined;
 
 /**
- * Explore grid, page after page (BUILD_PLAN open decision 2): the backend fetches, caches and
+ * Explore grid, page after page: the backend fetches, caches and
  * filters WT Live locally and answers pages of results; call `fetchNextPage()` when the virtual
  * grid nears the end. The count comes from the last loaded page (a lower bound unless
  * `totalExact`), the query time from the first.
@@ -111,7 +111,7 @@ export function useWtLiveSearchPages(params: Omit<SearchParams, 'page'>) {
     getNextPageParam: nextSearchPage,
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
-    // Every loaded page would be fetched again (docs/wtlive-terms.md §7.4: only on the user's
+    // Every loaded page would be fetched again (WT Live is asked only on the user's
     // action): coming back to Explore, refocusing the window or reconnecting reuse what is here.
     refetchOnMount: false,
     refetchOnWindowFocus: false,

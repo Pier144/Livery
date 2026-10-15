@@ -67,7 +67,7 @@ export function Sidebar() {
         aria-label={open ? undefined : t('common.nav.expand')}
         title={open ? undefined : t('common.nav.expand')}
         className={cn(
-          // ink-4, not the prototype's ink-5: 11px text on bg-1 needs 4.5:1 (see DESIGN_NOTES).
+          // ink-4, not the prototype's ink-5: 11px text on bg-1 needs 4.5:1.
           'text-ink-4 hover:text-ink-2 motion-safe:transition-colors motion-safe:duration-120',
           open
             ? 'px-2.5 pt-2 text-left text-[11px] leading-[1.4]'

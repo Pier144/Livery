@@ -3,7 +3,7 @@ module.exports = {
   colors: {
     bg: { 0: '#0f1012', 1: '#111214', 2: '#131416', 3: '#18191c', 4: '#1f2024', 5: '#26272c', hover: '#1c1d21', input: '#17181b', chip: '#1b1c20', status: '#141518', scrim: 'rgba(19,20,22,.85)', skel: '#222327', tile: '#1a1b1e', tag: 'rgba(15,16,18,.85)' },
     line: { 1: '#1f2024', 2: '#26272c', 3: '#2e2f35', 4: '#3a3b41', mark: '#4a4c54', grid: '#1c1d21' },
-    // ink-4 is #80828a (handoff: #7c7e86) so small text meets 4.5:1 on bg-3 and inputs too (DESIGN_NOTES).
+    // ink-4 is #80828a (handoff: #7c7e86) so small text meets 4.5:1 on bg-3 and inputs too.
     ink: { 1: '#ececee', 2: '#c9cbd1', 3: '#9a9ca3', 4: '#80828a', 5: '#6b6d74' },
     amber: { DEFAULT: 'oklch(0.78 0.16 70)', hover: 'oklch(0.85 0.14 75)', 10: 'oklch(0.78 0.16 70 / .10)', 18: 'oklch(0.78 0.16 70 / .18)', 35: 'oklch(0.78 0.16 70 / .35)', 50: 'oklch(0.78 0.16 70 / .50)', 60: 'oklch(0.78 0.16 70 / .60)' },
     danger: { DEFAULT: 'oklch(0.75 0.15 25)', 8: 'oklch(0.75 0.15 25 / .08)', 40: 'oklch(0.75 0.15 25 / .40)', close: 'oklch(0.55 0.18 25)' },

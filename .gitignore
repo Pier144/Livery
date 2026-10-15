@@ -19,3 +19,17 @@ Thumbs.db
 
 # Local tooling
 .claude/settings.local.json
+
+# Internal development notes and AI tooling: kept on the author's machine, not published
+CLAUDE.md
+HANDOFF.md
+DESIGN_NOTES.md
+.claude/
+design_handoff_livery/
+docs/agent-specs/
+docs/brand/
+docs/wtlive-terms.md
+docs/a11y.md
+trailer-music/
+tour.local/
+scripts/serve-handoff.mjs

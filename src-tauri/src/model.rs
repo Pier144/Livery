@@ -1,4 +1,4 @@
-//! Shared shapes — keep in sync with `src/types.ts` (see design_handoff_livery/DATA_MODEL.md).
+//! Shared shapes — keep in sync with `src/types.ts`.
 //! Types are added here as the milestones that use them land.
 
 use serde::{Deserialize, Serialize};

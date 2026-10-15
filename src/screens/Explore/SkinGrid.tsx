@@ -52,8 +52,7 @@ function useContentWidth(ref: RefObject<HTMLElement>): number {
 /**
  * Virtualized Explore grid (TanStack Virtual): lines of `auto-fill, minmax(250px, 1fr)` cards
  * chunked by the container width, measured as they render. When the last rendered line comes
- * within PREFETCH_ROWS of the end, the next WT Live page is asked for (DESIGN_NOTES "Explore
- * paging"). The line holding keyboard focus stays mounted while scrolled away. Back from the Skin
+ * within PREFETCH_ROWS of the end, the next WT Live page is asked for. The line holding keyboard focus stays mounted while scrolled away. Back from the Skin
  * detail, the card that opened it takes focus again, scrolled into view.
  */
 export function SkinGrid({ skins, hasMore, loadingMore, moreFailed, onLoadMore, resetKey, onOpen }: SkinGridProps) {

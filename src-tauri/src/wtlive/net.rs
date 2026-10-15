@@ -1,4 +1,4 @@
-//! Talking to WT Live over HTTPS, the way docs/wtlive-terms.md §7 says Livery behaves:
+//! Talking to WT Live over HTTPS, politely:
 //!
 //! - one honest user agent ([`user_agent`]): the app, its version and the repository;
 //! - at most one request per second to WT Live, for the whole app ([`RateLimiter`]);

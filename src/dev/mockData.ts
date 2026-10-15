@@ -389,7 +389,7 @@ export function seedBackups(now: number): StoredBackup[] {
 
 /**
  * `?many=1`: the seed hangar plus generated skins up to `total`, spread over every catalog
- * vehicle, for checking that My Hangar scrolls smoothly with 1,000 skins (BUILD_PLAN M3).
+ * vehicle, for checking that My Hangar scrolls smoothly with 1,000 skins.
  *
  * Origins are honest, as a scan and the WT Live installs would record them. Every third skin is
  * an install of one of `seedManyCatalog`'s generated posts: its `sourceId`, name, vehicle, author
