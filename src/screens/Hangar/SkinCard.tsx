@@ -2,6 +2,7 @@ import { memo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/lib/cn';
+import { useCardMotion } from '@/store/hangarMotion';
 import { formatBytes } from '@/lib/format';
 import {
   ActiveToggle,
@@ -34,6 +35,8 @@ export const SkinCard = memo(function SkinCard({ skin, selected, rechecking, onS
   };
   const attention = attentionText(t, skin);
   const { attentionId, describedBy, title } = useSkinDescription(skin, attention);
+  // Fading out on its way to the bin, or in after an Undo.
+  const motion = useCardMotion(skin.id);
 
   return (
     <div
@@ -44,8 +47,9 @@ export const SkinCard = memo(function SkinCard({ skin, selected, rechecking, onS
       role="group"
       aria-label={skin.name}
       className={cn(
-        'relative flex min-w-0 flex-col rounded-card border motion-safe:transition-colors motion-safe:duration-120',
+        'group relative flex min-w-0 flex-col rounded-card border motion-safe:transition-[color,background-color,border-color,transform] motion-safe:duration-150 motion-safe:ease-decel motion-safe:hover:-translate-y-px',
         selected ? 'border-amber bg-bg-hover' : 'border-line-2 bg-bg-3 hover:border-line-mark',
+        motion,
       )}
     >
       <div

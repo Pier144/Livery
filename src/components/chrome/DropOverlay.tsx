@@ -15,7 +15,8 @@ export function DropOverlay() {
   return (
     <div role="status">
       {active && (
-        <div className="pointer-events-none fixed inset-2 z-[60] flex items-center justify-center rounded-dialog border-2 border-dashed border-amber bg-bg-scrim">
+        // Fades in, then its border breathes softly until the drop.
+        <div className="pointer-events-none fixed inset-2 z-[60] flex items-center justify-center rounded-dialog border-2 border-dashed border-amber bg-bg-scrim motion-safe:animate-drop-overlay">
           <div className="flex flex-col items-center gap-1.5">
             <span className="text-title text-ink-1">
               {folder ? t('firstRun.notFound.dropOverlay') : t('common.drop.title')}

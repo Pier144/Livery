@@ -1,6 +1,8 @@
 import { useRef, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { TabIndicator, useTabIndicator } from '@/components/ui/TabIndicator';
 import { cn } from '@/lib/cn';
+import { useJustEntered } from '@/lib/motion';
 import type { ExploreTab } from '@/store/explore';
 
 const TABS: readonly ExploreTab[] = ['explore', 'following'];
@@ -19,11 +21,16 @@ export interface ExploreHeaderProps {
 /**
  * Tabs Explore / Following (WAI-ARIA tabs, automatic activation: ←/→, Home/End) with the "N new"
  * pill, and the result count on the right (a status region, so filter changes are
- * announced). Bottom rule line-2; the active tab's 2px amber underline sits on it.
+ * announced). Bottom rule line-2; the active tab's 2px amber underline sits on it and slides to
+ * the next tab.
  */
 export function ExploreHeader({ tab, onTab, newCount, meta, tabId, panelId }: ExploreHeaderProps) {
   const { t } = useTranslation();
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const listRef = useRef<HTMLDivElement>(null);
+  const indicator = useTabIndicator(listRef, tab);
+  // New skins from follows showed up: the pill sends out two soft rings, then rests.
+  const freshNews = useJustEntered(newCount > 0);
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
     let next: number;
@@ -52,7 +59,7 @@ export function ExploreHeader({ tab, onTab, newCount, meta, tabId, panelId }: Ex
 
   return (
     <div className="flex items-end justify-between gap-4 border-b border-line-2">
-      <div role="tablist" aria-label={t('explore.tabs')} className="flex gap-5.5">
+      <div ref={listRef} role="tablist" aria-label={t('explore.tabs')} className="relative flex gap-5.5">
         {TABS.map((id, i) => {
           const selected = id === tab;
           return (
@@ -71,18 +78,24 @@ export function ExploreHeader({ tab, onTab, newCount, meta, tabId, panelId }: Ex
               onKeyDown={(e) => onKeyDown(e, i)}
               className={cn(
                 '-mb-px flex items-center gap-2 border-b-2 pb-2.5 pt-1.5 text-card leading-[normal] motion-safe:transition-colors motion-safe:duration-120',
-                selected ? 'border-amber text-ink-1' : 'border-transparent text-ink-3 hover:text-ink-1',
+                selected ? cn('text-ink-1', indicator ? 'border-transparent' : 'border-amber') : 'border-transparent text-ink-3 hover:text-ink-1',
               )}
             >
               {id === 'explore' ? t('explore.title') : t('explore.following')}
               {id === 'following' && newCount > 0 && (
-                <span className="whitespace-nowrap rounded-pill border border-amber-50 px-1.5 py-px font-mono text-[10px] font-medium leading-[normal] text-amber">
+                <span
+                  className={cn(
+                    'whitespace-nowrap rounded-pill border border-amber-50 px-1.5 py-px font-mono text-[10px] font-medium leading-[normal] text-amber',
+                    freshNews && 'motion-safe:animate-pill-pulse',
+                  )}
+                >
                   {t('explore.newCount', { count: newCount })}
                 </span>
               )}
             </button>
           );
         })}
+        <TabIndicator box={indicator} />
       </div>
       <span role="status" className="min-w-0 truncate pb-2.5 font-mono text-mono-sm leading-[normal] tracking-[.04em] text-ink-4">
         {meta}

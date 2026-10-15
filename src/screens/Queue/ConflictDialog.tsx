@@ -81,7 +81,7 @@ export function ConflictDialog({ item, installed, onChoose, onCancel, fallbackFo
   const values = { file: item.fileName, installed: installed.name, vehicle: installed.vehicle };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay" onMouseDown={onOverlayMouseDown}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay motion-safe:animate-overlay-in" onMouseDown={onOverlayMouseDown}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -90,7 +90,7 @@ export function ConflictDialog({ item, installed, onChoose, onCancel, fallbackFo
         aria-describedby={bodyId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className="flex w-[520px] max-w-[calc(100vw-32px)] flex-col gap-4 rounded-dialog border border-line-4 bg-bg-3 px-6 py-5.5 shadow-dialog outline-none"
+        className="flex w-[520px] max-w-[calc(100vw-32px)] flex-col gap-4 rounded-dialog border border-line-4 bg-bg-3 px-6 py-5.5 shadow-dialog outline-none motion-safe:animate-dialog-in"
       >
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2.5">

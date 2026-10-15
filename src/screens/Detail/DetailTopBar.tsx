@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { TabIndicator, useTabIndicator } from '@/components/ui/TabIndicator';
 import { cn } from '@/lib/cn';
 import { useUi } from '@/store/ui';
 import { DETAIL_TABS, rovingIndex, type DetailTab } from './detailModel';
@@ -35,6 +36,8 @@ export function DetailTopBar({ skin, placeholder, tabs }: DetailTopBarProps) {
   const { t } = useTranslation();
   const refs = useRef<Partial<Record<DetailTab, HTMLButtonElement | null>>>({});
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const indicator = useTabIndicator(listRef, tabs?.active ?? '');
   const skinId = useUi((s) => s.detailSkinId);
 
   useEffect(() => {
@@ -75,7 +78,7 @@ export function DetailTopBar({ skin, placeholder, tabs }: DetailTopBarProps) {
         )}
       </div>
       {tabs && (
-        <div role="tablist" aria-label={t('detail.tabs.label')} className="flex flex-none gap-1" onKeyDown={onKeyDown}>
+        <div ref={listRef} role="tablist" aria-label={t('detail.tabs.label')} className="relative flex flex-none gap-1" onKeyDown={onKeyDown}>
           {DETAIL_TABS.map((tab) => {
             const selected = tab === tabs.active;
             return (
@@ -94,13 +97,14 @@ export function DetailTopBar({ skin, placeholder, tabs }: DetailTopBarProps) {
                 onClick={() => tabs.onSelect(tab)}
                 className={cn(
                   'h-ctl whitespace-nowrap border-b-2 px-3 text-body font-medium leading-none motion-safe:transition-colors motion-safe:duration-120',
-                  selected ? 'border-amber text-ink-1' : 'border-transparent text-ink-3 hover:text-ink-1',
+                  selected ? cn('text-ink-1', indicator ? 'border-transparent' : 'border-amber') : 'border-transparent text-ink-3 hover:text-ink-1',
                 )}
               >
                 {t(`detail.tabs.${tab}`)}
               </button>
             );
           })}
+          <TabIndicator box={indicator} />
         </div>
       )}
     </div>

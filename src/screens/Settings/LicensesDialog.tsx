@@ -185,7 +185,7 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4" onMouseDown={onOverlayMouseDown}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4 motion-safe:animate-overlay-in" onMouseDown={onOverlayMouseDown}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -194,7 +194,7 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
         aria-describedby={introId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className="flex max-h-[calc(100vh-80px)] w-[560px] max-w-full flex-col overflow-hidden rounded-dialog border border-line-4 bg-bg-3 shadow-dialog outline-none"
+        className="flex max-h-[calc(100vh-80px)] w-[560px] max-w-full flex-col overflow-hidden rounded-dialog border border-line-4 bg-bg-3 shadow-dialog outline-none motion-safe:animate-dialog-in"
       >
         <div className="flex items-center justify-between gap-3 border-b border-line-2 py-3.5 pl-6 pr-4">
           <h2 id={titleId} className="text-heading-lg text-ink-1">

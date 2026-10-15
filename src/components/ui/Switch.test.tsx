@@ -31,7 +31,7 @@ describe('Switch', () => {
     expect(sw()).toHaveAttribute('aria-checked', 'false');
     expect(sw()).toHaveClass('h-4.5', 'w-[34px]', 'rounded-pill', 'bg-line-3', 'ring-1', 'ring-inset', 'ring-ink-5');
     expect(knob()).toHaveAttribute('aria-hidden', 'true');
-    expect(knob()).toHaveClass('left-0.5', 'top-0.5', 'h-3.5', 'w-3.5', 'bg-onAmber', 'motion-safe:transition-transform', 'motion-safe:duration-150');
+    expect(knob()).toHaveClass('left-0.5', 'top-0.5', 'h-3.5', 'w-3.5', 'bg-onAmber', 'motion-safe:transition-transform', 'motion-safe:duration-200', 'motion-safe:ease-spring');
     expect(knob()).not.toHaveClass('translate-x-4');
   });
 

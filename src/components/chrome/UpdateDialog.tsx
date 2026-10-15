@@ -1,7 +1,9 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { cn } from '@/lib/cn';
 import { errorText } from '@/lib/errors';
+import { useLeaving } from '@/lib/motion';
 import { openLink, REPO_URL } from '@/lib/opener';
 import { useAppVersion } from '@/screens/Settings/useAppVersion';
 import { useUpdate } from '@/store/update';
@@ -14,12 +16,13 @@ import { useUpdate } from '@/store/update';
  * on close.
  */
 export function UpdateDialog() {
-  const prompt = useUpdate((s) => s.prompt);
+  // Kept a moment after "Later", for the exit animation.
+  const { value: prompt, leaving } = useLeaving(useUpdate((s) => s.prompt) ?? null, 120);
   if (!prompt) return null;
-  return <UpdateDialogBody version={prompt} />;
+  return <UpdateDialogBody version={prompt} leaving={leaving} />;
 }
 
-function UpdateDialogBody({ version }: { version: string }) {
+function UpdateDialogBody({ version, leaving }: { version: string; leaving: boolean }) {
   const { t } = useTranslation();
   const current = useAppVersion();
   const { phase, pct, requested, install, dismissPrompt } = useUpdate();
@@ -29,12 +32,20 @@ function UpdateDialogBody({ version }: { version: string }) {
   const installRef = useRef<HTMLButtonElement>(null);
   const [opener] = useState(() => document.activeElement);
 
+  // Focus goes back as soon as the popup closes, not after its exit animation.
+  const restored = useRef(false);
+  const restore = useCallback(() => {
+    if (restored.current) return;
+    restored.current = true;
+    if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) opener.focus();
+  }, [opener]);
   useEffect(() => {
     installRef.current?.focus();
-    return () => {
-      if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) opener.focus();
-    };
-  }, [opener]);
+    return restore;
+  }, [restore]);
+  useEffect(() => {
+    if (leaving) restore();
+  }, [leaving, restore]);
 
   const working = requested && (phase === 'downloading' || phase === 'installing');
   const failed = requested === false && phase === 'error';
@@ -71,7 +82,13 @@ function UpdateDialogBody({ version }: { version: string }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay" onMouseDown={onOverlayMouseDown}>
+    <div
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center bg-overlay',
+        leaving ? 'pointer-events-none motion-safe:animate-overlay-out' : 'motion-safe:animate-overlay-in',
+      )}
+      onMouseDown={onOverlayMouseDown}
+    >
       <div
         ref={dialogRef}
         role="dialog"
@@ -79,8 +96,12 @@ function UpdateDialogBody({ version }: { version: string }) {
         aria-labelledby={titleId}
         aria-describedby={bodyId}
         tabIndex={-1}
-        onKeyDown={onKeyDown}
-        className="flex w-[460px] max-w-[calc(100vw-32px)] flex-col gap-4 rounded-dialog border border-line-4 bg-bg-3 px-6 py-5.5 shadow-dialog outline-none"
+        onKeyDown={leaving ? undefined : onKeyDown}
+        aria-hidden={leaving || undefined}
+        className={cn(
+          'flex w-[460px] max-w-[calc(100vw-32px)] flex-col gap-4 rounded-dialog border border-line-4 bg-bg-3 px-6 py-5.5 shadow-dialog outline-none',
+          leaving ? 'motion-safe:animate-dialog-out' : 'motion-safe:animate-dialog-in',
+        )}
       >
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2.5">

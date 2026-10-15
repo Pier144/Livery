@@ -55,8 +55,23 @@ function useContentWidth(ref: RefObject<HTMLElement>): number {
  * within PREFETCH_ROWS of the end, the next WT Live page is asked for. The line holding keyboard focus stays mounted while scrolled away. Back from the Skin
  * detail, the card that opened it takes focus again, scrolled into view.
  */
+/** The search whose results last played the cascade: coming back to the same results doesn't replay it. */
+let lastCascadeKey: string | null = null;
+/** How long after new results arrive cards still join the cascade (lines mounted by a quick scroll included). */
+const CASCADE_MS = 700;
+/** Delay between two cards of the cascade, and how many cards it spans before the rest come at once. */
+const CASCADE_STEP_MS = 30;
+const CASCADE_CARDS = 12;
+
 export function SkinGrid({ skins, hasMore, loadingMore, moreFailed, onLoadMore, resetKey, onOpen }: SkinGridProps) {
   const { t } = useTranslation();
+  // New results (a new search, filter or sort): the cards fade up one after another.
+  const cascadeUntil = useRef(0);
+  if (skins.length > 0 && resetKey !== lastCascadeKey) {
+    lastCascadeKey = resetKey;
+    cascadeUntil.current = performance.now() + CASCADE_MS;
+  }
+  const cascading = performance.now() < cascadeUntil.current;
   const scrollRef = useRef<HTMLDivElement>(null);
   const width = useContentWidth(scrollRef);
   const cols = columnsFor(width);
@@ -182,7 +197,7 @@ export function SkinGrid({ skins, hasMore, loadingMore, moreFailed, onLoadMore, 
               className="absolute left-0 top-0 w-full"
               style={{ transform: `translateY(${item.start}px)` }}
             >
-              <RowView row={row} cols={cols} onOpen={onOpen} onLoadMore={onLoadMore} />
+              <RowView row={row} cols={cols} onOpen={onOpen} onLoadMore={onLoadMore} cascadeFrom={cascading ? item.index * cols : undefined} />
             </div>
           );
         })}
@@ -191,15 +206,29 @@ export function SkinGrid({ skins, hasMore, loadingMore, moreFailed, onLoadMore, 
   );
 }
 
-function RowView({ row, cols, onOpen, onLoadMore }: { row: GridRow; cols: number; onOpen: (id: string) => void; onLoadMore: () => void }) {
+interface RowViewProps {
+  row: GridRow;
+  cols: number;
+  onOpen: (id: string) => void;
+  onLoadMore: () => void;
+  /** During the cascade: the position of this line's first card in it. */
+  cascadeFrom?: number;
+}
+
+function RowView({ row, cols, onOpen, onLoadMore, cascadeFrom }: RowViewProps) {
   const { t } = useTranslation();
   const columns = { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` };
   switch (row.kind) {
     case 'cards':
       return (
         <div className="grid gap-x-4 pb-4" style={columns}>
-          {row.skins.map((skin) => (
-            <SkinCard key={skin.id} skin={skin} onOpen={onOpen} />
+          {row.skins.map((skin, i) => (
+            <SkinCard
+              key={skin.id}
+              skin={skin}
+              onOpen={onOpen}
+              enterDelay={cascadeFrom === undefined ? undefined : Math.min(cascadeFrom + i, CASCADE_CARDS) * CASCADE_STEP_MS}
+            />
           ))}
         </div>
       );

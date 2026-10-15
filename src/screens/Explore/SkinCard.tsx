@@ -1,5 +1,6 @@
 import { memo, type KeyboardEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { cn } from '@/lib/cn';
 import type { WtLiveSkin } from '@/types';
 import { CardAction } from './CardAction';
 import { compactNumber } from './exploreModel';
@@ -8,6 +9,8 @@ export interface SkinCardProps {
   skin: WtLiveSkin;
   /** Opens the Skin detail; must be stable (cards are memoized). */
   onOpen: (id: string) => void;
+  /** New results: the card fades up after this many ms (the grid's cascade); undefined → no entrance. */
+  enterDelay?: number;
 }
 
 /** 16:9 screenshot (or the striped placeholder) with the category tag, NEW badge and corner marks. */
@@ -17,7 +20,17 @@ export function SkinImage({ skin, showCategory = true }: { skin: WtLiveSkin; sho
   return (
     // Passive: clicks go through to the card's hit area underneath. A span, so it may sit in a <button>.
     <span aria-hidden className="pointer-events-none relative block aspect-video overflow-hidden rounded-t-[7px] bg-placeholder">
-      {src && <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className="absolute inset-0 h-full w-full object-cover" />}
+      {src && (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          // Hover: the picture moves in a little (the card lifts by 1px).
+          className="absolute inset-0 h-full w-full object-cover motion-safe:transition-transform motion-safe:duration-250 motion-safe:ease-decel motion-safe:group-hover:scale-[1.03]"
+        />
+      )}
       {showCategory && (
         <span className="absolute left-2 top-2 rounded-menu bg-bg-tag px-1.5 py-0.5 font-mono text-[10px] leading-[normal] tracking-[.04em] text-ink-2">
           {t(`explore.category.${skin.category}`)}
@@ -40,7 +53,7 @@ export function SkinImage({ skin, showCategory = true }: { skin: WtLiveSkin; sho
  * nested inside a button (axe `nested-interactive`) — the My Hangar card pattern. The card is a
  * named group so its repeated "Install 48 MB" buttons have context.
  */
-export const SkinCard = memo(function SkinCard({ skin, onOpen }: SkinCardProps) {
+export const SkinCard = memo(function SkinCard({ skin, onOpen, enterDelay }: SkinCardProps) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
 
@@ -56,7 +69,11 @@ export const SkinCard = memo(function SkinCard({ skin, onOpen }: SkinCardProps) 
       data-skin-id={skin.id}
       role="group"
       aria-label={skin.name}
-      className="relative flex min-w-0 flex-col rounded-card border border-line-2 bg-bg-3 hover:border-amber hover:shadow-card motion-safe:transition-[border-color,box-shadow] motion-safe:duration-120"
+      className={cn(
+        'group relative flex min-w-0 flex-col rounded-card border border-line-2 bg-bg-3 hover:border-amber hover:shadow-card motion-safe:transition-[border-color,box-shadow,transform] motion-safe:duration-150 motion-safe:ease-decel motion-safe:hover:-translate-y-px',
+        enterDelay !== undefined && 'motion-safe:animate-card-in',
+      )}
+      style={enterDelay ? { animationDelay: `${enterDelay}ms` } : undefined}
     >
       <div
         role="button"

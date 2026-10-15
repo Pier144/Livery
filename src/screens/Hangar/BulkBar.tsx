@@ -93,7 +93,8 @@ export const BulkBar = forwardRef<HTMLDivElement, BulkBarProps>(function BulkBar
       aria-label={t('hangar.bulk.label')}
       aria-keyshortcuts="F6"
       onKeyDown={onKeyDown}
-      className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-card border border-line-4 bg-bg-3 py-2 pl-3.5 pr-2 shadow-dialog"
+      // Centred with auto margins, not a translate: the slide-up animation owns `transform`.
+      className="absolute inset-x-0 bottom-5 z-30 mx-auto flex w-max items-center gap-1.5 whitespace-nowrap rounded-card border border-line-4 bg-bg-3 py-2 pl-3.5 pr-2 shadow-dialog motion-safe:animate-bar-up"
     >
       <span className="mr-2 text-meta font-medium leading-[normal] text-ink-1">{t('hangar.bulk.selected', { count })}</span>
       <Button {...CONTROL} size={28} aria-disabled={busy || undefined} onClick={guard(onActivate)} className={BUSY}>

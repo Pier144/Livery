@@ -41,6 +41,8 @@ export interface HangarGridProps extends ItemHandlers {
   resetKey: string;
   /** Receives the last element focused inside the list (focus goes back there after bulk actions). */
   lastFocus: MutableRefObject<HTMLElement | null>;
+  /** Extra classes on the scroll area (the fade-in after the skeleton). */
+  className?: string;
 }
 
 /** Rows rendered above and below the viewport. */
@@ -74,7 +76,7 @@ function useContentWidth(ref: RefObject<HTMLElement>): number {
  * pinned at the top. The row holding keyboard focus stays mounted while scrolled away, so focus is
  * never dropped; Tab moves through the overscan rows and the browser scrolls them into view.
  */
-export function HangarGrid({ groups, view, selection, rechecking, resetKey, lastFocus, onSelect, onToggleActive, onRecheck, onUninstall, onRename }: HangarGridProps) {
+export function HangarGrid({ groups, view, selection, rechecking, resetKey, lastFocus, className, onSelect, onToggleActive, onRecheck, onUninstall, onRename }: HangarGridProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const width = useContentWidth(scrollRef);
@@ -151,7 +153,7 @@ export function HangarGrid({ groups, view, selection, rechecking, resetKey, last
       onBlur={onBlur}
       // Pulled out by FOCUS_ROOM on three sides and padded back (rows keep their place). Focus
       // scrolling keeps clear of the pinned header and the bulk bar.
-      className="absolute -left-1 -right-1 -top-1 bottom-0 overflow-y-auto px-1 scroll-pb-20 scroll-pt-7"
+      className={cn('absolute -left-1 -right-1 -top-1 bottom-0 overflow-y-auto px-1 scroll-pb-20 scroll-pt-7', className)}
     >
       <PinnedHeader rows={rows} groups={groups} virtualizer={virtualizer} scrollRef={scrollRef} />
       {/* The hidden hints that every card's aria-describedby points at (open vs select). */}

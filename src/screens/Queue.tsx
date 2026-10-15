@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { errorText } from '@/lib/errors';
+import { useLeavingList } from '@/lib/motion';
 import { useHangar } from '@/queries/hangar';
 import { useSettings } from '@/queries/settings';
 import { useQueue } from '@/store/queue';
@@ -35,6 +36,18 @@ function focusIsLost(): boolean {
 export function Queue() {
   const { t } = useTranslation();
   const items = useQueue((s) => s.items);
+  // Removed rows close up for 220 ms; rows added while the queue is open slide in (60 ms apart
+  // within one batch), the ones already there when it opened don't.
+  const shown = useLeavingList(items, 220);
+  const seen = useRef<Set<string> | null>(null);
+  const enterDelays = useRef(new Map<string, number>());
+  if (seen.current === null) seen.current = new Set(items.map((i) => i.id));
+  let batch = 0;
+  for (const item of items) {
+    if (seen.current.has(item.id)) continue;
+    seen.current.add(item.id);
+    enterDelays.current.set(item.id, Math.min(batch++, 6) * 60);
+  }
   const installs = useQueue((s) => s.installs);
   const batchRunning = useQueue((s) => s.batchRunning);
   const conflictDialogId = useQueue((s) => s.conflictDialogId);
@@ -197,14 +210,16 @@ export function Queue() {
         {/* -mx-1 -mt-1 px-1 pt-1 leave room for focus rings at the scroll edges without moving the layout. */}
         <div className="-mx-1 -mt-1 flex min-h-0 flex-col gap-2.5 overflow-auto px-1 pb-6 pt-1">
           <DropZone ref={dropRef} onPaths={onPaths} />
-          {items.length === 0 ? (
+          {shown.length === 0 ? (
             <p className="p-10 text-center text-body text-ink-4">{t('queue.empty')}</p>
           ) : (
             <ul ref={listRef} aria-label={t('queue.list')} tabIndex={-1} className="flex flex-col gap-2.5 outline-none">
-              {items.map((item) => (
+              {shown.map(({ item, leaving }) => (
                 <QueueRow
                   key={item.id}
                   item={item}
+                  leaving={leaving}
+                  enterDelay={enterDelays.current.get(item.id)}
                   track={installs[item.id]}
                   installedName={item.status === 'conflict' ? conflictTarget(item, hangar, items).name : ''}
                   conflictQueued={item.status === 'conflict' && Boolean(conflictTarget(item, hangar, items).queued)}

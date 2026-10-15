@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 
 /** Section heading (500 20px) with an optional 13px ink-3 intro under it (Conflicts). */
@@ -47,12 +48,13 @@ interface SettingRowProps {
 
 /** One setting: 13px label + helper on the left, the control on the right (padding 14px 16px, gap 16). */
 export function SettingRow({ label, helper, mono, labelId: fixedLabelId, helperId: fixedHelperId, details, children }: SettingRowProps) {
+  const { t } = useTranslation();
   const autoLabelId = useId();
   const autoHelperId = useId();
   const labelId = fixedLabelId ?? autoLabelId;
   const helperId = helper === undefined ? undefined : (fixedHelperId ?? autoHelperId);
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-line-2 px-4 py-3.5 last:border-b-0">
+    <div data-setting-row className="flex items-center justify-between gap-4 border-b border-line-2 px-4 py-3.5 last:border-b-0">
       <div className="flex min-w-0 flex-col gap-0.5">
         <span id={labelId} className="text-body leading-[normal] text-ink-1">
           {label}
@@ -67,7 +69,20 @@ export function SettingRow({ label, helper, mono, labelId: fixedLabelId, helperI
         )}
         {details}
       </div>
-      {children?.({ labelId, helperId })}
+      {children && (
+        <span className="relative flex flex-none items-center">
+          {/* "Saved", shown for a moment after this row's change is stored (useSettingsPatch), left of
+              the control without taking room. Visual only: the control tells assistive tech its state. */}
+          <span
+            data-saved
+            aria-hidden
+            className="pointer-events-none absolute right-full top-1/2 mr-2.5 -translate-y-1/2 whitespace-nowrap font-mono text-[10px] leading-[normal] text-ink-3 opacity-0"
+          >
+            {t('settings.saved')}
+          </span>
+          {children({ labelId, helperId })}
+        </span>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
+import { useJustEntered } from '@/lib/motion';
 import type { Collection } from '@/types';
 
 interface CollectionCardProps {
@@ -17,6 +18,7 @@ interface CollectionCardProps {
 /** Left-column card: `role=button`, Enter/Space open it, `aria-current` marks the open one. */
 export function CollectionCard({ collection, count, open, active, onOpen }: CollectionCardProps) {
   const { t } = useTranslation();
+  const justActivated = useJustEntered(active);
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -47,6 +49,8 @@ export function CollectionCard({ collection, count, open, active, onOpen }: Coll
         className={cn(
           'flex cursor-pointer flex-col gap-2 rounded-card border bg-bg-3 px-3.5 py-3 motion-safe:transition-colors motion-safe:duration-120',
           open ? 'border-amber' : 'border-line-2 hover:border-line-mark',
+          // Just activated: an amber ring spreads out once.
+          justActivated && 'motion-safe:animate-ring',
         )}
       >
         <div className="flex items-center justify-between gap-3">
@@ -54,7 +58,13 @@ export function CollectionCard({ collection, count, open, active, onOpen }: Coll
             {collection.name}
           </span>
           {active && (
-            <span id={`${id}-badge`} className="flex-none font-mono text-[10px] leading-[normal] tracking-[.06em] text-amber">
+            <span
+              id={`${id}-badge`}
+              className={cn(
+                'flex-none font-mono text-[10px] leading-[normal] tracking-[.06em] text-amber',
+                justActivated && 'motion-safe:animate-check-in',
+              )}
+            >
               {t('collections.activeBadge')}
             </span>
           )}

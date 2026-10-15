@@ -122,16 +122,19 @@ function LoadedDetail({ skin }: { skin: WtLiveSkin }) {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    // Fades in over the skeleton it replaces.
+    <div className="flex h-full min-h-0 flex-col motion-safe:animate-image-in">
       <DetailTopBar skin={{ name: skin.name, code: skin.vehicle.code }} tabs={{ active: tab, ids, onSelect: setTab }} />
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px]">
         <div
+          // Keyed by the tab: the new view fades in.
+          key={tab}
           role="tabpanel"
           id={ids.panel(tab)}
           aria-labelledby={ids.tab(tab)}
           // Focusable so its content can be scrolled from the keyboard (the textures table has no controls).
           tabIndex={0}
-          className="flex min-h-0 min-w-0 flex-col overflow-y-auto focus-visible:-outline-offset-2"
+          className="flex min-h-0 min-w-0 flex-col overflow-y-auto focus-visible:-outline-offset-2 motion-safe:animate-panel-in"
         >
           {tab === 'gallery' && <Gallery skin={skin} />}
           {tab === 'post' && (

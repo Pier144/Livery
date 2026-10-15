@@ -1,10 +1,12 @@
-import { Check } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AnimatedCheck } from '@/components/ui/AnimatedCheck';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatBytes } from '@/lib/format';
+import { useJustEntered, useLeavingList } from '@/lib/motion';
 import { useCollectionsUi } from '@/store/collections';
+import { CARD_OUT_MS } from '@/store/hangarMotion';
 import { useUi } from '@/store/ui';
 import type { Collection, HangarSkin } from '@/types';
 import { InlineInput, InlineTextArea } from './InlineField';
@@ -34,6 +36,11 @@ export function CollectionDetail({ collection, members, active, actions, onDelet
   // A just-removed member whose "Remove" had focus: once it is gone, focus moves to its neighbour.
   const [focusAfterRemove, setFocusAfterRemove] = useState<{ id: string; index: number } | null>(null);
   const [focusPill, setFocusPill] = useState(false);
+  // Members added while the collection is open scale in; removed ones fade out first.
+  const shownMembers = useLeavingList(members, CARD_OUT_MS);
+  const firstMembers = useRef(new Set(members.map((m) => m.id)));
+  // Activated while open: the "Active in game" check pops in.
+  const justActivated = useJustEntered(active);
 
   // "+ New": the new collection's name is ready to be typed over.
   useEffect(() => {
@@ -123,7 +130,7 @@ export function CollectionDetail({ collection, members, active, actions, onDelet
               className="flex h-8 items-center gap-2 rounded-ctl border border-amber-35 bg-amber-10 px-3 text-meta font-medium text-amber"
             >
               {t('collections.activeInGame')}
-              <Check size={14} strokeWidth={1.75} aria-hidden />
+              <AnimatedCheck size={14} animate={justActivated} />
             </p>
           ) : (
             <Button variant="primary" size={32} onClick={() => void onActivate()}>
@@ -137,8 +144,14 @@ export function CollectionDetail({ collection, members, active, actions, onDelet
         aria-label={t('collections.members', { name: collection.name })}
         className="grid auto-rows-max grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3"
       >
-        {members.map((skin, i) => (
-          <MemberCard key={skin.id} skin={skin} onRemove={() => onRemove(skin, i)} />
+        {shownMembers.map(({ item: skin, leaving }) => (
+          <MemberCard
+            key={skin.id}
+            skin={skin}
+            leaving={leaving}
+            entering={!firstMembers.current.has(skin.id)}
+            onRemove={() => onRemove(skin, members.indexOf(skin))}
+          />
         ))}
         <li className="flex">
           <button

@@ -868,6 +868,7 @@
     }
   },
   "settings": {
+    "saved": "Salvato",
     "title": "Impostazioni",
     "sections": "Sezioni delle impostazioni",
     "nav": {

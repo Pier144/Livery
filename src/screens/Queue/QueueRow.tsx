@@ -1,9 +1,11 @@
 import { Check, X } from 'lucide-react';
-import { memo, useId, type MouseEvent } from 'react';
+import { memo, useId, useLayoutEffect, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AnimatedCheck } from '@/components/ui/AnimatedCheck';
 import { Menu } from '@/components/ui/Menu';
 import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
+import { useJustEntered } from '@/lib/motion';
 import type { InstallTrack } from '@/store/queue';
 import type { QueueItem } from '@/types';
 import { AMBER_OUTLINE_28, ICON_28, PRIMARY_28, SECONDARY_28 } from './controls';
@@ -22,6 +24,10 @@ export interface QueueRowProps {
   onResolve: (item: QueueItem, trigger: HTMLElement) => void;
   onPickVehicle: (item: QueueItem, vehicleCode: string) => void;
   onRemove: (item: QueueItem) => void;
+  /** Added while the queue was on screen: slides in from the left after this many ms. */
+  enterDelay?: number;
+  /** Already removed, closing up: inert, hidden, and no `data-queue-row` (focus moves past it). */
+  leaving?: boolean;
 }
 
 /**
@@ -38,18 +44,32 @@ export const QueueRow = memo(function QueueRow({
   onResolve,
   onPickVehicle,
   onRemove,
+  enterDelay,
+  leaving = false,
 }: QueueRowProps) {
   const { t } = useTranslation();
   const fileId = useId();
+  const rowRef = useRef<HTMLLIElement>(null);
+  useLayoutEffect(() => {
+    if (leaving && rowRef.current) rowRef.current.inert = true;
+  }, [leaving]);
+  // A row that finished installing while on screen: its check pops in.
+  const justDone = useJustEntered(item.status === 'done');
   const tone = STATUS_TONE[item.status];
   const line = rowLine(item, t, installedName, conflictQueued);
   const candidates = item.candidates ?? [];
 
   return (
     <li
-      data-queue-row={item.id}
+      ref={rowRef}
+      data-queue-row={leaving ? undefined : item.id}
       tabIndex={-1}
-      className="grid grid-cols-[8px_minmax(0,1fr)_auto] items-center gap-3.5 rounded-card border border-line-2 bg-bg-3 px-3.5 py-3"
+      aria-hidden={leaving || undefined}
+      className={cn(
+        'grid grid-cols-[8px_minmax(0,1fr)_auto] items-center gap-3.5 rounded-card border border-line-2 bg-bg-3 px-3.5 py-3',
+        leaving ? 'pointer-events-none overflow-hidden motion-safe:animate-row-out' : enterDelay !== undefined && 'motion-safe:animate-row-in',
+      )}
+      style={!leaving && enterDelay ? { animationDelay: `${enterDelay}ms` } : undefined}
     >
       <span aria-hidden className={cn('h-2 w-2 rounded-full', tone.dot, tone.pulse && 'motion-safe:animate-pulse6')} />
       <div className="flex min-w-0 flex-col gap-[3px]">
@@ -117,7 +137,7 @@ export const QueueRow = memo(function QueueRow({
         {item.status === 'done' && (
           <span className="flex h-ctl items-center gap-1 px-1.5 text-meta font-medium leading-none text-amber">
             {t('queue.action.installed')}
-            <Check size={14} strokeWidth={1.75} aria-hidden />
+            <AnimatedCheck size={14} animate={justDone} />
           </span>
         )}
         {item.status !== 'installing' && (
@@ -153,7 +173,7 @@ function InstallProgressBar({ name, track }: { name: string; track?: InstallTrac
         aria-valuetext={steps.now}
         className="h-[3px] overflow-hidden rounded-sm bg-bg-5"
       >
-        <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-150 motion-safe:ease-linear" style={{ width: `${pct}%` }} />
+        <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-decel" style={{ width: `${pct}%` }} />
       </div>
       <div aria-hidden className="flex justify-between gap-2 font-mono text-[10px] leading-[normal]">
         <span className="flex min-w-0 items-center gap-1 truncate text-ink-3">

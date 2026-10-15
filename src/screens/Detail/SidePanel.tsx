@@ -1,12 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, ExternalLink, EyeOff } from 'lucide-react';
-import { useId, useMemo, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AnimatedCheck } from '@/components/ui/AnimatedCheck';
 import { Button } from '@/components/ui/Button';
 import { Menu, type MenuItem } from '@/components/ui/Menu';
 import { cn } from '@/lib/cn';
 import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
+import { play, POP, useJustEntered } from '@/lib/motion';
 import { isWtLiveUrl, openLink } from '@/lib/opener';
 import { call, toAppError } from '@/lib/tauri';
 import { useCollections, useSetCollectionSkins } from '@/queries/collections';
@@ -224,6 +226,12 @@ function FollowButton({ kind, id, name, small = false }: { kind: FollowKind; id:
   const setFollow = useSetFollow();
   const entry = data?.find((e) => e.kind === kind && e.id === id);
   const following = entry !== undefined;
+  // Followed from here: a little pop, and the check draws itself.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const justFollowed = useJustEntered(following);
+  useEffect(() => {
+    if (justFollowed) play(buttonRef.current, ...POP);
+  }, [justFollowed]);
 
   const toggle = () => {
     if (setFollow.isPending) return;
@@ -251,6 +259,7 @@ function FollowButton({ kind, id, name, small = false }: { kind: FollowKind; id:
 
   return (
     <button
+      ref={buttonRef}
       type="button"
       // The name carries the state ("Follow X" / "Following X") and keeps the visible text (WCAG
       // 2.5.3); no aria-pressed, since a toggle's name must not change with its state (APG).
@@ -258,11 +267,12 @@ function FollowButton({ kind, id, name, small = false }: { kind: FollowKind; id:
       aria-disabled={setFollow.isPending || undefined}
       onClick={toggle}
       className={cn(
-        'flex-none whitespace-nowrap rounded-ctl border border-line-3 bg-bg-4 font-medium leading-none hover:border-line-4 aria-disabled:cursor-default motion-safe:transition-colors motion-safe:duration-120',
+        'inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-ctl border border-line-3 bg-bg-4 font-medium leading-none hover:border-line-4 aria-disabled:cursor-default motion-safe:transition-colors motion-safe:duration-120',
         small ? 'h-6 px-2 text-[11px]' : 'h-[26px] px-2.5 text-meta',
         following ? 'text-amber' : 'text-ink-1',
       )}
     >
+      {following && <AnimatedCheck size={small ? 10 : 12} animate={justFollowed} />}
       {following ? t('detail.follow.following') : t('detail.follow.follow')}
     </button>
   );
@@ -339,6 +349,8 @@ function InstallAction({ skin, install, track, onOpenTry }: InstallActionProps) 
   // A failed Try in game belongs to the Try tab; here the skin can still be installed normally.
   const state: WtInstallState = install.state.kind === 'error' && track?.mode === 'temporary' ? { kind: 'idle' } : install.state;
   useFocusFallback(state.kind, focusRef);
+  // "Installed" reached while the panel is open: its check pops in.
+  const justInstalled = useJustEntered(state.kind === 'installed');
 
   switch (state.kind) {
     case 'idle':
@@ -365,7 +377,7 @@ function InstallAction({ skin, install, track, onOpenTry }: InstallActionProps) 
           className="flex h-btn-lg flex-col justify-center gap-1.5 focus:outline-none"
         >
           <div className="h-[3px] overflow-hidden rounded-[2px] bg-bg-5">
-            <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-150 motion-safe:ease-linear" style={{ width: `${state.pct}%` }} />
+            <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-decel" style={{ width: `${state.pct}%` }} />
           </div>
           <div aria-hidden className="flex justify-between gap-2 font-mono text-[10px] leading-[normal]">
             <span className="flex items-center gap-2 text-ink-3">
@@ -403,7 +415,7 @@ function InstallAction({ skin, install, track, onOpenTry }: InstallActionProps) 
             <>
               <span className="flex items-center gap-1.5">
                 {t('detail.install.installed')}
-                <Check size={14} strokeWidth={1.75} aria-hidden />
+                <AnimatedCheck size={14} animate={justInstalled} />
               </span>
               <span className="font-mono text-[10px] font-normal text-ink-3">{t('detail.install.inHangar')}</span>
             </>

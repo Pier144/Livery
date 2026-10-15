@@ -1,6 +1,8 @@
-import { Check, Minus } from 'lucide-react';
-import { forwardRef, type ButtonHTMLAttributes, type KeyboardEvent, type MouseEvent } from 'react';
+import { Minus } from 'lucide-react';
+import { forwardRef, useEffect, useRef, type ButtonHTMLAttributes, type KeyboardEvent, type MouseEvent } from 'react';
 import { cn } from '@/lib/cn';
+import { play, POP, useJustEntered } from '@/lib/motion';
+import { AnimatedCheck } from './AnimatedCheck';
 
 export interface CheckboxProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onChange' | 'onClick' | 'role' | 'type' | 'aria-checked' | 'children'> {
@@ -24,12 +26,22 @@ export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(function Ch
   ref,
 ) {
   const on = checked || indeterminate;
+  // Checked by the user (not mounted checked): a small pop while the check draws itself.
+  const justChecked = useJustEntered(checked && !indeterminate);
+  const own = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (justChecked) play(own.current, ...POP);
+  }, [justChecked]);
 
   const guardKey = (e: KeyboardEvent<HTMLButtonElement>) => stopPropagation && (e.key === ' ' || e.key === 'Enter');
 
   return (
     <button
-      ref={ref}
+      ref={(el) => {
+        own.current = el;
+        if (typeof ref === 'function') ref(el);
+        else if (ref) ref.current = el;
+      }}
       type="button"
       role="checkbox"
       aria-checked={indeterminate ? 'mixed' : checked}
@@ -58,7 +70,7 @@ export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(function Ch
       {indeterminate ? (
         <Minus size={12} strokeWidth={2.5} aria-hidden />
       ) : checked ? (
-        <Check size={12} strokeWidth={2.5} aria-hidden />
+        <AnimatedCheck size={12} strokeWidth={2.5} animate={justChecked} />
       ) : null}
     </button>
   );

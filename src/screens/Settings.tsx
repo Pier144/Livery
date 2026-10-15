@@ -118,8 +118,9 @@ export function Settings() {
         className="min-h-0 overflow-y-auto focus-visible:-outline-offset-2"
       >
         {/* 640px of content plus the 32px side padding (the prototype's content-box max-width: 640px). */}
-        <div className="flex max-w-[704px] flex-col gap-5 px-8 py-6">
-          <Panel key={section} />
+        {/* Keyed by the section: the newly opened one fades in. */}
+        <div key={section} className="flex max-w-[704px] flex-col gap-5 px-8 py-6 motion-safe:animate-panel-in">
+          <Panel />
         </div>
       </div>
     </div>

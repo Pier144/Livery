@@ -15,7 +15,7 @@ const OVERLAY_BUTTON =
 
 /**
  * Gallery tab: main image (corner marks, "1 / 4" counter, Zoom in/out toggling scale(1.6) over
- * 250ms, Compare when other skins of the vehicle are known) and 120×68 thumbnails (a radio group:
+ * 320ms (decelerating), Compare when other skins of the vehicle are known) and 120×68 thumbnails (a radio group:
  * ← → Home End move the selection). Compare mode replaces both with two panes, and ends by itself
  * when no other skin of the vehicle is left to compare with.
  */
@@ -78,16 +78,18 @@ export function Gallery({ skin }: { skin: WtLiveSkin }) {
             <div
               data-testid="gallery-stage"
               className={cn(
-                'flex h-full w-full items-center justify-center motion-safe:transition-transform motion-safe:duration-250 motion-safe:ease-out',
+                'flex h-full w-full items-center justify-center motion-safe:transition-transform motion-safe:duration-[320ms] motion-safe:ease-decel',
                 zoom ? 'scale-[1.6]' : 'scale-100',
               )}
             >
               {view.src ? (
                 <img
+                  // Keyed by the picture: each one fades in over the stage.
+                  key={view.src}
                   src={view.src}
                   alt={t('detail.gallery.imageAlt', { name: skin.name, view: viewLabel(view) })}
                   draggable={false}
-                  className="h-full w-full object-contain"
+                  className="h-full w-full object-contain motion-safe:animate-image-in"
                 />
               ) : (
                 <span
@@ -127,8 +129,9 @@ export function Gallery({ skin }: { skin: WtLiveSkin }) {
           <div
             role="radiogroup"
             aria-label={t('detail.gallery.views')}
-            // Scrolls sideways when a post has more pictures than fit.
-            className="flex flex-none gap-2 overflow-x-auto"
+            // Scrolls sideways when a post has more pictures than fit; the padding leaves room for the
+            // selected thumbnail's 5 % growth and focus ring.
+            className="-m-1 flex flex-none gap-2 overflow-x-auto p-1"
             onKeyDown={onThumbKeyDown}
           >
             {views.map((v, i) => {
@@ -146,8 +149,8 @@ export function Gallery({ skin }: { skin: WtLiveSkin }) {
                   tabIndex={active ? 0 : -1}
                   onClick={() => setGalleryIndex(i)}
                   className={cn(
-                    'h-[68px] w-[120px] flex-none overflow-hidden rounded-ctl border bg-placeholder font-mono text-[10px] leading-[normal] text-ink-3 motion-safe:transition-colors motion-safe:duration-120',
-                    active ? 'border-amber' : 'border-line-2 hover:border-line-mark',
+                    'h-[68px] w-[120px] flex-none overflow-hidden rounded-ctl border bg-placeholder font-mono text-[10px] leading-[normal] text-ink-3 motion-safe:transition-[border-color,transform] motion-safe:duration-150 motion-safe:ease-spring',
+                    active ? 'scale-105 border-amber' : 'border-line-2 hover:border-line-mark',
                   )}
                 >
                   {v.src ? <img src={v.src} alt="" draggable={false} className="h-full w-full object-cover" /> : viewLabel(v)}

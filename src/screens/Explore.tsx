@@ -61,7 +61,14 @@ export function Explore() {
         {t('explore.title')}
       </h1>
       <ExploreHeader tab={tab} onTab={setTab} newCount={enabled ? (fresh.data?.length ?? 0) : 0} meta={meta} tabId={tabId} panelId={panelId} />
-      <div role="tabpanel" id={panelId(tab)} aria-labelledby={tabId(tab)} className="flex min-h-0 flex-1 flex-col gap-3.5">
+      {/* Keyed by the tab: the new view fades in. */}
+      <div
+        key={tab}
+        role="tabpanel"
+        id={panelId(tab)}
+        aria-labelledby={tabId(tab)}
+        className="flex min-h-0 flex-1 flex-col gap-3.5 motion-safe:animate-panel-in"
+      >
         {!enabled ? <WtLiveOff /> : tab === 'explore' ? <ExploreTabPanel search={search} params={params} /> : <Following />}
       </div>
     </ScreenFrame>

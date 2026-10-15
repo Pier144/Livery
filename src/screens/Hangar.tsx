@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
+import { useJustEntered } from '@/lib/motion';
 import { useHangar } from '@/queries/hangar';
 import { useHangarStore } from '@/store/hangar';
 import { useUi } from '@/store/ui';
@@ -99,6 +100,8 @@ export function Hangar() {
 
   const loaded = query.data !== undefined;
   const empty = loaded && skins.length === 0;
+  // The list replaced its skeleton: it fades in (not when My Hangar opens with the list already known).
+  const justLoaded = useJustEntered(loaded);
 
   const meta = loaded
     ? [
@@ -163,6 +166,7 @@ export function Hangar() {
               />
             ) : (
               <HangarGrid
+                className={justLoaded ? 'motion-safe:animate-image-in' : undefined}
                 groups={groups}
                 view={view}
                 selection={selection}

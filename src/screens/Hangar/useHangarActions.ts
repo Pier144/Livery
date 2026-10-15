@@ -8,6 +8,7 @@ import { useSetCollectionSkins } from '@/queries/collections';
 import { useDeleteSkins, useExportSkins, useRenameSkin, useRescan, useRestoreBackups, useSetSkinActive } from '@/queries/hangar';
 import { confirm } from '@/store/confirm';
 import { useHangarStore } from '@/store/hangar';
+import { endFade, fadeOutSkins, markArriving } from '@/store/hangarMotion';
 import { toast } from '@/store/toasts';
 import type { Collection, HangarSkin } from '@/types';
 import { folderNameProblem } from './SkinParts';
@@ -151,12 +152,16 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
       if (!ok) return;
       await runBulk(async () => {
         let backupIds: string[];
+        // The cards fade out first, then their folders go.
+        await fadeOutSkins(ids);
         try {
           ({ backupIds } = await deleteSkins(ids));
         } catch (e) {
+          endFade(ids, { gone: false });
           reportError(e);
           return;
         }
+        endFade(ids, { gone: true });
         endBulk(ids);
         // Folders already gone from disk have no backup: nothing to undo, but the user still hears about it.
         if (backupIds.length === 0) {
@@ -167,6 +172,7 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
         toast.undoable(t('hangar.toast.deleted', { count: ids.length }), async () => {
           try {
             const restored = await restoreBackups(backupIds);
+            markArriving(restored.map((r) => r.id));
             toast(t('hangar.toast.restored', { count: restored.length }));
           } catch (e) {
             reportError(e);
@@ -197,14 +203,17 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
         return false;
       }
       let backupIds: string[];
+      await fadeOutSkins([skin.id]);
       try {
         ({ backupIds } = await deleteSkins([skin.id]));
       } catch (e) {
+        endFade([skin.id], { gone: false });
         reportError(e);
         return false;
       } finally {
         removing.current.delete(skin.id);
       }
+      endFade([skin.id], { gone: true });
       useHangarStore.setState((s) => {
         if (!s.selection.has(skin.id)) return s;
         const selection = new Set(s.selection);
@@ -216,7 +225,8 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
       else
         toast.undoable(message, async () => {
           try {
-            await restoreBackups(backupIds);
+            const restored = await restoreBackups(backupIds);
+            markArriving(restored.map((r) => r.id));
             toast(t('hangar.toast.reinstalled', { name: skin.name }));
           } catch (e) {
             reportError(e);

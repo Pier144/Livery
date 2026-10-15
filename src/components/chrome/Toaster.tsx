@@ -1,6 +1,8 @@
 import { X } from 'lucide-react';
 import { useId, useLayoutEffect, useRef, type FocusEvent, type MouseEvent, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/cn';
+import { useLeavingList } from '@/lib/motion';
 import { useToasts, type Toast } from '@/store/toasts';
 
 /**
@@ -9,7 +11,8 @@ import { useToasts, type Toast } from '@/store/toasts';
  */
 export function Toaster() {
   const { t } = useTranslation();
-  const toasts = useToasts((s) => s.toasts);
+  // A toast that goes slides out for 160 ms before it leaves the DOM (unless motion is reduced).
+  const toasts = useLeavingList(useToasts((s) => s.toasts), 160);
   // Where keyboard focus was before it entered the stack, to hand it back when the last toast closes.
   const returnFocus = useRef<HTMLElement | null>(null);
 
@@ -28,8 +31,8 @@ export function Toaster() {
       onFocus={onFocus}
       className="pointer-events-none fixed bottom-5 right-5 z-[70] flex flex-col items-end gap-2"
     >
-      {toasts.map((item) => (
-        <ToastItem key={item.id} toast={item} returnFocus={returnFocus} />
+      {toasts.map(({ item, leaving }) => (
+        <ToastItem key={item.id} toast={item} leaving={leaving} returnFocus={returnFocus} />
       ))}
     </section>
   );
@@ -37,10 +40,12 @@ export function Toaster() {
 
 interface ToastItemProps {
   toast: Toast;
+  /** Already gone from the store, playing its exit: inert and hidden from assistive tech. */
+  leaving: boolean;
   returnFocus: MutableRefObject<HTMLElement | null>;
 }
 
-function ToastItem({ toast: item, returnFocus }: ToastItemProps) {
+function ToastItem({ toast: item, leaving, returnFocus }: ToastItemProps) {
   const { t } = useTranslation();
   const messageId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -63,6 +68,15 @@ function ToastItem({ toast: item, returnFocus }: ToastItemProps) {
       if (el?.contains(document.activeElement) && back?.isConnected) back.focus();
     };
   }, [returnFocus]);
+
+  // Leaving: nothing inside can be reached any more, and focus that was inside goes back now.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!leaving || !el) return;
+    el.inert = true;
+    const back = returnFocus.current;
+    if (el.contains(document.activeElement) && back?.isConnected) back.focus();
+  }, [leaving, returnFocus]);
 
   // Keyboard activation (click.detail === 0) would otherwise drop focus to <body> when this toast unmounts.
   const handOffFocus = (e: MouseEvent) => {
@@ -93,7 +107,11 @@ function ToastItem({ toast: item, returnFocus }: ToastItemProps) {
         focused.current = false;
         syncTimer();
       }}
-      className="pointer-events-auto flex max-w-[420px] items-center gap-3.5 rounded-card border border-line-4 bg-bg-hover py-2.5 pl-3.5 pr-3 text-body text-ink-1 shadow-menu motion-safe:animate-toastIn"
+      aria-hidden={leaving || undefined}
+      className={cn(
+        'flex max-w-[420px] items-center gap-3.5 rounded-card border border-line-4 bg-bg-hover py-2.5 pl-3.5 pr-3 text-body text-ink-1 shadow-menu',
+        leaving ? 'pointer-events-none motion-safe:animate-toast-out' : 'pointer-events-auto motion-safe:animate-toastIn',
+      )}
     >
       <span aria-hidden className="h-1.5 w-1.5 flex-none rounded-full bg-amber" />
       <span id={messageId} className="min-w-0 flex-1 break-words">

@@ -2,8 +2,10 @@ import type { TFunction } from 'i18next';
 import { Check } from 'lucide-react';
 import { Fragment, useLayoutEffect, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AnimatedCheck } from '@/components/ui/AnimatedCheck';
 import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
+import { useJustEntered } from '@/lib/motion';
 import { useWtLiveInstall, type WtInstallState } from '@/store/installs';
 import type { WtLiveSkin } from '@/types';
 import { stepText, type StepName, type StepText } from './exploreModel';
@@ -80,6 +82,8 @@ export function CardAction({ skin }: { skin: WtLiveSkin }) {
   const { t } = useTranslation();
   const { state, install } = useWtLiveInstall(skin);
   const statusRef = useRef<HTMLSpanElement>(null);
+  // "Installed" reached while the card is on screen: its check pops in.
+  const justInstalled = useJustEntered(state.kind === 'installed');
 
   // Install / Retry / Install as a copy go away once pressed: keep focus on the card, not the page.
   const refocus = useRef(false);
@@ -126,7 +130,7 @@ export function CardAction({ skin }: { skin: WtLiveSkin }) {
             aria-valuetext={stepNowText(t, text)}
             className="h-[3px] overflow-hidden rounded-[2px] bg-bg-5"
           >
-            <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-100 motion-safe:ease-linear" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-decel" style={{ width: `${pct}%` }} />
           </div>
           <Steps text={text} t={t} />
         </div>
@@ -145,7 +149,7 @@ export function CardAction({ skin }: { skin: WtLiveSkin }) {
         <div className="mt-1 flex h-btn items-center justify-between gap-2 rounded-ctl border border-amber-35 bg-amber-10 px-2.5 text-meta font-medium leading-[normal] text-amber">
           <span className="flex min-w-0 items-center gap-1">
             <span className="truncate">{t('explore.card.installed')}</span>
-            <Check size={12} strokeWidth={1.75} aria-hidden className="flex-none" />
+            <AnimatedCheck size={12} animate={justInstalled} className="flex-none" />
           </span>
           <span className="flex-none font-mono text-[10px] font-normal text-ink-3">{t('explore.card.inHangar')}</span>
         </div>

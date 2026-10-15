@@ -1,10 +1,12 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Compass, Download, Layers, Settings, Warehouse, type LucideIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/Kbd';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useActiveBox } from '@/components/ui/TabIndicator';
 import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
+import { play, POP } from '@/lib/motion';
 import { useHangarSummary } from '@/queries/hangar';
 import { useSettings } from '@/queries/settings';
 import { selectPendingCount, useQueue } from '@/store/queue';
@@ -38,19 +40,35 @@ export function Sidebar() {
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const pending = useQueue(selectPendingCount);
   const badgeId = useId();
+  // The active section's background slides from item to item (drawn under the buttons).
+  const navRef = useRef<HTMLElement>(null);
+  const activeId = NAV.find((item) => screen === item.id || (screen === 'detail' && item.id === detailFrom))?.id ?? '';
+  const highlight = useActiveBox(navRef, '[aria-current="page"]', `${activeId}|${open}`);
 
   return (
     <nav
+      ref={navRef}
       aria-label={t('common.nav.label')}
       className={cn(
-        'flex flex-none flex-col border-r border-line-1 bg-bg-1 pb-3 pt-3.5',
+        'relative flex flex-none flex-col border-r border-line-1 bg-bg-1 pb-3 pt-3.5',
         open ? 'w-sidebar gap-0.5 px-2.5' : 'w-sidebar-c items-center gap-1',
       )}
     >
+      {highlight && (
+        <span
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute left-0 top-0 rounded-ctl bg-bg-hover motion-safe:transition-[transform,width,height] motion-safe:duration-200 motion-safe:ease-decel',
+            open && 'shadow-[inset_2px_0_0_theme(colors.amber.DEFAULT)]',
+          )}
+          style={{ width: highlight.width, height: highlight.height, transform: `translate(${highlight.left}px, ${highlight.top}px)` }}
+        />
+      )}
       {NAV.map((item) => (
         <NavItem
           key={item.id}
           {...item}
+          slid={highlight !== null}
           collapsed={!open}
           // The Skin detail belongs to the section it was opened from.
           active={screen === item.id || (screen === 'detail' && item.id === detailFrom)}
@@ -97,6 +115,8 @@ export function Sidebar() {
 
 interface NavItemProps extends NavDef {
   collapsed: boolean;
+  /** The sliding highlight draws the active background and stripe: the item doesn't. */
+  slid: boolean;
   active: boolean;
   /** Pending queue count; 0 hides the badge. */
   badge: number;
@@ -104,9 +124,16 @@ interface NavItemProps extends NavDef {
   describedBy: string;
 }
 
-function NavItem({ id, icon: Icon, hint, collapsed, active, badge, describedBy }: NavItemProps) {
+function NavItem({ id, icon: Icon, hint, collapsed, slid, active, badge, describedBy }: NavItemProps) {
   const { t } = useTranslation();
   const label = t(`common.nav.${id}`);
+  // A count that grows gives a little bump (a file was added to the queue).
+  const badgeRef = useRef<HTMLSpanElement>(null);
+  const lastBadge = useRef(badge);
+  useEffect(() => {
+    if (badge > lastBadge.current) play(badgeRef.current, ...POP);
+    lastBadge.current = badge;
+  }, [badge]);
 
   return (
     <button
@@ -118,21 +145,22 @@ function NavItem({ id, icon: Icon, hint, collapsed, active, badge, describedBy }
       aria-label={collapsed ? label : undefined}
       title={collapsed ? label : undefined}
       className={cn(
-        'flex h-nav flex-none items-center rounded-ctl text-body font-medium hover:bg-bg-hover hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120',
-        active ? 'bg-bg-hover text-ink-1' : 'text-ink-3',
+        'relative flex h-nav flex-none items-center rounded-ctl text-body font-medium hover:bg-bg-hover hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120',
+        active ? cn('text-ink-1', !slid && 'bg-bg-hover') : 'text-ink-3',
         collapsed
-          ? 'relative w-9 justify-center'
-          : cn('w-full gap-2.5 border-l-2 px-2.5 text-left', active ? 'border-amber' : 'border-transparent'),
+          ? 'w-9 justify-center'
+          : cn('w-full gap-2.5 border-l-2 px-2.5 text-left', active && !slid ? 'border-amber' : 'border-transparent'),
       )}
     >
       <Icon size={16} strokeWidth={1.75} aria-hidden />
       {collapsed ? (
-        badge > 0 && <span aria-hidden className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber" />
+        badge > 0 && <span ref={badgeRef} aria-hidden className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber" />
       ) : (
         <>
           <span className="min-w-0 flex-1 truncate">{label}</span>
           {badge > 0 && (
             <span
+              ref={badgeRef}
               aria-hidden
               className="rounded-pill bg-amber px-1.5 py-0.5 font-mono text-[10px] font-medium leading-[1.3] text-onAmber"
             >

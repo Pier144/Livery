@@ -285,7 +285,17 @@ export function SkinPreview({ skin, className }: { skin: HangarSkin; className?:
   const src = useSkinPreview(skin);
   return (
     <span aria-hidden className={cn('pointer-events-none relative block overflow-hidden', className)}>
-      {src && <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className="absolute inset-0 h-full w-full object-cover" />}
+      {src && (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          // Inside a hovered card (`group`) the picture moves in a little.
+          className="absolute inset-0 h-full w-full object-cover motion-safe:transition-transform motion-safe:duration-250 motion-safe:ease-decel motion-safe:group-hover:scale-[1.03]"
+        />
+      )}
     </span>
   );
 }

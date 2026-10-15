@@ -2,6 +2,7 @@ import { memo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/lib/cn';
+import { useCardMotion } from '@/store/hangarMotion';
 import { formatBytes } from '@/lib/format';
 import type { HangarSkin } from '@/types';
 import {
@@ -36,6 +37,8 @@ export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSel
   };
   const attention = attentionText(t, skin);
   const { attentionId, describedBy, title } = useSkinDescription(skin, attention);
+  // Fading out on its way to the bin, or in after an Undo.
+  const motion = useCardMotion(skin.id);
 
   return (
     <div
@@ -48,6 +51,7 @@ export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSel
       className={cn(
         'group relative grid grid-cols-[28px_44px_minmax(0,2fr)_1fr_1fr_80px_80px_54px] items-center gap-3 border-b border-line-grid px-3 py-2 motion-safe:transition-colors motion-safe:duration-120',
         selected ? 'bg-bg-hover' : 'hover:bg-bg-hover',
+        motion,
       )}
     >
       <div

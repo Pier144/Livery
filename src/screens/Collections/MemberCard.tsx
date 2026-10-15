@@ -1,18 +1,35 @@
+import { useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/cn';
 import type { HangarSkin } from '@/types';
 
 interface MemberCardProps {
   skin: HangarSkin;
   onRemove: () => void;
+  /** Added while the collection was open: it scales in. */
+  entering?: boolean;
+  /** Just removed, fading out: inert, hidden, and its Remove isn't a focus target any more. */
+  leaving?: boolean;
 }
 
 /** A skin in the open collection: 16:9 placeholder, name, vehicle and a "Remove" link. */
-export function MemberCard({ skin, onRemove }: MemberCardProps) {
+export function MemberCard({ skin, onRemove, entering = false, leaving = false }: MemberCardProps) {
   const { t } = useTranslation();
+  const ref = useRef<HTMLLIElement>(null);
+  useLayoutEffect(() => {
+    if (leaving && ref.current) ref.current.inert = true;
+  }, [leaving]);
   // A folder without a .blk has no vehicle code (the backend's name for it is English-only).
   const vehicle = skin.vehicle.code ? skin.vehicle.name || skin.vehicle.code : t('hangar.unknownVehicle');
   return (
-    <li className="flex flex-col overflow-hidden rounded-card border border-line-2 bg-bg-3">
+    <li
+      ref={ref}
+      aria-hidden={leaving || undefined}
+      className={cn(
+        'flex flex-col overflow-hidden rounded-card border border-line-2 bg-bg-3',
+        leaving ? 'pointer-events-none motion-safe:animate-card-out' : entering && 'motion-safe:animate-chip-in',
+      )}
+    >
       {/* TODO(M5): the skin's screenshot when it came from WT Live. */}
       <div aria-hidden className="aspect-video bg-placeholder" />
       <div className="flex min-w-0 flex-col gap-1 px-3 py-2.5">
@@ -25,7 +42,7 @@ export function MemberCard({ skin, onRemove }: MemberCardProps) {
           </span>
           <button
             type="button"
-            data-member-remove
+            data-member-remove={leaving ? undefined : true}
             aria-label={t('collections.removeLabel', { name: skin.name })}
             onClick={onRemove}
             className="flex-none rounded-menu text-[11px] leading-[normal] text-ink-4 hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120"

@@ -33,7 +33,8 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       <span
         aria-hidden
         className={cn(
-          'absolute left-0.5 top-0.5 h-3.5 w-3.5 rounded-full bg-onAmber motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out',
+          // The knob overshoots its end a little and settles (spring easing).
+          'absolute left-0.5 top-0.5 h-3.5 w-3.5 rounded-full bg-onAmber motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-spring',
           checked && 'translate-x-4',
         )}
       />

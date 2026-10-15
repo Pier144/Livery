@@ -946,6 +946,7 @@
     }
   },
   "settings": {
+    "saved": "Saved",
     "title": "Settings",
     "sections": "Settings sections",
     "nav": {

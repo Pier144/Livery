@@ -10,6 +10,7 @@ import { hangarDefaults, useHangarStore } from '@/store/hangar';
 import { useInstalls } from '@/store/installs';
 import { useQueue } from '@/store/queue';
 import { useConfirm } from '@/store/confirm';
+import { useHangarMotion } from '@/store/hangarMotion';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { useUpdate } from '@/store/update';
@@ -37,6 +38,7 @@ export function resetStores() {
   resetDetail();
   useUpdate.getState().reset();
   useConfirm.getState().settle(false);
+  useHangarMotion.setState({ leaving: new Set(), arriving: new Set() });
 }
 
 interface ProviderOptions extends RenderOptions {

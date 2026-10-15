@@ -109,14 +109,14 @@ function PalettePanel() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-center bg-overlay pt-[120px]" onMouseDown={onOverlayMouseDown}>
+    <div className="fixed inset-0 z-50 flex justify-center bg-overlay pt-[120px] motion-safe:animate-overlay-in" onMouseDown={onOverlayMouseDown}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={t('common.palette.label')}
         onKeyDown={onKeyDown}
         onMouseDown={onPanelMouseDown}
-        className="flex w-[560px] flex-col self-start overflow-hidden rounded-dialog border border-line-4 bg-bg-3 shadow-dialog"
+        className="flex w-[560px] flex-col self-start overflow-hidden rounded-dialog border border-line-4 bg-bg-3 shadow-dialog motion-safe:animate-palette-in"
       >
         <div className="flex items-center gap-2.5 border-b border-line-2 px-3.5">
           <span aria-hidden className="font-mono text-[12px] leading-[normal] text-amber">
