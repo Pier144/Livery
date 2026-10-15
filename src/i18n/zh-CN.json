@@ -77,7 +77,8 @@
         "hangar": "前往我的基地",
         "collections": "前往合集",
         "queue": "打开安装队列",
-        "settings": "打开设置"
+        "settings": "打开设置",
+        "feedback": "发送反馈"
       },
       "empty": "无匹配结果",
       "hintNavigate": "↑↓ 选择",
@@ -222,6 +223,33 @@
       "torpedo_gunboat": "鱼雷炮艇",
       "submarine_chaser": "猎潜艇",
       "naval_ferry_barge": "海军驳渡船"
+    },
+    "feedback": {
+      "title": "发送反馈",
+      "intro": "Livery 会在浏览器中打开一个已预先填写的 GitHub 页面。您需要一个 GitHub 账号，在您于该页面提交之前，不会发送任何内容。",
+      "kindLabel": "类型",
+      "kind": {
+        "bug": "错误",
+        "idea": "想法",
+        "other": "其他"
+      },
+      "whereIssue": "将在 Livery 的 GitHub 页面上创建一个 issue。",
+      "whereIdea": "将在 Livery 的 GitHub 想法区创建一个讨论。",
+      "message": "内容",
+      "placeholder": {
+        "bug": "发生了什么？您原本期望的结果是什么？",
+        "idea": "您希望 Livery 能做什么？",
+        "other": "请输入内容。"
+      },
+      "attach": "附带技术信息",
+      "attachHelper": "Livery 和 Windows 版本、语言以及日志的最后几行。文件夹和您的用户名会被隐藏。",
+      "preview": "GitHub 将收到的内容",
+      "dropped_other": "为缩短链接，已省略 {{count}} 行较早的日志。",
+      "tooLong": "内容过长，无法放入 GitHub 链接。请缩短内容。",
+      "needText": "请先输入内容。",
+      "open": "前往 GitHub 继续",
+      "opened": "请在 GitHub 页面上提交以完成发送。",
+      "close": "关闭"
     }
   },
   "firstRun": {
@@ -986,12 +1014,12 @@
       "build": "{{version}} · Windows x64",
       "description": "War Thunder 用户涂装管理器。浏览 WT Live，一键安装，让您的基地井井有条。",
       "privacyTitle": "隐私",
-      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件，不会做任何更改。",
+      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件，不会做任何更改。“发送反馈”只会在浏览器中打开一个 GitHub 页面：在您于该页面提交之前，不会发送任何内容。",
       "links": "链接",
       "source": "源代码",
       "sourceHint": "在 GitHub 上打开 Livery 的代码仓库",
-      "report": "报告问题",
-      "reportHint": "在 GitHub 上打开 Livery 的问题页面",
+      "feedback": "发送反馈",
+      "feedbackHint": "在 GitHub 上报告错误或提出建议",
       "licenses": "许可证"
     },
     "licenses": {

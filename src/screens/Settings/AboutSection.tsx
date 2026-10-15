@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ISSUES_URL, REPO_URL, openLink } from '@/lib/opener';
+import { REPO_URL, openLink } from '@/lib/opener';
+import { openFeedback } from '@/store/feedback';
 import { LicensesDialog } from './LicensesDialog';
 import { SectionTitle } from './SettingRow';
 import { useAppVersion } from './useAppVersion';
@@ -10,9 +11,10 @@ const LINK =
   'text-meta leading-[normal] text-amber underline underline-offset-[3px] hover:text-amber-hover motion-safe:transition-colors motion-safe:duration-120';
 
 /**
- * About: brand, description, the unofficial-tool line, what Livery connects to (privacy) and links. Source code and Report a problem
- * open Livery's GitHub repository and its issues in the default browser (`@/lib/opener`; if the
- * browser can't be opened the link goes to the clipboard). No Gaijin / War Thunder logos anywhere.
+ * About: brand, description, the unofficial-tool line, what Livery connects to (privacy) and links.
+ * Source code opens Livery's GitHub repository in the default browser (`@/lib/opener`; if the
+ * browser can't be opened the link goes to the clipboard); Send feedback opens FeedbackDialog.
+ * No Gaijin / War Thunder logos anywhere.
  */
 export function AboutSection() {
   const { t } = useTranslation();
@@ -40,8 +42,8 @@ export function AboutSection() {
           <button type="button" title={t('settings.about.sourceHint')} onClick={() => void openLink(REPO_URL, t)} className={LINK}>
             {t('settings.about.source')}
           </button>
-          <button type="button" title={t('settings.about.reportHint')} onClick={() => void openLink(ISSUES_URL, t)} className={LINK}>
-            {t('settings.about.report')}
+          <button type="button" aria-haspopup="dialog" title={t('settings.about.feedbackHint')} onClick={openFeedback} className={LINK}>
+            {t('settings.about.feedback')}
           </button>
           <button type="button" aria-haspopup="dialog" onClick={() => setLicensesOpen(true)} className={LINK}>
             {t('settings.about.licenses')}

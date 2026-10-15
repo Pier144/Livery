@@ -7,6 +7,7 @@
 pub mod archive;
 pub mod backup;
 pub mod error;
+pub mod feedback;
 pub mod game;
 pub mod library;
 pub mod logging;
@@ -64,6 +65,7 @@ pub fn run() {
             }
             tracing::debug!(data_dir = %data_dir.path.display(), "app data");
             let data_dir = data_dir.path;
+            app.manage(feedback::DataDir(data_dir.clone()));
             let settings = settings::SettingsStore::load(data_dir.join("settings.json"));
             // One library index per game folder; the saved folder's is loaded now, which also
             // migrates a library.json from before per-folder indexes to it.
@@ -99,6 +101,7 @@ pub fn run() {
             game::set_game_path,
             game::game_vehicles,
             game::game_vehicle_names,
+            feedback::feedback_diagnostics,
             library::scan_user_skins,
             library::import_skins,
             library::get_hangar,

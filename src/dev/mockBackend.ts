@@ -1779,6 +1779,17 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   set_game_path: setGamePath,
   // The real backend reads every vehicle of the game; the mock has only the built-in list.
   game_vehicles: () => (hasGameFolder() ? builtInVehicles : []),
+  // The real backend reads livery.log and hides folders and the user name.
+  feedback_diagnostics: () => ({
+    appVersion: '0.3.2',
+    os: 'Windows 11 24H2 (build 26100.2894)',
+    logTail: [
+      '2026-10-15T10:00:00Z  INFO livery: Livery started version="0.3.2"',
+      '2026-10-15T10:00:01Z  INFO livery::game::catalog: vehicle list read from the game vehicles=3383',
+      '2026-10-15T10:00:04Z  WARN livery::archive: archive refused path=%USERPROFILE%\\Downloads\\pack.rar',
+      '2026-10-15T10:00:05Z  INFO livery::library: scanned root=<game>\\UserSkins skins=12',
+    ],
+  }),
   // The real backend reads the names from the game's units.csv; a few samples here.
   game_vehicle_names: (args) => {
     const language = (args as { language?: Language } | undefined)?.language ?? 'en';

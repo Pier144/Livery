@@ -79,7 +79,8 @@
         "hangar": "Vai al mio hangar",
         "collections": "Vai a Collezioni",
         "queue": "Apri la coda di installazione",
-        "settings": "Apri le impostazioni"
+        "settings": "Apri le impostazioni",
+        "feedback": "Invia un feedback"
       },
       "empty": "Nessun risultato",
       "hintNavigate": "↑↓ naviga",
@@ -226,6 +227,35 @@
       "torpedo_gunboat": "Motosilurante cannoniera",
       "submarine_chaser": "Cacciasommergibili",
       "naval_ferry_barge": "Motozattera"
+    },
+    "feedback": {
+      "title": "Invia un feedback",
+      "intro": "Livery apre nel browser una pagina di GitHub già compilata. Serve un account GitHub, e non parte nulla finché non la invii lì.",
+      "kindLabel": "Tipo",
+      "kind": {
+        "bug": "Bug",
+        "idea": "Idea",
+        "other": "Altro"
+      },
+      "whereIssue": "Diventa una issue nella pagina GitHub di Livery.",
+      "whereIdea": "Diventa una discussione tra le idee di Livery su GitHub.",
+      "message": "Messaggio",
+      "placeholder": {
+        "bug": "Cosa è successo, e cosa ti aspettavi?",
+        "idea": "Cosa vorresti che facesse Livery?",
+        "other": "Scrivi il tuo messaggio."
+      },
+      "attach": "Allega informazioni tecniche",
+      "attachHelper": "Versione di Livery e di Windows, lingua e le ultime righe del log. Cartelle e nome utente sono nascosti.",
+      "preview": "Cosa riceverà GitHub",
+      "dropped_one": "{{count}} riga più vecchia del log è esclusa per far stare il link.",
+      "dropped_many": "{{count}} righe più vecchie del log sono escluse per far stare il link.",
+      "dropped_other": "{{count}} righe più vecchie del log sono escluse per far stare il link.",
+      "tooLong": "Troppo lungo per un link di GitHub. Accorcia il messaggio.",
+      "needText": "Prima scrivi un messaggio.",
+      "open": "Continua su GitHub",
+      "opened": "Invia la pagina su GitHub per mandarlo.",
+      "close": "Chiudi"
     }
   },
   "firstRun": {
@@ -1072,12 +1102,12 @@
       "build": "{{version}} · Windows x64",
       "description": "Un gestore di skin utente per War Thunder. Sfoglia WT Live, installa con un clic, tieni in ordine il tuo hangar.",
       "privacyTitle": "Privacy",
-      "privacy": "Nessun account, nessuna pubblicità, nessuna telemetria. Livery si collega solo a WT Live (live.warthunder.com e il suo server di immagini) quando sfogli o installi skin, e a GitHub per controllare gli aggiornamenti. Impostazioni e libreria restano su questo PC. Legge i file del gioco senza modificarli.",
+      "privacy": "Nessun account, nessuna pubblicità, nessuna telemetria. Livery si collega solo a WT Live (live.warthunder.com e il suo server di immagini) quando sfogli o installi skin, e a GitHub per controllare gli aggiornamenti. Impostazioni e libreria restano su questo PC. Legge i file del gioco senza modificarli. «Invia un feedback» apre solo una pagina di GitHub nel browser: non parte nulla finché non la invii lì.",
       "links": "Link",
       "source": "Codice sorgente",
       "sourceHint": "Apre il repository di Livery su GitHub",
-      "report": "Segnala un problema",
-      "reportHint": "Apre la pagina delle segnalazioni di Livery su GitHub",
+      "feedback": "Invia un feedback",
+      "feedbackHint": "Segnala un bug o proponi un’idea su GitHub",
       "licenses": "Licenze"
     },
     "licenses": {

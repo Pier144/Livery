@@ -1,0 +1,8 @@
+2026-10-15T10:00:00Z  INFO livery: Livery started version="0.3.1"
+2026-10-15T10:00:01Z DEBUG livery: app data data_dir=C:\Users\Mario.Rossi\AppData\Roaming\app.livery.desktop
+
+2026-10-15T10:00:02Z  WARN livery::archive: archive refused path=C:\Users\mario.rossi\Downloads\My Camo Pack.zip
+2026-10-15T10:00:03Z  INFO livery::library: scanned root=D:\SteamLibrary\steamapps\common\War Thunder\UserSkins skins=12
+2026-10-15T10:00:04Z  WARN livery::watch: can't read folder="E:\Stuff\Skins\tiger_desert" error="denied"
+2026-10-15T10:00:05Z ERROR livery::library: rename failed for Mario.Rossi_tiger (owner Mario.Rossi, share \\nas\skins\camo.zip)
+2026-10-15T10:00:06Z  INFO livery::wtlive: search q="tiger" results=16 user=Mario.Rossiano

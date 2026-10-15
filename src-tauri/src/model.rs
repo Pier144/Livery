@@ -710,3 +710,15 @@ pub enum InstallMode {
     Normal,
     Temporary,
 }
+
+/// Settings → About → Send feedback: what the user may attach (`feedback_diagnostics`). Shown in
+/// full before anything leaves the app; the log lines are already anonymised.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedbackDiagnostics {
+    pub app_version: String,
+    /// "Windows 11 24H2 (build 26100.2894)".
+    pub os: String,
+    /// The last lines of `livery.log`, oldest first.
+    pub log_tail: Vec<String>,
+}

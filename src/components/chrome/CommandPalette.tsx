@@ -9,6 +9,7 @@ import { cachedWtLiveSkins } from '@/screens/Explore/exploreModel';
 import { useExplore } from '@/store/explore';
 import { useUi } from '@/store/ui';
 import { buildPaletteItems, type PaletteActionKey, type PaletteItem } from './paletteItems';
+import { openFeedback } from '@/store/feedback';
 
 /** Ctrl+K command palette. Open/close state lives in the UI store. */
 export function CommandPalette() {
@@ -52,7 +53,7 @@ function PalettePanel() {
   const vehicles = useVehicles();
   const vehicleNames = useVehicleNames();
   const items = useMemo(
-    () => buildPaletteItems(query, { t: translate, vehicles, vehicleNames, skins, go, openSkin, applyVehicle }),
+    () => buildPaletteItems(query, { t: translate, vehicles, vehicleNames, skins, go, openSkin, applyVehicle, openFeedback }),
     [query, translate, vehicles, vehicleNames, skins, go, openSkin, applyVehicle],
   );
   const active = Math.min(index, Math.max(0, items.length - 1));

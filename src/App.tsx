@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { CommandPalette } from '@/components/chrome/CommandPalette';
 import { ConfirmDialog } from '@/components/chrome/ConfirmDialog';
 import { DropOverlay } from '@/components/chrome/DropOverlay';
+import { FeedbackDialog } from '@/components/chrome/FeedbackDialog';
 import { Sidebar } from '@/components/chrome/Sidebar';
 import { TitleBar } from '@/components/chrome/TitleBar';
 import { Toaster } from '@/components/chrome/Toaster';
@@ -123,6 +124,7 @@ export function App() {
       <Toaster />
       <UpdateDialog />
       <ConfirmDialog />
+      <FeedbackDialog />
     </div>
   );
 }

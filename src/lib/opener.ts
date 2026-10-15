@@ -18,7 +18,7 @@ const REPO_PATH = '/Pier144/Livery';
 
 /** Livery's repository (Settings → About → Source code). */
 export const REPO_URL = 'https://github.com/Pier144/Livery';
-/** Where problems are reported (Settings → About → Report a problem). */
+/** Livery's issues on GitHub (feedback pages are created under it, see `@/lib/feedback`). */
 export const ISSUES_URL = 'https://github.com/Pier144/Livery/issues';
 
 /** Which links a caller accepts: any allowed one, or only WT Live pages (links from a WT Live payload). */

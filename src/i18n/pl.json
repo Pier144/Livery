@@ -80,7 +80,8 @@
         "hangar": "Przejdź do Mojego hangaru",
         "collections": "Przejdź do Kolekcji",
         "queue": "Otwórz kolejkę instalacji",
-        "settings": "Otwórz Ustawienia"
+        "settings": "Otwórz Ustawienia",
+        "feedback": "Wyślij opinię"
       },
       "empty": "Brak wyników",
       "hintNavigate": "↑↓ nawigacja",
@@ -228,6 +229,36 @@
       "torpedo_gunboat": "Kuter torpedowo-artyleryjski",
       "submarine_chaser": "Kuter ZOP",
       "naval_ferry_barge": "Pływająca bateria"
+    },
+    "feedback": {
+      "title": "Wyślij opinię",
+      "intro": "Livery otwiera w przeglądarce wstępnie wypełnioną stronę w serwisie GitHub. Potrzebujesz konta GitHub, a nic nie zostanie wysłane, dopóki nie zatwierdzisz jej tam.",
+      "kindLabel": "Typ",
+      "kind": {
+        "bug": "Błąd",
+        "idea": "Pomysł",
+        "other": "Inne"
+      },
+      "whereIssue": "Powstanie zgłoszenie (issue) na stronie Livery w serwisie GitHub.",
+      "whereIdea": "Powstanie dyskusja wśród pomysłów Livery w serwisie GitHub.",
+      "message": "Wiadomość",
+      "placeholder": {
+        "bug": "Co się stało, a co powinno się stać?",
+        "idea": "Czego brakuje Ci w Livery?",
+        "other": "Napisz wiadomość."
+      },
+      "attach": "Dołącz informacje techniczne",
+      "attachHelper": "Wersja Livery i Windows, język i ostatnie wiersze dziennika. Foldery i nazwa użytkownika są ukryte.",
+      "preview": "Co otrzyma GitHub",
+      "dropped_one": "Pominięto {{count}} starszy wiersz dziennika, aby link się zmieścił.",
+      "dropped_few": "Pominięto {{count}} starsze wiersze dziennika, aby link się zmieścił.",
+      "dropped_many": "Pominięto {{count}} starszych wierszy dziennika, aby link się zmieścił.",
+      "dropped_other": "Pominięto {{count}} starszego wiersza dziennika, aby link się zmieścił.",
+      "tooLong": "Za długie jak na link GitHub. Skróć wiadomość.",
+      "needText": "Najpierw napisz wiadomość.",
+      "open": "Kontynuuj w serwisie GitHub",
+      "opened": "Zatwierdź stronę w serwisie GitHub, aby wysłać opinię.",
+      "close": "Zamknij"
     }
   },
   "firstRun": {
@@ -1115,12 +1146,12 @@
       "build": "{{version}} · Windows x64",
       "description": "Menedżer kamuflaży użytkowników dla War Thunder. Przeglądaj WT Live, instaluj jednym kliknięciem, utrzymuj porządek w hangarze.",
       "privacyTitle": "Prywatność",
-      "privacy": "Bez konta, bez reklam, bez telemetrii. Livery łączy się tylko z WT Live (live.warthunder.com i jego serwerem obrazów), gdy przeglądasz lub instalujesz kamuflaże, oraz z serwisem GitHub, aby sprawdzić aktualizacje. Twoje ustawienia i biblioteka zostają na tym komputerze. Livery odczytuje pliki gry, nie zmieniając ich.",
+      "privacy": "Bez konta, bez reklam, bez telemetrii. Livery łączy się tylko z WT Live (live.warthunder.com i jego serwerem obrazów), gdy przeglądasz lub instalujesz kamuflaże, oraz z serwisem GitHub, aby sprawdzić aktualizacje. Twoje ustawienia i biblioteka zostają na tym komputerze. Livery odczytuje pliki gry, nie zmieniając ich. „Wyślij opinię” tylko otwiera stronę GitHub w przeglądarce: nic nie zostanie wysłane, dopóki jej tam nie zatwierdzisz.",
       "links": "Linki",
       "source": "Kod źródłowy",
       "sourceHint": "Otwiera repozytorium Livery w serwisie GitHub",
-      "report": "Zgłoś problem",
-      "reportHint": "Otwiera stronę zgłoszeń Livery w serwisie GitHub",
+      "feedback": "Wyślij opinię",
+      "feedbackHint": "Zgłoś błąd lub zaproponuj pomysł w serwisie GitHub",
       "licenses": "Licencje"
     },
     "licenses": {

@@ -130,3 +130,15 @@ describe('buildPaletteItems', () => {
     expect(buildPaletteItems('desert', ctx({ vehicleNames, skins }))[0]?.hint).toBe('豹 2A6 · Kestrel');
   });
 });
+
+describe('the feedback action', () => {
+  it('is found by typing, not listed for an empty query', () => {
+    const openFeedback = vi.fn();
+    expect(buildPaletteItems('', ctx({ openFeedback })).map((i) => i.id)).not.toContain('action:feedback');
+    const found = buildPaletteItems('feedback', ctx({ openFeedback }));
+    expect(found.map((i) => i.label)).toEqual(['Send feedback']);
+    found[0]!.run();
+    expect(openFeedback).toHaveBeenCalledTimes(1);
+    expect(buildPaletteItems('feedback', ctx())).toEqual([]);
+  });
+});

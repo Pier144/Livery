@@ -23,7 +23,7 @@ export interface PaletteSkin {
   author: Pick<Author, 'name'>;
 }
 
-export type PaletteActionKey = `common.palette.actions.${Section}`;
+export type PaletteActionKey = `common.palette.actions.${Section | 'feedback'}`;
 
 export interface PaletteContext {
   t: (key: PaletteActionKey) => string;
@@ -37,6 +37,8 @@ export interface PaletteContext {
   openSkin?: (id: string) => void;
   /** Sets the Explore vehicle filter (by code) before a vehicle result jumps to Explore. */
   applyVehicle?: (code: string) => void;
+  /** Opens the Send feedback dialog; without it the action isn't listed. */
+  openFeedback?: () => void;
 }
 
 export const PALETTE_MAX_RESULTS = 9;
@@ -50,14 +52,18 @@ function shortcutFor(section: Section): string {
   return Object.keys(SECTION_KEYS).find((key) => SECTION_KEYS[key] === section) ?? '';
 }
 
-function actionItems(ctx: PaletteContext): PaletteItem[] {
-  return ACTION_SECTIONS.map((section) => ({
+/** The section actions; with `extras`, Send feedback too (only found by typing: the empty list stays 5 + 4). */
+function actionItems(ctx: PaletteContext, extras = false): PaletteItem[] {
+  const sections: PaletteItem[] = ACTION_SECTIONS.map((section) => ({
     id: `action:${section}`,
     kind: 'action',
     label: ctx.t(`common.palette.actions.${section}`),
     hint: shortcutFor(section),
     run: () => ctx.go(section),
   }));
+  const feedback = ctx.openFeedback;
+  if (!extras || !feedback) return sections;
+  return [...sections, { id: 'action:feedback', kind: 'action', label: ctx.t('common.palette.actions.feedback'), hint: '', run: feedback }];
 }
 
 function vehicleItem(v: Vehicle, ctx: PaletteContext): PaletteItem {
@@ -111,7 +117,7 @@ export function buildPaletteItems(query: string, ctx: PaletteContext): PaletteIt
     return out;
   };
   const skins = collect(ctx.skins, (s) => skinItem(s, ctx));
-  const others = [...collect(ctx.vehicles, (v) => vehicleItem(v, ctx)), ...collect(actionItems(ctx), (a) => a)];
+  const others = [...collect(ctx.vehicles, (v) => vehicleItem(v, ctx)), ...collect(actionItems(ctx, true), (a) => a)];
   const skinRoom = PALETTE_MAX_RESULTS - Math.min(RESERVED_FOR_OTHERS, others.length);
   return [...skins.slice(0, skinRoom), ...others].slice(0, PALETTE_MAX_RESULTS);
 }

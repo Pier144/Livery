@@ -78,7 +78,8 @@
         "hangar": "Go to My Hangar",
         "collections": "Go to Collections",
         "queue": "Open Install queue",
-        "settings": "Open Settings"
+        "settings": "Open Settings",
+        "feedback": "Send feedback"
       },
       "empty": "No matches",
       "hintNavigate": "↑↓ navigate",
@@ -224,6 +225,34 @@
       "torpedo_gunboat": "Torpedo gunboat",
       "submarine_chaser": "Submarine chaser",
       "naval_ferry_barge": "Naval ferry barge"
+    },
+    "feedback": {
+      "title": "Send feedback",
+      "intro": "Livery opens a pre-filled page on GitHub in your browser. You need a GitHub account, and nothing is sent until you submit it there.",
+      "kindLabel": "Type",
+      "kind": {
+        "bug": "Bug",
+        "idea": "Idea",
+        "other": "Other"
+      },
+      "whereIssue": "It becomes an issue on Livery’s GitHub page.",
+      "whereIdea": "It becomes a discussion in Livery’s GitHub Ideas.",
+      "message": "Message",
+      "placeholder": {
+        "bug": "What happened, and what did you expect?",
+        "idea": "What would you like Livery to do?",
+        "other": "Write your message."
+      },
+      "attach": "Attach technical details",
+      "attachHelper": "Livery and Windows version, language and the last lines of the log. Folders and your user name are hidden.",
+      "preview": "What GitHub will receive",
+      "dropped_one": "{{count}} older log line is left out to fit the link.",
+      "dropped_other": "{{count}} older log lines are left out to fit the link.",
+      "tooLong": "Too long for a GitHub link. Shorten your message.",
+      "needText": "Write a message first.",
+      "open": "Continue on GitHub",
+      "opened": "Submit the page on GitHub to send it.",
+      "close": "Close"
     }
   },
   "firstRun": {
@@ -1029,12 +1058,12 @@
       "build": "{{version}} · Windows x64",
       "description": "A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.",
       "privacyTitle": "Privacy",
-      "privacy": "No account, no ads, no telemetry. Livery connects only to WT Live (live.warthunder.com and its image server) when you browse or install skins, and to GitHub to check for updates. Your settings and library stay on this PC. It reads the game’s files without changing them.",
+      "privacy": "No account, no ads, no telemetry. Livery connects only to WT Live (live.warthunder.com and its image server) when you browse or install skins, and to GitHub to check for updates. Your settings and library stay on this PC. It reads the game’s files without changing them. “Send feedback” only opens a GitHub page in your browser: nothing is sent until you submit it there.",
       "links": "Links",
       "source": "Source code",
       "sourceHint": "Opens Livery’s repository on GitHub",
-      "report": "Report a problem",
-      "reportHint": "Opens Livery’s issues page on GitHub",
+      "feedback": "Send feedback",
+      "feedbackHint": "Report a bug or suggest an idea on GitHub",
       "licenses": "Licenses"
     },
     "licenses": {

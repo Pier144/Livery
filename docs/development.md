@@ -87,7 +87,8 @@ src/                     React app
   test/                  Vitest setup, render helper (resetStores), axe helper
 src-tauri/               Tauri app (crate `livery`, lib `livery_lib`)
   src/                   one module per domain: game, library, archive, textures, watch,
-                         wtlive, backup, settings; plus error.rs (AppError), model.rs and
+                         wtlive, backup, settings, feedback (the anonymised details a user may
+                         attach to a GitHub page); plus error.rs (AppError), model.rs and
                          lib.rs (command registration and setup)
   tests/                 integration tests; fixtures in tests/fixtures
   capabilities/  icons/  tauri.conf.json

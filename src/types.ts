@@ -296,3 +296,15 @@ export interface UpdateProgress {
 export interface UpdateReady {
   version: string;
 }
+
+/** Settings → About → Send feedback: what the page on GitHub is about. */
+export type FeedbackKind = 'bug' | 'idea' | 'other';
+
+/** `feedback_diagnostics`: what the user may attach. The log lines are already anonymised. */
+export interface FeedbackDiagnostics {
+  appVersion: string;
+  /** "Windows 11 24H2 (build 26100.2894)". */
+  os: string;
+  /** The last lines of livery.log, oldest first. */
+  logTail: string[];
+}

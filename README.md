@@ -69,6 +69,12 @@ No account, no ads, no telemetry. Livery connects only to:
   and never anything from Gaijin's Marketplace. You can turn WT Live off in Settings → WT Live.
 - **GitHub**, to check for and download Livery updates.
 
+**Send feedback** (Settings → About, or the command palette) doesn't send anything by itself: it
+opens a pre-filled page on GitHub in your browser, which you submit there with your GitHub account.
+You see exactly what the page will hold first. Technical details (Livery and Windows version,
+language, the last lines of the log with folders and your user name hidden) are attached only if
+you leave that box checked.
+
 Your settings, library and collections stay on your PC. Skins go only into the game's `UserSkins`
 folder; Livery doesn't change any other game file.
 
@@ -82,8 +88,9 @@ then uses a smaller built-in list and recognises fewer skins.
 - **A skin doesn't show in the game:** in War Thunder open the vehicle's Customisation and press
   the refresh button, then pick the skin. Skins that Livery marks "Needs attention" are missing a
   texture or have a broken `.blk`; the card says which.
-- **Something went wrong:** [open an issue](https://github.com/Pier144/Livery/issues) with what you
-  did and what you saw. Settings → About has a "Report a problem" link.
+- **Something went wrong, or you have an idea:** use **Send feedback** in Settings → About (or type
+  "feedback" in the command palette, Ctrl K). Bugs become [issues](https://github.com/Pier144/Livery/issues),
+  ideas go to [Discussions](https://github.com/Pier144/Livery/discussions).
 
 ## In italiano
 
@@ -98,7 +105,8 @@ Entertainment). Ti permette di:
 
 Scarica l'installer con il pulsante in alto (o dall'[ultima release](https://github.com/Pier144/Livery/releases/latest)). Se
 Windows mostra "Windows ha protetto il PC", scegli **Ulteriori informazioni → Esegui comunque**:
-l'installer non è ancora firmato. Livery si aggiorna da solo. Si collega solo a WT Live e a GitHub,
+l'installer non è ancora firmato. Livery si aggiorna da solo. Per segnalare un problema o proporre
+un'idea usa **Invia un feedback** in Impostazioni → Informazioni. Si collega solo a WT Live e a GitHub,
 non raccoglie dati e non ha account.
 
 ## License

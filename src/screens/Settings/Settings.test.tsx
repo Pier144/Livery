@@ -16,6 +16,7 @@ import type { AppError, Backup, Settings as SettingsData, UpdateInfo, WtLiveStor
 import { version as PACKAGE_VERSION } from '../../../package.json';
 import { Settings } from '../Settings';
 import { SECTIONS, resetSettingsUi, useSettingsUi, type SettingsSection } from './settingsUi';
+import { useFeedback } from '@/store/feedback';
 
 type Args = Record<string, unknown>;
 
@@ -806,17 +807,21 @@ describe('Settings · About', () => {
     const source = screen.getByRole('button', { name: 'Source code' });
     expect(source).not.toHaveAttribute('aria-disabled');
     expect(source).toHaveAccessibleDescription('Opens Livery’s repository on GitHub');
-    expect(screen.getByRole('button', { name: 'Report a problem' })).toHaveAccessibleDescription('Opens Livery’s issues page on GitHub');
+    expect(screen.getByRole('button', { name: 'Send feedback' })).toHaveAccessibleDescription('Report a bug or suggest an idea on GitHub');
+    expect(panel()).toHaveTextContent('“Send feedback” only opens a GitHub page in your browser: nothing is sent until you submit it there.');
     expect(panel().querySelector('img, svg')).toBeNull();
   });
 
-  it('Source code and Report a problem open the GitHub repository and its issues', async () => {
+  it('Source code opens the GitHub repository; Send feedback opens the feedback dialog', async () => {
     const { user } = renderSettings('about');
     await user.click(screen.getByRole('button', { name: 'Source code' }));
     await waitFor(() => expect(backend.openUrl).toHaveBeenCalledWith('https://github.com/Pier144/Livery'));
-    await user.click(screen.getByRole('button', { name: 'Report a problem' }));
-    await waitFor(() => expect(backend.openUrl).toHaveBeenLastCalledWith('https://github.com/Pier144/Livery/issues'));
+    expect(useFeedback.getState().open).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Send feedback' }));
+    expect(useFeedback.getState().open).toBe(true);
+    expect(backend.openUrl).toHaveBeenCalledTimes(1);
     expect(messages()).toEqual([]);
+    useFeedback.setState({ open: false });
   });
 
   it('lists every third-party licence from the generated files, read only when opened', async () => {
