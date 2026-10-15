@@ -6,6 +6,7 @@ import { baseName } from '@/lib/format';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { useSetCollectionSkins } from '@/queries/collections';
 import { useDeleteSkins, useExportSkins, useRenameSkin, useRescan, useRestoreBackups, useSetSkinActive } from '@/queries/hangar';
+import { confirm } from '@/store/confirm';
 import { useHangarStore } from '@/store/hangar';
 import { toast } from '@/store/toasts';
 import type { Collection, HangarSkin } from '@/types';
@@ -138,9 +139,17 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
     [runBulk, applyActive, endBulk, t],
   );
 
+  // Asked before the bulk action starts, so the bar isn't busy while the question is open.
   const deleteMany = useCallback(
-    (ids: string[]) =>
-      runBulk(async () => {
+    async (ids: string[]) => {
+      if (busy.current || ids.length === 0) return;
+      const ok = await confirm({
+        title: t('hangar.confirm.deleteTitle', { count: ids.length }),
+        body: t('hangar.confirm.deleteBody', { count: ids.length }),
+        confirmLabel: t('hangar.confirm.delete', { count: ids.length }),
+      });
+      if (!ok) return;
+      await runBulk(async () => {
         let backupIds: string[];
         try {
           ({ backupIds } = await deleteSkins(ids));
@@ -163,19 +172,30 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
             reportError(e);
           }
         });
-      }),
+      });
+    },
     [runBulk, deleteSkins, restoreBackups, endBulk, t],
   );
 
   /**
-   * One skin from its card or row ("Uninstall", or Delete on the card): its folder goes, with a
-   * backup, and the toast offers Undo. It leaves the selection too. Resolves to whether it went.
+   * One skin from its card or row ("Uninstall", or Delete on the card): after a confirmation its
+   * folder goes, with a backup, and the toast offers Undo. It leaves the selection too. Resolves to
+   * whether it went.
    */
   const removing = useRef(new Set<string>());
   const uninstall = useCallback(
     async (skin: HangarSkin): Promise<boolean> => {
       if (removing.current.has(skin.id)) return false;
       removing.current.add(skin.id);
+      const ok = await confirm({
+        title: t('hangar.confirm.uninstallTitle', { name: skin.name }),
+        body: t('hangar.confirm.uninstallBody'),
+        confirmLabel: t('hangar.card.uninstall'),
+      });
+      if (!ok) {
+        removing.current.delete(skin.id);
+        return false;
+      }
       let backupIds: string[];
       try {
         ({ backupIds } = await deleteSkins([skin.id]));

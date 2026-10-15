@@ -6,7 +6,7 @@ import { useWtLiveSearch } from '@/queries/wtlive';
 import { useDetail } from '@/store/detail';
 import type { WtLiveSkin } from '@/types';
 import { Compare } from './Compare';
-import { galleryViews, rovingIndex, sameVehicleSkins, type GalleryView } from './detailModel';
+import { galleryImages, galleryViews, rovingIndex, sameVehicleSkins, type GalleryView } from './detailModel';
 import { useFocusFallback } from './useFocusFallback';
 
 /** "Zoom in" / "Compare" over the image (prototype: rgba(15,16,18,.9) fill). */
@@ -21,7 +21,8 @@ const OVERLAY_BUTTON =
  */
 export function Gallery({ skin }: { skin: WtLiveSkin }) {
   const { t } = useTranslation();
-  const views = useMemo(() => galleryViews(skin.images), [skin.images]);
+  // The post's pictures, then the ones embedded in its text (the Post tab opens those here too).
+  const views = useMemo(() => galleryViews(galleryImages(skin)), [skin]);
   const index = useDetail((s) => Math.min(s.galleryIndex, views.length - 1));
   const zoom = useDetail((s) => s.zoom);
   const compare = useDetail((s) => s.compare);
@@ -123,7 +124,13 @@ export function Gallery({ skin }: { skin: WtLiveSkin }) {
               )}
             </div>
           </div>
-          <div role="radiogroup" aria-label={t('detail.gallery.views')} className="flex flex-none gap-2" onKeyDown={onThumbKeyDown}>
+          <div
+            role="radiogroup"
+            aria-label={t('detail.gallery.views')}
+            // Scrolls sideways when a post has more pictures than fit.
+            className="flex flex-none gap-2 overflow-x-auto"
+            onKeyDown={onThumbKeyDown}
+          >
             {views.map((v, i) => {
               const active = i === index;
               return (

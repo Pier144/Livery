@@ -41,6 +41,8 @@ export interface ExploreState extends ExploreFilters {
   applyVehicle: (code: string) => void;
   /** Explore tab searching for this author's skins: `q` = `@` + the name (WT Live's author search). */
   applyAuthor: (name: string) => void;
+  /** Explore tab searching for one hashtag (`#tag`; the Skin detail's Post tab). */
+  applyTag: (tag: string) => void;
 }
 
 /** Initial state (also used by tests to reset the store). */
@@ -73,4 +75,5 @@ export const useExplore = create<ExploreState>()((set) => ({
   // A focused view: the other filters would only narrow (or empty) the vehicle's / author's skins.
   applyVehicle: (code) => set({ ...NO_EXPLORE_FILTERS, tab: 'explore', vehicle: orNull(code) }),
   applyAuthor: (name) => set({ ...NO_EXPLORE_FILTERS, tab: 'explore', q: authorQuery(name) }),
+  applyTag: (tag) => set({ ...NO_EXPLORE_FILTERS, tab: 'explore', q: tag.trim() === '' ? '' : `#${tag.trim()}` }),
 }));

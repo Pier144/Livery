@@ -294,8 +294,22 @@
     "tabs": {
       "label": "Dettaglio skin",
       "gallery": "Galleria",
+      "post": "Post",
       "textures": "Texture",
       "try": "Prova in gioco"
+    },
+    "post": {
+      "fromAuthor": "Da {{name}}",
+      "noText": "L’autore non ha scritto altro per questa skin.",
+      "tags": "Hashtag",
+      "tagHint": "Cerca #{{tag}} in Esplora",
+      "pictures_one": "{{count, number}} immagine nel post",
+      "pictures_other": "{{count, number}} immagini nel post",
+      "openPicture": "Apri l’immagine {{n}} del post nella galleria",
+      "linkHint": "Si apre su WT Live. I link ad altri siti passano prima dalla pagina di avviso di WT Live.",
+      "source": "Testo e immagini dal post originale su WT Live, come li ha scritti l’autore.",
+      "emptyTitle": "Nient’altro in questo post",
+      "emptyBody": "L’autore non ha aggiunto testo, hashtag o altre immagini."
     },
     "noSkin": {
       "title": "Nessuna skin selezionata",
@@ -473,10 +487,10 @@
     "tabs": "Viste di Esplora",
     "newCount_one": "{{count, number}} nuova",
     "newCount_other": "{{count, number}} nuove",
-    "results_one": "{{count, number}} risultato · {{ms, number}} ms",
-    "results_other": "{{count, number}} risultati · {{ms, number}} ms",
-    "resultsAtLeast_one": "{{count, number}}+ risultati · {{ms, number}} ms",
-    "resultsAtLeast_other": "{{count, number}}+ risultati · {{ms, number}} ms",
+    "results_one": "{{count, number}} risultato",
+    "results_other": "{{count, number}} risultati",
+    "resultsAtLeast_one": "{{count, number}}+ risultati",
+    "resultsAtLeast_other": "{{count, number}}+ risultati",
     "filters": {
       "label": "Filtri",
       "nation": "Nazione",
@@ -675,6 +689,16 @@
     "noResultsBody": "Prova con meno filtri, oppure cerca per codice del veicolo.",
     "clearFilters": "Azzera i filtri",
     "loadErrorTitle": "Impossibile leggere il mio hangar",
+    "confirm": {
+      "uninstallTitle": "Disinstallare “{{name}}”?",
+      "uninstallBody": "War Thunder non la mostrerà più. Livery ne tiene un backup, quindi puoi annullare dalla notifica.",
+      "deleteTitle_one": "Eliminare {{count, number}} skin?",
+      "deleteTitle_other": "Eliminare {{count, number}} skin?",
+      "deleteBody_one": "La sua cartella viene rimossa dal gioco. Livery ne tiene un backup, quindi puoi annullare dalla notifica.",
+      "deleteBody_other": "Le loro cartelle vengono rimosse dal gioco. Livery ne tiene un backup, quindi puoi annullare dalla notifica.",
+      "delete_one": "Elimina skin",
+      "delete_other": "Elimina {{count, number}} skin"
+    },
     "bulk": {
       "label": "Skin selezionate",
       "selected_one": "{{count, number}} skin selezionata",

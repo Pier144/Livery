@@ -1,0 +1,60 @@
+{
+ "lang_group": 1191507,
+ "id": 1244190,
+ "language": "en",
+ "languages": [
+  "en",
+  "ru"
+ ],
+ "type": "camouflage",
+ "created": 1792005149,
+ "isAuthor": false,
+ "visible": true,
+ "isSpecial": false,
+ "author": {
+  "id": 100001,
+  "nickname": "Fixture_Author1",
+  "avatar": "https://cdn-live.warthunder.com/uploads/00/00/01/avatar_lq/image.png"
+ },
+ "likes": 0,
+ "isLiked": false,
+ "views": 11,
+ "doubt": false,
+ "featured": false,
+ "downloads": 0,
+ "comments": 0,
+ "isPinned": false,
+ "isMarketSuitable": true,
+ "canDelete": false,
+ "canEdit": false,
+ "description": "<p>Leopard fixture camo<br />\nSecond line &amp; more<br />\n4k DDS</p><p><br />\n <br />\nMy squadron: <a href=\"//live.warthunder.com/away/?enc=1&amp;to=aHR0cHM6Ly9leGFtcGxlLm9yZw\" rel=\"noopener noreferrer\" target=\"_blank\" class=\"WTL-Embed-ForeignLink\">https://example.org</a> , come <b>say hi</b>)))</p><p><a href=\"//live.warthunder.com/?q=%23fixture\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#fixture</a> <a href=\"//live.warthunder.com/?q=%23tank\" target=\"_blank\" class=\"WTL-Embed-Hashtag\">#tank</a> </p><p><a class=\"WTL-Embed-Image\" href=\"https://images-live.warthunder.com/aaa/111/0123456789abcdef.jpeg\" target=\"_blank\"><img src=\"https://images-live.warthunder.com/aaa/111/0123456789abcdef_mq.jpeg\"></a><br />\n<a class=\"WTL-Embed-Image\" href=\"https://images-live.warthunder.com/bbb/222/fedcba9876543210.jpeg\" target=\"_blank\"><img src=\"https://images-live.warthunder.com/bbb/222/fedcba9876543210_mq.jpeg\"></a></p>",
+ "images": [
+  {
+   "id": 2686387,
+   "type": "image/jpeg",
+   "mq": {
+    "src": "https://cdn-live.warthunder.com/uploads/aa/bb/01/img0_mq/shot0.jpg",
+    "width": 800,
+    "height": 800,
+    "ratio": 1
+   },
+   "orig": {
+    "src": "https://cdn-live.warthunder.com/uploads/aa/bb/01/img0_orig/shot0.jpg"
+   }
+  }
+ ],
+ "gamePreviewAvailable": false,
+ "file": {
+  "id": 2686386,
+  "name": "fixture_skin_1.zip",
+  "link": "https://live.warthunder.com/dl/0000000000000000000000000000000000000001/",
+  "type": "application/zip",
+  "size": 34574792
+ },
+ "gameItemApproved": false,
+ "gameItemTags": [],
+ "pbr_ready": true,
+ "inverted_roughness": false,
+ "hidden": false,
+ "pageTitle": "WT Live // Camouflage by Fixture_Author1"
+}

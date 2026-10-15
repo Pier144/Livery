@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CommandPalette } from '@/components/chrome/CommandPalette';
+import { ConfirmDialog } from '@/components/chrome/ConfirmDialog';
 import { DropOverlay } from '@/components/chrome/DropOverlay';
 import { Sidebar } from '@/components/chrome/Sidebar';
 import { TitleBar } from '@/components/chrome/TitleBar';
@@ -106,6 +107,7 @@ export function App() {
       <DropOverlay />
       <Toaster />
       <UpdateDialog />
+      <ConfirmDialog />
     </div>
   );
 }

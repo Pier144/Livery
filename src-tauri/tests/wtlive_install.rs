@@ -46,6 +46,7 @@ impl FakeClient {
             download_url: String::new(),
             files: None,
             is_new: None,
+            description: None,
         }
     }
 }

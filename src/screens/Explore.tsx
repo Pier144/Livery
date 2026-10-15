@@ -71,9 +71,8 @@ export function Explore() {
 type Search = ReturnType<typeof useWtLiveSearchPages>;
 
 /**
- * "1,284 results · 24 ms": the count from the last loaded page (WT Live's feed has no total count,
- * so unless `totalExact` it is a lower bound that grows as pages load: "75+ results"), the time
- * from the first. Empty unless results are on screen (not over the offline / error state).
+ * "1,284 results": the count from the last loaded page (WT Live's feed has no total count, so
+ * unless `totalExact` it is a lower bound that grows as pages load: "75+ results"). Empty unless results are on screen (not over the offline / error state).
  */
 function useResultsMeta(search: Search, show: boolean): string {
   const { t } = useTranslation();
@@ -82,7 +81,7 @@ function useResultsMeta(search: Search, show: boolean): string {
   const last = pages?.[pages.length - 1];
   const failed = search.isError && !search.isFetchNextPageError;
   if (!show || !first || !last || failed) return '';
-  const values = { count: last.total, ms: first.tookMs };
+  const values = { count: last.total };
   return last.totalExact ? t('explore.results', values) : t('explore.resultsAtLeast', values);
 }
 

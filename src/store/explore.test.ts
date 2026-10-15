@@ -58,4 +58,12 @@ describe('explore store', () => {
     state().applyAuthor('   ');
     expect(state().q).toBe('');
   });
+
+  it('applyTag opens the Explore tab searching for one hashtag', () => {
+    state().setCategory('Historical');
+    state().applyTag('winter');
+    expect(state()).toMatchObject({ ...NO_EXPLORE_FILTERS, tab: 'explore', q: '#winter' });
+    state().applyTag(' ');
+    expect(state().q).toBe('');
+  });
 });

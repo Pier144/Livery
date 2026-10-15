@@ -10,7 +10,7 @@ export interface ExploreHeaderProps {
   onTab: (tab: ExploreTab) => void;
   /** New skins from follows (the Following tab's pill; hidden at 0). */
   newCount: number;
-  /** "1,284 results · 24 ms", or nothing. */
+  /** "1,284 results", or nothing. */
   meta: string;
   tabId: (tab: ExploreTab) => string;
   panelId: (tab: ExploreTab) => string;
@@ -18,7 +18,7 @@ export interface ExploreHeaderProps {
 
 /**
  * Tabs Explore / Following (WAI-ARIA tabs, automatic activation: ←/→, Home/End) with the "N new"
- * pill, and the result count + query time on the right (a status region, so filter changes are
+ * pill, and the result count on the right (a status region, so filter changes are
  * announced). Bottom rule line-2; the active tab's 2px amber underline sits on it.
  */
 export function ExploreHeader({ tab, onTab, newCount, meta, tabId, panelId }: ExploreHeaderProps) {

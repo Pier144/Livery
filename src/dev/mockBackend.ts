@@ -150,6 +150,7 @@ import {
   type Language,
   type Nation,
   type NetStatus,
+  type PostDescription,
   type QueueItem,
   type ReduceMotion,
   type SearchParams,
@@ -1512,8 +1513,30 @@ function wtlivePost(args: Args): WtLiveSkin {
   return reported(() => {
     reachWtLive();
     const skin = findPost(id);
-    return { ...skin, files: postFiles(skin) };
+    return { ...skin, files: postFiles(skin), description: postDescription(skin) };
   });
+}
+
+/**
+ * The author's text, like `wtlive::text` makes it: two paragraphs, a bold run, a line break and a
+ * link to the author's page. No embedded pictures (the mock has no images).
+ */
+function postDescription(skin: WtLiveSkin): PostDescription {
+  return {
+    paragraphs: [
+      [
+        { kind: 'text', text: skin.name, bold: true },
+        { kind: 'break' },
+        { kind: 'text', text: `For the ${skin.vehicle.name}. 4K textures, DDS.` },
+      ],
+      [
+        { kind: 'text', text: 'More of my skins: ' },
+        { kind: 'link', text: skin.author.name, url: skin.author.url },
+      ],
+    ],
+    tags: [skin.vehicle.code.toLowerCase(), skin.category.toLowerCase()],
+    images: [],
+  };
 }
 
 /**

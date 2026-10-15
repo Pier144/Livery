@@ -37,7 +37,22 @@ export interface WtLiveSkin {
   downloadUrl: string;
   files?: FileEntry[];
   isNew?: boolean;
+  /** The author's text and the pictures embedded in it (`wtlive_post` only, never the feed). */
+  description?: PostDescription;
 }
+/** A post's description as plain data (never HTML): paragraphs of runs, hashtags taken out. */
+export interface PostDescription {
+  paragraphs: PostRun[][];
+  /** Hashtags, lower-cased, in order. */
+  tags: string[];
+  /** Pictures embedded in the text (https, WT Live's image hosts). */
+  images: string[];
+}
+export type PostRun =
+  | { kind: 'text'; text: string; bold?: boolean; italic?: boolean }
+  /** A WT Live page (links to other sites go through WT Live's `/away/` page). */
+  | { kind: 'link'; text: string; url: string }
+  | { kind: 'break' };
 export interface FileEntry {
   path: string;
   sizeBytes: number;

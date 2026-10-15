@@ -4,7 +4,7 @@ import type { WtInstall } from '@/store/installs';
 import type { HangarSkin, InstallStep, TextureInfo, WtLiveSkin } from '@/types';
 
 /** Tabs of the Skin detail, in their visual order. */
-export const DETAIL_TABS = ['gallery', 'textures', 'try'] as const;
+export const DETAIL_TABS = ['gallery', 'post', 'textures', 'try'] as const;
 export type DetailTab = (typeof DETAIL_TABS)[number];
 
 /**
@@ -33,6 +33,13 @@ export interface GalleryView {
   src?: string;
   /** A placeholder view (no images on the post). */
   view?: PlaceholderView;
+}
+
+/** The post's pictures, then the ones embedded in its text (each once). */
+export function galleryImages(skin: Pick<WtLiveSkin, 'images' | 'description'>): string[] {
+  const extra = skin.description?.images ?? [];
+  if (extra.length === 0) return skin.images;
+  return [...new Set([...skin.images, ...extra])];
 }
 
 export function galleryViews(images: readonly string[]): GalleryView[] {

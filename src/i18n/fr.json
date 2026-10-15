@@ -299,8 +299,23 @@
     "tabs": {
       "label": "Skin detail",
       "gallery": "Gallery",
+      "post": "Post",
       "textures": "Textures",
       "try": "Try in game"
+    },
+    "post": {
+      "fromAuthor": "From {{name}}",
+      "noText": "The author didn’t write anything else for this skin.",
+      "tags": "Hashtags",
+      "tagHint": "Search Explore for #{{tag}}",
+      "pictures_one": "{{count, number}} picture in the post",
+      "pictures_many": "{{count, number}} pictures in the post",
+      "pictures_other": "{{count, number}} pictures in the post",
+      "openPicture": "Open picture {{n}} of the post in the gallery",
+      "linkHint": "Opens on WT Live. Links to other sites go through WT Live’s warning page first.",
+      "source": "Text and pictures from the original post on WT Live, as the author wrote them.",
+      "emptyTitle": "Nothing else in this post",
+      "emptyBody": "The author didn’t add any text, hashtags or extra pictures."
     },
     "noSkin": {
       "title": "No skin selected",
@@ -482,12 +497,12 @@
     "newCount_one": "{{count, number}} new",
     "newCount_many": "{{count, number}} new",
     "newCount_other": "{{count, number}} new",
-    "results_one": "{{count, number}} result · {{ms, number}} ms",
-    "results_many": "{{count, number}} results · {{ms, number}} ms",
-    "results_other": "{{count, number}} results · {{ms, number}} ms",
-    "resultsAtLeast_one": "{{count, number}}+ results · {{ms, number}} ms",
-    "resultsAtLeast_many": "{{count, number}}+ results · {{ms, number}} ms",
-    "resultsAtLeast_other": "{{count, number}}+ results · {{ms, number}} ms",
+    "results_one": "{{count, number}} result",
+    "results_many": "{{count, number}} results",
+    "results_other": "{{count, number}} results",
+    "resultsAtLeast_one": "{{count, number}}+ results",
+    "resultsAtLeast_many": "{{count, number}}+ results",
+    "resultsAtLeast_other": "{{count, number}}+ results",
     "filters": {
       "label": "Filters",
       "nation": "Nation",
@@ -692,6 +707,19 @@
     "noResultsBody": "Try fewer filters, or search by vehicle code instead.",
     "clearFilters": "Clear filters",
     "loadErrorTitle": "Couldn't read My Hangar",
+    "confirm": {
+      "uninstallTitle": "Uninstall “{{name}}”?",
+      "uninstallBody": "War Thunder won’t show it anymore. Livery keeps a backup, so you can undo it from the notification.",
+      "deleteTitle_one": "Delete {{count, number}} skin?",
+      "deleteTitle_many": "Delete {{count, number}} skins?",
+      "deleteTitle_other": "Delete {{count, number}} skins?",
+      "deleteBody_one": "Its folder is removed from the game. Livery keeps a backup, so you can undo it from the notification.",
+      "deleteBody_many": "Their folders are removed from the game. Livery keeps a backup, so you can undo it from the notification.",
+      "deleteBody_other": "Their folders are removed from the game. Livery keeps a backup, so you can undo it from the notification.",
+      "delete_one": "Delete skin",
+      "delete_many": "Delete {{count, number}} skins",
+      "delete_other": "Delete {{count, number}} skins"
+    },
     "bulk": {
       "label": "Selected skins",
       "selected_one": "{{count, number}} skin selected",

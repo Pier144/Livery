@@ -554,6 +554,40 @@ pub struct WtLiveSkin {
     pub files: Option<Vec<FileEntry>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub is_new: Option<bool>,
+    /// The author's text and the pictures embedded in it (the post page only, not the feed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<PostDescription>,
+}
+
+/// A post's description as plain data (`wtlive::text`): never HTML.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostDescription {
+    /// Paragraphs of runs; hashtags and embedded pictures are taken out.
+    pub paragraphs: Vec<Vec<PostRun>>,
+    /// Hashtags, lower-cased, in order (the ones taken out of the text).
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Pictures embedded in the text, in order (https, WT Live's image hosts only).
+    pub images: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PostRun {
+    Text {
+        text: String,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        bold: bool,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        italic: bool,
+    },
+    /// A WT Live page (links to other sites go through WT Live's `/away/` page).
+    Link {
+        text: String,
+        url: String,
+    },
+    Break,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

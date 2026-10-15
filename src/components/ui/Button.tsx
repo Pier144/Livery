@@ -1,7 +1,8 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 
-type Variant = 'primary' | 'secondary' | 'ghost';
+/** `danger`: the secondary look with red text, for a destructive action (ConfirmDialog). */
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 /** Control heights used across the spec (px). */
 type Size = 26 | 28 | 30 | 32 | 34 | 36;
 
@@ -14,6 +15,7 @@ const variants: Record<Variant, string> = {
   primary: 'border-0 bg-amber font-semibold text-onAmber hover:bg-amber-hover',
   secondary: 'border border-line-3 bg-bg-4 font-medium text-ink-1 hover:border-line-4',
   ghost: 'border-0 bg-transparent font-normal text-ink-3 hover:text-ink-1',
+  danger: 'border border-line-3 bg-bg-4 font-medium text-danger hover:border-danger',
 };
 
 // 26–32 carry 12px labels, 34–36 carry 13px labels.
@@ -27,7 +29,7 @@ const sizes: Record<Size, string> = {
 };
 
 /** At 34px the prototype pads primary buttons 16px and bordered ones 14px. */
-const padding34: Record<Variant, string> = { primary: 'px-4', secondary: 'px-3.5', ghost: 'px-3.5' };
+const padding34: Record<Variant, string> = { primary: 'px-4', secondary: 'px-3.5', ghost: 'px-3.5', danger: 'px-3.5' };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 34, className, type = 'button', ...rest },

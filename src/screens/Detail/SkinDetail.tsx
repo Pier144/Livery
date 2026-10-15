@@ -13,6 +13,7 @@ import type { WtLiveSkin } from '@/types';
 import { openSettingsAt } from '../Settings/settingsUi';
 import { DetailTopBar, type TabIds } from './DetailTopBar';
 import { Gallery } from './Gallery';
+import { PostTab } from './PostTab';
 import { SidePanel } from './SidePanel';
 import { TexturesTab } from './TexturesTab';
 import { TryInGame } from './TryInGame';
@@ -20,7 +21,7 @@ import type { DetailTab } from './detailModel';
 
 /**
  * Skin detail (README §3) for `ui.detailSkinId`: top bar with tabs, then `1fr 320px` — the tab on
- * the left (Gallery / Textures / Try in game), the side panel on the right; each column scrolls.
+ * the left (Gallery / Post / Textures / Try in game), the side panel on the right; each column scrolls.
  * Loading → skeletons; WT Live unreachable → the offline state (the library keeps working);
  * Browse WT Live off → the "turned off" state, without asking WT Live for the post.
  */
@@ -99,6 +100,7 @@ function LoadedDetail({ skin }: { skin: WtLiveSkin }) {
   const tab = useDetail((s) => s.tab);
   const setTab = useDetail((s) => s.setTab);
   const settleTab = useDetail((s) => s.settleTab);
+  const setGalleryIndex = useDetail((s) => s.setGalleryIndex);
   const tryInfo = useDetailTry(skin.id);
   const install = useWtLiveInstall(skin);
 
@@ -132,6 +134,15 @@ function LoadedDetail({ skin }: { skin: WtLiveSkin }) {
           className="flex min-h-0 min-w-0 flex-col overflow-y-auto focus-visible:-outline-offset-2"
         >
           {tab === 'gallery' && <Gallery skin={skin} />}
+          {tab === 'post' && (
+            <PostTab
+              skin={skin}
+              onOpenImage={(index) => {
+                setGalleryIndex(index);
+                setTab('gallery');
+              }}
+            />
+          )}
           {tab === 'textures' && <TexturesTab skin={skin} hangarSkin={tryInfo.hangarSkin} />}
           {tab === 'try' && <TryInGame skin={skin} state={tryInfo.state} hangarSkin={tryInfo.hangarSkin} track={tryInfo.track} />}
         </div>

@@ -26,6 +26,7 @@ pub mod hidden;
 pub mod install;
 pub mod live;
 pub mod net;
+pub mod text;
 
 pub use client::{
     is_offline_error, turned_off, unsupported, DisabledClient, DownloadProgress, WtLiveClient, TURNED_OFF_MESSAGE,

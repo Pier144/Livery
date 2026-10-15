@@ -14,7 +14,7 @@
 
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::{time, vehicles};
-use crate::model::{Author, Category, Nation, Vehicle, VehicleType, WtLiveSkin};
+use crate::model::{Author, Category, Nation, PostDescription, Vehicle, VehicleType, WtLiveSkin};
 use serde::Deserialize;
 use serde_json::Value;
 use std::time::{Duration, UNIX_EPOCH};
@@ -232,9 +232,18 @@ fn to_post(raw: RawPost, detail: bool) -> Option<Post> {
         download_url,
         files: None,
         is_new: None,
+        description: detail.then(|| post_description(&raw.description, &tags)).flatten(),
         id,
     };
     Some(Post { skin, tags, created, nation: guess.nation, vehicle_type: guess.vehicle_type })
+}
+
+/// The post page's description with its hashtags; `None` when it has neither text, pictures nor tags.
+fn post_description(html: &str, tags: &[String]) -> Option<PostDescription> {
+    let mut description = super::text::post_description(html).unwrap_or_default();
+    description.tags = tags.to_vec();
+    (!description.paragraphs.is_empty() || !description.images.is_empty() || !description.tags.is_empty())
+        .then_some(description)
 }
 
 /// `https://live.warthunder.com/dl/<hash>/`, the only download link Livery follows (it redirects
@@ -324,7 +333,7 @@ pub fn html_text(html: &str) -> String {
     decode_entities(&text)
 }
 
-fn decode_entities(s: &str) -> String {
+pub(crate) fn decode_entities(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
     while let Some(at) = rest.find('&') {

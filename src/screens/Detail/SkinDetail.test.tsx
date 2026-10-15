@@ -380,12 +380,67 @@ describe('Skin detail · top bar and tabs', () => {
 
     gallery.focus();
     await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Post' })).toHaveFocus();
+    await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: 'Textures' })).toHaveFocus();
     expect(screen.getByRole('tab', { name: 'Textures' })).toHaveAttribute('aria-selected', 'true');
     await user.keyboard('{End}');
     expect(screen.getByRole('tab', { name: 'Try in game' })).toHaveAttribute('aria-selected', 'true');
     await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: 'Gallery' })).toHaveFocus();
+  });
+});
+
+describe('Skin detail · post', () => {
+  const RICH = post('s1', 'Schwarzwald Ambush', {
+    images: ['https://cdn-live.warthunder.com/uploads/a_mq/main.png'],
+    description: {
+      paragraphs: [
+        [{ kind: 'text', text: 'Tiger II camo', bold: true }, { kind: 'break' }, { kind: 'text', text: '4K textures.' }],
+        [
+          { kind: 'text', text: 'My squadron: ' },
+          { kind: 'link', text: 'https://discord.example', url: 'https://live.warthunder.com/away/?enc=1&to=abc' },
+        ],
+      ],
+      tags: ['tiger', 'winter'],
+      images: ['https://images-live.warthunder.com/a/1_mq.jpeg', 'https://images-live.warthunder.com/b/2_mq.jpeg'],
+    },
+  });
+
+  it('shows the author’s text, opens links on WT Live, and searches Explore by hashtag', async () => {
+    fakeBackend({ posts: [RICH, S13, S20, OTHER] });
+    const { user } = await renderLoaded();
+    await user.click(screen.getByRole('tab', { name: 'Post' }));
+    const panel = screen.getByRole('tabpanel', { name: 'Post' });
+    expect(within(panel).getByRole('heading', { name: 'From Kessler_Wolf' })).toBeInTheDocument();
+    expect(within(panel).getByText('Tiger II camo')).toHaveClass('font-semibold');
+    expect(within(panel).getByText('4K textures.')).toBeInTheDocument();
+    // No HTML from WT Live: text only.
+    expect(panel.querySelector('a, iframe, script')).toBeNull();
+
+    await user.click(within(panel).getByRole('button', { name: 'https://discord.example' }));
+    expect(backend.openUrl).toHaveBeenCalledWith('https://live.warthunder.com/away/?enc=1&to=abc');
+
+    await user.click(within(panel).getByRole('button', { name: '#winter' }));
+    expect(useUi.getState().screen).toBe('explore');
+    expect(useExplore.getState().q).toBe('#winter');
+  });
+
+  it('a picture of the post opens in the gallery, after the uploaded ones', async () => {
+    fakeBackend({ posts: [RICH, S13, S20, OTHER] });
+    const { user } = await renderLoaded();
+    await user.click(screen.getByRole('tab', { name: 'Post' }));
+    expect(screen.getByRole('heading', { name: '2 pictures in the post' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Open picture 2 of the post in the gallery' }));
+    expect(screen.getByRole('tab', { name: 'Gallery' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('3 / 3')).toBeInTheDocument();
+    expect(within(screen.getByRole('radiogroup', { name: 'Views' })).getAllByRole('radio')).toHaveLength(3);
+  });
+
+  it('a post without a description says so', async () => {
+    const { user } = await renderLoaded();
+    await user.click(screen.getByRole('tab', { name: 'Post' }));
+    expect(screen.getByText('Nothing else in this post')).toBeInTheDocument();
   });
 });
 

@@ -1,6 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmDialog } from '@/components/chrome/ConfirmDialog';
 import { Toaster } from '@/components/chrome/Toaster';
 import { useScreenFocus } from '@/hooks/useScreenFocus';
 import i18n from '@/i18n';
@@ -142,9 +143,17 @@ function renderHangar(skins: HangarSkin[] = SKINS, collections: Collection[] = C
     <>
       <Hangar />
       <Toaster />
+      <ConfirmDialog />
     </>,
     { client },
   );
+}
+
+/** Answers the "Delete …?" / "Uninstall …?" question with its red button. */
+async function confirmDelete(user: ReturnType<typeof userEvent.setup>) {
+  const dialog = await screen.findByRole('alertdialog');
+  const buttons = within(dialog).getAllByRole('button');
+  await user.click(buttons[buttons.length - 1]!);
 }
 
 const calls = (cmd: string) => backend.call.mock.calls.filter(([c]) => c === cmd).map(([, args]) => args);
@@ -462,6 +471,11 @@ describe('My Hangar', () => {
     await user.click(card('Ambush'));
     await user.click(card('SEA Camo'));
     await user.click(within(bar()).getByRole('button', { name: 'Delete' }));
+    // Nothing goes before the question is answered.
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete 2 skins?' });
+    expect(calls('delete_skins')).toEqual([]);
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete 2 skins' }));
 
     await waitFor(() => expect(screen.getByText('Deleted 2 skins')).toBeInTheDocument());
     expect(calls('delete_skins')).toEqual([{ ids: ['h5', 'h3'] }]);
@@ -478,6 +492,28 @@ describe('My Hangar', () => {
     expect(screen.getByText('Restored 2 skins')).toBeInTheDocument();
   });
 
+  it('Cancel, Escape or a click outside the question keeps the skins', async () => {
+    const user = userEvent.setup();
+    renderHangar();
+    const uninstall = () => within(cardOf('Ambush')).getByRole('button', { name: 'Uninstall' });
+    await user.click(uninstall());
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Cancel' }));
+    // Focus goes back to where it was.
+    expect(uninstall()).toHaveFocus();
+    await user.click(uninstall());
+    await screen.findByRole('alertdialog');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await user.click(card('Ambush'));
+    await user.click(within(bar()).getByRole('button', { name: 'Delete' }));
+    await screen.findByRole('alertdialog', { name: 'Delete 1 skin?' });
+    await user.pointer({ keys: '[MouseLeft]', target: screen.getByRole('alertdialog').parentElement! });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(calls('delete_skins')).toEqual([]);
+    expect(screen.getByRole('button', { name: 'Ambush' })).toBeInTheDocument();
+    expect(within(bar()).getByText('1 skin selected')).toBeInTheDocument();
+  });
+
   it('Uninstall on a card removes only that skin, keeps focus in the list, and Undo puts it back', async () => {
     const user = userEvent.setup();
     renderHangar();
@@ -485,6 +521,7 @@ describe('My Hangar', () => {
     const uninstall = within(cardOf('Ambush')).getByRole('button', { name: 'Uninstall' });
     expect(uninstall).toHaveAttribute('aria-keyshortcuts', 'Delete');
     await user.click(uninstall);
+    await confirmDelete(user);
 
     await waitFor(() => expect(toastTexts()).toContain('Uninstalled “Ambush”'));
     expect(calls('delete_skins')).toEqual([{ ids: ['h3'] }]);
@@ -505,6 +542,14 @@ describe('My Hangar', () => {
     await user.click(card('SEA Camo'));
     screen.getByRole('button', { name: 'SEA Camo' }).focus();
     await user.keyboard('{Delete}');
+    expect(await screen.findByRole('alertdialog', { name: 'Uninstall “SEA Camo”?' })).toBeInTheDocument();
+    // Enter right after Delete lands on Cancel: nothing is removed by a double key press.
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(calls('delete_skins')).toEqual([]);
+    screen.getByRole('button', { name: 'SEA Camo' }).focus();
+    await user.keyboard('{Delete}');
+    await confirmDelete(user);
     await waitFor(() => expect(toastTexts()).toContain('Uninstalled “SEA Camo”'));
     expect(calls('delete_skins')).toEqual([{ ids: ['h5'] }]);
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
@@ -520,6 +565,7 @@ describe('My Hangar', () => {
     expect(rows.length).toBeGreaterThan(1);
     rows.forEach((row) => expect(within(row as HTMLElement).getByRole('button', { name: 'Uninstall' })).toBeInTheDocument());
     await user.click(within(cardOf('Factory olive')).getByRole('button', { name: 'Uninstall' }));
+    await confirmDelete(user);
     await waitFor(() => expect(calls('delete_skins')).toEqual([{ ids: ['h2'] }]));
   });
 
@@ -608,6 +654,7 @@ describe('My Hangar', () => {
     });
     await user.click(card('Ambush'));
     await user.click(within(bar()).getByRole('button', { name: 'Delete' }));
+    await confirmDelete(user);
     await waitFor(() => expect(toastTexts()).toContain('Deleted 1 skin'));
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
   });

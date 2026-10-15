@@ -7,6 +7,7 @@ import {
   formatCount,
   formatPosted,
   formatTextureSize,
+  galleryImages,
   galleryViews,
   initialOf,
   needsAttention,
@@ -163,5 +164,12 @@ describe('formatting', () => {
   it('takes the first letter of a name for the avatar', () => {
     expect(initialOf('kessler_Wolf')).toBe('K');
     expect(initialOf('  ')).toBe('?');
+  });
+});
+
+describe('galleryImages', () => {
+  it('puts the pictures embedded in the text after the uploaded ones, each once', () => {
+    expect(galleryImages({ images: ['a', 'b'] })).toEqual(['a', 'b']);
+    expect(galleryImages({ images: ['a'], description: { paragraphs: [], tags: [], images: ['b', 'a', 'c'] } })).toEqual(['a', 'b', 'c']);
   });
 });

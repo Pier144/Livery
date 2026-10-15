@@ -161,7 +161,7 @@ describe('Explore', () => {
     renderExplore();
     expect(screen.getByRole('status', { busy: true })).toBeInTheDocument();
     expect(await screen.findByRole('group', { name: 'Schwarzwald Ambush' })).toBeInTheDocument();
-    expect(screen.getByText('6 results · 24 ms')).toBeInTheDocument();
+    expect(screen.getByText('6 results')).toBeInTheDocument();
     expect(lastSearch()).toEqual({ sort: 'downloads', page: 0 });
 
     const c = within(card('Bundeswehr Flecktarn'));
@@ -185,7 +185,7 @@ describe('Explore', () => {
     await waitFor(() => expect(lastSearch()).toEqual({ sort: 'downloads', nation: 'GER', page: 0 }));
     expect(screen.getByRole('button', { name: 'Nation Germany' })).toBeInTheDocument();
     expect(screen.getByText('1 filter')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('2 results · 24 ms')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('2 results')).toBeInTheDocument());
     expect(screen.queryByRole('group', { name: 'Desert Storm Tan' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('radio', { name: 'Ground' }));
@@ -451,7 +451,7 @@ describe('Explore', () => {
     const many = Array.from({ length: 500 }, (_, i) => post(`m${i}`, `Skin ${String(i).padStart(3, '0')}`, 'su_27', 'Flanker_Ivan'));
     const { container } = renderExplore(many);
     await screen.findByRole('group', { name: 'Skin 000' });
-    expect(screen.getByText('500 results · 24 ms')).toBeInTheDocument();
+    expect(screen.getByText('500 results')).toBeInTheDocument();
     const rendered = () => container.querySelectorAll('[data-skin-id]').length;
     // 1000px → 3 columns; 600px viewport of 200px lines + overscan.
     expect(rendered()).toBeGreaterThan(0);
@@ -478,18 +478,16 @@ describe('Explore', () => {
     installBackend();
     renderWithProviders(<Harness />, { client: createQueryClient() });
     await screen.findByRole('group', { name: 'Skin 000' });
-    const status = () => screen.getByText(/results ·/);
-    expect(status()).toHaveTextContent('60+ results · 24 ms');
+    const status = () => screen.getByText(/\d\+ results/);
+    expect(status()).toHaveTextContent('60+ results');
     expect(status()).toHaveAttribute('role', 'status');
 
-    // The query time stays the first page's.
-    fake.tookMs = 99;
     const scroller = screen.getByRole('region', { name: 'WT Live skins' });
     Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 1e6 });
     fireEvent.scroll(scroller);
-    await waitFor(() => expect(status()).toHaveTextContent('120+ results · 24 ms'));
+    await waitFor(() => expect(status()).toHaveTextContent('120+ results'));
     await waitFor(() => expect(searches().map((p) => p.page)).toEqual([0, 1, 2]));
-    expect(status()).toHaveTextContent('130+ results · 24 ms');
+    expect(status()).toHaveTextContent('130+ results');
   });
 
   it('Browse WT Live off: the "turned off" state instead of results, and no WT Live call', async () => {

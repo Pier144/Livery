@@ -9,6 +9,7 @@ import { exploreDefaults, useExplore } from '@/store/explore';
 import { hangarDefaults, useHangarStore } from '@/store/hangar';
 import { useInstalls } from '@/store/installs';
 import { useQueue } from '@/store/queue';
+import { useConfirm } from '@/store/confirm';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { useUpdate } from '@/store/update';
@@ -35,6 +36,7 @@ export function resetStores() {
   useExplore.setState(exploreDefaults());
   resetDetail();
   useUpdate.getState().reset();
+  useConfirm.getState().settle(false);
 }
 
 interface ProviderOptions extends RenderOptions {
