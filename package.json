@@ -1,7 +1,7 @@
 {
   "name": "livery",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "Unofficial War Thunder user-skin manager. Not affiliated with Gaijin Entertainment.",
   "scripts": {
