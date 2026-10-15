@@ -567,3 +567,64 @@ fn version_2_entries_that_do_not_parse_are_dropped() {
     assert!(library.backups.is_empty());
     assert_eq!(fs::read_to_string(tmp.index_path().with_extension("json.bad")).unwrap(), text);
 }
+
+// ── Rename ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn rename_moves_the_folder_and_keeps_the_id_in_both_places() {
+    let tmp = TempDir::new("rename");
+    tmp.skin("Winter", "su_27");
+    tmp.skin("Desert", "f_4e");
+    let (store, index) = imported(&tmp, &["Winter", "Desert"]);
+    let winter = by_folder(&index, "Winter").clone();
+
+    let renamed = ops::rename(&tmp.user_skins(), &store, &winter.id, "  Su-27 winter (mine) ").unwrap();
+    assert_eq!(
+        (renamed.id.as_str(), renamed.folder.as_str(), renamed.name.as_str()),
+        (winter.id.as_str(), "Su-27 winter (mine)", "Su-27 winter (mine)")
+    );
+    assert!(!tmp.user_skins().join("Winter").exists());
+    assert_eq!(
+        fs::read_to_string(tmp.user_skins().join("Su-27 winter (mine)").join("body_c.dds")).unwrap(),
+        "texture of Winter"
+    );
+    assert_eq!(LibraryStore::load(tmp.index_path()).all(), store.all(), "saved");
+
+    // An inactive skin is renamed where it is.
+    ops::set_active(&tmp.user_skins(), &store, &ids(&[&winter]), false).unwrap();
+    let again = ops::rename(&tmp.user_skins(), &store, &winter.id, "Winter v2").unwrap();
+    assert!(!again.active);
+    assert!(tmp.inactive().join("Winter v2").join("su_27.blk").is_file());
+    let scanned = scan_game(&tmp.user_skins(), &store).unwrap();
+    assert_eq!(by_folder(&scanned, "Winter v2").id, winter.id, "a re-check keeps it");
+}
+
+#[test]
+fn rename_refuses_bad_names_and_other_skins_folders() {
+    let tmp = TempDir::new("rename-bad");
+    tmp.skin("Winter", "su_27");
+    tmp.skin("Desert", "f_4e");
+    let (store, index) = imported(&tmp, &["Winter", "Desert"]);
+    let winter = by_folder(&index, "Winter").id.clone();
+
+    for bad in ["", "   ", "a/b", "what?", "trailing.", "CON", ".hidden"] {
+        let e = ops::rename(&tmp.user_skins(), &store, &winter, bad).unwrap_err();
+        assert_eq!(e.code, ErrorCode::InvalidInput, "{bad:?}");
+    }
+    let e = ops::rename(&tmp.user_skins(), &store, &winter, "desert").unwrap_err();
+    assert_eq!(e.code, ErrorCode::Conflict, "another skin's folder, any case");
+    assert_eq!(ops::rename(&tmp.user_skins(), &store, "nope", "X").unwrap_err().code, ErrorCode::NotFound);
+    assert!(tmp.user_skins().join("Winter").is_dir(), "nothing moved");
+    assert_eq!(store.all(), index);
+}
+
+#[test]
+fn rename_can_change_only_the_case() {
+    let tmp = TempDir::new("rename-case");
+    tmp.skin("winter", "su_27");
+    let (store, index) = imported(&tmp, &["winter"]);
+    let renamed = ops::rename(&tmp.user_skins(), &store, &index[0].id, "Winter").unwrap();
+    assert_eq!(renamed.folder, "Winter");
+    let on_disk: Vec<String> = scan_dir(&tmp.user_skins()).unwrap().into_iter().map(|s| s.folder).collect();
+    assert_eq!(on_disk, ["Winter"]);
+}

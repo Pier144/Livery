@@ -187,7 +187,9 @@
         "updateBadSignature": "L’aggiornamento non è firmato da Livery, quindi non è stato installato",
         "updateInstallFailed": "Impossibile installare l’aggiornamento",
         "updateUpToDate": "Livery è già aggiornata",
-        "updateBusy": "L’aggiornamento è già in download"
+        "updateBusy": "L’aggiornamento è già in download",
+        "skinNeedsName": "Una skin ha bisogno di un nome",
+        "renameFailed": "Impossibile rinominare la cartella della skin"
       }
     }
   },
@@ -649,11 +651,17 @@
       "activeToggle": "Attiva in gioco",
       "recheck": "Ricontrolla",
       "uninstall": "Disinstalla",
+      "rename": "Rinomina",
+      "renameLabel": "Nuovo nome per {{name}}",
       "attentionMore": "{{message}} +{{count}}",
       "authorYou": "tu",
       "noAuthor": "—",
       "hintOpen": "Premi Invio per aprire la pagina della skin, Spazio per selezionarla.",
       "hintSelect": "Premi Invio o Spazio per selezionarla. Le skin locali non hanno una pagina."
+    },
+    "rename": {
+      "empty": "Una skin ha bisogno di un nome.",
+      "invalid": "Il nome di una skin non può contenere < > : \" / \\ | ? * né iniziare o finire con un punto."
     },
     "noResultsTitle": "Nessuna skin corrisponde",
     "noResultsBody": "Prova con meno filtri, oppure cerca per codice del veicolo.",
@@ -683,6 +691,7 @@
       "restored_other": "{{count, number}} skin ripristinate",
       "uninstalled": "“{{name}}” disinstallata",
       "reinstalled": "“{{name}}” è di nuovo nel gioco",
+      "renamed": "Rinominata in “{{name}}”. War Thunder mostra questo nome.",
       "moved_one": "{{count, number}} skin spostata in “{{collection}}”",
       "moved_other": "{{count, number}} skin spostate in “{{collection}}”",
       "exported_one": "{{count, number}} skin esportata in “{{folder}}”",

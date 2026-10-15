@@ -5,6 +5,8 @@
 use super::index::{folder_key, refresh, Library, LibraryStore};
 use super::layout::{self, Journal, MoveReport};
 use super::scan;
+use crate::archive::analyze::{find_clash, sanitize_folder_name};
+use crate::archive::install::NAME_TAKEN;
 use crate::archive::source::join_rel;
 use crate::archive::{FolderSource, SkinSource};
 use crate::backup;
@@ -174,6 +176,55 @@ pub fn set_active(user_skins: &Path, store: &LibraryStore, ids: &[String], activ
     })?;
     tracing::info!(requested = wanted.len(), active, "skins toggled");
     report.into_result(index)
+}
+
+pub const NEEDS_NAME: &str = "A skin needs a name";
+
+/// Renames a skin: its folder, which is the name War Thunder shows in the customisation menu, and
+/// its name in Livery. The folder stays where it is (active or inactive); id, collections and
+/// backups are untouched. `name` is trimmed and used as is: one Windows refuses as a folder name
+/// is `invalidInput` (never silently changed), another skin's folder `conflict`. A case-only change
+/// is a plain rename. Returns the renamed skin.
+pub fn rename(user_skins: &Path, store: &LibraryStore, id: &str, name: &str) -> AppResult<HangarSkin> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(AppError::new(ErrorCode::InvalidInput, NEEDS_NAME));
+    }
+    if sanitize_folder_name(name, "") != name {
+        return Err(AppError::new(ErrorCode::InvalidInput, "Not a skin folder name").with_detail(name.to_owned()));
+    }
+    let renamed = store.transact(|library, journal| {
+        let pos = library.skin_position(id).ok_or_else(|| {
+            AppError::new(ErrorCode::NotFound, "This skin is not in the library").with_detail(id.to_owned())
+        })?;
+        let skin = library.skins[pos].clone();
+        if skin.folder == name {
+            library.skins[pos].name = name.to_owned();
+            return Ok(library.skins[pos].clone());
+        }
+        let (src, active) = layout::find_skin(user_skins, &skin).ok_or_else(|| {
+            AppError::new(ErrorCode::NotFound, "The skin folder can't be found").with_detail(skin.folder.clone())
+        })?;
+        // The same folder spelled differently (Windows ignores case) is this skin, not a clash.
+        if folder_key(name) != folder_key(&skin.folder) {
+            if let Some(clash) = find_clash(user_skins, library, name) {
+                return Err(AppError::new(ErrorCode::Conflict, NAME_TAKEN).with_detail(clash.folder));
+            }
+        }
+        let dst = layout::skin_path(user_skins, name, active).ok_or_else(|| {
+            AppError::new(ErrorCode::InvalidInput, "Not a skin folder name").with_detail(name.to_owned())
+        })?;
+        journal.rename(&src, &dst).map_err(|e| {
+            AppError::new(ErrorCode::Io, "Could not rename the skin folder")
+                .with_detail(format!("{}: {e}", skin.folder))
+        })?;
+        let entry = &mut library.skins[pos];
+        entry.folder = name.to_owned();
+        entry.name = name.to_owned();
+        Ok(entry.clone())
+    })?;
+    tracing::info!(id, "skin renamed");
+    Ok(renamed)
 }
 
 /// Deletes skins (unknown ids are ignored): each folder moves to a backup and the skin leaves

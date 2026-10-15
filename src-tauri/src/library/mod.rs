@@ -224,6 +224,16 @@ pub async fn set_skin_active(app: AppHandle, ids: Vec<String>, active: bool) -> 
     .await
 }
 
+/// Renames a skin's folder (the name War Thunder shows) and its name in Livery.
+#[tauri::command]
+pub async fn rename_skin(app: AppHandle, id: String, name: String) -> AppResult<HangarSkin> {
+    blocking(move || {
+        let library = prepare(&app, &[])?;
+        ops::rename(&library.user_skins, &library.store, &id, &name)
+    })
+    .await
+}
+
 /// Deletes skins, keeping a backup of each so the delete can be undone (ephemeral when backups
 /// are off in Settings).
 #[tauri::command]

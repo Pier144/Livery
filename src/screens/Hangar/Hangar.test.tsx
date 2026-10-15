@@ -100,6 +100,15 @@ function installBackend() {
         state.skins = [...state.skins, ...restored];
         return restored;
       }
+      case 'rename_skin': {
+        const skin = state.skins.find((s) => s.id === args.id);
+        if (!skin) throw { code: 'notFound', message: 'This skin is not in the library' };
+        if (state.skins.some((s) => s.id !== args.id && s.folder.toLowerCase() === String(args.name).toLowerCase()))
+          throw { code: 'conflict', message: 'Another skin folder already has this name' };
+        const renamed = { ...skin, folder: args.name as string, name: args.name as string };
+        state.skins = state.skins.map((s) => (s.id === skin.id ? renamed : s));
+        return renamed;
+      }
       case 'collections_list':
         return { collections: state.collections } satisfies CollectionsState;
       case 'collections_set_skins': {
@@ -505,6 +514,55 @@ describe('My Hangar', () => {
     rows.forEach((row) => expect(within(row as HTMLElement).getByRole('button', { name: 'Uninstall' })).toBeInTheDocument());
     await user.click(within(cardOf('Factory olive')).getByRole('button', { name: 'Uninstall' }));
     await waitFor(() => expect(calls('delete_skins')).toEqual([{ ids: ['h2'] }]));
+  });
+
+  it('Rename edits the name in place, saves on Enter, and Undo puts the old name back', async () => {
+    const user = userEvent.setup();
+    renderHangar();
+    const rename = within(cardOf('Ambush')).getByRole('button', { name: 'Rename' });
+    expect(rename).toHaveAttribute('aria-keyshortcuts', 'F2');
+    await user.click(rename);
+    const field = screen.getByRole('textbox', { name: 'New name for Ambush' });
+    expect(field).toHaveFocus();
+    expect(field).toHaveValue('Ambush');
+    await user.clear(field);
+    await user.type(field, 'Tiger ambush 1943{Enter}');
+
+    await waitFor(() => expect(toastTexts()).toContain('Renamed to “Tiger ambush 1943”. War Thunder shows this name.'));
+    expect(calls('rename_skin')).toEqual([{ id: 'h3', name: 'Tiger ambush 1943' }]);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Tiger ambush 1943' })).toBeInTheDocument());
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(calls('rename_skin')).toEqual([
+      { id: 'h3', name: 'Tiger ambush 1943' },
+      { id: 'h3', name: 'Ambush' },
+    ]);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ambush' })).toBeInTheDocument());
+  });
+
+  it('F2 starts renaming, Escape cancels, and a refused name keeps the field open', async () => {
+    const user = userEvent.setup();
+    renderHangar();
+    screen.getByRole('button', { name: 'SEA Camo' }).focus();
+    await user.keyboard('{F2}');
+    const field = screen.getByRole('textbox', { name: 'New name for SEA Camo' });
+    await user.keyboard('{Escape}');
+    expect(field).not.toBeInTheDocument();
+    expect(calls('rename_skin')).toEqual([]);
+    expect(within(cardOf('SEA Camo')).getByRole('button', { name: 'Rename' })).toHaveFocus();
+
+    await user.click(within(cardOf('SEA Camo')).getByRole('button', { name: 'Rename' }));
+    // Windows can't use it as a folder name: explained without asking the backend.
+    await user.keyboard('{Control>}a{/Control}F-4E: desert{Enter}');
+    expect(toastTexts()).toContain('A skin name can’t contain < > : " / \\ | ? * or start or end with a dot.');
+    expect(calls('rename_skin')).toEqual([]);
+    const still = screen.getByRole('textbox', { name: 'New name for SEA Camo' });
+    // Another skin's folder: the backend refuses, the field stays.
+    await user.clear(still);
+    await user.type(still, 'ambush{Enter}');
+    await waitFor(() => expect(toastTexts()).toContain('Another skin folder already has this name'));
+    expect(screen.getByRole('textbox', { name: 'New name for SEA Camo' })).toBeInTheDocument();
   });
 
   it('still reports a Delete whose folders were already gone (no backup, no Undo)', async () => {

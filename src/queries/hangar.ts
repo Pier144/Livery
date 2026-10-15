@@ -54,6 +54,15 @@ export function useSetSkinActive() {
   });
 }
 
+/** Renames a skin's folder (the name the game shows) and its name in Livery. */
+export function useRenameSkin() {
+  const qc = useQueryClient();
+  return useMutation<HangarSkin, AppError, { id: string; name: string }>({
+    mutationFn: ({ id, name }) => call<HangarSkin>('rename_skin', { id, name }),
+    onSettled: () => qc.invalidateQueries({ queryKey: HANGAR_KEY }),
+  });
+}
+
 /** Deletes skins with a backup each; undo with `useRestoreBackups`. */
 export function useDeleteSkins() {
   const qc = useQueryClient();

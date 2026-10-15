@@ -5,10 +5,11 @@ import { errorText } from '@/lib/errors';
 import { baseName } from '@/lib/format';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { useSetCollectionSkins } from '@/queries/collections';
-import { useDeleteSkins, useExportSkins, useRescan, useRestoreBackups, useSetSkinActive } from '@/queries/hangar';
+import { useDeleteSkins, useExportSkins, useRenameSkin, useRescan, useRestoreBackups, useSetSkinActive } from '@/queries/hangar';
 import { useHangarStore } from '@/store/hangar';
 import { toast } from '@/store/toasts';
 import type { Collection, HangarSkin } from '@/types';
+import { folderNameProblem } from './SkinParts';
 
 /** An Active/Inactive change shown before the backend confirms it (the toggle feels instant). */
 interface PendingActive {
@@ -31,6 +32,7 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
   // `mutateAsync` is stable across renders (the result objects are not): handlers stay memoized.
   const { mutateAsync: setActive } = useSetSkinActive();
   const { mutateAsync: deleteSkins } = useDeleteSkins();
+  const { mutateAsync: renameSkin } = useRenameSkin();
   const { mutateAsync: restoreBackups } = useRestoreBackups();
   const { mutateAsync: exportSkins } = useExportSkins();
   const { mutateAsync: setCollectionSkins } = useSetCollectionSkins();
@@ -205,6 +207,36 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
     [deleteSkins, restoreBackups, t],
   );
 
+  /**
+   * Renames a skin's folder (what War Thunder shows) and its name in Livery; the toast offers Undo
+   * (the old name back). A name Windows refuses is explained without asking the backend.
+   */
+  const rename = useCallback(
+    async (skin: HangarSkin, name: string): Promise<boolean> => {
+      const next = name.trim();
+      const problem = folderNameProblem(next);
+      if (problem) {
+        toast(t(problem === 'empty' ? 'hangar.rename.empty' : 'hangar.rename.invalid'));
+        return false;
+      }
+      try {
+        await renameSkin({ id: skin.id, name: next });
+      } catch (e) {
+        reportError(e);
+        return false;
+      }
+      toast.undoable(t('hangar.toast.renamed', { name: next }), async () => {
+        try {
+          await renameSkin({ id: skin.id, name: skin.folder });
+        } catch (e) {
+          reportError(e);
+        }
+      });
+      return true;
+    },
+    [renameSkin, t],
+  );
+
   const moveMany = useCallback(
     (ids: string[], collection: Collection) =>
       runBulk(async () => {
@@ -247,7 +279,7 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
   );
 
   return useMemo(
-    () => ({ withPending, toggleActive, recheck, rechecking, bulkBusy, activateMany, deleteMany, uninstall, moveMany, exportMany }),
-    [withPending, toggleActive, recheck, rechecking, bulkBusy, activateMany, deleteMany, uninstall, moveMany, exportMany],
+    () => ({ withPending, toggleActive, recheck, rechecking, bulkBusy, activateMany, deleteMany, uninstall, rename, moveMany, exportMany }),
+    [withPending, toggleActive, recheck, rechecking, bulkBusy, activateMany, deleteMany, uninstall, rename, moveMany, exportMany],
   );
 }

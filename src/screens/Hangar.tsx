@@ -173,6 +173,7 @@ export function Hangar() {
                 onToggleActive={actions.toggleActive}
                 onRecheck={actions.recheck}
                 onUninstall={onUninstall}
+                onRename={actions.rename}
               />
             )}
           </div>

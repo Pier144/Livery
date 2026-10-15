@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
-import { Trash2 } from 'lucide-react';
-import { createContext, useContext, useId, useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
+import { createContext, forwardRef, useContext, useId, useMemo, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 import { useUi } from '@/store/ui';
@@ -18,6 +18,8 @@ export interface SkinItemProps {
   onRecheck: (skin: HangarSkin) => void;
   /** Removes the skin from the game (undoable). */
   onUninstall: (skin: HangarSkin) => void;
+  /** Renames the skin's folder (undoable). Resolves to false when the name was refused. */
+  onRename: (skin: HangarSkin, name: string) => Promise<boolean>;
 }
 
 /**
@@ -37,9 +39,14 @@ export function attentionText(t: TFunction, skin: HangarSkin): string | null {
  * A skin that came from WT Live (`sourceId`) opens its Skin detail on click or Enter, as in the
  * prototype; Space, Ctrl/Cmd+click and the checkbox select it. A local skin has no page: click,
  * Enter and Space toggle its selection. Shift (click, Enter or Space) always extends the selection
- * from the last toggled skin. Delete uninstalls it.
+ * from the last toggled skin. Delete uninstalls it, F2 starts renaming it.
  */
-export function itemHandlers(skin: HangarSkin, onSelect: SkinItemProps['onSelect'], onUninstall: SkinItemProps['onUninstall']) {
+export function itemHandlers(
+  skin: HangarSkin,
+  onSelect: SkinItemProps['onSelect'],
+  onUninstall: SkinItemProps['onUninstall'],
+  onStartRename: () => void,
+) {
   const source = skin.sourceId;
   return {
     onClick: (e: MouseEvent<HTMLElement>) => {
@@ -50,6 +57,11 @@ export function itemHandlers(skin: HangarSkin, onSelect: SkinItemProps['onSelect
       if (e.key === 'Delete' && !e.repeat) {
         e.preventDefault();
         onUninstall(skin);
+        return;
+      }
+      if (e.key === 'F2') {
+        e.preventDefault();
+        onStartRename();
         return;
       }
       if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -172,5 +184,94 @@ export function UninstallButton({ onClick }: { onClick: () => void }) {
     >
       <Trash2 aria-hidden size={14} strokeWidth={1.75} />
     </button>
+  );
+}
+
+/** 24px icon button next to Uninstall (Lucide `pencil`): edits the skin's name in place. */
+export const RenameButton = forwardRef<HTMLButtonElement, { onClick: () => void }>(function RenameButton({ onClick }, ref) {
+  const { t } = useTranslation();
+  const label = t('hangar.card.rename');
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-keyshortcuts="F2"
+      title={label}
+      className="relative z-[1] flex h-6 w-6 flex-none items-center justify-center rounded-[5px] border border-line-3 bg-bg-4 text-ink-3 hover:border-line-4 hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120"
+    >
+      <Pencil aria-hidden size={14} strokeWidth={1.75} />
+    </button>
+  );
+});
+
+/** Longest folder name Livery creates (archive/analyze.rs `MAX_FOLDER_CHARS`). */
+export const MAX_SKIN_NAME = 120;
+
+/** Why `name` can't be a skin folder (the same rules as the backend), or null when it can. */
+export function folderNameProblem(name: string): 'empty' | 'chars' | null {
+  const trimmed = name.trim();
+  if (!trimmed) return 'empty';
+  if (/[<>:"/\\|?*]/.test(trimmed) || /\p{Cc}/u.test(trimmed) || trimmed.startsWith('.') || trimmed.endsWith('.')) return 'chars';
+  if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i.test(trimmed)) return 'chars';
+  return null;
+}
+
+/**
+ * The skin's name, or a text field while renaming: Enter or leaving the field saves, Escape
+ * cancels. A refused name keeps the field open. `onDone` runs once editing ends.
+ */
+export function EditableName({
+  skin,
+  editing,
+  onRename,
+  onDone,
+  className,
+}: {
+  skin: HangarSkin;
+  editing: boolean;
+  onRename: SkinItemProps['onRename'];
+  onDone: () => void;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const saving = useRef(false);
+  if (!editing) return <span className={cn('truncate', className)}>{skin.name}</span>;
+  const save = async (input: HTMLInputElement) => {
+    if (saving.current) return;
+    const next = input.value.trim();
+    if (!next || next === skin.folder) return onDone();
+    saving.current = true;
+    const ok = await onRename(skin, next);
+    saving.current = false;
+    if (ok) onDone();
+    else input.focus();
+  };
+  return (
+    <input
+      // Opened on purpose by Rename / F2.
+      autoFocus
+      defaultValue={skin.folder}
+      maxLength={MAX_SKIN_NAME}
+      aria-label={t('hangar.card.renameLabel', { name: skin.name })}
+      onFocus={(e) => e.currentTarget.select()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          void save(e.currentTarget);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onDone();
+        }
+      }}
+      onBlur={(e) => void save(e.currentTarget)}
+      onClick={(e) => e.stopPropagation()}
+      className={cn(
+        'relative z-[1] h-6 w-full min-w-0 rounded-[5px] border border-amber bg-bg-input px-1.5 text-body font-medium leading-none text-ink-1 outline-none',
+        className,
+      )}
+    />
   );
 }

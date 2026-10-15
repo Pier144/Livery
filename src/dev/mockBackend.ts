@@ -780,6 +780,23 @@ function deleteSkins(args: Args): DeleteResult {
   return { backupIds };
 }
 
+/** `rename_skin`: the folder and the name change together; the same rules as the backend. */
+function renameSkin(args: Args): HangarSkin {
+  const id = str('rename_skin', args, 'id');
+  const name = str('rename_skin', args, 'name').trim();
+  prepare();
+  if (!name) return fail('invalidInput', 'A skin needs a name');
+  if (/[<>:"/\\|?*]/.test(name) || name.startsWith('.') || name.endsWith('.')) return fail('invalidInput', 'Not a skin folder name');
+  const skin = state.index.find((s) => s.id === id);
+  if (!skin) return fail('notFound', 'This skin is not in the library');
+  const key = folderKey(name);
+  const taken = [...state.index, ...state.diskOnly].some((s) => s.id !== id && folderKey(s.folder) === key);
+  if (taken) return fail('conflict', 'Another skin folder already has this name');
+  skin.folder = name;
+  skin.name = name;
+  return { ...skin };
+}
+
 /**
  * Undo: each backed-up skin comes back where it was (active or inactive) with its id, name and
  * memberships, appended to the index (or replacing the entry with its id). A taken folder name
@@ -1730,6 +1747,7 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   },
   set_skin_active: setSkinActive,
   delete_skins: deleteSkins,
+  rename_skin: renameSkin,
   restore_backups: restoreBackups,
   export_skins: exportSkins,
   collections_list: () => {

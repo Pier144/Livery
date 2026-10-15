@@ -29,7 +29,7 @@ import { SkinCard } from './SkinCard';
 import { SkinRow } from './SkinRow';
 import { SkinHints, type SkinItemProps } from './SkinParts';
 
-type ItemHandlers = Pick<SkinItemProps, 'onSelect' | 'onToggleActive' | 'onRecheck' | 'onUninstall'>;
+type ItemHandlers = Pick<SkinItemProps, 'onSelect' | 'onToggleActive' | 'onRecheck' | 'onUninstall' | 'onRename'>;
 
 export interface HangarGridProps extends ItemHandlers {
   groups: readonly SkinGroup[];
@@ -74,7 +74,7 @@ function useContentWidth(ref: RefObject<HTMLElement>): number {
  * pinned at the top. The row holding keyboard focus stays mounted while scrolled away, so focus is
  * never dropped; Tab moves through the overscan rows and the browser scrolls them into view.
  */
-export function HangarGrid({ groups, view, selection, rechecking, resetKey, lastFocus, onSelect, onToggleActive, onRecheck, onUninstall }: HangarGridProps) {
+export function HangarGrid({ groups, view, selection, rechecking, resetKey, lastFocus, onSelect, onToggleActive, onRecheck, onUninstall, onRename }: HangarGridProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const width = useContentWidth(scrollRef);
@@ -179,6 +179,7 @@ export function HangarGrid({ groups, view, selection, rechecking, resetKey, last
                   onToggleActive={onToggleActive}
                   onRecheck={onRecheck}
                   onUninstall={onUninstall}
+                  onRename={onRename}
                 />
               </div>
             );

@@ -1,10 +1,20 @@
-import { memo } from 'react';
+import { memo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/lib/cn';
 import { formatBytes } from '@/lib/format';
 import type { HangarSkin } from '@/types';
-import { ActiveToggle, attentionText, itemHandlers, RecheckLink, UninstallButton, useSkinDescription, type SkinItemProps } from './SkinParts';
+import {
+  ActiveToggle,
+  attentionText,
+  EditableName,
+  itemHandlers,
+  RecheckLink,
+  RenameButton,
+  UninstallButton,
+  useSkinDescription,
+  type SkinItemProps,
+} from './SkinParts';
 
 function authorOf(skin: HangarSkin, you: string, none: string): string {
   if (skin.author?.name) return skin.author.name;
@@ -13,10 +23,16 @@ function authorOf(skin: HangarSkin, you: string, none: string): string {
 
 /**
  * My Hangar list row: checkbox, thumb, name (+ attention line and Re-check), origin, author, size,
- * Active toggle, Uninstall. Opening and selection work like the grid card (full-row hit area under the controls).
+ * Active toggle, Rename, Uninstall. Opening and selection work like the grid card (full-row hit area under the controls).
  */
-export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSelect, onToggleActive, onRecheck, onUninstall }: SkinItemProps) {
+export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSelect, onToggleActive, onRecheck, onUninstall, onRename }: SkinItemProps) {
   const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const renameRef = useRef<HTMLButtonElement>(null);
+  const endRename = () => {
+    setEditing(false);
+    requestAnimationFrame(() => renameRef.current?.focus());
+  };
   const attention = attentionText(t, skin);
   const { attentionId, describedBy, title } = useSkinDescription(skin, attention);
 
@@ -29,7 +45,7 @@ export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSel
       role="group"
       aria-label={skin.name}
       className={cn(
-        'group relative grid grid-cols-[28px_44px_minmax(0,2fr)_1fr_1fr_80px_80px_24px] items-center gap-3 border-b border-line-grid px-3 py-2 motion-safe:transition-colors motion-safe:duration-120',
+        'group relative grid grid-cols-[28px_44px_minmax(0,2fr)_1fr_1fr_80px_80px_54px] items-center gap-3 border-b border-line-grid px-3 py-2 motion-safe:transition-colors motion-safe:duration-120',
         selected ? 'bg-bg-hover' : 'hover:bg-bg-hover',
       )}
     >
@@ -41,7 +57,7 @@ export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSel
         aria-describedby={describedBy}
         // The attention line truncates in a narrow window (Italian at 1100px): the tooltip has it all.
         title={title}
-        {...itemHandlers(skin, onSelect, onUninstall)}
+        {...itemHandlers(skin, onSelect, onUninstall, () => setEditing(true))}
         className="absolute inset-0 cursor-pointer focus-visible:-outline-offset-2"
       />
       <Checkbox
@@ -54,7 +70,9 @@ export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSel
       />
       <span aria-hidden className="h-[26px] w-11 rounded-tag bg-placeholder-thumb" />
       <span className="flex min-w-0 flex-col gap-px">
-        <span className="truncate text-body font-medium leading-[normal] text-ink-1">{skin.name}</span>
+        <span className="flex min-w-0 text-body font-medium leading-[normal] text-ink-1">
+          <EditableName skin={skin} editing={editing} onRename={onRename} onDone={endRename} />
+        </span>
         {attention && (
           <span className="flex min-w-0 items-baseline gap-2 text-[11px] leading-[normal]">
             <span id={attentionId} className="min-w-0 truncate text-amber">
@@ -77,7 +95,10 @@ export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSel
       <span className="flex">
         <ActiveToggle active={skin.active} onToggle={() => onToggleActive(skin)} />
       </span>
-      <UninstallButton onClick={() => onUninstall(skin)} />
+      <span className="flex gap-1.5">
+        <RenameButton ref={renameRef} onClick={() => setEditing(true)} />
+        <UninstallButton onClick={() => onUninstall(skin)} />
+      </span>
     </div>
   );
 });
