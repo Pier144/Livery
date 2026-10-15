@@ -7,6 +7,18 @@
 **A free skin manager for War Thunder on Windows.** Browse community skins from WT Live, install
 them with one click, and keep your `UserSkins` folder tidy.
 
+<p align="center">
+  <a href="https://github.com/Pier144/Livery/releases/latest/download/Livery-setup.exe">
+    <img src="https://img.shields.io/badge/Download_for_Windows-Livery--setup.exe-F7A224?style=for-the-badge&logo=windows&logoColor=white" alt="Download Livery for Windows">
+  </a>
+  <br>
+  <sub>Windows 10/11, 64-bit · free · <a href="https://github.com/Pier144/Livery/releases/latest">release notes and other files</a></sub>
+</p>
+
+![Explore: WT Live skins with filters, one-click install](docs/screenshots/explore.jpg)
+
+![My Hangar: installed skins with their pictures, grouped by vehicle](docs/screenshots/hangar.jpg)
+
 > **Unofficial tool, not affiliated with Gaijin Entertainment.** War Thunder and WT Live are
 > Gaijin's. Every skin belongs to its author: Livery shows who made it and links to the original
 > post.
@@ -28,8 +40,8 @@ them with one click, and keep your `UserSkins` folder tidy.
 
 ## Install
 
-1. Download `Livery_<version>_x64-setup.exe` from the
-   [latest release](https://github.com/Pier144/Livery/releases/latest).
+1. Download the installer with the button above (or `Livery_<version>_x64-setup.exe` from the
+   [latest release](https://github.com/Pier144/Livery/releases/latest)).
 2. Run it. It installs for your Windows user only and doesn't need administrator rights.
 3. **"Windows protected your PC"**: the installer isn't code-signed yet, so Microsoft SmartScreen
    doesn't know it. Choose **More info → Run anyway**. Every release lists the installer's SHA-256
@@ -82,7 +94,7 @@ Entertainment). Ti permette di:
 - rinominare, disattivare e disinstallare le skin dall'Hangar, sempre con la possibilità di
   annullare.
 
-Scarica l'installer dall'[ultima release](https://github.com/Pier144/Livery/releases/latest). Se
+Scarica l'installer con il pulsante in alto (o dall'[ultima release](https://github.com/Pier144/Livery/releases/latest)). Se
 Windows mostra "Windows ha protetto il PC", scegli **Ulteriori informazioni → Esegui comunque**:
 l'installer non è ancora firmato. Livery si aggiorna da solo. Si collega solo a WT Live e a GitHub,
 non raccoglie dati e non ha account.

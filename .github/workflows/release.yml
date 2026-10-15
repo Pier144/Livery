@@ -191,6 +191,11 @@ jobs:
           echo "signature=${installer}.sig" >> "$GITHUB_OUTPUT"
           echo "manifest=$(dirname "$installer")/latest.json" >> "$GITHUB_OUTPUT"
           echo "notices=${notices}" >> "$GITHUB_OUTPUT"
+          # The same installer under a fixed name, so the README's Download button can always link
+          # to releases/latest/download/Livery-setup.exe.
+          stable="$(dirname "$installer")/Livery-setup.exe"
+          cp "${installer}" "${stable}"
+          echo "stable=${stable}" >> "$GITHUB_OUTPUT"
           ls -l "$(dirname "$installer")"
 
       - name: Verify the signature
@@ -221,15 +226,16 @@ jobs:
           SIGNATURE: ${{ steps.installer.outputs.signature }}
           MANIFEST: ${{ steps.installer.outputs.manifest }}
           NOTICES: ${{ steps.installer.outputs.notices }}
+          STABLE: ${{ steps.installer.outputs.stable }}
         run: |
           if draft=$(gh release view "${TAG}" --json isDraft --jq .isDraft 2>/dev/null); then
             if [ "${draft}" != "true" ]; then
               echo "::error::Release ${TAG} is already published. Bump the version to release again."
               exit 1
             fi
-            gh release upload "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" "${NOTICES}" --clobber
+            gh release upload "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" "${NOTICES}" "${STABLE}" --clobber
           else
-            gh release create "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" "${NOTICES}" \
+            gh release create "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" "${NOTICES}" "${STABLE}" \
               --draft \
               --target "${GITHUB_SHA}" \
               --title "Livery ${VERSION}" \
