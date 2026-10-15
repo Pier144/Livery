@@ -97,6 +97,9 @@ function installBackend() {
         state.skins = state.skins.filter((s) => !ids.includes(s.id));
         return { backupIds };
       }
+      case 'clear_backups':
+        for (const id of (args.ids ?? []) as string[]) state.backups.delete(id);
+        return null;
       case 'restore_backups': {
         const restored = (args.backupIds as string[]).flatMap((b) => state.backups.get(b) ?? []);
         state.skins = [...state.skins, ...restored];
@@ -490,6 +493,28 @@ describe('My Hangar', () => {
     expect(calls('restore_backups')).toEqual([{ backupIds: ['b-h3', 'b-h5'] }]);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ambush' })).toBeInTheDocument());
     expect(screen.getByText('Restored 2 skins')).toBeInTheDocument();
+    // Undo keeps nothing to clear.
+    expect(calls('clear_backups')).toEqual([]);
+  });
+
+  it('a delete whose toast leaves without Undo removes its backups too', async () => {
+    const user = userEvent.setup();
+    renderHangar();
+    await user.click(card('Ambush'));
+    await user.click(card('SEA Camo'));
+    await user.click(within(bar()).getByRole('button', { name: 'Delete' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete 2 skins' }));
+    await waitFor(() => expect(screen.getByText('Deleted 2 skins')).toBeInTheDocument());
+    expect(calls('clear_backups')).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    await waitFor(() => expect(calls('clear_backups')).toEqual([{ ids: ['b-h3', 'b-h5'] }]));
+
+    // The same for one skin's Uninstall.
+    await user.click(within(cardOf('Factory olive')).getByRole('button', { name: 'Uninstall' }));
+    await confirmDelete(user);
+    await waitFor(() => expect(toastTexts()).toContain('Uninstalled “Factory olive”'));
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    await waitFor(() => expect(calls('clear_backups')).toEqual([{ ids: ['b-h3', 'b-h5'] }, { ids: ['b-h2'] }]));
   });
 
   it('Cancel, Escape or a click outside the question keeps the skins', async () => {

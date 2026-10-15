@@ -1004,9 +1004,9 @@
     },
     "backups": {
       "keep": "Garder une sauvegarde lors d’un remplacement ou d’une suppression",
-      "keepHelper_one": "Permet d’annuler pendant {{count}} jour.",
-      "keepHelper_many": "Permet d’annuler pendant {{count}} jours.",
-      "keepHelper_other": "Permet d’annuler pendant {{count}} jours.",
+      "keepHelper_one": "Les skins remplacés sont gardés {{count}} jour, les skins supprimés tant que la notification « Annuler » est affichée.",
+      "keepHelper_many": "Les skins remplacés sont gardés {{count}} jours, les skins supprimés tant que la notification « Annuler » est affichée.",
+      "keepHelper_other": "Les skins remplacés sont gardés {{count}} jours, les skins supprimés tant que la notification « Annuler » est affichée.",
       "onDisk": "Sauvegardes sur le disque",
       "summary_one": "{{count}} élément · {{size}}",
       "summary_many": "{{count}} éléments · {{size}}",

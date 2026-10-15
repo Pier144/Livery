@@ -1004,9 +1004,9 @@
     },
     "backups": {
       "keep": "Conserva un backup quando sostituisci o elimini",
-      "keepHelper_one": "Puoi annullare per {{count}} giorno.",
-      "keepHelper_many": "Puoi annullare per {{count}} giorni.",
-      "keepHelper_other": "Puoi annullare per {{count}} giorni.",
+      "keepHelper_one": "Le skin sostituite restano {{count}} giorno, quelle eliminate finché c’è la notifica con Annulla.",
+      "keepHelper_many": "Le skin sostituite restano {{count}} giorni, quelle eliminate finché c’è la notifica con Annulla.",
+      "keepHelper_other": "Le skin sostituite restano {{count}} giorni, quelle eliminate finché c’è la notifica con Annulla.",
       "onDisk": "Backup su disco",
       "summary_one": "{{count}} elemento · {{size}}",
       "summary_many": "{{count}} elementi · {{size}}",

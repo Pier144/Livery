@@ -965,8 +965,8 @@
     },
     "backups": {
       "keep": "Keep a backup when replacing or deleting",
-      "keepHelper_one": "Lets you undo for {{count}} day.",
-      "keepHelper_other": "Lets you undo for {{count}} days.",
+      "keepHelper_one": "Replaced skins are kept for {{count}} day, deleted ones until their Undo notice closes.",
+      "keepHelper_other": "Replaced skins are kept for {{count}} days, deleted ones until their Undo notice closes.",
       "onDisk": "Backups on disk",
       "summary_one": "{{count}} item · {{size}}",
       "summary_other": "{{count}} items · {{size}}",

@@ -1004,9 +1004,9 @@
     },
     "backups": {
       "keep": "Manter um backup ao substituir ou excluir",
-      "keepHelper_one": "Permite desfazer por {{count}} dia.",
-      "keepHelper_many": "Permite desfazer por {{count}} dias.",
-      "keepHelper_other": "Permite desfazer por {{count}} dias.",
+      "keepHelper_one": "Skins substituídas ficam guardadas por {{count}} dia; as excluídas, enquanto o aviso com “Desfazer” estiver aberto.",
+      "keepHelper_many": "Skins substituídas ficam guardadas por {{count}} dias; as excluídas, enquanto o aviso com “Desfazer” estiver aberto.",
+      "keepHelper_other": "Skins substituídas ficam guardadas por {{count}} dias; as excluídas, enquanto o aviso com “Desfazer” estiver aberto.",
       "onDisk": "Backups no disco",
       "summary_one": "{{count}} item · {{size}}",
       "summary_many": "{{count}} itens · {{size}}",

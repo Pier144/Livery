@@ -1,11 +1,13 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { errorText } from '@/lib/errors';
 import { baseName } from '@/lib/format';
-import { isTauri, toAppError } from '@/lib/tauri';
+import { call, isTauri, toAppError } from '@/lib/tauri';
 import { useSetCollectionSkins } from '@/queries/collections';
 import { useDeleteSkins, useExportSkins, useRenameSkin, useRescan, useRestoreBackups, useSetSkinActive } from '@/queries/hangar';
+import { BACKUPS_KEY } from '@/queries/settings';
 import { confirm } from '@/store/confirm';
 import { useHangarStore } from '@/store/hangar';
 import { endFade, fadeOutSkins, markArriving } from '@/store/hangarMotion';
@@ -40,6 +42,25 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
   const { mutateAsync: setCollectionSkins } = useSetCollectionSkins();
   const { mutateAsync: rescan } = useRescan();
   const clearSelection = useHangarStore((s) => s.clear);
+  const qc = useQueryClient();
+
+  /**
+   * A delete's Undo window closed without Undo: its backups go too (author request, 0.3.2), so a
+   * deleted skin doesn't stay on disk for 30 days. If this fails (or Livery closes first), the
+   * backups expire as before.
+   */
+  const dropBackups = useCallback(
+    async (backupIds: string[]) => {
+      try {
+        await call('clear_backups', { ids: backupIds });
+      } catch {
+        // Left to the 30-day expiry.
+      } finally {
+        void qc.invalidateQueries({ queryKey: BACKUPS_KEY });
+      }
+    },
+    [qc],
+  );
 
   const [pending, setPending] = useState<ReadonlyMap<string, PendingActive>>(() => new Map());
   const [rechecking, setRechecking] = useState<string | null>(null);
@@ -168,19 +189,24 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
           toast(t('hangar.toast.deleted', { count: ids.length }));
           return;
         }
-        // The backend keeps a backup of each deleted folder; Undo puts them back.
-        toast.undoable(t('hangar.toast.deleted', { count: ids.length }), async () => {
-          try {
-            const restored = await restoreBackups(backupIds);
-            markArriving(restored.map((r) => r.id));
-            toast(t('hangar.toast.restored', { count: restored.length }));
-          } catch (e) {
-            reportError(e);
-          }
-        });
+        // The backend keeps a backup of each deleted folder while the toast offers Undo; Undo puts
+        // them back, and the backups go once the toast leaves without it.
+        toast.undoable(
+          t('hangar.toast.deleted', { count: ids.length }),
+          async () => {
+            try {
+              const restored = await restoreBackups(backupIds);
+              markArriving(restored.map((r) => r.id));
+              toast(t('hangar.toast.restored', { count: restored.length }));
+            } catch (e) {
+              reportError(e);
+            }
+          },
+          () => dropBackups(backupIds),
+        );
       });
     },
-    [runBulk, deleteSkins, restoreBackups, endBulk, t],
+    [runBulk, deleteSkins, restoreBackups, endBulk, dropBackups, t],
   );
 
   /**
@@ -223,18 +249,22 @@ export function useHangarActions(afterBulk: (removed?: readonly string[]) => voi
       const message = t('hangar.toast.uninstalled', { name: skin.name });
       if (backupIds.length === 0) toast(message);
       else
-        toast.undoable(message, async () => {
-          try {
-            const restored = await restoreBackups(backupIds);
-            markArriving(restored.map((r) => r.id));
-            toast(t('hangar.toast.reinstalled', { name: skin.name }));
-          } catch (e) {
-            reportError(e);
-          }
-        });
+        toast.undoable(
+          message,
+          async () => {
+            try {
+              const restored = await restoreBackups(backupIds);
+              markArriving(restored.map((r) => r.id));
+              toast(t('hangar.toast.reinstalled', { name: skin.name }));
+            } catch (e) {
+              reportError(e);
+            }
+          },
+          () => dropBackups(backupIds),
+        );
       return true;
     },
-    [deleteSkins, restoreBackups, t],
+    [deleteSkins, restoreBackups, dropBackups, t],
   );
 
   /**

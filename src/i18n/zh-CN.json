@@ -926,7 +926,7 @@
     },
     "backups": {
       "keep": "替换或删除时保留备份",
-      "keepHelper_other": "可在 {{count}} 天内撤销。",
+      "keepHelper_other": "被替换的涂装保留 {{count}} 天；被删除的涂装仅在“撤销”通知关闭前保留。",
       "onDisk": "磁盘上的备份",
       "summary_other": "{{count}} 个项目 · {{size}}",
       "unavailable": "暂时无法读取备份",

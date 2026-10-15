@@ -1004,9 +1004,9 @@
     },
     "backups": {
       "keep": "Guardar una copia de seguridad al reemplazar o eliminar",
-      "keepHelper_one": "Puedes deshacer durante {{count}} día.",
-      "keepHelper_many": "Puedes deshacer durante {{count}} días.",
-      "keepHelper_other": "Puedes deshacer durante {{count}} días.",
+      "keepHelper_one": "Las skins reemplazadas se guardan {{count}} día; las eliminadas, mientras se vea el aviso con «Deshacer».",
+      "keepHelper_many": "Las skins reemplazadas se guardan {{count}} días; las eliminadas, mientras se vea el aviso con «Deshacer».",
+      "keepHelper_other": "Las skins reemplazadas se guardan {{count}} días; las eliminadas, mientras se vea el aviso con «Deshacer».",
       "onDisk": "Copias de seguridad en disco",
       "summary_one": "{{count}} elemento · {{size}}",
       "summary_many": "{{count}} elementos · {{size}}",

@@ -965,8 +965,8 @@
     },
     "backups": {
       "keep": "Beim Ersetzen oder Löschen ein Backup behalten",
-      "keepHelper_one": "Du kannst {{count}} Tag lang rückgängig machen.",
-      "keepHelper_other": "Du kannst {{count}} Tage lang rückgängig machen.",
+      "keepHelper_one": "Ersetzte Skins bleiben {{count}} Tag erhalten, gelöschte nur, solange „Rückgängig“ angezeigt wird.",
+      "keepHelper_other": "Ersetzte Skins bleiben {{count}} Tage erhalten, gelöschte nur, solange „Rückgängig“ angezeigt wird.",
       "onDisk": "Backups auf der Festplatte",
       "summary_one": "{{count}} Element · {{size}}",
       "summary_other": "{{count}} Elemente · {{size}}",

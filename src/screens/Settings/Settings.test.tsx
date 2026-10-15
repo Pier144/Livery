@@ -514,7 +514,7 @@ describe('Settings · Backups', () => {
   it('toggles keeping backups', async () => {
     const { user } = renderSettings('backups');
     const toggle = screen.getByRole('switch', { name: 'Keep a backup when replacing or deleting' });
-    expect(toggle).toHaveAccessibleDescription('Lets you undo for 30 days.');
+    expect(toggle).toHaveAccessibleDescription('Replaced skins are kept for 30 days, deleted ones until their Undo notice closes.');
     expect(toggle).toBeChecked();
     await user.click(toggle);
     expect(toggle).not.toBeChecked();
