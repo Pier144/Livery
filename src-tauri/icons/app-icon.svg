@@ -1,17 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- Livery app icon: amber dot on graphite. Amber = oklch(0.78 0.16 70) ≈ #F7A224 (resvg has no oklch). -->
-  <defs>
-    <radialGradient id="glow" cx="512" cy="512" r="330" gradientUnits="userSpaceOnUse">
-      <stop offset="0.35" stop-color="#F7A224" stop-opacity="0.45"/>
-      <stop offset="1" stop-color="#F7A224" stop-opacity="0"/>
-    </radialGradient>
-    <clipPath id="tile"><rect x="64" y="64" width="896" height="896" rx="200"/></clipPath>
-  </defs>
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="#131416"/>
-  <g clip-path="url(#tile)" stroke="#1f2024" stroke-width="6">
-    <path d="M64 232H960M64 400H960M64 568H960M64 736H960M232 64V960M400 64V960M568 64V960M736 64V960"/>
-  </g>
-  <rect x="68" y="68" width="888" height="888" rx="196" fill="none" stroke="#2e2f35" stroke-width="8"/>
-  <circle cx="512" cy="512" r="330" fill="url(#glow)"/>
-  <circle cx="512" cy="512" r="150" fill="#F7A224"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 256 256">
+<!-- Livery app icon: "Secchio · tecnico" (docs/brand/logos). Amber = oklch(0.78 0.16 70) ≈ #F7A224 (resvg has no oklch). -->
+<defs><clipPath id="secchio-tecnicoTtile"><rect x="16" y="16" width="224" height="224" rx="50"/></clipPath></defs>
+<rect x="16" y="16" width="224" height="224" rx="50" fill="#131416"/>
+<rect x="17" y="17" width="222" height="222" rx="49" fill="none" stroke="#2e2f35" stroke-width="2"/>
+<g transform="translate(3 11)"><path d="M66 110C58 34 178 34 170 110" fill="none" stroke="#9a9ca3" stroke-width="5"/><path d="M66 104L74 192A44 13 0 0 0 162 192L170 104A52 16 0 0 1 66 104Z" fill="#3a3b41" fill-opacity=".35" stroke="#9a9ca3" stroke-width="6" stroke-linejoin="round"/><ellipse cx="118" cy="104" rx="52" ry="16" fill="#131416" stroke="#9a9ca3" stroke-width="6"/><ellipse cx="118" cy="106" rx="44" ry="11" fill="#F7A224" fill-opacity=".14"/><clipPath id="secchio-tecnicoTh"><ellipse cx="118" cy="106" rx="44" ry="11"/></clipPath><g clip-path="url(#secchio-tecnicoTh)"><path d="M-256 256L0 0M-234 256L22 0M-212 256L44 0M-190 256L66 0M-168 256L88 0M-146 256L110 0M-124 256L132 0M-102 256L154 0M-80 256L176 0M-58 256L198 0M-36 256L220 0M-14 256L242 0M8 256L264 0M30 256L286 0M52 256L308 0M74 256L330 0M96 256L352 0M118 256L374 0M140 256L396 0M162 256L418 0M184 256L440 0M206 256L462 0M228 256L484 0M250 256L506 0M272 256L528 0M294 256L550 0M316 256L572 0M338 256L594 0M360 256L616 0M382 256L638 0M404 256L660 0M426 256L682 0M448 256L704 0M470 256L726 0M492 256L748 0" stroke="#F7A224" stroke-width="5.5"/></g><ellipse cx="118" cy="106" rx="44" ry="11" fill="none" stroke="#F7A224" stroke-width="5"/><g transform="translate(146 90) rotate(35)" fill="#131416" stroke="#9a9ca3" stroke-width="5" stroke-linejoin="round"><rect x="-7" y="-74" width="14" height="58" rx="7"/><rect x="-11" y="-18" width="22" height="18" rx="2"/></g><g transform="translate(146 90) rotate(35)" fill="#F7A224"><path d="M-12 0H12L10 16Q0 24-10 16Z"/></g></g>
 </svg>
