@@ -344,10 +344,11 @@
       "later": "Folder gry możesz ustawić później w Ustawieniach"
     },
     "anim": {
-      "hull": "KADŁUB 200 × 120 × 110",
+      "hull": "M4 SHERMAN · 5840 × 2620 × 2740 MM",
       "sheet": "ARKUSZ 00 · WYKRYWANIE INSTALACJI",
       "unofficial": "NIEOFICJALNE NARZĘDZIE"
-    }
+    },
+    "language": "Język"
   },
   "detail": {
     "label": "Szczegóły kamuflażu",

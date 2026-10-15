@@ -338,10 +338,11 @@
       "later": "Vous pourrez définir le dossier du jeu plus tard dans les Paramètres"
     },
     "anim": {
-      "hull": "CAISSE 200 × 120 × 110",
+      "hull": "M4 SHERMAN · 5840 × 2620 × 2740 MM",
       "sheet": "PLANCHE 00 · DÉTECTION DE L’INSTALLATION",
       "unofficial": "OUTIL NON OFFICIEL"
-    }
+    },
+    "language": "Langue"
   },
   "detail": {
     "label": "Détail du skin",

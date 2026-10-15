@@ -338,10 +338,11 @@
       "later": "Você pode definir a pasta do jogo depois, nas Configurações"
     },
     "anim": {
-      "hull": "CASCO 200 × 120 × 110",
+      "hull": "M4 SHERMAN · 5840 × 2620 × 2740 MM",
       "sheet": "FOLHA 00 · DETECTANDO INSTALAÇÃO",
       "unofficial": "FERRAMENTA NÃO OFICIAL"
-    }
+    },
+    "language": "Idioma"
   },
   "detail": {
     "label": "Detalhes da skin",

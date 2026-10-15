@@ -338,10 +338,11 @@
       "later": "Potrai impostare la cartella del gioco più tardi nelle Impostazioni"
     },
     "anim": {
-      "hull": "SCAFO 200 × 120 × 110",
+      "hull": "M4 SHERMAN · 5840 × 2620 × 2740 MM",
       "sheet": "TAVOLA 00 · RILEVAMENTO INSTALLAZIONE",
       "unofficial": "STRUMENTO NON UFFICIALE"
-    }
+    },
+    "language": "Lingua"
   },
   "detail": {
     "label": "Dettaglio skin",

@@ -9,7 +9,7 @@ import type { GameDetection } from '@/types';
 import { shortVersion, type ConfirmView } from './firstRunMachine';
 import { StepIntro } from './StepTracker';
 
-/** 13px underlined text button ("Skip for now", "Back", "Back to Settings"). */
+/** 13px underlined text button ("Skip for now", "Back" / "Retry", "Back to Settings"). */
 const TEXT_LINK =
   'text-body leading-[normal] text-ink-3 underline underline-offset-[3px] hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120';
 /** Controls stay focusable while an action runs; clicks are ignored instead. */
@@ -88,7 +88,7 @@ function FoundView({ detection, showPath, busy, headingRef, onTogglePath, onUse,
   );
 }
 
-function NotFoundView({ invalidFolder, busy, headingRef, onFolder, onSkip, onBack, onCancel }: ConfirmStepProps) {
+function NotFoundView({ detection, invalidFolder, busy, headingRef, onFolder, onSkip, onBack, onCancel }: ConfirmStepProps) {
   const { t } = useTranslation();
   const errorId = useId();
   // Window drops and the dialog both land on the latest handler.
@@ -146,7 +146,8 @@ function NotFoundView({ invalidFolder, busy, headingRef, onFolder, onSkip, onBac
               {t('firstRun.notFound.skip')}
             </button>
             <button type="button" onClick={onBack} aria-disabled={busy || undefined} className={`${TEXT_LINK} ${BUSY}`}>
-              {t('firstRun.notFound.back')}
+              {/* "Back" returns to the install found; with nothing found it looks again ("Retry"). */}
+              {detection?.found ? t('firstRun.notFound.back') : t('common.retry')}
             </button>
           </>
         )}

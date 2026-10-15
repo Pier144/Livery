@@ -284,6 +284,8 @@ describe('FirstRun · found', () => {
     expect(screen.getByRole('heading', { name: "Can't find War Thunder" })).toHaveFocus();
     expect(useUi.getState().folderDrop).toBeTypeOf('function');
 
+    // Something was found: the link goes back to it rather than looking again.
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByRole('heading', { name: 'Found War Thunder' })).toHaveFocus();
     expect(useUi.getState().folderDrop).toBeNull();
@@ -356,9 +358,10 @@ describe('FirstRun · not found', () => {
     expect(messages()).toEqual(['You can set the game folder later in Settings']);
   });
 
-  it('"Back" looks for the game again when nothing was found', async () => {
+  it('"Retry" looks for the game again when nothing was found', async () => {
     const { user } = await renderDetected({});
-    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(screen.getByRole('heading', { name: 'Looking for War Thunder' })).toHaveFocus();
     expect(useUi.getState().folderDrop).toBeNull();
     await vi.waitFor(() => expect(calls('detect_game')).toHaveLength(2));
@@ -445,13 +448,14 @@ describe('FirstRun · from Settings (choose entry)', () => {
     expect(messages()).toEqual(['Game folder set']);
   });
 
-  it('offers "Back to Settings" instead of "Skip for now" and "Back"', () => {
+  it('offers "Back to Settings" instead of "Skip for now" and "Back" / "Retry"', () => {
     fromSettings();
     fakeBackend({});
     renderWithProviders(<FirstRun />, { settings });
     expect(screen.getByRole('button', { name: 'Back to Settings' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Skip for now' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
   it('"Back to Settings" cancels: no detection, no settings write, no toast', async () => {
@@ -481,5 +485,24 @@ describe('FirstRun · from Settings (choose entry)', () => {
     await vi.waitFor(() => expect(useUi.getState().screen).toBe('settings'));
     expect(calls('detect_game')).toHaveLength(0);
     expect(messages()).toEqual(['Game folder set', '7 skins added to My Hangar']);
+  });
+});
+
+describe('FirstRun · language', () => {
+  it('switches the language from the menu above the drawing', async () => {
+    const { user } = await renderDetected({});
+    const trigger = screen.getByRole('button', { name: 'Language: English' });
+    await user.click(trigger);
+    const menu = screen.getByRole('menu', { name: 'Language' });
+    expect(within(menu).getAllByRole('menuitemradio')).toHaveLength(9);
+    expect(within(menu).getByRole('menuitemradio', { name: 'English' })).toHaveAttribute('aria-checked', 'true');
+    const italian = within(menu).getByRole('menuitemradio', { name: 'Italiano' });
+    expect(italian.querySelector('[lang="it"]')).not.toBeNull();
+
+    await user.click(italian);
+    await vi.waitFor(() => expect(calls('set_settings')).toEqual([['set_settings', { patch: { language: 'it' } }]]));
+    expect(await screen.findByRole('button', { name: 'Language: Italiano' })).toBeInTheDocument();
+    // Picking the language does not finish First run.
+    expect(useUi.getState().screen).toBe('firstRun');
   });
 });

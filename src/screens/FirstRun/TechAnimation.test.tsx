@@ -79,18 +79,20 @@ describe('TechAnimation', () => {
     const texts = [...root.querySelectorAll('text')];
     expect(texts.map((t) => t.textContent)).toEqual([
       en.firstRun.anim.hull,
-      '110',
+      '2740',
       en.firstRun.anim.sheet,
       en.firstRun.anim.unofficial,
     ]);
     expect(texts.map((t) => t.style.animationDelay)).toEqual(['900ms', '1100ms', '1300ms', '1500ms']);
     expect(texts.map((t) => [Number(t.getAttribute('x')), Number(t.getAttribute('y'))])).toEqual([
-      [250, 80],
+      [280, 80],
       [490, 275],
       [60, 490],
       [482, 490],
     ]);
     for (const t of texts) expect(t).toHaveClass('fill-ink-4', 'font-mono', 'text-[10px]', 'motion-safe:animate-label-in');
+    // The vehicle's dimensions are centred over their line.
+    expect(texts[0]).toHaveAttribute('text-anchor', 'middle');
     // "UNOFFICIAL TOOL" is end-anchored where the English text ends, so longer translations stay on the sheet.
     expect(texts[3]).toHaveAttribute('text-anchor', 'end');
     expect(texts[3]).toHaveAttribute('x', '482');
@@ -102,44 +104,42 @@ describe('TechAnimation', () => {
     });
     const root = stage();
     const texts = [...root.querySelectorAll('text')].map((t) => t.textContent);
-    expect(texts).toEqual([it_.firstRun.anim.hull, '110', it_.firstRun.anim.sheet, it_.firstRun.anim.unofficial]);
-    expect(texts[0]).not.toBe(en.firstRun.anim.hull);
+    expect(texts).toEqual([it_.firstRun.anim.hull, '2740', it_.firstRun.anim.sheet, it_.firstRun.anim.unofficial]);
+    expect(texts[2]).not.toBe(en.firstRun.anim.sheet);
   });
 
-  it('builds hull and turret as two 6-face amber wireframes, hull top hatched', () => {
+  it('builds an M4 Sherman wireframe from amber planes: hull, tracks, turret', () => {
     const root = stage();
     const spin = root.querySelector('[data-spin]')!;
     expect(spin).toHaveClass('[transform-style:preserve-3d]', '[transform:rotateX(-22deg)]', 'motion-safe:animate-spinBox');
     expect(spin.parentElement).toHaveClass('[perspective:900px]', 'left-[80px]', 'top-[100px]', 'w-[400px]', 'h-[340px]');
 
-    const allFaces = root.querySelectorAll('[data-face]');
-    expect(allFaces).toHaveLength(12);
-    for (const f of allFaces) expect(f).toHaveClass('border', 'border-amber', 'opacity-75', 'box-border');
+    const parts = [...spin.querySelectorAll<HTMLElement>(':scope > [data-part]')];
+    expect(parts.map((p) => p.dataset.part)).toEqual(['hull', 'tracks', 'turret']);
+    for (const p of parts) expect(p).toHaveClass('[transform-style:preserve-3d]');
+    // The turret ring sits on the roof, a little ahead of the hull centre (model units × 1.25 px).
+    expect(parts[2]!.style.transform).toBe('translate3d(7.5px, -23.75px, 0px)');
 
+    const planes = root.querySelectorAll<HTMLElement>('[data-plane]');
+    expect(planes.length).toBeGreaterThan(30);
+    for (const plane of planes) {
+      expect(plane.style.transform).toMatch(/^translate3d\(/);
+      const path = plane.querySelector('svg > path')!;
+      expect(path).toHaveClass('fill-none', 'stroke-amber');
+      expect(path).toHaveAttribute('vector-effect', 'non-scaling-stroke');
+      expect(path.getAttribute('d')).toMatch(/^M/);
+    }
+
+    // Only the engine deck is hatched.
     const hatched = root.querySelectorAll('.bg-hatch');
     expect(hatched).toHaveLength(1);
-    expect(hatched[0]).toHaveAttribute('data-face', 'top');
-    expect(hatched[0]!.closest('[data-box]')).toHaveAttribute('data-box', 'hull');
+    expect(hatched[0]!.closest('[data-part]')).toHaveAttribute('data-part', 'hull');
+    expect(hatched[0]!.parentElement!.style.transform).toContain('rotateX(90deg)');
 
-    const hull = root.querySelector<HTMLElement>('[data-box="hull"]')!;
-    const turret = root.querySelector<HTMLElement>('[data-box="turret"]')!;
-    expect(hull.style.transform).toBe('translateY(30px)');
-    expect(turret.style.transform).toBe('translateY(-52px)');
-
-    const face = (box: HTMLElement, name: string) => box.querySelector<HTMLElement>(`[data-face="${name}"]`)!.style;
-    // Hull 200×110×120: side faces are depth-wide, top/bottom are w×d.
-    expect(face(hull, 'front')).toMatchObject({ width: '200px', height: '110px', transform: 'translateZ(60px)' });
-    expect(face(hull, 'left')).toMatchObject({ width: '120px', height: '110px', transform: 'rotateY(-90deg) translateZ(100px)' });
-    expect(face(hull, 'top')).toMatchObject({
-      width: '200px',
-      height: '120px',
-      marginLeft: '-100px',
-      marginTop: '-60px',
-      transform: 'rotateX(90deg) translateZ(55px)',
-    });
-    // Turret 96×52×80.
-    expect(face(turret, 'back')).toMatchObject({ width: '96px', height: '52px', transform: 'rotateY(180deg) translateZ(40px)' });
-    expect(face(turret, 'bottom')).toMatchObject({ width: '96px', height: '80px', transform: 'rotateX(-90deg) translateZ(26px)' });
+    // Both sides of the running gear: the track loop, sprocket, idler and six road wheels with hubs.
+    const tracks = parts[1]!.querySelectorAll('[data-plane] path');
+    const circles = (d: string) => (d.match(/a/g) ?? []).length / 2;
+    expect([...tracks].map((p) => circles(p.getAttribute('d')!))).toEqual([3 + 15, 3 + 15, 0, 0, 0, 0, 0, 0]);
   });
 
   it('sweeps an amber scanline across the drawing', () => {

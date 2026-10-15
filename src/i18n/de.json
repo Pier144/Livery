@@ -332,10 +332,11 @@
       "later": "Du kannst den Spielordner später in den Einstellungen festlegen"
     },
     "anim": {
-      "hull": "WANNE 200 × 120 × 110",
+      "hull": "M4 SHERMAN · 5840 × 2620 × 2740 MM",
       "sheet": "BLATT 00 · INSTALLATION WIRD GESUCHT",
       "unofficial": "INOFFIZIELLES TOOL"
-    }
+    },
+    "language": "Sprache"
   },
   "detail": {
     "label": "Skin-Details",

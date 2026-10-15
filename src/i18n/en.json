@@ -332,10 +332,11 @@
       "later": "You can set the game folder later in Settings"
     },
     "anim": {
-      "hull": "HULL 200 × 120 × 110",
+      "hull": "M4 SHERMAN · 5840 × 2620 × 2740 MM",
       "sheet": "SHEET 00 · DETECTING INSTALL",
       "unofficial": "UNOFFICIAL TOOL"
-    }
+    },
+    "language": "Language"
   },
   "detail": {
     "label": "Skin detail",

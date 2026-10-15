@@ -11,12 +11,13 @@ import { ConfirmStep } from './ConfirmStep';
 import { DetectStep } from './DetectStep';
 import { TICK_MS, firstRunReducer, initialFirstRun, stepIndex } from './firstRunMachine';
 import { ImportStep } from './ImportStep';
+import { LanguageMenu } from './LanguageMenu';
 import { StepTracker } from './StepTracker';
 import { TechAnimation } from './TechAnimation';
 
 /**
  * First run (README §1): Detect → Confirm (found / not found) → Import, with the technical
- * drawing on the right. Finishing or skipping sets `onboarded` and opens `useUi.firstRun.returnTo`
+ * drawing on the right and the language switch above it. Finishing or skipping sets `onboarded` and opens `useUi.firstRun.returnTo`
  * (Explore for the onboarding). Settings → Game → Change starts it at `choose`: straight to the
  * folder picker without detecting, with "Back to Settings" (a cancel that changes nothing) in place
  * of "Skip for now" and "Back", and back to Settings when a folder is set.
@@ -182,6 +183,9 @@ export function FirstRun() {
       </div>
       <div className="relative flex items-center justify-center overflow-hidden border-l border-line-grid">
         <TechAnimation />
+        <div className="absolute right-6 top-6">
+          <LanguageMenu />
+        </div>
       </div>
       <p role="status" className="sr-only">
         {outcome}

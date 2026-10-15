@@ -338,10 +338,11 @@
       "later": "Puedes definir la carpeta del juego más tarde en Ajustes"
     },
     "anim": {
-      "hull": "CASCO 200 × 120 × 110",
+      "hull": "M4 SHERMAN · 5840 × 2620 × 2740 MM",
       "sheet": "LÁMINA 00 · DETECCIÓN DE INSTALACIÓN",
       "unofficial": "HERRAMIENTA NO OFICIAL"
-    }
+    },
+    "language": "Idioma"
   },
   "detail": {
     "label": "Detalle de la skin",
