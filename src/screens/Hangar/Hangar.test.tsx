@@ -109,6 +109,10 @@ function installBackend() {
         state.skins = state.skins.map((s) => (s.id === skin.id ? renamed : s));
         return renamed;
       }
+      case 'skin_preview':
+        return args.id === 'h2' ? 'data:image/png;base64,AAAA' : null;
+      case 'wtlive_post':
+        return { id: args.id, images: args.id === 'p5' ? ['https://cdn-live.warthunder.com/p5.jpg'] : [] };
       case 'collections_list':
         return { collections: state.collections } satisfies CollectionsState;
       case 'collections_set_skins': {
@@ -563,6 +567,22 @@ describe('My Hangar', () => {
     await user.type(still, 'ambush{Enter}');
     await waitFor(() => expect(toastTexts()).toContain('Another skin folder already has this name'));
     expect(screen.getByRole('textbox', { name: 'New name for SEA Camo' })).toBeInTheDocument();
+  });
+
+  it('cards show the stored WT Live picture, the post’s, or one shipped in the folder', async () => {
+    const skins = SKINS.map((s) =>
+      s.id === 'h3' ? { ...s, preview: 'https://cdn-live.warthunder.com/h3.jpg' } : s.id === 'h5' ? { ...s, sourceId: 'p5' } : s,
+    );
+    renderHangar(skins);
+    const picture = (id: string) => document.querySelector<HTMLImageElement>(`[data-skin-id="${id}"] img`);
+    expect(picture('h3')?.src).toBe('https://cdn-live.warthunder.com/h3.jpg');
+    await waitFor(() => expect(picture('h5')?.src).toBe('https://cdn-live.warthunder.com/p5.jpg'));
+    await waitFor(() => expect(picture('h2')?.src).toBe('data:image/png;base64,AAAA'));
+    // A stored picture needs no request; a skin with nothing to show keeps the stripes.
+    expect(calls('skin_preview')).not.toContainEqual({ id: 'h3' });
+    expect(calls('wtlive_post')).toEqual([{ id: 'p5' }]);
+    await waitFor(() => expect(calls('skin_preview')).toContainEqual({ id: 'h1' }));
+    expect(picture('h1')).toBeNull();
   });
 
   it('still reports a Delete whose folders were already gone (no backup, no Undo)', async () => {

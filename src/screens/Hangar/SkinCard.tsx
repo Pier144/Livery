@@ -10,6 +10,7 @@ import {
   itemHandlers,
   RecheckLink,
   RenameButton,
+  SkinPreview,
   UninstallButton,
   useSkinDescription,
   type SkinItemProps,
@@ -57,8 +58,8 @@ export const SkinCard = memo(function SkinCard({ skin, selected, rechecking, onS
         {...itemHandlers(skin, onSelect, onUninstall, () => setEditing(true))}
         className="absolute inset-0 cursor-pointer rounded-card"
       />
-      {/* 16:9 image area; the real screenshot arrives with WT Live data (M5). */}
-      <div aria-hidden className="aspect-video rounded-t-[7px] bg-placeholder" />
+      {/* 16:9 picture: the WT Live post's, else one shipped in the skin's folder, else the stripes. */}
+      <SkinPreview skin={skin} className="aspect-video rounded-t-[7px] bg-placeholder" />
       {/* Positioned by a wrapper: the checkbox is `relative` itself (its hit-area halo). */}
       <span className="absolute left-2 top-2 z-[1] flex">
         <Checkbox

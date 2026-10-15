@@ -103,6 +103,7 @@ pub fn run() {
             library::get_hangar,
             library::set_skin_active,
             library::rename_skin,
+            library::skin_preview,
             library::delete_skins,
             library::restore_backups,
             library::export_skins,

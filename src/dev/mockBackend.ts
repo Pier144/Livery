@@ -1757,6 +1757,8 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   set_skin_active: setSkinActive,
   delete_skins: deleteSkins,
   rename_skin: renameSkin,
+  // No skin folder ships a picture in the mock; WT Live skins show their post's.
+  skin_preview: () => null,
   restore_backups: restoreBackups,
   export_skins: exportSkins,
   collections_list: () => {

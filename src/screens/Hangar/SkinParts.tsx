@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 import { useUi } from '@/store/ui';
 import type { HangarSkin } from '@/types';
+import { useSkinPreview } from './useSkinPreview';
 
 /** What a grid card and a list row need from the screen. Handlers must be stable (the items are memoized). */
 export interface SkinItemProps {
@@ -273,5 +274,18 @@ export function EditableName({
         className,
       )}
     />
+  );
+}
+
+/**
+ * The skin's picture (see `useSkinPreview`) over the striped placeholder, which shows until it
+ * loads and when there is none. Decorative: the card names the skin.
+ */
+export function SkinPreview({ skin, className }: { skin: HangarSkin; className?: string }) {
+  const src = useSkinPreview(skin);
+  return (
+    <span aria-hidden className={cn('pointer-events-none relative block overflow-hidden', className)}>
+      {src && <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className="absolute inset-0 h-full w-full object-cover" />}
+    </span>
   );
 }

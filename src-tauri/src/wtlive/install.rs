@@ -268,6 +268,7 @@ fn commit_extra(
             installed_at: time::rfc3339_utc(now),
             source_id: Some(post.id.clone()),
             temporary: false,
+            preview: post.images.first().cloned(),
             ..staged.scanned.clone()
         };
         library.skins.push(skin.clone());
@@ -376,6 +377,7 @@ fn commit(
             installed_at: time::rfc3339_utc(now),
             source_id: Some(post.id.clone()),
             temporary,
+            preview: post.images.first().cloned(),
             ..staged.scanned.clone()
         };
         library.skins.push(skin.clone());

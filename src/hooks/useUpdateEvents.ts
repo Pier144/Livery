@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listenEvent } from '@/lib/events';
+import { isTauri } from '@/lib/tauri';
 import { toast } from '@/store/toasts';
 import { useUpdate } from '@/store/update';
 import type { UpdateProgress, UpdateReady } from '@/types';
@@ -28,4 +29,16 @@ export function useUpdateEvents() {
       unlisten.forEach((fn) => fn());
     };
   }, [t]);
+}
+
+/** How long after launch Livery asks the update feed (the first screen comes first). */
+export const LAUNCH_CHECK_DELAY_MS = 3000;
+
+/** Asks the update feed once, shortly after launch; a newer version opens UpdateDialog. */
+export function useLaunchUpdateCheck() {
+  useEffect(() => {
+    if (!isTauri()) return;
+    const timer = setTimeout(() => void useUpdate.getState().checkAtLaunch(), LAUNCH_CHECK_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
 }

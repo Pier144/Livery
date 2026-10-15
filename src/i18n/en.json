@@ -56,6 +56,12 @@
       },
       "hangar": "Hangar {{count, number}} · {{size}}"
     },
+    "update": {
+      "title": "Livery {{version}} is available",
+      "body": "You have {{current}}. Installing closes Livery, updates it and opens it again.",
+      "whatsNew": "What’s new",
+      "later": "Later"
+    },
     "palette": {
       "label": "Command palette",
       "input": "Command",

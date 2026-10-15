@@ -322,6 +322,10 @@ pub struct HangarSkin {
     pub attention: Vec<Attention>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub temporary: bool,
+    /// The picture of the WT Live post it came from (https URL), shown as the Hangar card image.
+    /// A local skin's own picture is read on demand (`skin_preview`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview: Option<String>,
 }
 
 // ── Backups & collections (M3) ──────────────────────────────────────────────

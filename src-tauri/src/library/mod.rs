@@ -13,6 +13,7 @@ pub mod collections;
 pub mod index;
 pub mod layout;
 pub mod ops;
+pub mod preview;
 pub mod roots;
 pub mod scan;
 pub mod time;
@@ -220,6 +221,21 @@ pub async fn set_skin_active(app: AppHandle, ids: Vec<String>, active: bool) -> 
     blocking(move || {
         let library = prepare(&app, &[])?;
         ops::set_active(&library.user_skins, &library.store, &ids, active)
+    })
+    .await
+}
+
+/// The skin's own preview picture as a `data:` URL (a picture shipped in its folder), or `null`
+/// when it has none. Cheap: no scan, no purge.
+#[tauri::command]
+pub async fn skin_preview(app: AppHandle, id: String) -> AppResult<Option<String>> {
+    blocking(move || {
+        let library = GameLibrary::current(&app)?;
+        let skin = library.store.snapshot().skins.into_iter().find(|s| s.id == id).ok_or_else(|| {
+            AppError::new(ErrorCode::NotFound, "This skin is not in the library").with_detail(id.clone())
+        })?;
+        let Some((dir, _)) = layout::find_skin(&library.user_skins, &skin) else { return Ok(None) };
+        Ok(preview::find_preview(&dir).and_then(|p| preview::data_url(&p).ok()))
     })
     .await
 }

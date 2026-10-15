@@ -11,6 +11,7 @@ import {
   itemHandlers,
   RecheckLink,
   RenameButton,
+  SkinPreview,
   UninstallButton,
   useSkinDescription,
   type SkinItemProps,
@@ -68,7 +69,7 @@ export const SkinRow = memo(function SkinRow({ skin, selected, rechecking, onSel
         tabIndex={-1}
         className="relative z-[1]"
       />
-      <span aria-hidden className="h-[26px] w-11 rounded-tag bg-placeholder-thumb" />
+      <SkinPreview skin={skin} className="h-[26px] w-11 rounded-tag bg-placeholder-thumb" />
       <span className="flex min-w-0 flex-col gap-px">
         <span className="flex min-w-0 text-body font-medium leading-[normal] text-ink-1">
           <EditableName skin={skin} editing={editing} onRename={onRename} onDone={endRename} />

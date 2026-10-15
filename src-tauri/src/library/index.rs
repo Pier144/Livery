@@ -240,7 +240,7 @@ impl LibraryStore {
 }
 
 /// A skin already in the index, updated with what is on disk now: the index keeps id, name,
-/// origin, author, install date, source and temporary; the disk wins for the folder's spelling,
+/// origin, author, install date, source, temporary and preview; the disk wins for the folder's spelling,
 /// the vehicle, the size, the attention list and whether it is active (which place it is in).
 pub fn refresh(indexed: &HangarSkin, scanned: HangarSkin) -> HangarSkin {
     HangarSkin {
@@ -251,6 +251,7 @@ pub fn refresh(indexed: &HangarSkin, scanned: HangarSkin) -> HangarSkin {
         installed_at: indexed.installed_at.clone(),
         source_id: indexed.source_id.clone(),
         temporary: indexed.temporary,
+        preview: indexed.preview.clone(),
         ..scanned
     }
 }

@@ -5,13 +5,14 @@ import { DropOverlay } from '@/components/chrome/DropOverlay';
 import { Sidebar } from '@/components/chrome/Sidebar';
 import { TitleBar } from '@/components/chrome/TitleBar';
 import { Toaster } from '@/components/chrome/Toaster';
+import { UpdateDialog } from '@/components/chrome/UpdateDialog';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { useInstallEvents } from '@/hooks/useInstallEvents';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useScreenFocus } from '@/hooks/useScreenFocus';
-import { useUpdateEvents } from '@/hooks/useUpdateEvents';
+import { useLaunchUpdateCheck, useUpdateEvents } from '@/hooks/useUpdateEvents';
 import { reportReadyAfterPaint } from '@/lib/startup';
 import { useWtLiveInstallEvents } from '@/store/installs';
 import { useSettings } from '@/queries/settings';
@@ -67,6 +68,7 @@ export function App() {
   useWtLiveInstallEvents();
   useNetStatusEvents();
   useUpdateEvents();
+  useLaunchUpdateCheck();
   useLanguageSync();
   useReduceMotion();
   // After the screens' own effects: focus the new screen's heading, or the card the detail came from.
@@ -103,6 +105,7 @@ export function App() {
       <CommandPalette />
       <DropOverlay />
       <Toaster />
+      <UpdateDialog />
     </div>
   );
 }

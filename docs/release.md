@@ -128,6 +128,7 @@ Livery updates itself with `tauri-plugin-updater` (Rust side only, `src-tauri/sr
 - **Signature:** every update is checked against the minisign public key in `plugins.updater.pubkey` before it runs. The private key is `~/.tauri/livery-updater.key` on the author's machine (no password) and the **`TAURI_SIGNING_PRIVATE_KEY`** repository secret (its file content; `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` stays unset). **Back the key up.** If it's lost, installed copies can't verify any new version: they would need a manual reinstall of a build with a new public key. Never commit it.
 - **Install:** the NSIS installer runs in passive mode (`plugins.updater.windows.installMode`): a small progress window, no questions, then Livery opens again on the new version.
 - **Manual:** Settings → Updates → Check now → Install and restart.
+- **At launch:** 3 s after Livery opens it checks once and, for a newer version, opens a popup (Install and restart / Later). Later hides it for that version until the next launch.
 - **Automatic** (Settings → Updates → Install updates automatically, on by default): release builds check 15 s after launch and every 6 hours, download a newer version in the background (toast "Livery X is ready…") and install it when Livery closes, without reopening it. Debug builds (`pnpm tauri dev`) only check by hand, so a dev session never replaces the installed app.
 
 ## Cut a release

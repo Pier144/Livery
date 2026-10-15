@@ -87,6 +87,7 @@ pub fn scan_skin(dir: &Path) -> Option<HangarSkin> {
         source_id: None,
         attention,
         temporary: false,
+        preview: None,
     })
 }
 

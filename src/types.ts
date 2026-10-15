@@ -72,6 +72,8 @@ export interface HangarSkin {
   attention?: { kind: Attention; message: string; file?: string }[];
   /** Try in game */
   temporary?: boolean;
+  /** The WT Live post's picture (https), stored at install; the Hangar card shows it. */
+  preview?: string;
 }
 export interface Collection {
   id: string;
