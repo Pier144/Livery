@@ -41,7 +41,58 @@ const LIBRARIES = [
   { name: 'minisign-verify', license: 'MIT' },
 ] as const;
 
+/**
+ * Every third-party licence with its full text, generated at build time: `rust.txt` by cargo-about
+ * (`pnpm notices`, committed in public/licenses) and `javascript.txt` by rollup-plugin-license
+ * (vite.config.ts). Served next to the page; read only when opened.
+ */
+const FULL_NOTICES = [
+  { key: 'rust', path: 'licenses/rust.txt' },
+  { key: 'javascript', path: 'licenses/javascript.txt' },
+] as const;
+
 const FOCUSABLE = 'button:not([disabled]), [tabindex="0"]';
+
+/** One generated notices file behind a disclosure; fetched the first time it opens. */
+function FullNotice({ name, path }: { name: string; path: string }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState<string | null>(null);
+  const textId = useId();
+  const toggle = () => {
+    setOpen((v) => !v);
+    if (text !== null) return;
+    fetch(path)
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+      .then(setText)
+      .catch(() => setText(t('settings.licenses.allMissing')));
+  };
+  return (
+    <li className="flex flex-col gap-2 rounded-card border border-line-2 px-3.5 py-3">
+      <span className="text-body leading-[normal] text-ink-1">{name}</span>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={textId}
+        className="self-start text-meta leading-[normal] text-ink-3 underline underline-offset-[3px] hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120"
+      >
+        {open ? t('settings.licenses.hideText') : t('settings.licenses.showText')}
+      </button>
+      <pre
+        id={textId}
+        hidden={!open}
+        tabIndex={open ? 0 : -1}
+        aria-label={t('settings.licenses.text', { name })}
+        aria-busy={open && text === null ? true : undefined}
+        data-selectable
+        className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-ctl border border-line-2 bg-bg-2 p-3 font-mono text-mono-sm text-ink-3"
+      >
+        {text ?? ''}
+      </pre>
+    </li>
+  );
+}
 
 function LicenseText({ name, license, text }: { name: string; license: string; text: string }) {
   const { t } = useTranslation();
@@ -90,6 +141,7 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
   const fontsId = useId();
   const librariesId = useId();
   const noticesId = useId();
+  const allId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Read during the first render, before the dialog takes focus.
@@ -195,6 +247,16 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
             <ul className="flex flex-col gap-2">
               {NOTICES.map((notice) => (
                 <LicenseText key={notice.name} {...notice} />
+              ))}
+            </ul>
+          </section>
+          <section aria-labelledby={allId} className="flex flex-col gap-2">
+            <h3 id={allId} className="font-mono text-mono-label uppercase text-ink-4">
+              {t('settings.licenses.all')}
+            </h3>
+            <ul className="flex flex-col gap-2">
+              {FULL_NOTICES.map((n) => (
+                <FullNotice key={n.key} name={t(`settings.licenses.allNames.${n.key}`)} path={n.path} />
               ))}
             </ul>
           </section>

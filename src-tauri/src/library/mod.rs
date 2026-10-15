@@ -225,6 +225,25 @@ pub async fn set_skin_active(app: AppHandle, ids: Vec<String>, active: bool) -> 
     .await
 }
 
+/// A WT Live post was just fetched (the user opened its page): skins installed from it before
+/// pictures were stored get its first picture, so the Hangar shows it from now on without asking
+/// WT Live. Failures are only logged.
+pub fn remember_preview(app: &AppHandle, post_id: &str, picture: Option<&String>) {
+    let Some(picture) = picture else { return };
+    let Ok(library) = GameLibrary::current(app) else { return };
+    let result = library.store.transact(|library, _| {
+        for skin in library.skins.iter_mut() {
+            if skin.source_id.as_deref() == Some(post_id) && skin.preview.is_none() {
+                skin.preview = Some(picture.clone());
+            }
+        }
+        Ok(())
+    });
+    if let Err(e) = result {
+        tracing::warn!(error = %e, "the post's picture couldn't be stored");
+    }
+}
+
 /// The skin's own preview picture as a `data:` URL (a picture shipped in its folder), or `null`
 /// when it has none. Cheap: no scan, no purge.
 #[tauri::command]

@@ -966,7 +966,9 @@
       "choose": "Choose",
       "watched": "Watched folder",
       "downloadsDefault": "Downloads (default)",
-      "watchPickTitle": "Choose the folder to watch"
+      "watchPickTitle": "Choose the folder to watch",
+      "readGameData": "Read the vehicle list from the game",
+      "readGameDataHelper": "Livery reads vehicle names from the game’s own files (read-only) to recognise skins. Off: it uses a smaller built-in list."
     },
     "conflicts": {
       "intro": "What to do when an archive has the same folder as an installed skin.",
@@ -1047,6 +1049,8 @@
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.",
+      "privacyTitle": "Privacy",
+      "privacy": "No account, no ads, no telemetry. Livery connects only to WT Live (live.warthunder.com and its image server) when you browse or install skins, and to GitHub to check for updates. Your settings and library stay on this PC. It reads the game’s files without changing them.",
       "links": "Links",
       "source": "Source code",
       "sourceHint": "Opens Livery’s repository on GitHub",
@@ -1059,6 +1063,12 @@
       "intro": "Livery is built with open-source fonts and libraries. Thanks to everyone who makes them.",
       "fonts": "Fonts",
       "notices": "Third-party notices",
+      "all": "All third-party licenses",
+      "allNames": {
+        "rust": "Desktop app: every Rust crate",
+        "javascript": "Interface: every JavaScript package"
+      },
+      "allMissing": "This list is generated when the app is built; it isn’t in this development build.",
       "libraries": "Libraries",
       "showText": "Show license text",
       "hideText": "Hide license text",

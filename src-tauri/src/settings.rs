@@ -91,7 +91,12 @@ pub async fn get_settings(app: AppHandle) -> AppResult<Settings> {
 /// Applies a partial update; the file is written on a blocking thread (`crate::blocking`).
 #[tauri::command]
 pub async fn set_settings(app: AppHandle, patch: SettingsPatch) -> AppResult<Settings> {
-    let settings = blocking(move || app.state::<SettingsStore>().update(patch)).await?;
+    let before = app.state::<SettingsStore>().get().read_game_data;
+    let handle = app.clone();
+    let settings = blocking(move || handle.state::<SettingsStore>().update(patch)).await?;
+    if settings.read_game_data != before {
+        crate::game::read_game_data_changed(&app, settings.read_game_data);
+    }
     tracing::debug!("settings saved");
     Ok(settings)
 }
@@ -113,6 +118,20 @@ mod tests {
         let dir = temp_dir("missing");
         let store = SettingsStore::load(dir.join("settings.json"));
         assert_eq!(store.get(), Settings::default());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn reading_game_data_is_on_unless_turned_off() {
+        let dir = temp_dir("game-data");
+        let path = dir.join("settings.json");
+        // A file from before the setting existed.
+        fs::write(&path, r#"{"backups": true}"#).unwrap();
+        let store = SettingsStore::load(path.clone());
+        assert!(store.get().read_game_data);
+        let patch: SettingsPatch = serde_json::from_str(r#"{"readGameData": false}"#).unwrap();
+        assert!(!store.update(patch).unwrap().read_game_data);
+        assert!(!SettingsStore::load(path).get().read_game_data, "saved");
         fs::remove_dir_all(dir).ok();
     }
 

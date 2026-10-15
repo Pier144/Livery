@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { Switch } from '@/components/ui/Switch';
 import { errorText } from '@/lib/errors';
 import { baseName } from '@/lib/format';
 import { showInExplorer } from '@/lib/opener';
@@ -52,7 +53,7 @@ function RevealPath({ path, describedBy }: { path: string; describedBy: string }
  */
 export function GameSection() {
   const { t } = useTranslation();
-  const { settings } = useSettingsPatch();
+  const { settings, patch } = useSettingsPatch();
   const { mutateAsync: watchFolder } = useWatchFolder();
   const changeRef = useRef<HTMLButtonElement>(null);
   const gameLabelId = useId();
@@ -130,6 +131,16 @@ export function GameSection() {
             <Button variant="secondary" size={28} onClick={() => void changeWatched()} aria-describedby={watchLabelId}>
               {t('settings.game.change')}
             </Button>
+          )}
+        </SettingRow>
+        <SettingRow label={t('settings.game.readGameData')} helper={t('settings.game.readGameDataHelper')}>
+          {({ labelId, helperId }) => (
+            <Switch
+              checked={settings.readGameData}
+              onChange={(readGameData) => patch({ readGameData })}
+              aria-labelledby={labelId}
+              aria-describedby={helperId}
+            />
           )}
         </SettingRow>
       </SettingGroup>

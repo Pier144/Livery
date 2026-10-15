@@ -498,6 +498,7 @@ const PATCH_FIELDS: Partial<Record<keyof Settings, (v: unknown) => boolean>> = {
   onboarded: isBool,
   reduceMotion: oneOf(REDUCE_MOTION),
   wtliveEnabled: isBool,
+  readGameData: isBool,
 };
 
 /**

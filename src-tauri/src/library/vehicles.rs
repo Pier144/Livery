@@ -121,7 +121,7 @@ pub fn install(vehicles: &Arc<Vec<Vehicle>>) {
     *slot().write().unwrap_or_else(|e| e.into_inner()) = next;
 }
 
-/// Back to the built-in seed (tests).
+/// Back to the built-in seed (Settings → Game → Read the vehicle list turned off; tests).
 pub fn reset_to_seed() {
     *slot().write().unwrap_or_else(|e| e.into_inner()) = Arc::new(Catalog::new(Arc::new(seed())));
 }

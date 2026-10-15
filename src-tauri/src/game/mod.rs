@@ -189,8 +189,25 @@ pub async fn game_vehicles(app: AppHandle) -> AppResult<Vec<crate::model::Vehicl
 /// in progress. WT Live calls go through it first, so posts are matched against the game's list
 /// even right after launch. Blocking.
 pub fn current_vehicles(app: &AppHandle) -> Option<std::sync::Arc<Vec<crate::model::Vehicle>>> {
-    let root = crate::library::game_root(&app.state::<SettingsStore>().get()).ok()?;
+    let settings = app.state::<SettingsStore>().get();
+    // Off in Settings → Game: the game's archives are never opened; the built-in list stays.
+    if !settings.read_game_data {
+        return None;
+    }
+    let root = crate::library::game_root(&settings).ok()?;
     app.state::<catalog::CatalogStore>().load(&root)
+}
+
+/// Settings → Game → Read the vehicle list changed: off goes back to the built-in list at once,
+/// on reads the game's list again in the background.
+pub fn read_game_data_changed(app: &AppHandle, on: bool) {
+    app.state::<catalog::CatalogStore>().forget();
+    if on {
+        load_vehicles_in_background(app);
+    } else {
+        crate::library::vehicles::reset_to_seed();
+        tracing::info!("vehicle list: built-in (reading the game's data is off)");
+    }
 }
 
 /// Reads (or loads the cached) vehicle list off the main thread, so lookups use it as soon as

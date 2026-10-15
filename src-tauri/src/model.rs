@@ -58,6 +58,14 @@ pub struct Settings {
     pub reduce_motion: ReduceMotion,
     /// Settings → WT Live → Browse WT Live. Off: Livery sends no request to WT Live.
     pub wtlive_enabled: bool,
+    /// Settings → Game → Read the vehicle list from the game. Off: Livery never opens the game's
+    /// data archives (`char.vromfs.bin`, `lang.vromfs.bin`) and uses its built-in list.
+    #[serde(default = "yes")]
+    pub read_game_data: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -86,6 +94,7 @@ impl Default for Settings {
             onboarded: false,
             reduce_motion: ReduceMotion::System,
             wtlive_enabled: true,
+            read_game_data: true,
         }
     }
 }
@@ -110,6 +119,7 @@ pub struct SettingsPatch {
     pub onboarded: Option<bool>,
     pub reduce_motion: Option<ReduceMotion>,
     pub wtlive_enabled: Option<bool>,
+    pub read_game_data: Option<bool>,
 }
 
 /// Deserializes a present field as `Some(value)`, so `Option<Option<T>>` can tell
@@ -150,6 +160,9 @@ impl Settings {
         }
         if let Some(v) = patch.auto_update {
             self.auto_update = v;
+        }
+        if let Some(v) = patch.read_game_data {
+            self.read_game_data = v;
         }
         if let Some(v) = patch.start_with_windows {
             self.start_with_windows = v;

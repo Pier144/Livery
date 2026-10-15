@@ -7,6 +7,7 @@ import i18n from '@/i18n';
 import { createQueryClient } from '@/queries/client';
 import { COLLECTIONS_KEY } from '@/queries/collections';
 import { HANGAR_KEY } from '@/queries/hangar';
+import { WTLIVE_KEY } from '@/queries/wtlive';
 import { useHangarStore } from '@/store/hangar';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
@@ -130,9 +131,11 @@ function installBackend() {
   });
 }
 
-function renderHangar(skins: HangarSkin[] = SKINS, collections: Collection[] = COLLECTIONS) {
+function renderHangar(skins: HangarSkin[] = SKINS, collections: Collection[] = COLLECTIONS, posts: { id: string; images: string[] }[] = []) {
   state = { skins, collections, backups: new Map() };
   const client = createQueryClient();
+  // Posts whose page this session already opened (the Skin detail's query cache).
+  for (const post of posts) client.setQueryData([...WTLIVE_KEY, 'post', post.id], post);
   client.setQueryData(HANGAR_KEY, skins);
   client.setQueryData(COLLECTIONS_KEY, { collections });
   return renderWithProviders(
@@ -569,20 +572,29 @@ describe('My Hangar', () => {
     expect(screen.getByRole('textbox', { name: 'New name for SEA Camo' })).toBeInTheDocument();
   });
 
-  it('cards show the stored WT Live picture, the post’s, or one shipped in the folder', async () => {
+  it('cards show the stored WT Live picture, a post already loaded, or one shipped in the folder', async () => {
     const skins = SKINS.map((s) =>
-      s.id === 'h3' ? { ...s, preview: 'https://cdn-live.warthunder.com/h3.jpg' } : s.id === 'h5' ? { ...s, sourceId: 'p5' } : s,
+      s.id === 'h3'
+        ? { ...s, preview: 'https://cdn-live.warthunder.com/h3.jpg' }
+        : s.id === 'h5'
+          ? { ...s, sourceId: 'p5' }
+          : s.id === 'h4'
+            ? { ...s, sourceId: 'p4' }
+            : s,
     );
-    renderHangar(skins);
+    renderHangar(skins, COLLECTIONS, [{ id: 'p5', images: ['https://cdn-live.warthunder.com/p5.jpg'] }]);
     const picture = (id: string) => document.querySelector<HTMLImageElement>(`[data-skin-id="${id}"] img`);
     expect(picture('h3')?.src).toBe('https://cdn-live.warthunder.com/h3.jpg');
-    await waitFor(() => expect(picture('h5')?.src).toBe('https://cdn-live.warthunder.com/p5.jpg'));
+    expect(picture('h5')?.src).toBe('https://cdn-live.warthunder.com/p5.jpg');
     await waitFor(() => expect(picture('h2')?.src).toBe('data:image/png;base64,AAAA'));
-    // A stored picture needs no request; a skin with nothing to show keeps the stripes.
+    // A stored or cached picture needs no request; a skin with nothing to show keeps the stripes.
     expect(calls('skin_preview')).not.toContainEqual({ id: 'h3' });
-    expect(calls('wtlive_post')).toEqual([{ id: 'p5' }]);
+    expect(calls('skin_preview')).not.toContainEqual({ id: 'h5' });
     await waitFor(() => expect(calls('skin_preview')).toContainEqual({ id: 'h1' }));
     expect(picture('h1')).toBeNull();
+    // The Hangar never asks WT Live: a post nobody opened (p4) isn't fetched.
+    await waitFor(() => expect(calls('skin_preview')).toContainEqual({ id: 'h4' }));
+    expect(calls('wtlive_post')).toEqual([]);
   });
 
   it('still reports a Delete whose folders were already gone (no backup, no Undo)', async () => {

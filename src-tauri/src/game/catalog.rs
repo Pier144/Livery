@@ -287,6 +287,13 @@ impl CatalogStore {
         Self { path, current: Mutex::new(None), reading: Mutex::new(()), failed: Mutex::new(None) }
     }
 
+    /// Drops what this session read or failed to read, so the next [`Self::load`] reads again
+    /// and installs the list (after Settings → Game → Read the vehicle list was turned back on).
+    pub fn forget(&self) {
+        *self.current.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        *self.failed.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
     /// [`Self::vehicles_for`], logging a failure once per game folder and session (the built-in
     /// list stays in use) instead of returning it.
     pub fn load(&self, game_root: &Path) -> Option<Arc<Vec<Vehicle>>> {

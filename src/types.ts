@@ -159,6 +159,8 @@ export interface Settings {
    * detail and installs from WT Live send no request at all. (Not in DATA_MODEL; see DESIGN_NOTES.)
    */
   wtliveEnabled: boolean;
+  /** Settings → Game: read the vehicle list from the game's data archives (off: built-in list). */
+  readGameData: boolean;
 }
 /** `set_settings({ patch })`: the fields to change. */
 export type SettingsPatch = Partial<Settings>;

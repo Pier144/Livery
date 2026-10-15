@@ -10,7 +10,7 @@ const LINK =
   'text-meta leading-[normal] text-amber underline underline-offset-[3px] hover:text-amber-hover motion-safe:transition-colors motion-safe:duration-120';
 
 /**
- * About: brand, description, the unofficial-tool line and links. Source code and Report a problem
+ * About: brand, description, the unofficial-tool line, what Livery connects to (privacy) and links. Source code and Report a problem
  * open Livery's GitHub repository and its issues in the default browser (`@/lib/opener`; if the
  * browser can't be opened the link goes to the clipboard). No Gaijin / War Thunder logos anywhere.
  */
@@ -30,6 +30,12 @@ export function AboutSection() {
         </div>
         <p>{t('settings.about.description')}</p>
         <p className="rounded-card border border-line-2 bg-bg-3 px-3.5 py-3 text-ink-3">{t('common.unofficial')}</p>
+        <section aria-labelledby="about-privacy" className="flex flex-col gap-1">
+          <h3 id="about-privacy" className="font-mono text-mono-label uppercase text-ink-4">
+            {t('settings.about.privacyTitle')}
+          </h3>
+          <p className="text-ink-3">{t('settings.about.privacy')}</p>
+        </section>
         <div role="group" aria-label={t('settings.about.links')} className="flex flex-wrap gap-4">
           <button type="button" title={t('settings.about.sourceHint')} onClick={() => void openLink(REPO_URL, t)} className={LINK}>
             {t('settings.about.source')}

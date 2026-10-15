@@ -371,6 +371,17 @@ describe('Settings · General', () => {
 // ── Game ────────────────────────────────────────────────────────────────────
 
 describe('Settings · Game', () => {
+  it('turns reading the vehicle list from the game off and on', async () => {
+    const { user } = renderSettings('game');
+    const read = await screen.findByRole('switch', { name: 'Read the vehicle list from the game' });
+    expect(read).toBeChecked();
+    expect(read).toHaveAccessibleDescription(/read-only/);
+    await user.click(read);
+    await waitFor(() => expect(settings.readGameData).toBe(false));
+    expect(calls('set_settings')[0]?.[1]).toEqual({ patch: { readGameData: false } });
+    expect(read).not.toBeChecked();
+  });
+
   it('shows the install, hides its path until asked, and Change opens First run on the folder picker', async () => {
     const { user, unmount } = renderSettings('game');
     expect(screen.getByText('War Thunder · Steam')).toBeInTheDocument();
@@ -810,6 +821,29 @@ describe('Settings · About', () => {
     expect(messages()).toEqual([]);
   });
 
+  it('lists every third-party licence from the generated files, read only when opened', async () => {
+    const fetchMock = vi.fn(async (path: string) => ({
+      ok: path === 'licenses/rust.txt',
+      status: path === 'licenses/rust.txt' ? 200 : 404,
+      text: async () => 'MIT License: 277 crate(s)',
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { user } = renderSettings('about');
+    await user.click(screen.getByRole('button', { name: 'Licenses' }));
+    const dialog = screen.getByRole('dialog', { name: 'Licenses' });
+    expect(within(dialog).getByText('Desktop app: every Rust crate')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+    const [rust, javascript] = within(dialog).getAllByRole('button', { name: 'Show license text' }).slice(-2) as [HTMLElement, HTMLElement];
+    await user.click(rust);
+    expect(fetchMock).toHaveBeenCalledWith('licenses/rust.txt');
+    expect(await within(dialog).findByText('MIT License: 277 crate(s)')).toBeInTheDocument();
+    await user.click(javascript);
+    expect(
+      await within(dialog).findByText('This list is generated when the app is built; it isn’t in this development build.'),
+    ).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
   it('Licenses opens a focus-trapped dialog; Escape closes only it and focus goes back', async () => {
     const { user, container } = renderSettings('about');
     const opener = screen.getByRole('button', { name: 'Licenses' });
@@ -829,8 +863,16 @@ describe('Settings · About', () => {
 
     const close = within(dialog).getByRole('button', { name: 'Close' });
     const toggles = within(dialog).getAllByRole('button', { name: 'Show license text' });
-    expect(toggles).toHaveLength(5);
-    const [geist, plex, unrar, zstd, awsLc] = toggles as [HTMLElement, HTMLElement, HTMLElement, HTMLElement, HTMLElement];
+    expect(toggles).toHaveLength(7);
+    const [geist, plex, unrar, zstd, awsLc, rust, javascript] = toggles as HTMLElement[] as [
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+    ];
     expect(within(dialog).getByText('AWS-LC · Amazon.com, Inc.')).toBeInTheDocument();
     for (const lib of ['reqwest · hyper', 'rustls']) expect(within(dialog).getByText(lib)).toBeInTheDocument();
     // The notices bundled native code requires: UnRAR's paragraph 2 verbatim, zstd's BSD text.
@@ -852,9 +894,13 @@ describe('Settings · About', () => {
     await user.tab();
     expect(awsLc).toHaveFocus();
     await user.tab();
+    expect(rust).toHaveFocus();
+    await user.tab();
+    expect(javascript).toHaveFocus();
+    await user.tab();
     expect(close).toHaveFocus();
     await user.tab({ shift: true });
-    expect(awsLc).toHaveFocus();
+    expect(javascript).toHaveFocus();
 
     // The full OFL text ships with the app; once shown it is a focusable scroll region.
     await user.click(geist);

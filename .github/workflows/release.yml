@@ -179,10 +179,18 @@ jobs:
           (cd "$(dirname "$installer")" && sha256sum "$(basename "$installer")" > "$(basename "$installer").sha256")
           # The update feed: the latest *published* release's latest.json is what Livery reads.
           node scripts/updater-manifest.mjs "${installer}" "$(dirname "$installer")/latest.json" "${GITHUB_REPOSITORY}"
+          # Every third-party licence in the build (also in the app: About → Licenses).
+          notices="$(dirname "$installer")/THIRD-PARTY-NOTICES.txt"
+          if [ ! -s public/licenses/rust.txt ] || [ ! -s dist/licenses/javascript.txt ]; then
+            echo "::error::The third-party notices are missing (pnpm notices, then the build writes dist/licenses/javascript.txt)."
+            exit 1
+          fi
+          { cat public/licenses/rust.txt; printf '\n\n'; cat dist/licenses/javascript.txt; } > "${notices}"
           echo "path=${installer}" >> "$GITHUB_OUTPUT"
           echo "checksum=${installer}.sha256" >> "$GITHUB_OUTPUT"
           echo "signature=${installer}.sig" >> "$GITHUB_OUTPUT"
           echo "manifest=$(dirname "$installer")/latest.json" >> "$GITHUB_OUTPUT"
+          echo "notices=${notices}" >> "$GITHUB_OUTPUT"
           ls -l "$(dirname "$installer")"
 
       - name: Verify the signature
@@ -212,18 +220,20 @@ jobs:
           CHECKSUM: ${{ steps.installer.outputs.checksum }}
           SIGNATURE: ${{ steps.installer.outputs.signature }}
           MANIFEST: ${{ steps.installer.outputs.manifest }}
+          NOTICES: ${{ steps.installer.outputs.notices }}
         run: |
           if draft=$(gh release view "${TAG}" --json isDraft --jq .isDraft 2>/dev/null); then
             if [ "${draft}" != "true" ]; then
               echo "::error::Release ${TAG} is already published. Bump the version to release again."
               exit 1
             fi
-            gh release upload "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" --clobber
+            gh release upload "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" "${NOTICES}" --clobber
           else
-            gh release create "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" \
+            gh release create "${TAG}" "${INSTALLER}" "${CHECKSUM}" "${SIGNATURE}" "${MANIFEST}" "${NOTICES}" \
               --draft \
               --target "${GITHUB_SHA}" \
               --title "Livery ${VERSION}" \
+              --notes-file .github/release-notes.md \
               --generate-notes
           fi
           echo "Draft release ${TAG} is ready for review."

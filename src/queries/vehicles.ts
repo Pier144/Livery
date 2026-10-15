@@ -12,9 +12,12 @@ export const VEHICLES_KEY = ['game', 'vehicles'] as const;
  * folder, or when the game's files can't be read, the built-in list in `src/data/vehicles.json`.
  */
 export function useVehicles(): readonly Vehicle[] {
-  const gamePath = useSettings().data?.gamePath ?? null;
+  const settings = useSettings().data;
+  const gamePath = settings?.gamePath ?? null;
+  // Settings → Game → Read the vehicle list: switching it asks the backend again.
+  const fromGame = settings?.readGameData !== false;
   const query = useQuery<Vehicle[], AppError>({
-    queryKey: [...VEHICLES_KEY, gamePath],
+    queryKey: [...VEHICLES_KEY, gamePath, fromGame],
     queryFn: () => call<Vehicle[]>('game_vehicles'),
     enabled: hasBackend() && gamePath !== null,
     staleTime: Infinity,

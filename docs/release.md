@@ -47,6 +47,19 @@ Unsigned installers work, but SmartScreen warns "Windows protected your PC" unti
 }
 ```
 
+### Getting a certificate (individual, open source)
+
+Checked on 2026-10-15 without buying anything; prices and eligibility change, so confirm on each provider's site.
+
+| Option | Fit for Livery | What to know |
+|---|---|---|
+| **Certum "Open Source Code Signing"** (Asseco, Poland) | The most likely fit: issued to individuals who maintain open-source projects, EU-based identity check. | Paid (yearly). The key lives on a Certum card/token or their SimplySign cloud, not in a `.pfx`, so it goes through way **B** (`signCommand` with signtool + their tool). The signer shown by Windows is your legal name, not "Pier144". |
+| **SignPath Foundation** | Free for open-source projects, signs in CI. | Reviews the project first; it expects every shipped component under an OSI licence, and UnRAR (freeware) may not qualify. Ask before applying, or ship a build without RAR support. |
+| **Azure Artifact Signing** (Microsoft; was Trusted Signing) | Cheapest per month and integrates with signtool (way **B**). | Identity validation for individuals was limited to some countries (US/Canada) when last checked: verify it's open in Italy. |
+| Classic OV certificate (DigiCert, Sectigo resellers…) | Works with way **A** or **B**. | Most expensive for an individual; since 2023 keys must be on hardware tokens, so no plain `.pfx`. |
+
+Any of them removes "Unknown publisher", but SmartScreen can still warn until the certificate builds reputation (downloads over time). EV certificates no longer skip that step. Until then the release notes explain "More info → Run anyway", and the updater's own minisign signature keeps updates safe either way.
+
 Tauri signs only when `certificateThumbprint` or `signCommand` is set. When it signs, it signs `livery.exe`, the uninstaller and the setup executable, so signing has to happen **inside** `tauri build`: signing only the finished installer would leave the app itself unsigned.
 
 **`timestampUrl` must become a real URL when you turn signing on.** Tauri passes it to signtool as is, and an empty string makes signtool fail. Use your certificate provider's RFC 3161 server with `"tsp": true` (signtool `/tr` + `/td sha256`); `http://timestamp.digicert.com` works for any certificate.
@@ -133,14 +146,15 @@ Livery updates itself with `tauri-plugin-updater` (Rust side only, `src-tauri/sr
 
 ## Cut a release
 
+0. Re-read Gaijin's terms (https://legal.gaijin.net/termsofservice, /contribution, /contentrules, /community-guidelines-live-sandbox): if the dates changed since `docs/wtlive-terms.md` was last updated, check the clauses it quotes before releasing. Run `pnpm notices` if `Cargo.lock` changed (needs `cargo install cargo-about --locked --features cli`), so `public/licenses/rust.txt` lists the crates being shipped.
 1. Bump the version in **three** places: `package.json`, `src-tauri/Cargo.toml` (then `cargo check --manifest-path src-tauri/Cargo.toml` to refresh `Cargo.lock`) and `src-tauri/tauri.conf.json`. The installer name and the tag check use `tauri.conf.json`.
 2. Commit, then tag and push:
    ```bash
    git tag v0.2.0
    git push origin main v0.2.0
    ```
-3. `release.yml` checks that the tag matches `v<tauri.conf.json version>`, builds (signing if configured) and creates a **draft** release `v0.2.0` with the installer, its `.sha256`, its updater `.sig` and `latest.json`, with GitHub's generated notes.
-4. Wait for CI to pass on the tagged commit, install the draft's installer on a clean Windows 11 VM (M6 acceptance: first run to first installed skin in under 2 minutes), edit the notes, then publish the draft by hand. **Publishing is what ships the update:** from that moment every installed Livery finds it.
+3. `release.yml` checks that the tag matches `v<tauri.conf.json version>`, builds (signing if configured) and creates a **draft** release `v0.2.0` with the installer, its `.sha256`, its updater `.sig`, `latest.json` and `THIRD-PARTY-NOTICES.txt`. The notes start with `.github/release-notes.md` (disclaimer, install/update and SmartScreen help, an empty "What's new") followed by GitHub's generated changelog.
+4. Wait for CI to pass on the tagged commit, install the draft's installer on a clean Windows 11 VM (M6 acceptance: first run to first installed skin in under 2 minutes), fill in "What's new" for players, then publish the draft by hand. **Publishing is what ships the update:** from that moment every installed Livery finds it.
 
 **Run it by hand** (Actions → Release → Run workflow): drafts `v<tauri.conf.json version>` on the selected branch's commit. The tag is created when you publish the draft. Re-running for the same version replaces the draft's files; a version that is already published fails with a message: bump it.
 

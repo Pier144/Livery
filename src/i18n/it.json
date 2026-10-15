@@ -896,7 +896,9 @@
       "choose": "Scegli",
       "watched": "Cartella controllata",
       "downloadsDefault": "Download (predefinita)",
-      "watchPickTitle": "Scegli la cartella da controllare"
+      "watchPickTitle": "Scegli la cartella da controllare",
+      "readGameData": "Leggi l’elenco dei veicoli dal gioco",
+      "readGameDataHelper": "Livery legge i nomi dei veicoli dai file del gioco (in sola lettura) per riconoscere le skin. Spento: usa un elenco interno più piccolo."
     },
     "conflicts": {
       "intro": "Cosa fare quando un archivio usa la stessa cartella di una skin installata.",
@@ -969,6 +971,8 @@
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "Un gestore di skin utente per War Thunder. Sfoglia WT Live, installa con un clic, tieni in ordine il tuo hangar.",
+      "privacyTitle": "Privacy",
+      "privacy": "Nessun account, nessuna pubblicità, nessuna telemetria. Livery si collega solo a WT Live (live.warthunder.com e il suo server di immagini) quando sfogli o installi skin, e a GitHub per controllare gli aggiornamenti. Impostazioni e libreria restano su questo PC. Legge i file del gioco senza modificarli.",
       "links": "Link",
       "source": "Codice sorgente",
       "sourceHint": "Apre il repository di Livery su GitHub",
@@ -981,6 +985,12 @@
       "intro": "Livery usa caratteri e librerie open source. Grazie a chi li realizza.",
       "fonts": "Caratteri",
       "notices": "Avvisi di terze parti",
+      "all": "Tutte le licenze di terze parti",
+      "allNames": {
+        "rust": "App desktop: ogni crate Rust",
+        "javascript": "Interfaccia: ogni pacchetto JavaScript"
+      },
+      "allMissing": "Questo elenco viene generato quando l’app viene compilata; non c’è in questa versione di sviluppo.",
       "libraries": "Librerie",
       "showText": "Mostra il testo della licenza",
       "hideText": "Nascondi il testo della licenza",

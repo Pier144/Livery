@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
   reduceMotion: 'system',
   wtliveEnabled: true,
+  readGameData: true,
 };
 
 export const SETTINGS_KEY = ['settings'] as const;

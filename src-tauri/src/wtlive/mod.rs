@@ -237,7 +237,9 @@ pub async fn wtlive_post(app: AppHandle, id: String) -> AppResult<WtLiveSkin> {
     let handle = app.clone();
     let result = blocking(move || {
         crate::game::current_vehicles(&handle);
-        post(client.as_ref(), &id)
+        let post = post(client.as_ref(), &id)?;
+        crate::library::remember_preview(&handle, &post.id, post.images.first());
+        Ok(post)
     })
     .await;
     reported(&app, WtLiveCall::Post, result)
