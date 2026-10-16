@@ -289,6 +289,8 @@ describe('mask maths (reference of the stamping shader)', () => {
     expect(stampWeight(stroke(), 0, 1, texel([0, 0, 0], { normal: [0, 0, -1] }))).toBe(0);
     expect(stampWeight(stroke(), 0, 1, texel([0, 0, 0], { normal: [1, 0, 0.1] }))).toBe(0);
     expect(stampWeight(stroke({ dir: [0, 0, -5] }), 0, 1, texel([0, 0, 0], { normal: [0, 0, 3] }))).toBe(1);
+    // A zero-length normal is never stamped (the shader checks the length before the facing test).
+    expect(stampWeight(stroke(), 0, 1, texel([0, 0, 0], { normal: [0, 0, 0] }))).toBe(0);
   });
 
   it('paints with max and erases with min(1 − w), in order', () => {
@@ -382,6 +384,10 @@ interface Draw {
   target: THREE.WebGLRenderTarget | null;
   equation: number;
   count: number;
+  /** Paint uniforms at draw time. */
+  alpha: number;
+  premultiply: number;
+  detail: THREE.DataTexture | null;
 }
 
 /** A WebGLRenderer stand-in that records draws and clears; read-back fills from `fill`. */
@@ -390,8 +396,12 @@ function fakeRenderer(maxTextureSize = 16384) {
   const clears: (THREE.WebGLRenderTarget | null)[] = [];
   let current: THREE.WebGLRenderTarget | null = null;
   let lastKind: Draw['kind'] | null = null;
+  const canvas = document.createElement('canvas');
+  const context = { lost: false };
   const renderer = {
     capabilities: { maxTextureSize },
+    domElement: canvas,
+    getContext: () => ({ isContextLost: () => context.lost }),
     autoClear: true,
     getRenderTarget: () => current,
     setRenderTarget: (t: THREE.WebGLRenderTarget | null) => {
@@ -407,7 +417,15 @@ function fakeRenderer(maxTextureSize = 16384) {
       const kind = material.fragmentShader === PAINT_FRAGMENT ? 'paint' : material.fragmentShader === MASK_FRAGMENT ? 'mask' : 'coverage';
       lastKind = kind;
       const params = material.uniforms.uParams?.value as THREE.Vector4 | undefined;
-      draws.push({ kind, target: current, equation: material.blendEquation, count: kind === 'mask' && params ? params.w : 0 });
+      draws.push({
+        kind,
+        target: current,
+        equation: material.blendEquation,
+        count: kind === 'mask' && params ? params.w : 0,
+        alpha: (material.uniforms.uBaseAlpha?.value as number | undefined) ?? -1,
+        premultiply: (material.uniforms.uPremultiply?.value as number | undefined) ?? -1,
+        detail: (material.uniforms.uDetail?.value as THREE.DataTexture | null | undefined) ?? null,
+      });
     },
     // Triangles cover the left half of every row: the paint is (10, 20, 30, 255) there, 0 elsewhere.
     readRenderTargetPixels: (_t: THREE.WebGLRenderTarget, _x: number, _y: number, w: number, rows: number, buf: Uint8Array) => {
@@ -418,7 +436,7 @@ function fakeRenderer(maxTextureSize = 16384) {
         }
     },
   };
-  return { renderer: renderer as unknown as THREE.WebGLRenderer, draws, clears };
+  return { renderer: renderer as unknown as THREE.WebGLRenderer, draws, clears, canvas, context };
 }
 
 function layersWith(strokes: Stroke[], base: Partial<BaseLayer> = {}): Layer[] {
@@ -546,6 +564,69 @@ describe('Baker (WebGL stubbed)', () => {
     expect(baker.bakeForExport(BODY, true)).toMatchObject({ w: 1024, h: 1024, downscaled: true });
     expect(baker.bakeForExport(TURRET, true)).toMatchObject({ w: 32, h: 32, downscaled: false });
     baker.dispose();
+  });
+
+  it('renders nothing opaque before the first setLayers', () => {
+    const { baker, draws } = setup();
+    baker.bakeForExport(BODY, false);
+    expect(draws.find((d) => d.kind === 'paint')?.alpha).toBe(0);
+    baker.dispose();
+  });
+
+  it('premultiplies the preview targets and keeps straight alpha for export', () => {
+    const { baker, draws } = setup();
+    baker.setLayers(layersWith([]), [BODY]);
+    expect(draws.filter((d) => d.kind === 'paint').map((d) => d.premultiply)).toEqual([1]);
+    baker.bakeForExport(BODY, false);
+    expect(draws.filter((d) => d.kind === 'paint').map((d) => d.premultiply)).toEqual([1, 0]);
+    baker.dispose();
+  });
+
+  it('uploads the detail map as Float32 into R16F and releases the CPU copy', () => {
+    const { baker, draws } = setup();
+    baker.setLayers(layersWith([]), [BODY]);
+    const detail = draws.find((d) => d.kind === 'paint')!.detail!;
+    expect(detail.type).toBe(THREE.FloatType);
+    expect(detail.format).toBe(THREE.RedFormat);
+    expect(detail.internalFormat).toBe('R16F');
+    expect(detail.image.data).toBeInstanceOf(Float32Array);
+    detail.onUpdate?.(detail);
+    expect(detail.image.data).toBeNull();
+    baker.dispose();
+  });
+
+  it('re-bakes everything after a context restore and refuses to export while lost', () => {
+    const { baker, draws, clears, canvas, context, onUpdate } = setup();
+    const layers = layersWith([stroke()]);
+    baker.setLayers(layers, [BODY, TURRET]);
+    const maskClears = () => clears.filter((t) => t && t.texture.format === THREE.RedFormat).length;
+    expect(maskClears()).toBe(2);
+
+    context.lost = true;
+    canvas.dispatchEvent(new Event('webglcontextlost'));
+    expect(() => baker.bakeForExport(BODY, false)).toThrow(/context is lost/);
+    const count = draws.length;
+    baker.setLayers(layersWith([stroke(), stroke({ erase: true })]), [BODY]);
+    expect(draws.length).toBe(count);
+
+    context.lost = false;
+    onUpdate.mockClear();
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    // The last setLayers (one slot, two strokes) is baked again from scratch.
+    expect(maskClears()).toBe(3);
+    const after = draws.slice(count);
+    expect(after.filter((d) => d.kind === 'mask')).toHaveLength(2);
+    expect(after.filter((d) => d.kind === 'paint')).toHaveLength(1);
+    expect(after.find((d) => d.kind === 'paint')!.detail).not.toBeNull();
+    expect(baker.previewTexture(BODY)).not.toBeNull();
+    expect(baker.previewTexture(TURRET)).toBeNull();
+    expect(onUpdate).toHaveBeenCalled();
+    expect(baker.bakeForExport(BODY, false).w).toBe(64);
+
+    baker.dispose();
+    const disposedAt = draws.length;
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(draws.length).toBe(disposedAt);
   });
 
   it('frees its targets on dispose and ignores calls afterwards', () => {

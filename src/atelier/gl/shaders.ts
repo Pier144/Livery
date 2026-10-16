@@ -197,7 +197,9 @@ varying float vGroup;
 
 void main() {
   if (uParams.z >= 0.0 && abs(vGroup - uParams.z) > 0.5) discard;
-  if (dot(normalize(vNormal), -uDir) <= ${FACING_MIN.toFixed(2)}) discard;
+  // Facing test without normalize(): a zero-length normal is never stamped (as in stampWeight).
+  float normalLength = length(vNormal);
+  if (normalLength <= 0.0 || dot(vNormal, -uDir) <= ${FACING_MIN.toFixed(2)} * normalLength) discard;
   float hardness = clamp(uParams.x, 0.0, ${MAX_HARDNESS});
   int count = int(uParams.w + 0.5);
   float w = 0.0;
@@ -217,6 +219,11 @@ void main() {
  * split by `uThresholds` into `uColors[0..3]`), times the template's detail factor (R16F,
  * sampled at the texel's UV), alpha = 1 − mask (the protected areas show the game's texture).
  * `uBaseAlpha` is 0 when the Base is hidden (nothing painted).
+ *
+ * `uPremultiply` 1 (preview targets) writes `rgb · a`: the cleared background (0, 0, 0, 0) is
+ * then a valid transparent texel, so bilinear filtering and mipmaps at UV island edges don't
+ * darken the paint (`PREVIEW_MAP_FRAGMENT` composites premultiplied). Export writes straight
+ * alpha (`uPremultiply` 0) and dilates the islands instead.
  */
 export const PAINT_FRAGMENT = /* glsl */ `
 ${NOISE_GLSL}
@@ -230,6 +237,7 @@ uniform float uHasDetail;
 uniform sampler2D uMask;
 uniform float uHasMask;
 uniform float uBaseAlpha;
+uniform float uPremultiply;
 varying vec3 vPos;
 varying vec2 vUv;
 
@@ -242,7 +250,9 @@ void main() {
   }
   float detail = uHasDetail > 0.5 ? texture2D(uDetail, vUv).r : 1.0;
   float mask = uHasMask > 0.5 ? texture2D(uMask, vUv).r : 0.0;
-  gl_FragColor = vec4(clamp(color * detail, 0.0, 1.0), uBaseAlpha * (1.0 - mask));
+  float alpha = uBaseAlpha * (1.0 - mask);
+  color = clamp(color * detail, 0.0, 1.0);
+  gl_FragColor = vec4(uPremultiply > 0.5 ? color * alpha : color, alpha);
 }
 `;
 
@@ -255,14 +265,15 @@ void main() {
 
 /**
  * Preview: replaces `map_fragment` of a `MeshStandardMaterial` (`onBeforeCompile`), whose `map`
- * is the slot's template (sRGB data, `NoColorSpace`). Shows `mix(template, paint, paint.a)` in
- * sRGB, then decodes to linear for the lighting; `uPaintMix` 0 shows the template alone.
+ * is the slot's template (sRGB data, `NoColorSpace`). The paint is premultiplied, so this is
+ * `mix(template, paint, paint.a)` as `T · (1 − a) + P.rgb`, in sRGB, then decoded to linear for
+ * the lighting; `uPaintMix` 0 shows the template alone.
  */
 export const PREVIEW_MAP_FRAGMENT = /* glsl */ `
 #ifdef USE_MAP
   vec4 lvTemplate = texture2D( map, vMapUv );
-  vec4 lvPaint = texture2D( uPaint, vMapUv );
-  vec3 lvSrgb = mix( lvTemplate.rgb, lvPaint.rgb, lvPaint.a * uPaintMix );
+  vec4 lvPaint = texture2D( uPaint, vMapUv ) * uPaintMix;
+  vec3 lvSrgb = lvTemplate.rgb * ( 1.0 - lvPaint.a ) + lvPaint.rgb;
   diffuseColor.rgb *= sRGBTransferEOTF( vec4( lvSrgb, 1.0 ) ).rgb;
 #endif
 `;

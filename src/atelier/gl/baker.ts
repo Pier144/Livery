@@ -35,10 +35,19 @@ import {
  *   last change;
  * - a **preview** material (`MeshStandardMaterial` + `onBeforeCompile`) showing
  *   `mix(template, paint, paint.a)` with the raw UVs of the model, so protected areas show the
- *   game's texture; disabled slots and the Template toggle show the template alone.
+ *   game's texture; disabled slots and the Template toggle show the template alone. Preview
+ *   targets hold premultiplied colour, so filtering at island edges doesn't darken them.
  *
- * Export (`bakeForExport`) renders a temporary target at the output size, reads it back
- * top-to-bottom (DirectX v = 0 is row 0, no flip), renders a coverage pass and dilates 4 px.
+ * Export (`bakeForExport`) renders a temporary target at the output size (straight alpha), reads
+ * it back top-to-bottom (DirectX v = 0 is row 0, no flip), renders a coverage pass and dilates 4 px.
+ *
+ * `upgrade()` brings the focused slot's full-size target up to date right away (instead of
+ * `UPGRADE_DELAY_MS` after the last change): call it before rendering a thumbnail.
+ *
+ * WebGL context loss: the Baker listens to `webglcontextrestored` on `renderer.domElement`
+ * (after three's own listener, registered when the renderer was created, has rebuilt its
+ * state), drops every GPU resource whose contents were lost and re-bakes from the last
+ * `setLayers`. While the context is lost nothing renders and `bakeForExport` throws.
  *
  * WebGL-free logic lives in the exported helpers below (Vitest covers them without a GPU).
  */
@@ -354,7 +363,8 @@ export function stampWeight(stroke: Stroke, start: number, count: number, texel:
   if (group >= 0 && group !== texel.group) return 0;
   const dir = new Float32Array(3);
   normalizedDir(stroke.dir, dir);
-  const nl = Math.hypot(texel.normal[0], texel.normal[1], texel.normal[2]) || 1;
+  const nl = Math.hypot(texel.normal[0], texel.normal[1], texel.normal[2]);
+  if (nl === 0) return 0;
   const facing = -(texel.normal[0] * dir[0]! + texel.normal[1] * dir[1]! + texel.normal[2] * dir[2]!) / nl;
   if (facing <= FACING_MIN) return 0;
   let w = 0;
@@ -476,6 +486,11 @@ interface SlotState {
   previewUniforms: { uPaint: THREE.IUniform<THREE.Texture>; uPaintMix: THREE.IUniform<number> };
 }
 
+/** `onUpdate` of textures whose CPU copy isn't needed once on the GPU. */
+function releaseImageData(texture: THREE.Texture): void {
+  (texture.image as { data: unknown }).data = null;
+}
+
 function makeDataTexture(data: Uint8Array, w: number, h: number): THREE.DataTexture {
   const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.UnsignedByteType);
   t.colorSpace = THREE.NoColorSpace;
@@ -508,6 +523,11 @@ export class Baker {
   private showTemplate = false;
   private upgradeTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  /** The last `setLayers` arguments, replayed after a context restore. */
+  private lastLayers: Layer[] | null = null;
+  private lastEnabled: string[] = [];
+  private readonly onContextLost = () => this.handleContextLost();
+  private readonly onContextRestored = () => this.handleContextRestored();
   readonly maxTextureSize: number;
 
   constructor(
@@ -544,7 +564,8 @@ export class Baker {
       uHasDetail: { value: 0 },
       uMask: { value: null },
       uHasMask: { value: 0 },
-      uBaseAlpha: { value: 1 },
+      uBaseAlpha: { value: 0 },
+      uPremultiply: { value: 0 },
     });
     this.maskMaterial = bakeMaterial(
       MASK_FRAGMENT,
@@ -608,6 +629,11 @@ export class Baker {
       return state;
     });
     this.focused = this.slots.find((s) => isBodySlot(s.slot.texture)) ?? this.slots[0] ?? null;
+    // No Base yet: transparent (alpha 0), never opaque black.
+    this.applyBaseUniforms();
+    const canvas = renderer.domElement as HTMLCanvasElement | undefined;
+    canvas?.addEventListener?.('webglcontextlost', this.onContextLost);
+    canvas?.addEventListener?.('webglcontextrestored', this.onContextRestored);
   }
 
   // ---------------------------------------------------------------- public API
@@ -619,6 +645,9 @@ export class Baker {
    */
   setLayers(layers: Layer[], enabled: string[]): void {
     if (this.disposed) return;
+    this.lastLayers = layers;
+    this.lastEnabled = enabled;
+    if (this.contextLost()) return;
     const base = baseOf(layers);
     const strokes = visibleStrokes(layers);
     const baseChanged = base !== this.base;
@@ -733,6 +762,7 @@ export class Baker {
    */
   bakeForExport(slot: string, highQuality: boolean): BakeResult {
     if (this.disposed) throw new Error('Baker: disposed');
+    if (this.contextLost()) throw new Error('Baker: the WebGL context is lost');
     const state = this.state(slot);
     this.ensureGeometry(state);
     this.ensureDetail(state);
@@ -756,7 +786,7 @@ export class Baker {
     const rgba = new Uint8Array(w * h * 4);
     const covered = new Uint8Array(w * h);
     try {
-      this.drawPaint(state, target, mask);
+      this.drawPaint(state, target, mask, false);
       this.renderer.readRenderTargetPixels(target, 0, 0, w, h, rgba);
       this.draw(state, this.coverageMaterial, target, true);
       const strip = new Uint8Array(w * Math.min(COVERAGE_STRIP_ROWS, h) * 4);
@@ -778,6 +808,9 @@ export class Baker {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    const canvas = this.renderer.domElement as HTMLCanvasElement | undefined;
+    canvas?.removeEventListener?.('webglcontextlost', this.onContextLost);
+    canvas?.removeEventListener?.('webglcontextrestored', this.onContextRestored);
     if (this.upgradeTimer !== null) clearTimeout(this.upgradeTimer);
     this.upgradeTimer = null;
     for (const state of this.slots) {
@@ -859,10 +892,11 @@ export class Baker {
   private ensureDetail(state: SlotState): void {
     if (state.detail || !state.templateImage) return;
     const { rgba, w, h } = state.templateImage;
-    const factors = detailMap(rgba, w, h);
-    const half = new Uint16Array(factors.length);
-    for (let i = 0; i < factors.length; i++) half[i] = THREE.DataUtils.toHalfFloat(factors[i]!);
-    const detail = new THREE.DataTexture(half, w, h, THREE.RedFormat, THREE.HalfFloatType);
+    // Float32 data into an R16F texture: half floats are filterable without an extension, and
+    // the CPU data is dropped once uploaded (a context restore recomputes it).
+    const detail = new THREE.DataTexture(detailMap(rgba, w, h), w, h, THREE.RedFormat, THREE.FloatType);
+    detail.internalFormat = 'R16F';
+    detail.unpackAlignment = 4;
     detail.colorSpace = THREE.NoColorSpace;
     detail.flipY = false;
     detail.magFilter = THREE.LinearFilter;
@@ -870,6 +904,7 @@ export class Baker {
     detail.wrapS = THREE.RepeatWrapping;
     detail.wrapT = THREE.RepeatWrapping;
     detail.generateMipmaps = false;
+    detail.onUpdate = releaseImageData;
     detail.needsUpdate = true;
     state.detail = detail;
   }
@@ -965,8 +1000,9 @@ export class Baker {
     u.uBaseAlpha!.value = b.alpha;
   }
 
-  private drawPaint(state: SlotState, target: THREE.WebGLRenderTarget, mask: THREE.WebGLRenderTarget | null): void {
+  private drawPaint(state: SlotState, target: THREE.WebGLRenderTarget, mask: THREE.WebGLRenderTarget | null, premultiply: boolean): void {
     const u = this.paintMaterial.uniforms;
+    u.uPremultiply!.value = premultiply ? 1 : 0;
     u.uDetail!.value = state.detail;
     u.uHasDetail!.value = state.detail ? 1 : 0;
     u.uMask!.value = mask ? mask.texture : null;
@@ -984,7 +1020,7 @@ export class Baker {
       target = this.createPaintTarget(size.w, size.h, true);
       state[key] = target;
     }
-    this.drawPaint(state, target, state.mask);
+    this.drawPaint(state, target, state.mask, true);
     if (which === 'full') state.fullVersion = state.version;
     else state.smallVersion = state.version;
   }
@@ -1070,6 +1106,43 @@ export class Baker {
     r.render(state.scene, this.camera);
     r.setRenderTarget(previous);
     r.autoClear = autoClear;
+  }
+
+  // ---------------------------------------------------------------- context loss
+
+  private contextLost(): boolean {
+    const gl = this.renderer.getContext?.();
+    return gl ? gl.isContextLost() : false;
+  }
+
+  private handleContextLost(): void {
+    if (this.upgradeTimer !== null) clearTimeout(this.upgradeTimer);
+    this.upgradeTimer = null;
+  }
+
+  /**
+   * Everything the GPU held is gone: targets (masks, paints) and the detail maps (their CPU data
+   * was released after upload) are dropped and every slot is baked again from the last
+   * `setLayers`. Geometries, materials and the templates (their data is kept) are re-uploaded
+   * by three on their next use.
+   */
+  private handleContextRestored(): void {
+    if (this.disposed) return;
+    for (const state of this.slots) {
+      this.disposeTarget(state, 'mask');
+      this.disposeTarget(state, 'paintSmall');
+      this.disposeTarget(state, 'paintFull');
+      state.detail?.dispose();
+      state.detail = null;
+      state.enabled = false;
+      state.records = [];
+      state.maskValid = false;
+      state.smallVersion = -1;
+      state.fullVersion = -1;
+      this.bindPreview(state);
+    }
+    if (this.lastLayers) this.setLayers(this.lastLayers, this.lastEnabled);
+    this.notify();
   }
 
   private notify(): void {
