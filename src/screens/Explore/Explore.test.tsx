@@ -79,7 +79,7 @@ const LINEUPS: Lineups = {
   savedAt: '2026-10-16T08:34:00Z',
   current: 'germ_leopard_2a6',
   currentNation: 'GER',
-  nations: [{ nation: 'GER', presets: [{ name: 'Heer', active: true, vehicles: ['germ_leopard_2a6', 'bf-109g-6'] }] }],
+  nations: [{ nation: 'GER', presets: [{ index: 0, name: 'Heer', active: true, vehicles: ['germ_leopard_2a6', 'bf-109g-6'] }] }],
 };
 
 interface Fake {

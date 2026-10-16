@@ -769,6 +769,9 @@ pub struct NationLineups {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preset {
+    /// Position in the nation's preset list in the file, from 0, counting the ones Livery
+    /// leaves out (strings that don't parse, presets without vehicles): "Preset N" is `index + 1`.
+    pub index: u32,
     /// The player's text, trimmed (may be empty: the UI shows "Preset N").
     pub name: String,
     pub active: bool,

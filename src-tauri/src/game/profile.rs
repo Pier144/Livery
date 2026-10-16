@@ -200,6 +200,8 @@ pub fn parse_lineups(
     selected_air: Option<&blk::Block>,
 ) -> (Option<String>, Option<Nation>, Vec<NationLineups>) {
     let mut nations: Vec<NationLineups> = Vec::new();
+    // Preset strings already seen per nation, so a second block of one country numbers on.
+    let mut numbered: Vec<(Nation, usize)> = Vec::new();
     for (country, block) in &presets.blocks {
         let Some(nation) = nation_of(country) else { continue };
         // `selected` indexes the file's list, short strings included: number them first.
@@ -213,10 +215,20 @@ pub fn parse_lineups(
             Some(blk::Value::Int(i)) => usize::try_from(*i).ok().filter(|&i| i < raw.len()).unwrap_or(0),
             _ => 0,
         };
+        let offset = match numbered.iter_mut().find(|(n, _)| *n == nation) {
+            Some((_, count)) => std::mem::replace(count, *count + raw.len()),
+            None => {
+                numbered.push((nation, raw.len()));
+                0
+            }
+        };
         let mut presets: Vec<Preset> = raw
             .into_iter()
             .enumerate()
-            .filter_map(|(i, p)| p.map(|(name, vehicles)| Preset { name, active: i == selected, vehicles }))
+            .filter_map(|(i, p)| {
+                let index = u32::try_from(offset + i).unwrap_or(u32::MAX);
+                p.map(|(name, vehicles)| Preset { index, name, active: i == selected, vehicles })
+            })
             .filter(|p| !p.vehicles.is_empty())
             .collect();
         if presets.is_empty() {

@@ -15,8 +15,9 @@ fn lineups(presets: &str, selected_air: Option<&str>) -> Parsed {
     parse_lineups(&presets, selected_air.as_ref())
 }
 
-fn preset(name: &str, active: bool, vehicles: &[&str]) -> Preset {
-    Preset { name: name.to_owned(), active, vehicles: vehicles.iter().map(|v| (*v).to_owned()).collect() }
+/// A preset at `index` in its nation's list in the file (short strings included).
+fn preset(index: u32, name: &str, active: bool, vehicles: &[&str]) -> Preset {
+    Preset { index, name: name.to_owned(), active, vehicles: vehicles.iter().map(|v| (*v).to_owned()).collect() }
 }
 
 fn nations(parsed: &Parsed) -> Vec<Nation> {
@@ -43,12 +44,12 @@ fn nations_come_in_game_order_with_the_selected_preset_active() {
     assert_eq!(
         parsed.2[0].presets,
         [
-            preset("Early", false, &["us_m2a4", "us_m3_stuart"]),
-            preset("Mid tier", true, &["us_m4_t26", "us_m18_hellcat", "us_t1e1_90"]),
-            preset("Air", false, &["d_371", "p-47d"]),
+            preset(0, "Early", false, &["us_m2a4", "us_m3_stuart"]),
+            preset(1, "Mid tier", true, &["us_m4_t26", "us_m18_hellcat", "us_t1e1_90"]),
+            preset(2, "Air", false, &["d_371", "p-47d"]),
         ]
     );
-    assert_eq!(parsed.2[1].presets, [preset("Preselezione #1", true, &["uk_a13_mk2", "uk_crusader_mk_2"])]);
+    assert_eq!(parsed.2[1].presets, [preset(0, "Preselezione #1", true, &["uk_a13_mk2", "uk_crusader_mk_2"])]);
 }
 
 #[test]
@@ -79,35 +80,35 @@ fn short_preset_strings_are_skipped_without_shifting_the_active_one() {
     }"#;
     let parsed = lineups(text, None);
     assert_eq!(nations(&parsed), [Nation::Usa], "a nation with no usable preset is left out");
-    assert_eq!(parsed.2[0].presets, [preset("A", false, &["a"]), preset("B", true, &["b"])]);
+    assert_eq!(parsed.2[0].presets, [preset(1, "A", false, &["a"]), preset(2, "B", true, &["b"])]);
 }
 
 #[test]
 fn a_selected_preset_without_vehicles_leaves_none_active() {
     let text = r#"slotbar_presets{ country_usa{ preset:t="5|1|a|A|m|" preset:t="5|1||B|m|" selected:i=1 } }"#;
     let parsed = lineups(text, None);
-    assert_eq!(parsed.2[0].presets, [preset("A", false, &["a"])]);
+    assert_eq!(parsed.2[0].presets, [preset(0, "A", false, &["a"])]);
 }
 
 #[test]
 fn a_name_may_contain_the_separator() {
     let text = r#"slotbar_presets{ country_usa{ preset:t="5|5,6|a,b|My | lineup|tank_mode|" } }"#;
     let parsed = lineups(text, None);
-    assert_eq!(parsed.2[0].presets, [preset("My | lineup", true, &["a", "b"])]);
+    assert_eq!(parsed.2[0].presets, [preset(0, "My | lineup", true, &["a", "b"])]);
 }
 
 #[test]
 fn names_are_trimmed_and_may_be_empty() {
     let text = r#"slotbar_presets{ country_usa{ preset:t="5|1|a|  Night  |m|" preset:t="5|1|b||m|" } }"#;
     let parsed = lineups(text, None);
-    assert_eq!(parsed.2[0].presets, [preset("Night", true, &["a"]), preset("", false, &["b"])]);
+    assert_eq!(parsed.2[0].presets, [preset(0, "Night", true, &["a"]), preset(1, "", false, &["b"])]);
 }
 
 #[test]
 fn codes_are_trimmed_with_empty_and_duplicate_ones_dropped() {
     let text = r#"slotbar_presets{ country_usa{ preset:t="5|5|a,,a, b |N|m|" } }"#;
     let parsed = lineups(text, None);
-    assert_eq!(parsed.2[0].presets, [preset("N", true, &["a", "b"])]);
+    assert_eq!(parsed.2[0].presets, [preset(0, "N", true, &["a", "b"])]);
 }
 
 #[test]
@@ -178,7 +179,7 @@ fn two_blocks_of_one_country_are_merged_in_file_order() {
     assert_eq!(nations(&parsed), [Nation::Usa, Nation::Ger]);
     assert_eq!(
         parsed.2[0].presets,
-        [preset("A", false, &["a"]), preset("B", true, &["b"]), preset("C", false, &["c"])],
+        [preset(0, "A", false, &["a"]), preset(1, "B", true, &["b"]), preset(2, "C", false, &["c"])],
         "one active preset per nation: the first block's"
     );
 }
@@ -190,5 +191,5 @@ fn a_later_block_of_one_country_gives_the_active_preset_when_the_first_has_none(
       country_usa{ preset:t="5|1|c|C|m|" }
     }"#;
     let parsed = lineups(text, None);
-    assert_eq!(parsed.2[0].presets, [preset("A", false, &["a"]), preset("C", true, &["c"])]);
+    assert_eq!(parsed.2[0].presets, [preset(1, "A", false, &["a"]), preset(2, "C", true, &["c"])]);
 }

@@ -1118,8 +1118,8 @@ describe('mock backend · For you', () => {
     expect(lineups).toMatchObject({ status: 'ok', current: 'us_m1a2_sep', currentNation: 'USA' });
     expect(lineups.nations.map((n) => n.nation)).toEqual(['USA', 'GER', 'USSR', 'GBR', 'ITA']);
     expect(lineups.nations[0]?.presets).toEqual([
-      { name: 'Army', active: true, vehicles: ['us_m1a2_sep', 'us_m4_t26'] },
-      { name: 'Air', active: false, vehicles: ['f_4e'] },
+      { index: 0, name: 'Army', active: true, vehicles: ['us_m1a2_sep', 'us_m4_t26'] },
+      { index: 1, name: 'Air', active: false, vehicles: ['f_4e'] },
     ]);
     const saved = Date.parse(lineups.savedAt ?? '');
     expect(saved).toBeLessThanOrEqual(Date.now());

@@ -11,27 +11,27 @@ const LINEUPS: Lineups = {
     {
       nation: 'USA',
       presets: [
-        { name: 'Air', active: false, vehicles: ['f_4e', 'p-26a_34_m2'] },
-        { name: 'Army', active: true, vehicles: ['us_m4_t26', 'us_m18_hellcat'] },
+        { index: 0, name: 'Air', active: false, vehicles: ['f_4e', 'p-26a_34_m2'] },
+        { index: 1, name: 'Army', active: true, vehicles: ['us_m4_t26', 'us_m18_hellcat'] },
       ],
     },
     {
       nation: 'GER',
       presets: [
-        { name: 'Heer', active: true, vehicles: ['germ_leopard_2a6'] },
+        { index: 0, name: 'Heer', active: true, vehicles: ['germ_leopard_2a6'] },
         // Every vehicle already shown above: the preset is dropped.
-        { name: 'Copy', active: false, vehicles: ['germ_leopard_2a6'] },
-        { name: 'Old', active: false, vehicles: ['germ_leopard_2a6', 'bf-109g-6'] },
+        { index: 1, name: 'Copy', active: false, vehicles: ['germ_leopard_2a6'] },
+        { index: 2, name: 'Old', active: false, vehicles: ['germ_leopard_2a6', 'bf-109g-6'] },
       ],
     },
     {
       nation: 'USSR',
       presets: [
-        { name: '', active: false, vehicles: ['su_27', 'ussr_t_34_85'] },
-        { name: 'Main', active: true, vehicles: ['ussr_t_34_85', 'ussr_is_2_1943'] },
+        { index: 0, name: '', active: false, vehicles: ['su_27', 'ussr_t_34_85'] },
+        { index: 1, name: 'Main', active: true, vehicles: ['ussr_t_34_85', 'ussr_is_2_1943'] },
       ],
     },
-    { nation: 'ITA', presets: [{ name: 'Empty', active: true, vehicles: [] }] },
+    { nation: 'ITA', presets: [{ index: 0, name: 'Empty', active: true, vehicles: [] }] },
   ],
 };
 
@@ -48,6 +48,15 @@ describe('forYouSections', () => {
       ['GER', 'Heer', 0, true, ['germ_leopard_2a6']],
       ['GER', 'Old', 2, false, ['bf-109g-6']],
     ]);
+  });
+
+  it('numbers a preset by its place in the profile, not among the presets Livery kept', () => {
+    // Index 3: the presets before it in the file didn't parse or had no vehicles.
+    const lineups: Lineups = {
+      status: 'ok',
+      nations: [{ nation: 'USA', presets: [{ index: 3, name: '', active: true, vehicles: ['f_4e'] }] }],
+    };
+    expect(forYouSections(lineups).map((s) => s.presetIndex)).toEqual([3]);
   });
 
   it('follows game nation order whatever the file order, and without a current nation', () => {

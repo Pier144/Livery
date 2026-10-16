@@ -426,7 +426,8 @@ pub async fn following_mark_seen(app: AppHandle) -> AppResult<Vec<FollowEntry>> 
     blocking(move || app.state::<WtLive>().following().mark_seen()).await
 }
 
-/// When For you was last seen (RFC 3339). Local.
+/// When For you was last seen (RFC 3339). Local. The UI doesn't need it (`wtlive_for_you_new`
+/// reads it itself); it is there for diagnostics and tests.
 #[tauri::command]
 pub async fn for_you_seen(app: AppHandle) -> AppResult<String> {
     Ok(app.state::<WtLive>().for_you().last_seen_at())

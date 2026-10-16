@@ -337,6 +337,8 @@ export interface NationLineups {
 }
 /** One lineup (slotbar preset) of a nation. */
 export interface Preset {
+  /** Position in the nation's preset list in the profile, from 0, counting the ones left out: "Preset N" is `index + 1`. */
+  index: number;
   /** The player's text, trimmed; empty → the UI shows "Preset N". */
   name: string;
   active: boolean;

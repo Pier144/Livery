@@ -201,6 +201,7 @@ export function useMarkFollowingSeen() {
 /**
  * For you: the 3 most downloaded skins of one lineup vehicle (`wtlive_vehicle_top`, one WT Live
  * request). Each row of the virtual list asks for its own, so only the rows on screen fetch.
+ * `enabled: false` holds the request (tests use it); WT Live browsing off holds it too.
  */
 export function useVehicleTop(code: string, { enabled: wanted = true }: { enabled?: boolean } = {}) {
   const enabled = useWtLiveEnabled();
@@ -236,7 +237,8 @@ export const forYouNewKey = (vehicles: readonly string[]) => [...WTLIVE_KEY, 'fo
  * Leaving the For you tab resets its "N new" (`for_you_mark_seen`, local). An answer still on its
  * way is cancelled first (it was counted from the old time and would bring the count back); the
  * cached answers keep how many vehicles were checked but hold nothing new any more, then they are
- * invalidated.
+ * invalidated. The time saved is "now", not the answer's: a skin posted while the answer was
+ * cached (feed pages live 30 minutes) is never counted, the same lower bound Following has.
  */
 export function useMarkForYouSeen() {
   const qc = useQueryClient();

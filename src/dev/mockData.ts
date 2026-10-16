@@ -867,21 +867,21 @@ export function seedLineups(): Omit<Lineups, 'status' | 'savedAt'> {
       {
         nation: 'USA',
         presets: [
-          { name: 'Army', active: true, vehicles: ['us_m1a2_sep', 'us_m4_t26'] },
-          { name: 'Air', active: false, vehicles: ['f_4e'] },
+          { index: 0, name: 'Army', active: true, vehicles: ['us_m1a2_sep', 'us_m4_t26'] },
+          { index: 1, name: 'Air', active: false, vehicles: ['f_4e'] },
         ],
       },
       {
         nation: 'GER',
         presets: [
-          { name: 'Heer', active: true, vehicles: ['germ_leopard_2a6', 'bf-109g-6'] },
-          { name: 'Grind', active: false, vehicles: ['germ_leopard_2a6', 'germ_pzkpfw_VI_ausf_b_tiger_IIH'] },
+          { index: 0, name: 'Heer', active: true, vehicles: ['germ_leopard_2a6', 'bf-109g-6'] },
+          { index: 1, name: 'Grind', active: false, vehicles: ['germ_leopard_2a6', 'germ_pzkpfw_VI_ausf_b_tiger_IIH'] },
         ],
       },
-      { nation: 'USSR', presets: [{ name: 'Main', active: true, vehicles: ['ussr_t_34_85', 'su_27'] }] },
+      { nation: 'USSR', presets: [{ index: 0, name: 'Main', active: true, vehicles: ['ussr_t_34_85', 'su_27'] }] },
       // A preset the player never named: the UI shows "Preset 1".
-      { nation: 'GBR', presets: [{ name: '', active: true, vehicles: ['spitfire_mk9c'] }] },
-      { nation: 'ITA', presets: [{ name: 'Ariete', active: true, vehicles: ['it_c1_ariete'] }] },
+      { nation: 'GBR', presets: [{ index: 0, name: '', active: true, vehicles: ['spitfire_mk9c'] }] },
+      { nation: 'ITA', presets: [{ index: 0, name: 'Ariete', active: true, vehicles: ['it_c1_ariete'] }] },
     ],
   };
 }

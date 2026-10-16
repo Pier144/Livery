@@ -36,7 +36,7 @@ export function forYouSections(lineups: Lineups | undefined): ForYouSection[] {
   const seen = new Set<string>();
   const sections: ForYouSection[] = [];
   for (const { nation, presets } of nations) {
-    const ordered = presets.map((preset, presetIndex) => ({ preset, presetIndex }));
+    const ordered = presets.map((preset) => ({ preset, presetIndex: preset.index }));
     ordered.sort((a, b) => Number(b.preset.active) - Number(a.preset.active));
     for (const { preset, presetIndex } of ordered) {
       const vehicles = preset.vehicles.filter((code) => {

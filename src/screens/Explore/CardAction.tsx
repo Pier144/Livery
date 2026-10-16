@@ -71,7 +71,7 @@ function Steps({ text, t }: { text: StepText; t: TFunction }) {
  * The 3px install progress bar (the card's action row; For you's thumbnails). `text` is the
  * current step and its percentage (`stepText`).
  */
-export function InstallProgressBar({ text, t, className }: { text: StepText; t: TFunction; className?: string }) {
+export function InstallProgressBar({ text, t }: { text: StepText; t: TFunction }) {
   const pct = text.pct ?? 100;
   return (
     <div
@@ -81,7 +81,7 @@ export function InstallProgressBar({ text, t, className }: { text: StepText; t: 
       aria-valuemax={100}
       aria-valuenow={pct}
       aria-valuetext={stepNowText(t, text)}
-      className={cn('h-[3px] overflow-hidden rounded-[2px] bg-bg-5', className)}
+      className="h-[3px] overflow-hidden rounded-[2px] bg-bg-5"
     >
       <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-decel" style={{ width: `${pct}%` }} />
     </div>

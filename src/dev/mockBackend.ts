@@ -100,7 +100,9 @@
 // (after their argument checks, before the offline switch) and emit no net://status.
 //
 // For you. `game_lineups` (local, works offline and with browsing off) answers `{ status: 'off' }`
-// while Settings → Game → Read data from the game is off, `noProfile` without a game folder, else
+// while Settings → Game → Read data from the game is off, `noProfile` without a game folder (a
+// mock-only shortcut to show that state: the real profile lives under Documents, whatever the game
+// folder), else
 // the seeded lineups (mockData `seedLineups`: USA Army active with the M1A2 SEP selected now, then
 // GER, USSR, GBR with an unnamed preset, ITA) saved today at 08:34. `wtlive_vehicle_top({ code })`
 // answers the code's visible posts by downloads, first 3 (a blank code: none).
@@ -1664,7 +1666,7 @@ function profileSavedAt(): string {
   return stamp(saved.getTime());
 }
 
-/** `game_lineups`: off without reading, no profile without a game folder, else the seeded lineups. */
+/** `game_lineups`: off without reading, no profile without a game folder (mock only), else the seeded lineups. */
 function gameLineups(): Lineups {
   if (!state.settings.readGameData) return { status: 'off', nations: [] };
   if (!hasGameFolder()) return { status: 'noProfile', nations: [] };

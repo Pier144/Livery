@@ -59,12 +59,12 @@ const LINEUPS: Lineups = {
   current: 'germ_leopard_2a6',
   currentNation: 'GER',
   nations: [
-    { nation: 'GER', presets: [{ name: 'Heer', active: true, vehicles: ['germ_leopard_2a6', 'bf-109g-6', 'germ_unknown_x'] }] },
+    { nation: 'GER', presets: [{ index: 0, name: 'Heer', active: true, vehicles: ['germ_leopard_2a6', 'bf-109g-6', 'germ_unknown_x'] }] },
     {
       nation: 'USSR',
       presets: [
-        { name: '', active: false, vehicles: ['su_27'] },
-        { name: 'Main', active: true, vehicles: ['ussr_t_34_85'] },
+        { index: 0, name: '', active: false, vehicles: ['su_27'] },
+        { index: 1, name: 'Main', active: true, vehicles: ['ussr_t_34_85'] },
       ],
     },
   ],
