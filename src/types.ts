@@ -174,7 +174,10 @@ export interface Settings {
    * detail and installs from WT Live send no request at all.
    */
   wtliveEnabled: boolean;
-  /** Settings → Game: read the vehicle list from the game's data archives (off: built-in list). */
+  /**
+   * Settings → Game → Read data from the game: the vehicle list from the game's data archives and
+   * the lineups from the War Thunder profile (off: built-in list, no For you suggestions).
+   */
   readGameData: boolean;
 }
 /** `set_settings({ patch })`: the fields to change. */

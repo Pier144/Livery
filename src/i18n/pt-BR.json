@@ -1062,8 +1062,8 @@
       "watched": "Pasta monitorada",
       "downloadsDefault": "Downloads (padrão)",
       "watchPickTitle": "Escolha a pasta a monitorar",
-      "readGameData": "Ler a lista de veículos do jogo",
-      "readGameDataHelper": "O Livery lê os nomes dos veículos nos próprios arquivos do jogo (somente leitura) para reconhecer as skins. Desativado: usa uma lista interna menor."
+      "readGameData": "Ler dados do jogo",
+      "readGameDataHelper": "O Livery lê os nomes dos veículos nos arquivos do jogo e suas escalações no seu perfil do War Thunder, sem alterá-los. Desativado: uma lista de veículos interna menor e nenhuma sugestão em Para você."
     },
     "conflicts": {
       "intro": "O que fazer quando um arquivo compactado tem a mesma pasta de uma skin instalada.",
@@ -1144,7 +1144,7 @@
       "build": "{{version}} · Windows x64",
       "description": "Um gerenciador de skins de usuário para War Thunder. Navegue pelo WT Live, instale com um clique e mantenha seu hangar organizado.",
       "privacyTitle": "Privacidade",
-      "privacy": "Sem conta, sem anúncios, sem telemetria. O Livery só se conecta ao WT Live (live.warthunder.com e seu servidor de imagens) quando você navega ou instala skins, e ao GitHub para verificar atualizações. Suas configurações e sua biblioteca ficam neste PC. Ele lê os arquivos do jogo sem alterá-los. “Enviar feedback” só abre uma página do GitHub no navegador: nada é enviado até você confirmar o envio lá.",
+      "privacy": "Sem conta, sem anúncios, sem telemetria. O Livery só se conecta ao WT Live (live.warthunder.com e seu servidor de imagens) quando você navega ou instala skins, e ao GitHub para verificar atualizações. Suas configurações e sua biblioteca ficam neste PC. Ele lê os arquivos do jogo e as escalações do seu perfil do War Thunder sem alterá-los. “Enviar feedback” só abre uma página do GitHub no navegador: nada é enviado até você confirmar o envio lá.",
       "links": "Links",
       "source": "Código-fonte",
       "sourceHint": "Abre o repositório do Livery no GitHub",

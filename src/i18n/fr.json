@@ -1062,8 +1062,8 @@
       "watched": "Dossier surveillé",
       "downloadsDefault": "Téléchargements (par défaut)",
       "watchPickTitle": "Choisissez le dossier à surveiller",
-      "readGameData": "Lire la liste des véhicules dans le jeu",
-      "readGameDataHelper": "Livery lit les noms des véhicules dans les fichiers du jeu (en lecture seule) pour reconnaître les skins. Désactivé : il utilise une liste intégrée plus courte."
+      "readGameData": "Lire les données du jeu",
+      "readGameDataHelper": "Livery lit les noms des véhicules dans les fichiers du jeu et vos compositions dans votre profil War Thunder, sans rien modifier. Désactivé : une liste de véhicules intégrée plus courte et aucune suggestion dans Pour vous."
     },
     "conflicts": {
       "intro": "Que faire quand une archive a le même dossier qu’un skin installé.",
@@ -1144,7 +1144,7 @@
       "build": "{{version}} · Windows x64",
       "description": "Un gestionnaire de skins utilisateur pour War Thunder. Parcourez WT Live, installez en un clic, gardez votre hangar en ordre.",
       "privacyTitle": "Confidentialité",
-      "privacy": "Pas de compte, pas de publicité, pas de télémétrie. Livery se connecte uniquement à WT Live (live.warthunder.com et son serveur d’images) quand vous parcourez ou installez des skins, et à GitHub pour rechercher les mises à jour. Vos paramètres et votre bibliothèque restent sur ce PC. Livery lit les fichiers du jeu sans les modifier. « Envoyer un retour » ouvre seulement une page GitHub dans votre navigateur : rien n’est envoyé tant que vous ne l’avez pas validée sur GitHub.",
+      "privacy": "Pas de compte, pas de publicité, pas de télémétrie. Livery se connecte uniquement à WT Live (live.warthunder.com et son serveur d’images) quand vous parcourez ou installez des skins, et à GitHub pour rechercher les mises à jour. Vos paramètres et votre bibliothèque restent sur ce PC. Livery lit les fichiers du jeu et les compositions de votre profil War Thunder sans les modifier. « Envoyer un retour » ouvre seulement une page GitHub dans votre navigateur : rien n’est envoyé tant que vous ne l’avez pas validée sur GitHub.",
       "links": "Liens",
       "source": "Code source",
       "sourceHint": "Ouvre le dépôt de Livery sur GitHub",

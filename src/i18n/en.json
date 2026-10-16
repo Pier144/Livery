@@ -1020,8 +1020,8 @@
       "watched": "Watched folder",
       "downloadsDefault": "Downloads (default)",
       "watchPickTitle": "Choose the folder to watch",
-      "readGameData": "Read the vehicle list from the game",
-      "readGameDataHelper": "Livery reads vehicle names from the game’s own files (read-only) to recognise skins. Off: it uses a smaller built-in list."
+      "readGameData": "Read data from the game",
+      "readGameDataHelper": "Livery reads vehicle names from the game’s files and your lineups from your War Thunder profile, without changing them. Off: a smaller built-in vehicle list and no suggestions in For you."
     },
     "conflicts": {
       "intro": "What to do when an archive has the same folder as an installed skin.",
@@ -1098,7 +1098,7 @@
       "build": "{{version}} · Windows x64",
       "description": "A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.",
       "privacyTitle": "Privacy",
-      "privacy": "No account, no ads, no telemetry. Livery connects only to WT Live (live.warthunder.com and its image server) when you browse or install skins, and to GitHub to check for updates. Your settings and library stay on this PC. It reads the game’s files without changing them. “Send feedback” only opens a GitHub page in your browser: nothing is sent until you submit it there.",
+      "privacy": "No account, no ads, no telemetry. Livery connects only to WT Live (live.warthunder.com and its image server) when you browse or install skins, and to GitHub to check for updates. Your settings and library stay on this PC. It reads the game’s files and the lineups in your War Thunder profile without changing them. “Send feedback” only opens a GitHub page in your browser: nothing is sent until you submit it there.",
       "links": "Links",
       "source": "Source code",
       "sourceHint": "Opens Livery’s repository on GitHub",

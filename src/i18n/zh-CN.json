@@ -978,8 +978,8 @@
       "watched": "监视的文件夹",
       "downloadsDefault": "下载（默认）",
       "watchPickTitle": "选择要监视的文件夹",
-      "readGameData": "从游戏读取载具列表",
-      "readGameDataHelper": "Livery 会从游戏自身的文件中读取载具名称（只读），用于识别涂装。关闭后将使用较小的内置列表。"
+      "readGameData": "从游戏读取数据",
+      "readGameDataHelper": "Livery 会从游戏文件中读取载具名称，并从您的 War Thunder 存档中读取阵容，不会做任何更改。关闭后将使用较小的内置载具列表，“为您推荐”中也不会显示推荐。"
     },
     "conflicts": {
       "intro": "当压缩包与已安装的涂装使用相同文件夹时的处理方式。",
@@ -1052,7 +1052,7 @@
       "build": "{{version}} · Windows x64",
       "description": "War Thunder 用户涂装管理器。浏览 WT Live，一键安装，让您的基地井井有条。",
       "privacyTitle": "隐私",
-      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件，不会做任何更改。“发送反馈”只会在浏览器中打开一个 GitHub 页面：在您于该页面提交之前，不会发送任何内容。",
+      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件和您 War Thunder 存档中的阵容，不会做任何更改。“发送反馈”只会在浏览器中打开一个 GitHub 页面：在您于该页面提交之前，不会发送任何内容。",
       "links": "链接",
       "source": "源代码",
       "sourceHint": "在 GitHub 上打开 Livery 的代码仓库",

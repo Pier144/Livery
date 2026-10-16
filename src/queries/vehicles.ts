@@ -17,7 +17,7 @@ export const VEHICLE_NAMES_KEY = ['game', 'vehicleNames'] as const;
 export function useVehicles(): readonly Vehicle[] {
   const settings = useSettings().data;
   const gamePath = settings?.gamePath ?? null;
-  // Settings → Game → Read the vehicle list: switching it asks the backend again.
+  // Settings → Game → Read data from the game: switching it asks the backend again.
   const fromGame = settings?.readGameData !== false;
   const query = useQuery<Vehicle[], AppError>({
     queryKey: [...VEHICLES_KEY, gamePath, fromGame],

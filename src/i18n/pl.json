@@ -1104,8 +1104,8 @@
       "watched": "Obserwowany folder",
       "downloadsDefault": "Pobrane (domyślny)",
       "watchPickTitle": "Wybierz folder do obserwowania",
-      "readGameData": "Wczytuj listę maszyn z gry",
-      "readGameDataHelper": "Livery odczytuje nazwy maszyn z plików gry (tylko do odczytu), aby rozpoznawać kamuflaże. Wyłączone: używa mniejszej, wbudowanej listy."
+      "readGameData": "Wczytuj dane z gry",
+      "readGameDataHelper": "Livery odczytuje nazwy maszyn z plików gry i twoje zestawy z profilu War Thunder, niczego w nich nie zmieniając. Wyłączone: mniejsza, wbudowana lista maszyn i brak propozycji w zakładce Dla ciebie."
     },
     "conflicts": {
       "intro": "Co zrobić, gdy archiwum ma ten sam folder co zainstalowany kamuflaż.",
@@ -1190,7 +1190,7 @@
       "build": "{{version}} · Windows x64",
       "description": "Menedżer kamuflaży użytkowników dla War Thunder. Przeglądaj WT Live, instaluj jednym kliknięciem, utrzymuj porządek w hangarze.",
       "privacyTitle": "Prywatność",
-      "privacy": "Bez konta, bez reklam, bez telemetrii. Livery łączy się tylko z WT Live (live.warthunder.com i jego serwerem obrazów), gdy przeglądasz lub instalujesz kamuflaże, oraz z serwisem GitHub, aby sprawdzić aktualizacje. Twoje ustawienia i biblioteka zostają na tym komputerze. Livery odczytuje pliki gry, nie zmieniając ich. „Wyślij opinię” tylko otwiera stronę GitHub w przeglądarce: nic nie zostanie wysłane, dopóki jej tam nie zatwierdzisz.",
+      "privacy": "Bez konta, bez reklam, bez telemetrii. Livery łączy się tylko z WT Live (live.warthunder.com i jego serwerem obrazów), gdy przeglądasz lub instalujesz kamuflaże, oraz z serwisem GitHub, aby sprawdzić aktualizacje. Twoje ustawienia i biblioteka zostają na tym komputerze. Livery odczytuje pliki gry i zestawy z twojego profilu War Thunder, nie zmieniając ich. „Wyślij opinię” tylko otwiera stronę GitHub w przeglądarce: nic nie zostanie wysłane, dopóki jej tam nie zatwierdzisz.",
       "links": "Linki",
       "source": "Kod źródłowy",
       "sourceHint": "Otwiera repozytorium Livery w serwisie GitHub",

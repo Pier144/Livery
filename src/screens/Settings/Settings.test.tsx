@@ -372,11 +372,11 @@ describe('Settings · General', () => {
 // ── Game ────────────────────────────────────────────────────────────────────
 
 describe('Settings · Game', () => {
-  it('turns reading the vehicle list from the game off and on', async () => {
+  it('turns reading data from the game off and on', async () => {
     const { user } = renderSettings('game');
-    const read = await screen.findByRole('switch', { name: 'Read the vehicle list from the game' });
+    const read = await screen.findByRole('switch', { name: 'Read data from the game' });
     expect(read).toBeChecked();
-    expect(read).toHaveAccessibleDescription(/read-only/);
+    expect(read).toHaveAccessibleDescription(/without changing them/);
     await user.click(read);
     await waitFor(() => expect(settings.readGameData).toBe(false));
     expect(calls('set_settings')[0]?.[1]).toEqual({ patch: { readGameData: false } });

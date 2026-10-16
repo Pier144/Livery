@@ -1062,8 +1062,8 @@
       "watched": "Carpeta vigilada",
       "downloadsDefault": "Descargas (predeterminada)",
       "watchPickTitle": "Elige la carpeta que vigilar",
-      "readGameData": "Leer la lista de vehículos del juego",
-      "readGameDataHelper": "Livery lee los nombres de los vehículos de los propios archivos del juego (solo lectura) para reconocer las skins. Desactivado: usa una lista integrada más pequeña."
+      "readGameData": "Leer datos del juego",
+      "readGameDataHelper": "Livery lee los nombres de los vehículos de los archivos del juego y tus alineaciones de tu perfil de War Thunder, sin modificarlos. Desactivado: una lista de vehículos integrada más pequeña y ninguna sugerencia en Para ti."
     },
     "conflicts": {
       "intro": "Qué hacer cuando un archivo comprimido usa la misma carpeta que una skin instalada.",
@@ -1144,7 +1144,7 @@
       "build": "{{version}} · Windows x64",
       "description": "Un gestor de skins (los camuflajes de usuario del juego) para War Thunder. Explora WT Live, instala con un clic y mantén tu hangar en orden.",
       "privacyTitle": "Privacidad",
-      "privacy": "Sin cuenta, sin anuncios, sin telemetría. Livery solo se conecta a WT Live (live.warthunder.com y su servidor de imágenes) cuando exploras o instalas skins, y a GitHub para buscar actualizaciones. Tus ajustes y tu biblioteca se quedan en este PC. Lee los archivos del juego sin modificarlos. «Enviar comentarios» solo abre una página de GitHub en tu navegador: no se envía nada hasta que la publiques allí.",
+      "privacy": "Sin cuenta, sin anuncios, sin telemetría. Livery solo se conecta a WT Live (live.warthunder.com y su servidor de imágenes) cuando exploras o instalas skins, y a GitHub para buscar actualizaciones. Tus ajustes y tu biblioteca se quedan en este PC. Lee los archivos del juego y las alineaciones de tu perfil de War Thunder sin modificarlos. «Enviar comentarios» solo abre una página de GitHub en tu navegador: no se envía nada hasta que la publiques allí.",
       "links": "Enlaces",
       "source": "Código fuente",
       "sourceHint": "Abre el repositorio de Livery en GitHub",
