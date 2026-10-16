@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { errorText } from '@/lib/errors';
 import { toAppError } from '@/lib/tauri';
 import { fetchAsset, putAsset, type RawPicture } from '@/queries/atelier';
+import { confirm } from '@/store/confirm';
 import { toast } from '@/store/toasts';
 import { AtelierDialog } from './AtelierDialog';
 import { Slider } from './controls';
@@ -78,7 +79,9 @@ export function RefineEdgeDialog({ projectId, layerId, onClose }: { projectId: s
         }
         if (stale) return;
         noteAssetSize(layer.assetId, picture.width, picture.height);
-        setLoaded({ picture: { ...picture, rgba: picture.rgba.slice() }, source: restoreSource(picture, source, layer.sourceOffset), assetId: layer.assetId });
+        // Restore copies the picture first when it is its own source; the fetched buffer is then the editable copy.
+        const restore = restoreSource(picture, source, layer.sourceOffset);
+        setLoaded({ picture, source: restore, assetId: layer.assetId });
       } catch (e) {
         if (!stale) setLoadError(errorText(toAppError(e), t));
       }
@@ -231,12 +234,28 @@ export function RefineEdgeDialog({ projectId, layerId, onClose }: { projectId: s
     }
   };
 
+  /** Escape or ×: with brush strokes made, asks before dropping them (a click outside does nothing then). */
+  const dismiss = async () => {
+    if (saving) return;
+    if (!changed) {
+      onClose();
+      return;
+    }
+    const ok = await confirm({
+      title: t('atelier.refine.discardTitle'),
+      body: t('atelier.refine.discardBody'),
+      confirmLabel: t('atelier.refine.discard'),
+    });
+    if (ok) onClose();
+  };
+
   const z = zoom;
   return (
     <AtelierDialog
       title={t('atelier.refine.title')}
       closeLabel={t('atelier.refine.close')}
-      onDismiss={onClose}
+      onDismiss={() => void dismiss()}
+      dismissOnOverlay={!changed}
       locked={saving}
       busy={!loaded || saving}
       describedBy={statusId}

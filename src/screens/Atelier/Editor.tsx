@@ -163,13 +163,14 @@ export function Editor({ id }: { id: string }) {
   const showTemplateRef = useRef(showTemplate);
   showTemplateRef.current = showTemplate;
 
-  // Thumbnail: after an apply, and when leaving if something changed (or the project has none).
+  // Thumbnail: during an apply (before the commit, so the skin's preview.png is the fresh one),
+  // and when leaving if something changed (or the project has none).
   const { mutateAsync: setThumb } = useSetThumb();
   const thumbRevision = useRef(useAtelierEditor.getState().revision);
   const sendThumb = useCallback(
-    (e: Engine) => {
+    (e: Engine): Promise<unknown> => {
       // A lost context draws nothing: keep the thumbnail there is.
-      if (e.scene.contextLost()) return;
+      if (e.scene.contextLost()) return Promise.resolve();
       thumbRevision.current = useAtelierEditor.getState().revision;
       // The picture shows the paint, never the Template comparison.
       const template = showTemplateRef.current;
@@ -181,7 +182,7 @@ export function Editor({ id }: { id: string }) {
       } finally {
         if (template) e.baker.setShowTemplate(true);
       }
-      png.then((bytes) => setThumb({ id, png: bytes })).catch((err: unknown) => console.warn('Atelier: thumbnail not saved', err));
+      return png.then((bytes) => setThumb({ id, png: bytes })).catch((err: unknown) => console.warn('Atelier: thumbnail not saved', err));
     },
     [id, setThumb],
   );
@@ -219,22 +220,25 @@ export function Editor({ id }: { id: string }) {
       // Leaving before the decal pictures loaded: the thumbnail there is stays (it would miss them).
       if (!picturesSettled.current) return;
       const hasThumb = qc.getQueryData<AtelierProjectSummary[]>(ATELIER_PROJECTS_KEY)?.find((p) => p.id === id)?.hasThumb;
-      if (useAtelierEditor.getState().revision !== thumbRevision.current || hasThumb === false) sendThumb(e);
+      if (useAtelierEditor.getState().revision !== thumbRevision.current || hasThumb === false) void sendThumb(e);
     },
     [qc, id, sendThumb],
   );
 
-  // The thumbnail waits for the decal pictures (an engine disposed meanwhile reports a lost context).
-  const onApplied = useCallback(
-    (e: Engine) => {
-      e.baker
-        .whenReady()
-        .then(() => sendThumb(e))
-        .catch((err: unknown) => console.warn('Atelier: thumbnail not saved', err));
+  // Before the commit: Rust copies the project's thumbnail into the installed skin as preview.png.
+  // It waits for the decal pictures; a failure never stops the apply.
+  const beforeCommit = useCallback(
+    async (e: Engine) => {
+      try {
+        await e.baker.whenReady();
+        await sendThumb(e);
+      } catch (err) {
+        console.warn('Atelier: thumbnail not saved', err);
+      }
     },
     [sendThumb],
   );
-  const apply = useApply({ projectId: id, model: model.data, engine: () => engineRef.current, flush, onApplied });
+  const apply = useApply({ projectId: id, model: model.data, engine: () => engineRef.current, flush, beforeCommit });
 
   // Closing the project (not visiting another screen) empties the store. Declared after
   // `useAutosave`, so its leave-save has taken its copy first.
@@ -296,22 +300,20 @@ export function Editor({ id }: { id: string }) {
   const onBrush = useCallback((patch: Partial<BrushUi>) => setBrushUi((b) => ({ ...b, ...patch })), []);
   const mask = useAtelierEditor((s) => maskOf(s.layers));
   const selectedId = useAtelierEditor((s) => s.selectedId);
-  const selectedDecalId = useAtelierEditor((s) => {
-    const layer = s.layers.find((l) => l.id === s.selectedId);
-    return isDecalLayer(layer) && layer.decal ? layer.id : null;
-  });
   const maskSelected = selectedId === MASK_ROW_ID || (mask !== undefined && selectedId === mask.id);
-  // A hidden mask protects nothing: the brush is off until it is shown again.
-  const brushActive = maskSelected && (mask === undefined || mask.visible) && !showTemplate;
-  const radiusScale = engine?.scene.boundingRadius ?? 1;
-  // Escape drops a layer waiting for its placement click (dialogs keep their own Escape).
+  // A layer waiting for its placement click: the view's left click places it (never paints).
   const pendingPlacement = useAtelierEditor((s) => s.pending !== null);
   const placingAgain = useDecalUi((s) => s.placingLayerId !== null);
   const placing = pendingPlacement || placingAgain;
+  // A hidden mask protects nothing: the brush is off until it is shown again (and while placing).
+  const brushActive = maskSelected && (mask === undefined || mask.visible) && !showTemplate && !placing;
+  const radiusScale = engine?.scene.boundingRadius ?? 1;
+  // Escape drops a layer waiting for its placement click (dialogs and text fields keep their own Escape).
   useEffect(() => {
     if (!placing) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (e.key !== 'Escape' || e.defaultPrevented || isTypingTarget(e.target)) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       e.preventDefault();
       useAtelierEditor.getState().cancelPlacement();
       setPlacingLayer(null);
@@ -320,25 +322,50 @@ export function Editor({ id }: { id: string }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [placing]);
 
-  /** Whether a layer's decal lands on texels more than one triangle draws (Mirror is then offered off); remembered per layer. */
-  const checkShared = useCallback(async (layerId: string, decal?: Decal): Promise<boolean> => {
-    const layer = useAtelierEditor.getState().layers.find((l) => l.id === layerId);
+  /**
+   * Whether a layer's decal lands on texels more than one triangle draws (Mirror is then offered
+   * off), remembered per layer. Asked again only when the decal or the painted slots changed.
+   */
+  const sharedChecks = useRef(new Map<string, { decal: Decal; slots: unknown; result: Promise<boolean> }>());
+  const checkShared = useCallback((layerId: string, decal?: Decal): Promise<boolean> => {
+    const state = useAtelierEditor.getState();
+    const layer = state.layers.find((l) => l.id === layerId);
     const target = decal ?? (isDecalLayer(layer) ? layer.decal : null);
     const e = engineRef.current;
-    if (!target || !e) return false;
-    try {
-      const shared = await e.baker.decalTouchesSharedTexels(target);
-      setShared(layerId, shared);
-      return shared;
-    } catch (err) {
-      console.warn('Atelier: shared-texel check failed', err);
-      return false;
-    }
+    if (!target || !e) return Promise.resolve(false);
+    const slots = state.project?.slots;
+    const last = sharedChecks.current.get(layerId);
+    if (last && last.decal === target && last.slots === slots) return last.result;
+    const result = e.baker.decalTouchesSharedTexels(target).then(
+      (shared) => {
+        setShared(layerId, shared);
+        return shared;
+      },
+      (err: unknown) => {
+        console.warn('Atelier: shared-texel check failed', err);
+        sharedChecks.current.delete(layerId);
+        return false;
+      },
+    );
+    sharedChecks.current.set(layerId, { decal: target, slots, result });
+    return result;
   }, []);
-  // Checked when a placed decal layer gets selected (and when the engine arrives).
+  // The selected decal is checked when it gets selected, when a gesture ends, after undo / redo
+  // and when the painted slots change (never in the middle of a drag).
   useEffect(() => {
-    if (selectedDecalId && engine) void checkShared(selectedDecalId);
-  }, [selectedDecalId, engine, checkShared]);
+    if (!engine) return;
+    const run = (s: ReturnType<typeof useAtelierEditor.getState>) => {
+      if (s.mergeKey !== null || s.stroking) return;
+      const layer = s.layers.find((l) => l.id === s.selectedId);
+      if (isDecalLayer(layer) && layer.decal) void checkShared(layer.id);
+    };
+    run(useAtelierEditor.getState());
+    return useAtelierEditor.subscribe((s, prev) => {
+      const gestureEnded = prev.mergeKey !== null && s.mergeKey === null;
+      if (s.layers === prev.layers && s.project?.slots === prev.project?.slots && s.selectedId === prev.selectedId && !gestureEnded) return;
+      run(s);
+    });
+  }, [engine, checkShared]);
 
   const [cutoutLayer, setCutoutLayer] = useState<string | null>(null);
   const [refineLayer, setRefineLayer] = useState<string | null>(null);

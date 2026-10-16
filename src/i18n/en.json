@@ -1237,7 +1237,10 @@
       "px": "{{value}} px",
       "hardness": "Hardness",
       "undo": "Undo stroke",
-      "stale": "The layer’s picture changed meanwhile, so the refined edge wasn’t used."
+      "stale": "The layer’s picture changed meanwhile, so the refined edge wasn’t used.",
+      "discardTitle": "Discard your changes to the edge?",
+      "discardBody": "The brush strokes made in Refine edge will be lost.",
+      "discard": "Discard"
     }
   },
   "settings": {

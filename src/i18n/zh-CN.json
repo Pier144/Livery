@@ -1110,7 +1110,7 @@
       "textCount": "{{n}}/{{max}}",
       "font": "字体",
       "fontStyle": "样式",
-      "fontMissing": "此电脑未安装该字体，在你选择其他字体前将用替代字体显示。",
+      "fontMissing": "此电脑未安装该字体，在您选择其他字体前将用替代字体显示。",
       "textColor": "文字颜色",
       "fill": "填充",
       "outlineColor": "描边颜色",
@@ -1137,7 +1137,7 @@
       "replaced": "游戏中的涂装已更新。",
       "reselect": "在基地中重新选择它即可看到更改。",
       "restored": "已恢复之前的版本。",
-      "downscaled": "你的显卡无法绘制这个尺寸：纹理已按 2048 保存。",
+      "downscaled": "您的显卡无法绘制这个尺寸：纹理已按 2048 保存。",
       "cancelled": "已取消应用：游戏中的涂装没有变化。",
       "pictureNotReady": "载具上的某张图片尚未加载完成，请重新应用。"
     },
@@ -1161,9 +1161,9 @@
       "consent": "去除背景需要两个文件，Livery 会从 GitHub 下载一次：",
       "runtime": "ONNX Runtime",
       "model": "isnet-anime 模型（rembg 项目）",
-      "privacy": "需下载 {{size}}。文件保存在此电脑并在本地运行，你的图片不会离开此电脑。可在“设置 → 实验性功能”中删除。",
+      "privacy": "需下载 {{size}}。文件保存在此电脑并在本地运行，您的图片不会离开此电脑。可在“设置 → 实验性功能”中删除。",
       "download": "下载（{{size}}）",
-      "restart": "请先重启 Livery：你删除的去除背景文件仍在使用中，会在 Livery 下次启动时彻底删除。之后可以重新下载。",
+      "restart": "请先重启 Livery：您删除的去除背景文件仍在使用中，会在 Livery 下次启动时彻底删除。之后可以重新下载。",
       "downloading": "正在从 GitHub 下载…",
       "received": "{{received}} / {{total}}",
       "waiting": "等待中",
@@ -1194,7 +1194,10 @@
       "px": "{{value}} 像素",
       "hardness": "硬度",
       "undo": "撤销笔画",
-      "stale": "图层的图片在此期间已更改，因此未使用修整后的边缘。"
+      "stale": "图层的图片在此期间已更改，因此未使用修整后的边缘。",
+      "discardTitle": "放弃对边缘的修改？",
+      "discardBody": "在“修整边缘”中所做的笔画将会丢失。",
+      "discard": "放弃"
     }
   },
   "settings": {
@@ -1343,7 +1346,7 @@
       "build": "{{version}} · Windows x64",
       "description": "War Thunder 用户涂装管理器。浏览 WT Live，一键安装，让您的基地井井有条。",
       "privacyTitle": "隐私",
-      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件和您 War Thunder 存档中的阵容，不会做任何更改。“发送反馈”只会在浏览器中打开一个 GitHub 页面：在您于该页面提交之前，不会发送任何内容。 如果你在 Atelier 中使用“去除背景”，Livery 只会在你请求时从 GitHub 下载一次所需文件；你的图片始终保留在此电脑上。",
+      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件和您 War Thunder 存档中的阵容，不会做任何更改。“发送反馈”只会在浏览器中打开一个 GitHub 页面：在您于该页面提交之前，不会发送任何内容。如果您在 Atelier 中使用“去除背景”，Livery 只会在您请求时从 GitHub 下载一次所需文件；您的图片始终保留在此电脑上。",
       "links": "链接",
       "source": "源代码",
       "sourceHint": "在 GitHub 上打开 Livery 的代码仓库",
@@ -1368,7 +1371,7 @@
       "text": "{{name}} 许可证文本",
       "close": "关闭",
       "onDemand": "按需下载",
-      "onDemandHelper": "不属于 Livery 本体：仅在你首次在 Atelier 中使用“去除背景”时从 GitHub 下载。"
+      "onDemandHelper": "不属于 Livery 本体：仅在您首次在 Atelier 中使用“去除背景”时从 GitHub 下载。"
     }
   }
 }

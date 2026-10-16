@@ -6,6 +6,7 @@ import type { DecalImage } from '@/atelier/gl/decalTextures';
 import { EditorScene, type OrbitState, type QuickView, type SceneHit } from '@/atelier/gl/scene';
 import type { VehicleModelData } from '@/atelier/modelBuffer';
 import type { Vec3 } from '@/atelier/project';
+import type { PartGroup } from '@/types';
 import { toAppError } from '@/lib/tauri';
 import { fetchAsset } from '@/queries/atelier';
 import { noteAssetSize, setAssetMissing } from './decalUi';
@@ -25,7 +26,8 @@ export interface EngineScene {
   zoomBy(deltaY: number): void;
   viewDirection(): Vec3;
   pixelRadius(radius: number, distance: number): number;
-  raycast(x: number, y: number): SceneHit | null;
+  /** With `group`, only that part group's meshes are hit. */
+  raycast(x: number, y: number, group?: PartGroup | null): SceneHit | null;
   thumbnailPng(size?: number): Promise<Uint8Array>;
   view(): OrbitState;
   setView(view: OrbitState): void;

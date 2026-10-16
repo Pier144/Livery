@@ -1280,7 +1280,10 @@
       "px": "{{value}} px",
       "hardness": "Dureza",
       "undo": "Deshacer trazo",
-      "stale": "La imagen de la capa cambió mientras tanto, así que no se usó el borde refinado."
+      "stale": "La imagen de la capa cambió mientras tanto, así que no se usó el borde refinado.",
+      "discardTitle": "¿Descartar los cambios del borde?",
+      "discardBody": "Los trazos de pincel hechos en Refinar borde se perderán.",
+      "discard": "Descartar"
     }
   },
   "settings": {

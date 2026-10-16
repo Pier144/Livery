@@ -322,13 +322,17 @@ export class EditorScene {
     return projectedRadius(radius, distance, this.height);
   }
 
-  /** The nearest part under the canvas point (`x`, `y`) in CSS pixels, or null. */
-  raycast(x: number, y: number): SceneHit | null {
-    if (this.parts.length === 0) return null;
+  /**
+   * The nearest part under the canvas point (`x`, `y`) in CSS pixels, or null; with `group`, only
+   * that part group's meshes are hit (a decal limited to the turret slides on the turret).
+   */
+  raycast(x: number, y: number, group: PartGroup | null = null): SceneHit | null {
+    const parts = group === null ? this.parts : this.parts.filter((p) => p.group === group);
+    if (parts.length === 0) return null;
     this.ndc.set((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1);
     this.raycaster.setFromCamera(this.ndc, this.camera);
     const hits = this.raycaster.intersectObjects(
-      this.parts.map((p) => p.mesh),
+      parts.map((p) => p.mesh),
       false,
     );
     const hit = hits[0];

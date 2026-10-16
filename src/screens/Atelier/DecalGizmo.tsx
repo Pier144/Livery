@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, type PointerEvent } from 'react';
 import { useAtelierEditor } from '@/atelier/editorStore';
-import { decalRight, dot, isDecalLayer, type Decal, type DecalLayer } from '@/atelier/project';
-import { decalCorners, rotateDecal, scaleDecal, slideTo } from './decalOps';
+import { decalRight, dot, isDecalLayer, partGroupOf, type Decal, type DecalLayer } from '@/atelier/project';
+import { decalCorners, rotateDecal, scaleDecal, slideOnto } from './decalOps';
 import type { EngineScene } from './engine';
 
 /** Distance of the rotate handle from the top edge, CSS px. */
@@ -84,8 +84,9 @@ export function DecalGizmo({ scene, layer, onGestureStart, onGestureEnd }: Decal
     const current = liveDecal(id);
     if (!current) return;
     if (g.kind === 'move') {
-      const hit = scene.raycast(at.x - g.offset.x, at.y - g.offset.y);
-      if (hit) store.setDecal(id, slideTo(current, hit.point, hit.normal), 'move');
+      // Only its own part group, and never onto a surface turned too far (see `slideOnto`).
+      const hit = scene.raycast(at.x - g.offset.x, at.y - g.offset.y, partGroupOf(current.part));
+      if (hit) store.setDecal(id, slideOnto(current, hit.point, hit.normal), 'move');
     } else if (g.kind === 'scale') {
       const from = sub(g.start, g.centre);
       const to = sub(at, g.centre);
@@ -129,14 +130,16 @@ export function DecalGizmo({ scene, layer, onGestureStart, onGestureEnd }: Decal
     const facingViewer = dot(scene.viewDirection(), decal.normal) < 0;
     begin(e, { kind: 'rotate', centre, start: Math.atan2(v.y, v.x), decal, sign: facingViewer ? -1 : 1 });
   };
-  const hidden = !layer.visible;
+  // Dashed when the layer is hidden; dimmed and dashed when the decal faces away from the camera.
+  const awayFromCamera = dot(decal.normal, scene.viewDirection()) > 0;
+  const dashed = !layer.visible || awayFromCamera;
 
   return (
-    <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
+    <svg aria-hidden data-facing={awayFromCamera ? 'away' : 'toward'} className={`pointer-events-none absolute inset-0 h-full w-full overflow-visible ${awayFromCamera ? 'opacity-50' : ''}`}>
       <polygon
         data-gizmo="body"
         points={corners.map((c) => `${c.x},${c.y}`).join(' ')}
-        className={`pointer-events-auto cursor-move fill-amber-10 stroke-amber ${hidden ? '[stroke-dasharray:4_3]' : ''}`}
+        className={`pointer-events-auto cursor-move fill-amber-10 stroke-amber ${dashed ? '[stroke-dasharray:4_3]' : ''}`}
         strokeWidth={1.5}
         onPointerDown={(e) => begin(e, { kind: 'move', offset: sub(local(e), centre) })}
         {...handlers}

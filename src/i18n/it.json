@@ -1225,7 +1225,7 @@
       "restored": "È tornata la versione precedente.",
       "downscaled": "La scheda grafica non riesce a dipingere a questa dimensione: la texture è stata salvata a 2048.",
       "cancelled": "Applicazione annullata: la skin nel gioco non è cambiata.",
-      "pictureNotReady": "Un’immagine sul veicolo non ha finito di caricarsi. Riprova Applica."
+      "pictureNotReady": "Un’immagine sul veicolo non ha finito di caricarsi. Premi di nuovo Applica."
     },
     "toast": {
       "deleted": "Progetto “{{name}}” eliminato",
@@ -1234,7 +1234,7 @@
     "place": {
       "hint": "Clicca sul veicolo per posizionarlo · Invio: centro della vista · Esc: annulla",
       "start": "Clicca sul veicolo per posizionare il nuovo livello. Invio lo mette al centro della vista, Esc annulla.",
-      "missed": "Lì non c’è il veicolo. Clicca sul veicolo.",
+      "missed": "Lì non c’è il veicolo: clicca proprio sul veicolo.",
       "done": "Posizionato. Trascinalo o usa le frecce per sistemarlo."
     },
     "text": {
@@ -1249,7 +1249,7 @@
       "model": "Modello isnet-anime (progetto rembg)",
       "privacy": "{{size}} da scaricare. Restano su questo PC e funzionano qui: le tue immagini non lo lasciano mai. Si rimuovono da Impostazioni → Sperimentale.",
       "download": "Scarica ({{size}})",
-      "restart": "Prima riavvia Livery: i file per rimuovere lo sfondo che hai eliminato erano ancora in uso e vengono cancellati del tutto al prossimo avvio. Dopo potrà scaricarli di nuovo.",
+      "restart": "Prima riavvia Livery: i file per rimuovere lo sfondo che hai eliminato erano ancora in uso e vengono cancellati del tutto al prossimo avvio. Dopo potrai scaricarli di nuovo.",
       "downloading": "Download da GitHub…",
       "received": "{{received}} di {{total}}",
       "waiting": "In attesa",
@@ -1280,7 +1280,10 @@
       "px": "{{value}} px",
       "hardness": "Durezza",
       "undo": "Annulla tratto",
-      "stale": "Nel frattempo l’immagine del livello è cambiata, quindi il bordo rifinito non è stato usato."
+      "stale": "Nel frattempo l’immagine del livello è cambiata, quindi il bordo rifinito non è stato usato.",
+      "discardTitle": "Scartare le modifiche al bordo?",
+      "discardBody": "I tratti di pennello fatti in Rifinisci bordo andranno persi.",
+      "discard": "Scarta"
     }
   },
   "settings": {

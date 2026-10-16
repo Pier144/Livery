@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import { maskOf, type BaseLayer, type DecalLayer, type ImageLayer, type Layer, type TextLayer } from '@/atelier/project';
+import { ConfirmDialog } from '@/components/chrome/ConfirmDialog';
 import { Toaster } from '@/components/chrome/Toaster';
 import { encodeAsset, encodeMockModel, mockPicture, mockTemplate, MOCK_TEXTURE_SIZE } from '@/dev/mockAtelier';
 import { useAtelierUi } from '@/store/atelier';
@@ -11,7 +12,7 @@ import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
 import type { ApplyProgress, AtelierProject, CutoutStatus, HangarSkin } from '@/types';
-import { resetDecalUi } from './decalUi';
+import { resetDecalUi, setCutoutBusy } from './decalUi';
 import { Editor } from './Editor';
 import { EngineContext, type Engine, type EngineFactory } from './engine';
 
@@ -172,6 +173,7 @@ function renderEditor(p: AtelierProject = project()) {
     <EngineContext.Provider value={factory}>
       <Editor id={p.id} />
       <Toaster />
+      <ConfirmDialog />
     </EngineContext.Provider>,
     { settings: { atelierEnabled: true, readGameData: true } },
   );
@@ -298,7 +300,8 @@ describe('Atelier editor', () => {
     await ready();
     await user.click(screen.getByRole('button', { name: 'Apply to game' }));
     await waitFor(() => expect(toastTexts()).toContain('Skin installed in the game. Select it again in the hangar to see the changes.'), { timeout: 3000 });
-    expect(order()).toEqual(['atelier_apply_begin', 'atelier_apply_texture', 'atelier_apply_texture', 'atelier_apply_texture', 'atelier_apply_commit', 'atelier_project_thumb']);
+    // The thumbnail goes before the commit: Rust copies it into the skin as preview.png.
+    expect(order()).toEqual(['atelier_apply_begin', 'atelier_apply_texture', 'atelier_apply_texture', 'atelier_apply_texture', 'atelier_project_thumb', 'atelier_apply_commit']);
     // Saved before the apply began.
     const save = backend.call.mock.invocationCallOrder[backend.call.mock.calls.findIndex(([c]) => c === 'atelier_project_save')]!;
     const beginAt = backend.call.mock.invocationCallOrder[backend.call.mock.calls.findIndex(([c]) => c === 'atelier_apply_begin')]!;
@@ -626,6 +629,8 @@ async function placeImage(user: ReturnType<typeof userEvent.setup>, at = { x: 50
 describe('Atelier editor · images and text', () => {
   beforeEach(() => {
     resetDecalUi();
+    // A cutout left running by an earlier test keeps the busy flag (it outlives projects).
+    setCutoutBusy(false);
     decalAnswers();
   });
 
@@ -796,6 +801,130 @@ describe('Atelier editor · images and text', () => {
     expect((decalLayer(id) as TextLayer).font).toEqual({ family: 'Verdana', style: 'Regular' });
   });
 
+  it('places instead of painting while a layer waits, even with Protected areas selected', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Protected areas' }));
+    await user.click(screen.getByRole('button', { name: 'Add image' }));
+    await waitFor(() => expect(S().pending).not.toBeNull());
+    fireEvent.pointerDown(view(), { button: 0, clientX: 50, clientY: 20, pointerId: 1 });
+    fireEvent.pointerUp(view(), { button: 0, clientX: 50, clientY: 20, pointerId: 1 });
+    expect(maskOf(S().layers)).toBeUndefined();
+    expect(S().layers.some((l) => l.kind === 'image')).toBe(true);
+  });
+
+  it('a held-key gesture ends only when its own key goes up', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await placeImage(user);
+    view().focus();
+    await user.keyboard('{Shift>}{ArrowRight>}');
+    expect(S().mergeKey).not.toBeNull();
+    // Shift goes up first: the turn goes on.
+    await user.keyboard('{/Shift}');
+    expect(S().mergeKey).not.toBeNull();
+    await user.keyboard('{/ArrowRight}');
+    expect(S().mergeKey).toBeNull();
+  });
+
+  it('slides only on its own part group, and the outline dims when the decal faces away', async () => {
+    const user = userEvent.setup();
+    const { container } = renderEditor();
+    await ready();
+    const id = await placeImage(user);
+    act(() => S().setDecal(id, { part: 'turret' }));
+    const body = container.querySelector('[data-gizmo="body"]')!;
+    fireEvent.pointerDown(body, { button: 0, clientX: 50, clientY: 20, pointerId: 2 });
+    fireEvent.pointerMove(body, { clientX: 60, clientY: 20, pointerId: 2 });
+    fireEvent.pointerUp(body, { clientX: 60, clientY: 20, pointerId: 2 });
+    expect(engine.scene.raycast).toHaveBeenLastCalledWith(60, 20, 'turret');
+    expect(container.querySelector('svg[data-facing]')).toHaveAttribute('data-facing', 'toward');
+    engine.scene.viewDirection.mockReturnValue([1, 0, 0]);
+    act(() => S().setDecal(id, { depth: 0.05 }));
+    expect(container.querySelector('svg[data-facing]')).toHaveAttribute('data-facing', 'away');
+  });
+
+  it('keeps the text on one line, counted like the layer stores it', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Add text' }));
+    await user.keyboard('{Enter}');
+    const field = await screen.findByRole('textbox', { name: 'Text' });
+    await user.type(field, '{Enter}B');
+    expect(field).toHaveValue('TextB');
+    expect(screen.getByText('5/200')).toBeInTheDocument();
+  });
+
+  it('the deleted-layer toast does nothing once another project is open', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await placeImage(user);
+    const layers = within(screen.getByRole('region', { name: 'Layers' }));
+    await user.click(layers.getByRole('button', { name: 'logo actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    act(() => S().load(project({ id: 'p2', name: 'Other' })));
+    const before = S().layers;
+    const toasts = screen.getByRole('region', { name: /notifications/i });
+    await user.click(within(toasts).getByRole('button', { name: 'Undo' }));
+    expect(S().layers).toBe(before);
+    expect(S().project?.id).toBe('p2');
+  });
+
+  it('shows the cutout steps: a moving stripe until the first one, then a quarter per step', async () => {
+    const user = userEvent.setup();
+    extra.atelier_cutout_status = () => READY;
+    extra.atelier_cutout = () => new Promise(() => {});
+    renderEditor();
+    await ready();
+    await placeImage(user);
+    await user.click(screen.getByRole('button', { name: 'Remove background' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Remove background' });
+    await waitFor(() => expect(calls('atelier_cutout')).toHaveLength(1));
+    const bar = within(dialog).getByRole('progressbar', { name: 'Removing the background' });
+    expect(bar).not.toHaveAttribute('aria-valuenow');
+    emit('atelier://cutout-progress', { step: 'load' });
+    expect(within(dialog).getByRole('progressbar', { name: 'Removing the background' })).toHaveAttribute('aria-valuenow', '25');
+    expect(within(dialog).getByText('Loading the model…')).toBeInTheDocument();
+  });
+
+  it('a failed status read retries the read (never the download)', async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    extra.atelier_cutout_status = () => (fail ? Promise.reject({ code: 'io', message: 'File system error' }) : NOT_READY);
+    renderEditor();
+    await ready();
+    await placeImage(user);
+    await user.click(screen.getByRole('button', { name: 'Remove background' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Remove background' });
+    fail = false;
+    await user.click(await within(dialog).findByRole('button', { name: 'Try again' }));
+    expect(await within(dialog).findByRole('button', { name: /^Download/ })).toBeInTheDocument();
+    expect(calls('atelier_cutout_download')).toHaveLength(0);
+    expect(calls('atelier_cutout_status')).toHaveLength(2);
+  });
+
+  it('files gone at cutout time ask for them again; a download refused for a restart says so', async () => {
+    const user = userEvent.setup();
+    let status: CutoutStatus = READY;
+    extra.atelier_cutout_status = () => status;
+    extra.atelier_cutout = () => {
+      status = NOT_READY;
+      return Promise.reject({ code: 'notFound', message: 'Download the background-removal files first' });
+    };
+    extra.atelier_cutout_download = () => Promise.reject({ code: 'conflict', message: 'Restart Livery to finish removing the background-removal files' });
+    renderEditor();
+    await ready();
+    await placeImage(user);
+    await user.click(screen.getByRole('button', { name: 'Remove background' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Remove background' });
+    await user.click(await within(dialog).findByRole('button', { name: /^Download/ }));
+    expect(await within(dialog).findByText(/Restart Livery first/)).toBeInTheDocument();
+  });
+
   it('removes a background: asks to download, shows progress, cuts out, refits the layer in one undo step', async () => {
     const user = userEvent.setup();
     let finishDownload!: (s: CutoutStatus) => void;
@@ -852,6 +981,29 @@ describe('Atelier editor · images and text', () => {
     await user.click(screen.getByRole('button', { name: 'Remove background' }));
     expect(await screen.findByText(/Restart Livery first/)).toBeInTheDocument();
     expect(calls('atelier_cutout_download')).toHaveLength(1);
+  });
+
+  it('refine edge asks before dropping brush strokes; a click outside does nothing then', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    renderEditor();
+    await ready();
+    await placeImage(user);
+    await user.click(screen.getByRole('button', { name: 'Refine edge' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Refine edge' });
+    const canvas = await within(dialog).findByLabelText('The picture to refine');
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 10, clientY: 10, pointerId: 3 });
+    fireEvent.pointerUp(canvas, { clientX: 10, clientY: 10, pointerId: 3 });
+    fireEvent.mouseDown(dialog.parentElement!);
+    expect(screen.getByRole('dialog', { name: 'Refine edge' })).toBeInTheDocument();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    const ask = await screen.findByRole('alertdialog', { name: 'Discard your changes to the edge?' });
+    await user.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('dialog', { name: 'Refine edge' })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Refine edge' }), { key: 'Escape' });
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Refine edge' })).toBeNull());
+    expect(backend.callRaw.mock.calls.filter(([c]) => c === 'atelier_asset_put')).toHaveLength(0);
   });
 
   it('refine edge saves the brushed picture as a new asset, keeping where it came from (one undo step)', async () => {

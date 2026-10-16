@@ -24,6 +24,8 @@ export const NUDGE_FRACTION = 0.05;
 export const ROTATE_STEP_DEG = 5;
 /** + / − scale it by this factor. */
 export const SCALE_STEP = 1.05;
+/** Sliding adopts a surface whose normal is within this angle of the decal's; beyond it the decal keeps its orientation. */
+export const MAX_SLIDE_TILT_DEG = 35;
 /** Alt+wheel: depth changes by this factor per 100 px of wheel. */
 export const DEPTH_WHEEL_STEP = 1.1;
 export const MIN_DEPTH_UI = 0.01;
@@ -50,6 +52,20 @@ export function slideTo(decal: Decal, point: Vec3, normal: Vec3): Decal {
   return { ...decal, center: [point[0], point[1], point[2]], normal: n, up };
 }
 
+/**
+ * Where a drag or nudge that hit the model at `point` (surface `normal`) takes the decal: onto
+ * that surface (`slideTo`) when it is turned at most MAX_SLIDE_TILT_DEG from the decal's own;
+ * otherwise (an edge, a wheel, a hatch seen at a grazing angle) the decal keeps its orientation
+ * and its centre moves to the hit projected onto its current plane, so it never tilts wildly.
+ */
+export function slideOnto(decal: Decal, point: Vec3, normal: Vec3): Decal {
+  const n = normalize(normal);
+  if (!n || !point.every(Number.isFinite)) return decal;
+  if (dot(n, decal.normal) >= Math.cos((MAX_SLIDE_TILT_DEG * Math.PI) / 180)) return slideTo(decal, point, n);
+  const off = dot(sub(point, decal.center), decal.normal);
+  return { ...decal, center: sub(point, scale(decal.normal, off)) };
+}
+
 /** The point `du`, `dv` decal sides away from the centre on the decal's plane (keyboard nudge). */
 export function nudgePoint(decal: Decal, du: number, dv: number): Vec3 {
   const step = NUDGE_FRACTION * Math.max(decal.width, decal.height);
@@ -65,7 +81,7 @@ export function rotateDecal(decal: Decal, radians: number): Decal {
   return up ? { ...decal, up } : decal;
 }
 
-/** The decal scaled by `kx` across and `ky` up (sides clamped); the depth follows the width. */
+/** The decal scaled by `kx` across and `ky` up (sides clamped); the depth stays as it is. */
 export function scaleDecal(decal: Decal, kx: number, ky = kx): Decal {
   if (!(kx > 0) || !(ky > 0) || !Number.isFinite(kx) || !Number.isFinite(ky)) return decal;
   return { ...decal, width: clampSize(decal.width * kx), height: clampSize(decal.height * ky) };

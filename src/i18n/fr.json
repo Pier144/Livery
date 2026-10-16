@@ -1280,7 +1280,10 @@
       "px": "{{value}} px",
       "hardness": "Dureté",
       "undo": "Annuler le trait",
-      "stale": "L’image du calque a changé entre-temps : le contour affiné n’a pas été utilisé."
+      "stale": "L’image du calque a changé entre-temps : le contour affiné n’a pas été utilisé.",
+      "discardTitle": "Abandonner les modifications du contour ?",
+      "discardBody": "Les traits de pinceau faits dans Affiner le contour seront perdus.",
+      "discard": "Abandonner"
     }
   },
   "settings": {

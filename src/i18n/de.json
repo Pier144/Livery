@@ -1237,7 +1237,10 @@
       "px": "{{value}} px",
       "hardness": "Härte",
       "undo": "Strich rückgängig",
-      "stale": "Das Bild der Ebene hat sich inzwischen geändert, die verfeinerte Kante wurde nicht übernommen."
+      "stale": "Das Bild der Ebene hat sich inzwischen geändert, die verfeinerte Kante wurde nicht übernommen.",
+      "discardTitle": "Änderungen an der Kante verwerfen?",
+      "discardBody": "Die Pinselstriche in „Kante verfeinern“ gehen verloren.",
+      "discard": "Verwerfen"
     }
   },
   "settings": {

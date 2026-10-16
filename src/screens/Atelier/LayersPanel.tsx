@@ -191,12 +191,15 @@ export function LayersPanel() {
 
   const deleteWithToast = (layer: Layer) => {
     const store = useAtelierEditor.getState();
+    const projectId = store.project?.id;
     const index = store.layers.findIndex((l) => l.id === layer.id);
     store.deleteLayer(layer.id);
     const revision = useAtelierEditor.getState().revision;
     const name = nameOf(layer, layer.kind);
     toast.undoable(t('atelier.layers.deleted', { name }), () => {
       const now = useAtelierEditor.getState();
+      // Another project open now (or none): the layer belongs to the one it was deleted from.
+      if (!projectId || now.project?.id !== projectId) return;
       if (now.layers.some((l) => l.id === layer.id)) return;
       // Nothing else changed since: the editor's own undo (redo keeps working); else put it back.
       if (now.revision === revision && now.past.length > 0) now.undo();

@@ -10,6 +10,8 @@ interface AtelierDialogProps {
   onDismiss: () => void;
   /** Work is running: the dialog can't be dismissed (its own Cancel stops the work). */
   locked?: boolean;
+  /** A click outside dismisses (default); off while the dialog holds work that would be lost. */
+  dismissOnOverlay?: boolean;
   /** Label of the × button. */
   closeLabel: string;
   /** Element to focus first (else the dialog itself). */
@@ -26,7 +28,7 @@ interface AtelierDialogProps {
  * starts inside, Tab cycles inside, Escape or a click outside dismisses (not while locked), keys
  * don't reach the editor underneath (Ctrl combos still reach the window), focus goes back to the opener.
  */
-export function AtelierDialog({ title, onDismiss, locked = false, closeLabel, initialFocus, describedBy, busy, widthClass = 'w-[480px]', footer, children }: AtelierDialogProps) {
+export function AtelierDialog({ title, onDismiss, locked = false, dismissOnOverlay = true, closeLabel, initialFocus, describedBy, busy, widthClass = 'w-[480px]', footer, children }: AtelierDialogProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const [opener] = useState(() => document.activeElement);
@@ -64,7 +66,7 @@ export function AtelierDialog({ title, onDismiss, locked = false, closeLabel, in
   };
 
   const onOverlayMouseDown = (e: MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget && !locked) onDismiss();
+    if (e.target === e.currentTarget && !locked && dismissOnOverlay) onDismiss();
   };
 
   return (
@@ -105,8 +107,8 @@ export function AtelierDialog({ title, onDismiss, locked = false, closeLabel, in
   );
 }
 
-/** A labelled progress bar (`value` 0..1; null shows an empty track). */
-export function ProgressBar({ label, value, valueText }: { label: string; value: number | null; valueText?: string }) {
+/** A labelled progress bar (`value` 0..1); `indeterminate` shows a moving stripe while no value is known. */
+export function ProgressBar({ label, value, valueText, indeterminate = false }: { label: string; value: number | null; valueText?: string; indeterminate?: boolean }) {
   const pct = value === null ? 0 : Math.round(Math.min(1, Math.max(0, value)) * 100);
   return (
     <div
@@ -114,11 +116,15 @@ export function ProgressBar({ label, value, valueText }: { label: string; value:
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={pct}
+      aria-valuenow={indeterminate ? undefined : pct}
       aria-valuetext={valueText}
       className="h-[4px] w-full overflow-hidden rounded-sm bg-bg-5"
     >
-      <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-decel" style={{ width: `${pct}%` }} />
+      {indeterminate ? (
+        <div className="h-full w-2/5 bg-amber motion-safe:animate-indeterminate" />
+      ) : (
+        <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-decel" style={{ width: `${pct}%` }} />
+      )}
     </div>
   );
 }

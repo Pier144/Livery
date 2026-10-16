@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decalRight, MAX_DECAL_SIZE, type Decal } from '@/atelier/project';
-import { decalCorners, MAX_DEPTH_UI, MIN_DEPTH_UI, nudgePoint, NUDGE_FRACTION, rotateDecal, scaleDecal, slideTo, wheelDepth } from './decalOps';
+import { decalCorners, MAX_DEPTH_UI, MIN_DEPTH_UI, nudgePoint, NUDGE_FRACTION, rotateDecal, scaleDecal, slideOnto, slideTo, wheelDepth } from './decalOps';
 
 const DECAL: Decal = { center: [0.5, 0, 0], normal: [1, 0, 0], up: [0, 1, 0], width: 0.4, height: 0.2, depth: 0.04, part: 'all', mirror: false };
 
@@ -15,6 +15,21 @@ describe('decal edits', () => {
     expect(moved.up[2]).toBeCloseTo(1);
     // A degenerate normal leaves it where it was.
     expect(slideTo(DECAL, [1, 1, 1], [0, 0, 0])).toBe(DECAL);
+  });
+
+  it('adopts a surface turned up to 35°, else keeps its orientation and moves along its own plane', () => {
+    const tilt = (deg: number): [number, number, number] => [Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180), 0];
+    const gentle = slideOnto(DECAL, [0.55, 0.1, 0.1], tilt(30));
+    expect(gentle.center).toEqual([0.55, 0.1, 0.1]);
+    expect(gentle.normal[1]).toBeCloseTo(0.5);
+    const steep = slideOnto(DECAL, [0.3, 0.1, 0.1], tilt(60));
+    expect(steep.normal).toEqual(DECAL.normal);
+    expect(steep.up).toEqual(DECAL.up);
+    // The hit projected onto the decal's plane (x = 0.5).
+    expect(steep.center).toEqual([0.5, 0.1, 0.1]);
+    // Around a corner (90°): never tilts.
+    expect(slideOnto(DECAL, [0.2, 0, 0.6], [0, 0, 1]).normal).toEqual(DECAL.normal);
+    expect(slideOnto(DECAL, [0, 0, 0], [0, 0, 0])).toBe(DECAL);
   });
 
   it('turns counter-clockwise (seen from the front) for a positive angle', () => {

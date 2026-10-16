@@ -1323,7 +1323,10 @@
       "px": "{{value}} px",
       "hardness": "Twardość",
       "undo": "Cofnij pociągnięcie",
-      "stale": "Obraz warstwy w międzyczasie się zmienił, więc poprawiona krawędź nie została użyta."
+      "stale": "Obraz warstwy w międzyczasie się zmienił, więc poprawiona krawędź nie została użyta.",
+      "discardTitle": "Odrzucić zmiany krawędzi?",
+      "discardBody": "Pociągnięcia pędzla wykonane w Popraw krawędź zostaną utracone.",
+      "discard": "Odrzuć"
     }
   },
   "settings": {

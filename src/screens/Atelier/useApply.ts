@@ -46,8 +46,11 @@ interface UseApplyArgs {
   engine: () => Engine | null;
   /** Saves pending edits; false when something isn't saved. */
   flush: () => Promise<boolean>;
-  /** After a successful apply, with the engine still alive (thumbnail). */
-  onApplied?: (engine: Engine) => void;
+  /**
+   * After the slots were sent, right before `atelier_apply_commit`, with the engine alive: the
+   * project thumbnail (Rust copies it into the installed skin as preview.png). Never fails the apply.
+   */
+  beforeCommit?: (engine: Engine) => Promise<void>;
 }
 
 /**
@@ -57,14 +60,14 @@ interface UseApplyArgs {
  * cancels the apply (`atelier_apply_cancel`) and toasts it; leaving the editor before the commit
  * cancels it too. After the commit the project records the installed skin at once.
  */
-export function useApply({ projectId, model, engine, flush, onApplied }: UseApplyArgs) {
+export function useApply({ projectId, model, engine, flush, beforeCommit }: UseApplyArgs) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [state, setState] = useState<ApplyState>({ running: false });
   const job = useRef<Job | null>(null);
   const mounted = useRef(true);
-  const latest = useRef({ engine, flush, onApplied, model, t });
-  latest.current = { engine, flush, onApplied, model, t };
+  const latest = useRef({ engine, flush, beforeCommit, model, t });
+  latest.current = { engine, flush, beforeCommit, model, t };
 
   const show = useCallback((s: ApplyState) => {
     if (mounted.current) setState(s);
@@ -154,6 +157,11 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
       step = 'install';
       part = undefined;
       progress();
+      {
+        const engine = latest.current.engine();
+        if (engine && latest.current.beforeCommit) await latest.current.beforeCommit(engine);
+        if (current.aborted) return;
+      }
       current.committing = true;
       const { skin, backupId } = await call<ApplyResult>('atelier_apply_commit', { applyId });
 
@@ -179,8 +187,6 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
         toast(`${t('atelier.apply.installed')} ${reselect}`);
       }
       if (downscaled) toast(t('atelier.apply.downscaled'));
-      const engine = latest.current.engine();
-      if (engine && !current.aborted) latest.current.onApplied?.(engine);
     } catch (e) {
       if (current.applyId && !current.committing) void call('atelier_apply_cancel', { applyId: current.applyId }).catch(() => {});
       if (!current.aborted || current.committing) {

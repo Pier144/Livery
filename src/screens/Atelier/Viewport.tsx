@@ -5,12 +5,12 @@ import { useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import { QUICK_VIEWS, type QuickView } from '@/atelier/gl/scene';
 import type { VehicleModelData } from '@/atelier/modelBuffer';
-import { dot, isDecalLayer, maskOf, type Decal, type DecalLayer, type PartFilter, type Vec3 } from '@/atelier/project';
+import { dot, isDecalLayer, maskOf, partGroupOf, type Decal, type DecalLayer, type PartFilter, type Vec3 } from '@/atelier/project';
 import { measureTextAspect } from '@/atelier/text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/lib/cn';
 import { DecalGizmo } from './DecalGizmo';
-import { decalCorners, nudgePoint, rotateDecal, ROTATE_STEP_DEG, scaleDecal, SCALE_STEP, slideTo, wheelDepth } from './decalOps';
+import { decalCorners, nudgePoint, rotateDecal, ROTATE_STEP_DEG, scaleDecal, SCALE_STEP, slideOnto, wheelDepth } from './decalOps';
 import { assetSize, setPlacingLayer, useDecalUi } from './decalUi';
 import { distance, enabledSlots, POINT_SPACING } from './editorModel';
 import { EngineContext, type Engine } from './engine';
@@ -86,9 +86,12 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
   decalRef.current = decalLayer;
   const [announcement, setAnnouncement] = useState('');
   const diagonal = useMemo(() => boundingDiagonal(model.positions), [model]);
-  /** The layer whose decal keys are being held (one undo step until the key goes up). */
-  const keyGesture = useRef<string | null>(null);
-  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The layer whose decal keys are being held and the key that started it (one undo step until that key goes up). */
+  const keyGesture = useRef<{ id: string; key: string } | null>(null);
+  /** An Alt+wheel depth burst: its layer and the timer that ends its undo step. */
+  const wheelGesture = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  /** A gizmo drag is running (Alt+wheel waits for it to end). */
+  const gizmoDrag = useRef(false);
   const gestureEnd = useRef(onDecalGestureEnd);
   gestureEnd.current = onDecalGestureEnd;
   const [cursor, setCursor] = useState<{ x: number; y: number; r: number } | null>(null);
@@ -178,14 +181,11 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
       e.preventDefault();
       const layer = decalRef.current;
       if (e.altKey && layer) {
+        if (gizmoDrag.current) return;
         const store = useAtelierEditor.getState();
         store.setDecal(layer.id, { depth: wheelDepth(layer.decal.depth, e.deltaY) }, 'depth');
-        if (wheelTimer.current) clearTimeout(wheelTimer.current);
-        wheelTimer.current = setTimeout(() => {
-          wheelTimer.current = null;
-          useAtelierEditor.getState().endGesture();
-          gestureEnd.current?.(layer.id);
-        }, WHEEL_GESTURE_MS);
+        if (wheelGesture.current) clearTimeout(wheelGesture.current.timer);
+        wheelGesture.current = { id: layer.id, timer: setTimeout(endWheelGesture, WHEEL_GESTURE_MS) };
         return;
       }
       engineRef.current?.scene.zoomBy(e.deltaY);
@@ -194,7 +194,8 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     frameEl.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       frameEl.removeEventListener('wheel', onWheel);
-      if (wheelTimer.current) clearTimeout(wheelTimer.current);
+      if (wheelGesture.current) clearTimeout(wheelGesture.current.timer);
+      wheelGesture.current = null;
     };
     // `schedule` only reads refs.
   }, []);
@@ -248,12 +249,35 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     return true;
   };
 
-  /** Slides the decal so its centre lands under the view point (`x`, `y`); false when that misses the model. */
+  /**
+   * Slides the decal so its centre lands under the view point (`x`, `y`) on its own part group
+   * (`slideOnto`: a surface turned more than 35° keeps the decal's orientation); false when that
+   * misses the model.
+   */
   const slideDecalTo = (layer: DecalLayer & { decal: Decal }, x: number, y: number, mergeKey: string): boolean => {
-    const hit = engineRef.current?.scene.raycast(x, y);
+    const hit = engineRef.current?.scene.raycast(x, y, partGroupOf(layer.decal.part));
     if (!hit) return false;
-    useAtelierEditor.getState().setDecal(layer.id, slideTo(layer.decal, hit.point, hit.normal), mergeKey);
+    useAtelierEditor.getState().setDecal(layer.id, slideOnto(layer.decal, hit.point, hit.normal), mergeKey);
     return true;
+  };
+
+  /** Ends an Alt+wheel depth burst now (its undo step). */
+  function endWheelGesture() {
+    const wheel = wheelGesture.current;
+    if (!wheel) return;
+    clearTimeout(wheel.timer);
+    wheelGesture.current = null;
+    useAtelierEditor.getState().endGesture();
+    gestureEnd.current?.(wheel.id);
+  }
+
+  /** Ends a decal gesture made with keys. */
+  const endKeyGesture = () => {
+    const held = keyGesture.current;
+    if (!held) return;
+    keyGesture.current = null;
+    useAtelierEditor.getState().endGesture();
+    gestureEnd.current?.(held.id);
   };
 
   /** One raycast for the latest pointer position: the cursor, and the stroke while painting. */
@@ -400,13 +424,12 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     setCursor(null);
   };
 
-  /** Ends a decal gesture made with keys (on key up). */
-  const onKeyUp = () => {
-    const id = keyGesture.current;
-    if (!id) return;
-    keyGesture.current = null;
-    useAtelierEditor.getState().endGesture();
-    gestureEnd.current?.(id);
+  /** The key that started a held-key gesture went up (+ and = are the same key): the gesture ends. */
+  const onKeyUp = (e: KeyboardEvent<HTMLDivElement>) => {
+    const held = keyGesture.current;
+    if (!held) return;
+    const plus = (k: string) => k === '+' || k === '=';
+    if (e.key === held.key || (plus(e.key) && plus(held.key))) endKeyGesture();
   };
 
   /**
@@ -443,9 +466,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     } else {
       return false;
     }
-    if (keyGesture.current !== layer.id) {
-      keyGesture.current = layer.id;
-    }
+    if (keyGesture.current?.id !== layer.id || keyGesture.current.key !== e.key) keyGesture.current = { id: layer.id, key: e.key };
     return true;
   };
 
@@ -514,14 +535,23 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
         onContextMenu={(e) => e.preventDefault()}
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
-        onBlur={onKeyUp}
+        onBlur={endKeyGesture}
       />
       {engine && decalLayer && !brush && (
         <DecalGizmo
           scene={engine.scene}
           layer={decalLayer}
-          onGestureStart={() => hostRef.current?.focus({ preventScroll: true })}
-          onGestureEnd={(id) => gestureEnd.current?.(id)}
+          onGestureStart={() => {
+            // Whatever ran before (an Alt+wheel burst, held keys) ends here: the drag is its own step.
+            endWheelGesture();
+            endKeyGesture();
+            gizmoDrag.current = true;
+            hostRef.current?.focus({ preventScroll: true });
+          }}
+          onGestureEnd={(id) => {
+            gizmoDrag.current = false;
+            gestureEnd.current?.(id);
+          }}
         />
       )}
       {placing && (

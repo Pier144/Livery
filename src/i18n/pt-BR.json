@@ -1280,7 +1280,10 @@
       "px": "{{value}} px",
       "hardness": "Dureza",
       "undo": "Desfazer traço",
-      "stale": "A imagem da camada mudou nesse meio-tempo, então a borda refinada não foi usada."
+      "stale": "A imagem da camada mudou nesse meio-tempo, então a borda refinada não foi usada.",
+      "discardTitle": "Descartar as alterações da borda?",
+      "discardBody": "Os traços de pincel feitos em Refinar borda serão perdidos.",
+      "discard": "Descartar"
     }
   },
   "settings": {

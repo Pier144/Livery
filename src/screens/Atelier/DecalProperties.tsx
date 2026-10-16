@@ -20,6 +20,12 @@ interface DecalPropertiesProps {
   onRefineEdge: (layerId: string) => void;
 }
 
+/** At most MAX_TEXT_CHARS characters (code points), as the project stores text. */
+export function clampText(text: string): string {
+  const chars = [...text];
+  return chars.length > MAX_TEXT_CHARS ? chars.slice(0, MAX_TEXT_CHARS).join('') : text;
+}
+
 const SELECT =
   'h-ctl w-full min-w-0 rounded-ctl border border-line-3 bg-bg-input px-2 text-meta text-ink-1 hover:border-line-4 focus-visible:outline focus-visible:-outline-offset-1 disabled:opacity-50';
 
@@ -111,19 +117,22 @@ function MirrorRow({ layer, decal, checkShared }: { layer: DecalLayer; decal: De
   const labelId = useId();
   const hintId = useId();
   const shared = useDecalUi((s) => s.shared[layer.id] === true);
-  const [checking, setChecking] = useState(false);
+  // Which layer a check runs for: the panel may show another layer by the time it answers.
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const checking = checkingId === layer.id;
   const setDecal = useAtelierEditor((s) => s.setDecal);
 
   const toggle = async (next: boolean) => {
+    const id = layer.id;
     if (!next) {
-      setDecal(layer.id, { mirror: false });
+      setDecal(id, { mirror: false });
       return;
     }
-    setChecking(true);
+    setCheckingId(id);
     try {
-      if (!(await checkShared(layer.id, decal))) setDecal(layer.id, { mirror: true });
+      if (!(await checkShared(id, decal))) setDecal(id, { mirror: true });
     } finally {
-      setChecking(false);
+      setCheckingId((c) => (c === id ? null : c));
     }
   };
 
@@ -243,14 +252,19 @@ function TextContent({ layer }: { layer: TextLayer }) {
           id={textId}
           value={draft}
           rows={2}
-          maxLength={MAX_TEXT_CHARS}
           aria-describedby={countId}
           onFocus={() => {
             editing.current = true;
           }}
+          onKeyDown={(e) => {
+            // One line of text: Enter doesn't add a line break (it still confirms an IME composition).
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) e.preventDefault();
+          }}
           onChange={(e) => {
-            setDraft(e.target.value);
-            push(e.target.value.replace(/\r?\n/g, ' '));
+            // Counted and cut like the layer stores it (characters, not UTF-16 units); pasted line breaks become spaces.
+            const text = clampText(e.target.value.replace(/\r?\n/g, ' '));
+            setDraft(text);
+            push(text);
           }}
           onBlur={() => {
             editing.current = false;
