@@ -219,7 +219,12 @@
         "applyNotFound": "Cette application n’est plus en cours",
         "applyNothing": "Activez au moins une partie à appliquer",
         "applyBadSlot": "Cette partie n’est pas activée pour cette application",
-        "applyFailed": "Impossible d’appliquer le skin au jeu"
+        "applyFailed": "Impossible d’appliquer le skin au jeu",
+        "imageUnreadable": "Impossible de lire cette image",
+        "imageTooLarge": "Cette image est trop grande",
+        "assetNotFound": "Cette image ne se trouve plus dans le projet",
+        "assetInvalid": "Impossible d’utiliser cette image",
+        "fontNotFound": "Cette police n’est pas installée"
       }
     },
     "vehicleClass": {

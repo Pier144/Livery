@@ -221,7 +221,12 @@
         "applyNotFound": "To zastosowanie już nie trwa",
         "applyNothing": "Włącz co najmniej jedną część do zastosowania",
         "applyBadSlot": "Ta część nie jest włączona dla tego zastosowania",
-        "applyFailed": "Nie udało się zastosować kamuflażu w grze"
+        "applyFailed": "Nie udało się zastosować kamuflażu w grze",
+        "imageUnreadable": "Nie można odczytać tego obrazu",
+        "imageTooLarge": "Ten obraz jest za duży",
+        "assetNotFound": "Tego obrazu brakuje w projekcie",
+        "assetInvalid": "Nie można użyć tego obrazu",
+        "fontNotFound": "Ta czcionka nie jest zainstalowana"
       }
     },
     "vehicleClass": {

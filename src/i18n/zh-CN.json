@@ -215,7 +215,12 @@
         "applyNotFound": "此应用操作已不在进行中",
         "applyNothing": "请至少开启一个要应用的部件",
         "applyBadSlot": "此部件未在本次应用中开启",
-        "applyFailed": "无法将涂装应用到游戏"
+        "applyFailed": "无法将涂装应用到游戏",
+        "imageUnreadable": "无法读取此图片",
+        "imageTooLarge": "此图片太大",
+        "assetNotFound": "项目中缺少此图片",
+        "assetInvalid": "无法使用此图片",
+        "fontNotFound": "未安装此字体"
       }
     },
     "vehicleClass": {

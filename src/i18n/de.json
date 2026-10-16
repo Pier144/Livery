@@ -217,7 +217,12 @@
         "applyNotFound": "Dieses Anwenden läuft nicht mehr",
         "applyNothing": "Schalte mindestens ein Teil zum Anwenden ein",
         "applyBadSlot": "Dieses Teil ist für dieses Anwenden nicht eingeschaltet",
-        "applyFailed": "Der Skin konnte nicht im Spiel angewendet werden"
+        "applyFailed": "Der Skin konnte nicht im Spiel angewendet werden",
+        "imageUnreadable": "Dieses Bild kann nicht gelesen werden",
+        "imageTooLarge": "Dieses Bild ist zu groß",
+        "assetNotFound": "Dieses Bild fehlt im Projekt",
+        "assetInvalid": "Dieses Bild kann nicht verwendet werden",
+        "fontNotFound": "Diese Schriftart ist nicht installiert"
       }
     },
     "vehicleClass": {

@@ -155,7 +155,7 @@ fn rename_retrying(from: &Path, to: &Path) -> io::Result<()> {
 }
 
 /// Writes `bytes` to a temp file next to `path`, flushes it, then renames it over `path`.
-fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
     let tmp = PathBuf::from(tmp);
@@ -309,6 +309,19 @@ impl ProjectStore {
             return Err(e);
         }
         Ok(project)
+    }
+
+    /// The folder of an existing project (`notFound` [`PROJECT_NOT_FOUND`] otherwise), for reading
+    /// its files.
+    pub fn project_dir(&self, id: &str) -> AppResult<PathBuf> {
+        self.existing_dir(id)
+    }
+
+    /// Runs `f` on an existing project's folder while no other write of this store runs, so a
+    /// delete or duplicate can't move the folder under it.
+    pub fn with_project_dir<T>(&self, id: &str, f: impl FnOnce(&Path) -> AppResult<T>) -> AppResult<T> {
+        let _writing = self.lock();
+        f(&self.existing_dir(id)?)
     }
 
     pub fn get(&self, id: &str) -> AppResult<AtelierProject> {

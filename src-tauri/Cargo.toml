@@ -34,8 +34,10 @@ tauri-plugin-updater = { version = "2", default-features = false, features = ["r
 oozextract = { version = "0.5.5", default-features = false }
 # DXT5 (BC3) encoder, MIT: Atelier writes the painted textures as DDS.
 texpresso = "2"
+# Picture import for Atelier's image layers (decode, EXIF orientation, resize, PNG assets), MIT OR Apache-2.0.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "tga"] }
 
-# Steam install path lives in the registry (HKCU\Software\Valve\Steam).
+# Steam install path (HKCU\Software\Valve\Steam) and Atelier's font list live in the registry.
 [target."cfg(windows)".dependencies]
 winreg = "0.56"
 

@@ -857,6 +857,27 @@ pub struct AtelierProject {
     pub layers: serde_json::Value,
 }
 
+/// A picture of a project (`assets/<id>.png`, RGBA8, at most 4096 on a side).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetRef {
+    pub id: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// An installed font Atelier's text layers can use (`.ttf`/`.otf` listed in the Windows registry).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FontInfo {
+    /// e.g. `Segoe UI`.
+    pub family: String,
+    /// e.g. `Regular`, `Bold Italic`.
+    pub style: String,
+    /// The font's file name only (no folders).
+    pub file: String,
+}
+
 /// Rust's steps of an apply (`atelier://apply-progress`); the bake before them is the frontend's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,11 +1,14 @@
 //! Atelier, the skin editor: the vehicle's model and template textures read from the game's packs
-//! (`game::gameres`), the projects (`project`) and the apply to the game (`apply`).
+//! (`game::gameres`), the projects (`project`) and their pictures (`assets`), the installed fonts
+//! (`fonts`) and the apply to the game (`apply`).
 //!
 //! Binary payloads travel as raw bytes: `tauri::ipc::Response` out, raw request bodies in.
 //! Reading the packs may wait on the Oodle worker process, so every command works in
 //! `crate::blocking`.
 
 pub mod apply;
+pub mod assets;
+pub mod fonts;
 pub mod project;
 
 use crate::archive::generated::Target;
@@ -19,13 +22,15 @@ use crate::game::gameres::{desc, TEXTURE_NOT_FOUND};
 use crate::game::root;
 use crate::library::GameLibrary;
 use crate::model::{
-    ApplyProgress, ApplyResult, ApplyStarted, ApplyStep, AtelierProject, AtelierProjectSummary, AtelierSlotChoice,
-    Settings,
+    ApplyProgress, ApplyResult, ApplyStarted, ApplyStep, AssetRef, AtelierProject, AtelierProjectSummary,
+    AtelierSlotChoice, FontInfo, Settings,
 };
 use crate::settings::SettingsStore;
 use crate::textures::bc::APPLY_BAD_TEXTURE;
 use apply::{APPLY_BAD_SLOT, APPLY_NOT_FOUND, TEXTURES_PCT};
+use assets::ASSET_INVALID;
 use project::{is_slot_name, ProjectStore, PROJECT_NOT_FOUND, PROJECT_THUMB_INVALID};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -58,6 +63,9 @@ pub struct AtelierState {
     loading: Mutex<()>,
     projects: ProjectStore,
     applies: apply::Applies,
+    /// Asset ids made in this process: the editor's history may still use them, so the asset GC
+    /// keeps them even when no saved layer does.
+    created_assets: Mutex<HashSet<String>>,
 }
 
 fn desc_key(game_root: &Path, version: &str) -> String {
@@ -78,11 +86,47 @@ impl AtelierState {
             loading: Mutex::new(()),
             projects: ProjectStore::new(atelier_dir),
             applies: apply::Applies::default(),
+            created_assets: Mutex::new(HashSet::new()),
         }
     }
 
     pub fn projects(&self) -> &ProjectStore {
         &self.projects
+    }
+
+    /// Stores RGBA8 pixels as a new asset of project `project_id` (under the project store's lock)
+    /// and remembers its id for [`Self::collect_assets`].
+    pub fn put_asset(&self, project_id: &str, w: u32, h: u32, rgba: &[u8]) -> AppResult<AssetRef> {
+        self.projects.with_project_dir(project_id, |dir| {
+            let asset = assets::write_rgba(dir, w, h, rgba)?;
+            self.created_assets.lock().unwrap_or_else(|e| e.into_inner()).insert(asset.id.clone());
+            Ok(asset)
+        })
+    }
+
+    /// Imports a picture into project `project_id`: decoded outside the project store's lock,
+    /// stored under it ([`Self::put_asset`]).
+    pub fn import_asset(&self, project_id: &str, source: &Path) -> AppResult<AssetRef> {
+        self.projects.project_dir(project_id)?;
+        let picture = assets::load_picture(source)?;
+        self.put_asset(project_id, picture.width(), picture.height(), picture.as_raw())
+    }
+
+    /// An asset of project `project_id`: its size and RGBA8 pixels.
+    pub fn asset(&self, project_id: &str, asset_id: &str) -> AppResult<(u32, u32, Vec<u8>)> {
+        assets::read_rgba(&self.projects.project_dir(project_id)?, asset_id)
+    }
+
+    /// Removes project `project_id`'s assets that neither its saved `project.json` nor this
+    /// process uses (see `assets::gc`); returns how many files went.
+    pub fn collect_assets(&self, project_id: &str) -> AppResult<usize> {
+        // Read under the lock too, so no save lands between the read and the removal.
+        self.projects.with_project_dir(project_id, |dir| {
+            let project = self.projects.get(project_id)?;
+            let referenced = assets::referenced_ids(&serde_json::to_value(&project)?);
+            let created = self.created_assets.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            Ok(assets::gc(dir, &referenced, &created))
+        })
     }
 
     /// `vehicle`'s paintable model in `game_root`, read once per game version and kept for the
@@ -289,6 +333,82 @@ pub async fn atelier_project_thumb(app: AppHandle, request: Request<'_>) -> AppR
 #[tauri::command]
 pub async fn atelier_project_thumb_get(app: AppHandle, id: String) -> AppResult<Response> {
     blocking(move || app.state::<AtelierState>().projects().thumb(&id).map(Response::new)).await
+}
+
+// ── Pictures and fonts ──────────────────────────────────────────────────────
+
+/// Called by the editor when it opens a project (its history is empty then): removes the
+/// project's pictures no saved layer and nothing made in this process uses.
+#[tauri::command]
+pub async fn atelier_project_open(app: AppHandle, project_id: String) -> AppResult<()> {
+    blocking(move || {
+        let removed = app.state::<AtelierState>().collect_assets(&project_id)?;
+        if removed > 0 {
+            tracing::info!(removed, "unused Atelier pictures removed");
+        }
+        Ok(())
+    })
+    .await
+}
+
+/// Imports the picture at `path` (a local absolute path the user picked) into the project.
+#[tauri::command]
+pub async fn atelier_import_image(app: AppHandle, project_id: String, path: String) -> AppResult<AssetRef> {
+    blocking(move || app.state::<AtelierState>().import_asset(&project_id, Path::new(&path))).await
+}
+
+/// A picture of the project: `u32` width and `u32` height (little-endian), then its RGBA8 pixels
+/// (straight alpha).
+#[tauri::command]
+pub async fn atelier_asset(app: AppHandle, project_id: String, asset_id: String) -> AppResult<Response> {
+    blocking(move || {
+        let (w, h, rgba) = app.state::<AtelierState>().asset(&project_id, &asset_id)?;
+        let mut out = Vec::with_capacity(8 + rgba.len());
+        out.extend_from_slice(&w.to_le_bytes());
+        out.extend_from_slice(&h.to_le_bytes());
+        out.extend_from_slice(&rgba);
+        Ok(Response::new(out))
+    })
+    .await
+}
+
+/// Stores RGBA8 pixels (straight alpha) as a new picture of the project: the pixels as the raw
+/// request body; headers `x-project-id`, `x-width`, `x-height` (sides up to 4096).
+#[tauri::command]
+pub async fn atelier_asset_put(app: AppHandle, request: Request<'_>) -> AppResult<AssetRef> {
+    let project_id = header(&request, "x-project-id")
+        .map(str::to_owned)
+        .ok_or_else(|| AppError::new(ErrorCode::NotFound, PROJECT_NOT_FOUND).with_detail("no x-project-id header"))?;
+    let side = |name: &str| {
+        header(&request, name).and_then(|v| v.trim().parse::<u32>().ok()).ok_or_else(|| {
+            AppError::new(ErrorCode::InvalidInput, ASSET_INVALID).with_detail(format!("no number in {name}"))
+        })
+    };
+    let (w, h) = (side("x-width")?, side("x-height")?);
+    // Checked on the request's own bytes, so a wrong size never costs a copy of them.
+    let rgba = match request.body() {
+        InvokeBody::Raw(bytes) => {
+            assets::check_rgba(w, h, bytes)?;
+            bytes.clone()
+        }
+        InvokeBody::Json(_) => {
+            return Err(AppError::new(ErrorCode::InvalidInput, ASSET_INVALID).with_detail("not a raw request body"))
+        }
+    };
+    blocking(move || app.state::<AtelierState>().put_asset(&project_id, w, h, &rgba)).await
+}
+
+/// The installed fonts text layers can use, read from the registry now (empty off Windows).
+#[tauri::command]
+pub async fn atelier_fonts() -> AppResult<Vec<FontInfo>> {
+    blocking(|| Ok(fonts::system_fonts().into_iter().map(|f| f.info).collect())).await
+}
+
+/// The bytes of the installed font with this family and style (looked up in a fresh list; no
+/// path is ever taken from the frontend).
+#[tauri::command]
+pub async fn atelier_font_file(family: String, style: String) -> AppResult<Response> {
+    blocking(move || fonts::font_bytes(&fonts::system_fonts(), &family, &style).map(Response::new)).await
 }
 
 // ── Apply to game ───────────────────────────────────────────────────────────
