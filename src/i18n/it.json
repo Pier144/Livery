@@ -224,7 +224,14 @@
         "imageTooLarge": "Questa immagine è troppo grande",
         "assetNotFound": "Questa immagine non è più nel progetto",
         "assetInvalid": "Impossibile usare questa immagine",
-        "fontNotFound": "Questo font non è installato"
+        "fontNotFound": "Questo font non è installato",
+        "downloadFailed": "Il download non è stato completato",
+        "downloadCorrupt": "Il file scaricato è danneggiato",
+        "downloadCancelled": "Download annullato",
+        "downloadBusy": "C’è già un download in corso",
+        "cutoutBusy": "La rimozione dello sfondo è occupata, riprova quando ha finito",
+        "cutoutRestartNeeded": "Riavvia Livery per finire di eliminare i file della rimozione dello sfondo",
+        "atelierDisabled": "Prima attiva Atelier nelle Impostazioni"
       }
     },
     "vehicleClass": {

@@ -41,7 +41,7 @@ impl Skeleton {
         let dump_sz = (cur.u32()? as usize) & MAX_DUMP;
         let n_word = cur.u32()?;
         let count = (n_word & !COMPRESSED) as usize;
-        if !count.checked_mul(NODE).is_some_and(|len| len <= dump_sz) {
+        if count.checked_mul(NODE).is_none_or(|len| len > dump_sz) {
             return Err(bad(format!("{count} nodes in a {dump_sz}-byte skeleton")));
         }
         let unpacked;
@@ -67,7 +67,7 @@ impl Skeleton {
             let name = r.cstr(r.u32_at(o + 152)? as usize)?;
             if child_count > 0 {
                 let child_ofs = child_ofs as usize;
-                if child_ofs % NODE != 0 {
+                if !child_ofs.is_multiple_of(NODE) {
                     return Err(bad(format!("node {i}: children at byte {child_ofs}")));
                 }
                 let first = child_ofs / NODE;

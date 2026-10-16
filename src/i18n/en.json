@@ -222,7 +222,14 @@
         "imageTooLarge": "This picture is too large",
         "assetNotFound": "This picture is missing from the project",
         "assetInvalid": "This picture can't be used",
-        "fontNotFound": "This font isn't installed"
+        "fontNotFound": "This font isn't installed",
+        "downloadFailed": "The download didn't finish",
+        "downloadCorrupt": "The downloaded file is damaged",
+        "downloadCancelled": "Download cancelled",
+        "downloadBusy": "A download is already running",
+        "cutoutBusy": "Background removal is busy, try again when it finishes",
+        "cutoutRestartNeeded": "Restart Livery to finish removing the background-removal files",
+        "atelierDisabled": "Turn on Atelier in Settings first"
       }
     },
     "vehicleClass": {

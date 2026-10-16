@@ -141,7 +141,7 @@ fn check_envelope(project: &AtelierProject) -> AppResult<()> {
 
 /// Moves `from` to `to`, retrying while Windows reports the target busy (an antivirus scan, an
 /// open preview).
-fn rename_retrying(from: &Path, to: &Path) -> io::Result<()> {
+pub(crate) fn rename_retrying(from: &Path, to: &Path) -> io::Result<()> {
     let mut attempt = 1;
     loop {
         match fs::rename(from, to) {

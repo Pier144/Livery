@@ -167,7 +167,7 @@ fn mutate(w: &mut OodleWorker, rounds: usize, mode: Mode) -> Tally {
             let at = match mode {
                 Mode::Cut => 5 + rng.next() as usize % (take - 5),
                 Mode::Headers => rng.next() as usize % 5,
-                Mode::Block => rng.next() as usize % if rng.next() % 2 == 0 { 300 } else { take },
+                Mode::Block => rng.next() as usize % if rng.next().is_multiple_of(2) { 300 } else { take },
             };
             copy[at] ^= rng.next() as u8 | 1;
         }
@@ -579,7 +579,7 @@ fn the_jumbo_hq_textures_decode_and_match_the_template() {
     assert_eq!((tw, th), (2048, 2048));
     let body = body.unwrap();
     let mut sum = 0u64;
-    for (game, tmpl) in body.chunks_exact(4).zip(tpx.chunks_exact(4)) {
+    for (game, tmpl) in body.as_chunks::<4>().0.iter().zip(tpx.as_chunks::<4>().0) {
         for c in 0..3 {
             sum += u64::from((u16::from(game[c]) * 2).min(255).abs_diff(u16::from(tmpl[c])));
         }
@@ -622,7 +622,7 @@ fn every_tank_texture_pack_directory_parses() {
 fn facing_normals(m: &assemble::VehicleModel) -> f64 {
     let at = |a: &[f32], i: u32| [0, 1, 2].map(|k| a[3 * i as usize + k]);
     let (mut agree, mut total) = (0usize, 0usize);
-    for t in m.indices.chunks_exact(3) {
+    for t in m.indices.as_chunks::<3>().0 {
         let [a, b, c] = [at(&m.positions, t[0]), at(&m.positions, t[1]), at(&m.positions, t[2])];
         let (e1, e2) = ([0, 1, 2].map(|k| b[k] - a[k]), [0, 1, 2].map(|k| c[k] - a[k]));
         let face = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
@@ -718,8 +718,10 @@ fn the_jumbo_is_assembled_from_the_index() {
         let (tw, th, tpx) = read_tga(&tga);
         assert_eq!((tw, th), (2048, 2048));
         let sum: u64 = rgba
-            .chunks_exact(4)
-            .zip(tpx.chunks_exact(4))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(tpx.as_chunks::<4>().0)
             .map(|(a, b)| (0..3).map(|c| u64::from(a[c].abs_diff(b[c]))).sum::<u64>())
             .sum();
         let mae = sum as f64 / (tw * th * 3) as f64;

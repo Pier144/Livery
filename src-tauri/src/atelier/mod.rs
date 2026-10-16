@@ -1,6 +1,7 @@
 //! Atelier, the skin editor: the vehicle's model and template textures read from the game's packs
 //! (`game::gameres`), the projects (`project`) and their pictures (`assets`), the installed fonts
-//! (`fonts`) and the apply to the game (`apply`).
+//! (`fonts`), the background-removal files (`models`, `download`, `sha256`) and the apply to the
+//! game (`apply`).
 //!
 //! Binary payloads travel as raw bytes: `tauri::ipc::Response` out, raw request bodies in.
 //! Reading the packs may wait on the Oodle worker process, so every command works in
@@ -8,8 +9,11 @@
 
 pub mod apply;
 pub mod assets;
+pub mod download;
 pub mod fonts;
+pub mod models;
 pub mod project;
+pub mod sha256;
 
 use crate::archive::generated::Target;
 use crate::archive::QueueStore;
@@ -23,12 +27,14 @@ use crate::game::root;
 use crate::library::GameLibrary;
 use crate::model::{
     ApplyProgress, ApplyResult, ApplyStarted, ApplyStep, AssetRef, AtelierProject, AtelierProjectSummary,
-    AtelierSlotChoice, FontInfo, Settings,
+    AtelierSlotChoice, CutoutStatus, DownloadProgress, FontInfo, Settings,
 };
 use crate::settings::SettingsStore;
 use crate::textures::bc::APPLY_BAD_TEXTURE;
 use apply::{APPLY_BAD_SLOT, APPLY_NOT_FOUND, TEXTURES_PCT};
 use assets::ASSET_INVALID;
+use download::Downloader;
+use models::{ModelFiles, CUTOUT_BUSY};
 use project::{is_slot_name, ProjectStore, PROJECT_NOT_FOUND, PROJECT_THUMB_INVALID};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -39,6 +45,12 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// `invalidInput` while Settings → Game → Read data from the game is off: Atelier opens no pack.
 pub const ATELIER_NEEDS_GAME_DATA: &str = "Atelier needs Read data from the game turned on";
+
+/// `invalidInput`: Settings → Experimental → Atelier is off (downloads refuse to start).
+pub const ATELIER_DISABLED: &str = "Turn on Atelier in Settings first";
+
+/// Progress of a background-removal file download (payload `DownloadProgress`).
+pub const DOWNLOAD_PROGRESS_EVENT: &str = "atelier://download-progress";
 
 /// Progress of Rust's steps of an apply (payload `ApplyProgress`).
 pub const APPLY_PROGRESS_EVENT: &str = "atelier://apply-progress";
@@ -409,6 +421,95 @@ pub async fn atelier_fonts() -> AppResult<Vec<FontInfo>> {
 #[tauri::command]
 pub async fn atelier_font_file(family: String, style: String) -> AppResult<Response> {
     blocking(move || fonts::font_bytes(&fonts::system_fonts(), &family, &style).map(Response::new)).await
+}
+
+// ── Background-removal files ─────────────────────────────────────────────────
+
+/// The background-removal files and their downloader, managed by Tauri.
+pub struct CutoutState {
+    pub files: ModelFiles,
+    pub downloader: Downloader,
+}
+
+impl CutoutState {
+    /// The pinned files in `models_dir` (see `models`).
+    pub fn new(models_dir: &Path) -> Self {
+        Self { files: ModelFiles::new(models_dir), downloader: Downloader::new() }
+    }
+
+    /// Whether a download (or, later, a background removal) runs.
+    pub fn busy(&self) -> bool {
+        self.downloader.is_busy()
+    }
+}
+
+/// The models folder: `<data>/models` with `LIVERY_DATA_DIR`, else under the local (never
+/// roaming) app data folder.
+pub fn models_dir(app: &AppHandle, data_dir: &Path, data_dir_from_env: bool) -> PathBuf {
+    if data_dir_from_env {
+        return data_dir.join(models::MODELS_DIR);
+    }
+    match app.path().app_local_data_dir() {
+        Ok(local) => local.join(models::MODELS_DIR),
+        Err(e) => {
+            tracing::warn!(error = %e, "no local app data folder: background-removal files go to the app data folder");
+            data_dir.join(models::MODELS_DIR)
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn atelier_cutout_status(app: AppHandle) -> AppResult<CutoutStatus> {
+    blocking(move || Ok(app.state::<CutoutState>().files.status())).await
+}
+
+/// Downloads what's missing (ONNX Runtime, then the model), with `atelier://download-progress`
+/// events; refused while Atelier is off, while another download runs or while a remove waits for a
+/// restart. Returns the status after.
+#[tauri::command]
+pub async fn atelier_cutout_download(app: AppHandle) -> AppResult<CutoutStatus> {
+    if !app.state::<SettingsStore>().get().atelier_enabled {
+        return Err(AppError::new(ErrorCode::InvalidInput, ATELIER_DISABLED));
+    }
+    blocking(move || {
+        let state = app.state::<CutoutState>();
+        let flight = state.downloader.begin()?;
+        let started = std::time::Instant::now();
+        let installed = state.files.install(&state.downloader, &flight, &mut |item, received, total| {
+            if let Err(e) = app.emit(DOWNLOAD_PROGRESS_EVENT, DownloadProgress { item, received, total }) {
+                tracing::warn!(error = %e, "could not emit {DOWNLOAD_PROGRESS_EVENT}");
+            }
+        });
+        drop(flight);
+        match &installed {
+            Ok(()) => tracing::info!(secs = started.elapsed().as_secs(), "background-removal files downloaded"),
+            Err(e) => tracing::warn!(error = %e, "background-removal download failed"),
+        }
+        installed.map(|()| state.files.status())
+    })
+    .await
+}
+
+/// Stops the running download at its next chunk (nothing when none runs).
+#[tauri::command]
+pub async fn atelier_cutout_cancel(app: AppHandle) -> AppResult<()> {
+    app.state::<CutoutState>().downloader.cancel();
+    Ok(())
+}
+
+/// Deletes the background-removal files (Settings → Experimental); refused while a download runs.
+#[tauri::command]
+pub async fn atelier_cutout_remove(app: AppHandle) -> AppResult<CutoutStatus> {
+    blocking(move || {
+        let state = app.state::<CutoutState>();
+        if state.busy() {
+            return Err(AppError::new(ErrorCode::Conflict, CUTOUT_BUSY));
+        }
+        let status = state.files.remove();
+        tracing::info!(pending = status.pending_removal, "background-removal files removed");
+        Ok(status)
+    })
+    .await
 }
 
 // ── Apply to game ───────────────────────────────────────────────────────────

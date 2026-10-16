@@ -1,12 +1,13 @@
 //! Encoders shared by the integration tests: the inverse of what Livery reads from the game's
 //! data archives (`.vromfs.bin`, binary BLK), so synthetic fixtures can be built in code.
-//! Gaijin's files can't ship in the repository.
+//! Gaijin's files can't ship in the repository. `http` is a local server for download tests.
 
 #![allow(dead_code)] // each test crate uses a different part
 
 use livery_lib::game::vromfs::deobfuscate;
 
 pub mod gameres;
+pub mod http;
 
 pub fn uleb(mut v: u64, out: &mut Vec<u8>) {
     loop {
@@ -40,7 +41,7 @@ pub fn vromfs(files: &[(&str, &[u8])], packed: bool) -> Vec<u8> {
         strings_at = payload.len();
     }
     for (i, (_, data)) in files.iter().enumerate() {
-        while payload.len() % 16 != 0 {
+        while !payload.len().is_multiple_of(16) {
             payload.push(0);
         }
         let at = payload.len();

@@ -224,7 +224,14 @@
         "imageTooLarge": "Esta imagen es demasiado grande",
         "assetNotFound": "Esta imagen ya no está en el proyecto",
         "assetInvalid": "No se puede usar esta imagen",
-        "fontNotFound": "Esta fuente no está instalada"
+        "fontNotFound": "Esta fuente no está instalada",
+        "downloadFailed": "La descarga no se completó",
+        "downloadCorrupt": "El archivo descargado está dañado",
+        "downloadCancelled": "Descarga cancelada",
+        "downloadBusy": "Ya hay una descarga en curso",
+        "cutoutBusy": "La eliminación del fondo está ocupada, inténtalo de nuevo cuando termine",
+        "cutoutRestartNeeded": "Reinicia Livery para terminar de quitar los archivos de eliminación del fondo",
+        "atelierDisabled": "Primero activa Atelier en Ajustes"
       }
     },
     "vehicleClass": {

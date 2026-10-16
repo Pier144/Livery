@@ -878,6 +878,40 @@ pub struct FontInfo {
     pub file: String,
 }
 
+/// The background-removal files on this PC (`atelier_cutout_status`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CutoutStatus {
+    /// ONNX Runtime is installed (false while a removal waits for a restart).
+    pub runtime: bool,
+    /// The isnet-anime model is downloaded (false while a removal waits for a restart).
+    pub model: bool,
+    /// Bytes the files take on disk now.
+    pub bytes: u64,
+    /// Bytes still to download before background removal can run (0 when ready).
+    pub download_bytes: u64,
+    /// A remove couldn't delete everything (the runtime was in use): it finishes at the next
+    /// launch, and downloads are refused until then.
+    pub pending_removal: bool,
+}
+
+/// Which file a download progress event is about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DownloadItem {
+    Runtime,
+    Model,
+}
+
+/// Payload of `atelier://download-progress` (at most 10 a second per download).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgress {
+    pub item: DownloadItem,
+    pub received: u64,
+    pub total: u64,
+}
+
 /// Rust's steps of an apply (`atelier://apply-progress`); the bake before them is the frontend's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

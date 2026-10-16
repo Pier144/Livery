@@ -202,7 +202,7 @@ fn size_warnings_reach_the_texture_info() {
 fn only_the_header_is_read_and_the_size_is_the_file_length() {
     let tmp = TempDir::new("length");
     let mut bytes = fixture_bytes("dxt1_512.dds");
-    bytes.extend(std::iter::repeat(0x5A).take(512 * 512 / 2));
+    bytes.extend(std::iter::repeat_n(0x5A, 512 * 512 / 2));
     let path = tmp.write("big.dds", &bytes);
     assert_eq!(inspect_file(&path), texture("big.dds", 512, 512, "BC1", 128 + 131_072, None));
 }

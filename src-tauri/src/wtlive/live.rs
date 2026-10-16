@@ -142,9 +142,9 @@ impl LocalFilter {
     pub fn matches(&self, post: &Post) -> bool {
         self.nation.is_none_or_eq(post.nation)
             && self.vehicle_type.is_none_or_eq(post.vehicle_type)
-            && self.class.as_ref().map_or(true, |c| post.skin.vehicle.class.eq_ignore_ascii_case(c))
-            && self.category.map_or(true, |c| post.skin.category == c)
-            && self.vehicle.as_ref().map_or(true, |code| api::is_for_vehicle(post, code))
+            && self.class.as_ref().is_none_or(|c| post.skin.vehicle.class.eq_ignore_ascii_case(c))
+            && self.category.is_none_or(|c| post.skin.category == c)
+            && self.vehicle.as_ref().is_none_or(|code| api::is_for_vehicle(post, code))
             && (self.tags.is_empty() || {
                 let wanted: Vec<String> = self.tags.iter().map(|t| api::squash(t)).collect();
                 post.tags.iter().any(|t| wanted.contains(&api::squash(t)))
@@ -159,7 +159,7 @@ trait FilterField<T> {
 impl<T: PartialEq + Copy> FilterField<T> for Option<T> {
     /// No filter, or the post's value is known and equal.
     fn is_none_or_eq(&self, value: Option<T>) -> bool {
-        self.map_or(true, |wanted| value == Some(wanted))
+        self.is_none_or(|wanted| value == Some(wanted))
     }
 }
 

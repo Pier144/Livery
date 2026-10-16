@@ -73,7 +73,7 @@ pub fn folder_name(project: &AtelierProject) -> String {
 
 /// `w`×`h` RGBA8 in `rgba`, both sides multiples of 4 up to [`MAX_APPLY_SIDE`].
 pub(crate) fn check_size(rgba: &[u8], w: u32, h: u32) -> AppResult<()> {
-    let side_ok = |s: u32| s > 0 && s <= MAX_APPLY_SIDE && s % 4 == 0;
+    let side_ok = |s: u32| s > 0 && s <= MAX_APPLY_SIDE && s.is_multiple_of(4);
     let expected = (w as usize).checked_mul(h as usize).and_then(|n| n.checked_mul(4));
     if !side_ok(w) || !side_ok(h) || expected != Some(rgba.len()) {
         return Err(AppError::new(ErrorCode::InvalidInput, APPLY_BAD_TEXTURE)

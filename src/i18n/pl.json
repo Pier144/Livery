@@ -226,7 +226,14 @@
         "imageTooLarge": "Ten obraz jest za duży",
         "assetNotFound": "Tego obrazu brakuje w projekcie",
         "assetInvalid": "Nie można użyć tego obrazu",
-        "fontNotFound": "Ta czcionka nie jest zainstalowana"
+        "fontNotFound": "Ta czcionka nie jest zainstalowana",
+        "downloadFailed": "Pobieranie nie zostało ukończone",
+        "downloadCorrupt": "Pobrany plik jest uszkodzony",
+        "downloadCancelled": "Pobieranie anulowane",
+        "downloadBusy": "Pobieranie już trwa",
+        "cutoutBusy": "Usuwanie tła jest zajęte, spróbuj ponownie, gdy się skończy",
+        "cutoutRestartNeeded": "Uruchom Livery ponownie, aby dokończyć usuwanie plików do usuwania tła",
+        "atelierDisabled": "Najpierw włącz Atelier w Ustawieniach"
       }
     },
     "vehicleClass": {

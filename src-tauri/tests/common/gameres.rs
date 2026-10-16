@@ -30,7 +30,7 @@ pub fn grp_with_magic(magic: &[u8; 4], resources: &[(u32, &str, &[u8])]) -> Vec<
             data_offsets.push(0u32);
             continue;
         }
-        while file.len() % 16 != 0 {
+        while !file.len().is_multiple_of(16) {
             file.push(0);
         }
         data_offsets.push(file.len() as u32);

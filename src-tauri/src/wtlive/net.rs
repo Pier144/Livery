@@ -254,7 +254,7 @@ impl Robots {
                     .iter()
                     .filter(|r| pattern_matches(&r.pattern, path))
                     .max_by_key(|r| (r.pattern.len(), r.allow));
-                best.map_or(true, |r| r.allow)
+                best.is_none_or(|r| r.allow)
             }
         }
     }
@@ -448,7 +448,7 @@ impl HttpTransport {
     /// Reads robots.txt when it's unknown or older than a day, then checks `path`.
     fn check_robots(&self, path: &str) -> AppResult<()> {
         let mut cached = self.robots.lock().unwrap_or_else(|e| e.into_inner());
-        let stale = cached.as_ref().map_or(true, |c| c.at.elapsed() > ROBOTS_MAX_AGE);
+        let stale = cached.as_ref().is_none_or(|c| c.at.elapsed() > ROBOTS_MAX_AGE);
         if stale {
             let robots = self.fetch_robots();
             tracing::info!(?robots, "WT Live robots.txt read");

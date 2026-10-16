@@ -289,7 +289,7 @@ fn vdata_layout(raw: &[u8], hdr_sz: usize, count: usize) -> AppResult<Vec<Layout
             channels.push((h.u32_at(c)? >> 16, h.i32_at(c + 4)?, h.u16_at(c + 8)? as i16));
         }
         let index_size = if flags & VDATA_I32 != 0 || (vert_num > 65536 && flags & VDATA_I16 == 0) { 4 } else { 2 };
-        if idx_size % index_size != 0 {
+        if !idx_size.is_multiple_of(index_size) {
             return Err(bad(format!("vdata {i}: {idx_size} index bytes of {index_size}-byte indices")));
         }
         let index_count = idx_size / index_size;
@@ -381,9 +381,9 @@ fn decode_vdata(raw: &[u8], l: &Layout, offset: [f32; 3], scale: [f32; 3]) -> Ap
     let indices = if packed_indices {
         decode_index_sequence(ib, l.index_count)?
     } else if l.index_size == 2 {
-        ib.chunks_exact(2).map(|c| u32::from(u16::from_le_bytes([c[0], c[1]]))).collect()
+        ib.as_chunks::<2>().0.iter().map(|c| u32::from(u16::from_le_bytes([c[0], c[1]]))).collect()
     } else {
-        ib.chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()
+        ib.as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()
     };
     Ok(Vdata { positions, normals, uvs, indices, packed_indices })
 }

@@ -220,7 +220,14 @@
         "imageTooLarge": "此图片太大",
         "assetNotFound": "项目中缺少此图片",
         "assetInvalid": "无法使用此图片",
-        "fontNotFound": "未安装此字体"
+        "fontNotFound": "未安装此字体",
+        "downloadFailed": "下载未完成",
+        "downloadCorrupt": "下载的文件已损坏",
+        "downloadCancelled": "下载已取消",
+        "downloadBusy": "已有下载正在进行",
+        "cutoutBusy": "背景移除正忙，请在完成后重试",
+        "cutoutRestartNeeded": "请重启 Livery 以完成删除背景移除文件",
+        "atelierDisabled": "请先在设置中开启 Atelier"
       }
     },
     "vehicleClass": {

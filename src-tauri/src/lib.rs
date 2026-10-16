@@ -65,6 +65,7 @@ pub fn run() {
                 tracing::info!("using LIVERY_DATA_DIR");
             }
             tracing::debug!(data_dir = %data_dir.path.display(), "app data");
+            let data_dir_from_env = data_dir.from_env;
             let data_dir = data_dir.path;
             app.manage(feedback::DataDir(data_dir.clone()));
             let settings = settings::SettingsStore::load(data_dir.join("settings.json"));
@@ -85,6 +86,13 @@ pub fn run() {
             app.manage(wtlive::WtLive::load(&data_dir, enabled));
             // Atelier: projects and the game-resource index cache under <data>/atelier.
             app.manage(atelier::AtelierState::new(&data_dir.join(atelier::ATELIER_DIR)));
+            // Background-removal files under the local app data folder. A folder a remove marked
+            // goes now, before anything can load its runtime.
+            let cutout = atelier::CutoutState::new(&atelier::models_dir(app.handle(), &data_dir, data_dir_from_env));
+            if cutout.files.purge_pending() {
+                tracing::info!("background-removal files removed");
+            }
+            app.manage(cutout);
             // Expired and ephemeral backups go away at launch, not only on the first library command.
             backup::purge_on_startup(app.handle());
             // Stale install staging (.livery/partial) from a crash or a closed window goes too.
@@ -172,6 +180,10 @@ pub fn run() {
             atelier::atelier_asset_put,
             atelier::atelier_fonts,
             atelier::atelier_font_file,
+            atelier::atelier_cutout_status,
+            atelier::atelier_cutout_download,
+            atelier::atelier_cutout_cancel,
+            atelier::atelier_cutout_remove,
             atelier::atelier_apply_begin,
             atelier::atelier_apply_texture,
             atelier::atelier_apply_commit,

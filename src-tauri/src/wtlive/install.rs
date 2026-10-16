@@ -473,7 +473,7 @@ pub fn purge_tries(user_skins: &Path, store: &LibraryStore, launched: SystemTime
         .snapshot()
         .skins
         .into_iter()
-        .filter(|s| s.temporary && time::parse_rfc3339(&s.installed_at).map_or(true, |at| at < launched))
+        .filter(|s| s.temporary && time::parse_rfc3339(&s.installed_at).is_none_or(|at| at < launched))
         .collect();
     let mut removed = 0;
     for tried in &tries {

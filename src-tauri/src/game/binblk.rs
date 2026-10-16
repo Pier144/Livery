@@ -220,7 +220,9 @@ impl Blk {
         let data = cursor.take(data_size)?.to_vec();
         let info = cursor.take(param_count * 8)?;
         let params: Vec<Param> = info
-            .chunks_exact(8)
+            .as_chunks::<8>()
+            .0
+            .iter()
             .map(|c| {
                 let head = u32::from_le_bytes(c[..4].try_into().expect("4 bytes"));
                 Param {

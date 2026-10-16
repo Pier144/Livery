@@ -276,7 +276,7 @@ pub fn template_texture(game_root: &Path, index: &GameResIndex, slot: &Slot) -> 
         .ok_or_else(|| texture_not_found(format!("{} in {}", tex.entry, tex.pack)))?;
     let blocks = top_level(&mut file, entry)?;
     let mut rgba = bc::decode(&entry.header.fourcc, &blocks, usize::from(entry.header.w), usize::from(entry.header.h))?;
-    for px in rgba.chunks_exact_mut(4) {
+    for px in rgba.as_chunks_mut::<4>().0 {
         for c in &mut px[..3] {
             *c = c.saturating_mul(2);
         }
