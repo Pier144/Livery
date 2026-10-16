@@ -25,6 +25,9 @@ pub const FOR_YOU_FILE: &str = "for_you.json";
 /// Format version written to `for_you.json`.
 pub const FOR_YOU_VERSION: u32 = 1;
 
+/// `io` message when `for_you.json` can't be written.
+pub const FOR_YOU_NOT_SAVED: &str = "For you couldn't save what you've already seen";
+
 /// How far back "new" reaches before For you was ever marked seen.
 pub const NEW_FOR_A_FIRST_VISIT: Duration = Duration::from_secs(7 * 24 * 3600);
 
@@ -153,5 +156,9 @@ fn write_atomic(path: &Path, last_seen_at: &str) -> AppResult<()> {
     if written.is_err() {
         let _ = fs::remove_file(&tmp);
     }
-    written
+    // `AppError::new` with the constant, so `src/lib/errors.test.ts` finds the message.
+    written.map_err(|e| {
+        let code = e.code;
+        AppError::new(code, FOR_YOU_NOT_SAVED).with_detail(e.detail.unwrap_or(e.message))
+    })
 }

@@ -173,6 +173,7 @@
         "wtliveUnsupported": "此版本无法连接 WT Live。",
         "wtliveOff": "已在设置中关闭 WT Live 浏览",
         "followingNotSaved": "无法保存关注列表",
+        "forYouNotSaved": "无法保存您在“为您推荐”中已看过的内容",
         "wtliveUnreadable": "WT Live 返回的内容 Livery 无法读取",
         "wtliveErrorAnswer": "WT Live 返回了错误",
         "hiddenNotSaved": "无法保存隐藏的涂装",

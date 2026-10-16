@@ -175,6 +175,7 @@
         "wtliveUnsupported": "WT Live can't be reached from this build.",
         "wtliveOff": "WT Live browsing is turned off in Settings",
         "followingNotSaved": "The Following list couldn't be saved",
+        "forYouNotSaved": "For you couldn't save what you've already seen",
         "wtliveUnreadable": "WT Live answered in a way Livery can't read",
         "wtliveErrorAnswer": "WT Live answered with an error",
         "hiddenNotSaved": "Could not save the hidden skins",

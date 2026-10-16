@@ -4,7 +4,7 @@
 use livery_lib::error::{unreadable_at_launch_message, ErrorCode};
 use livery_lib::library::time::{parse_rfc3339, unix_secs};
 use livery_lib::wtlive::following::NOT_A_TIME;
-use livery_lib::wtlive::for_you::{ForYouStore, FOR_YOU_VERSION, NEW_FOR_A_FIRST_VISIT};
+use livery_lib::wtlive::for_you::{ForYouStore, FOR_YOU_NOT_SAVED, FOR_YOU_VERSION, NEW_FOR_A_FIRST_VISIT};
 use livery_lib::wtlive::FOR_YOU_FILE;
 use std::fs;
 use std::path::PathBuf;
@@ -175,6 +175,8 @@ fn a_failed_write_leaves_memory_and_disk_as_they_were() {
     fs::create_dir_all(tmp.path().with_extension("json.tmp")).unwrap();
     let e = store.mark_seen_at(T2).unwrap_err();
     assert_eq!(e.code, ErrorCode::Io);
+    assert_eq!(e.message, FOR_YOU_NOT_SAVED);
+    assert!(e.detail.is_some(), "the OS error is kept as the detail");
     assert_eq!(store.last_seen_at(), T1, "memory unchanged");
     assert_eq!(ForYouStore::load(tmp.path()).last_seen_at(), T1, "file unchanged");
 }

@@ -177,6 +177,7 @@
         "wtliveUnsupported": "WT Live n’est pas encore accessible depuis cette version : il faut une bibliothèque réseau que l’auteur n’a pas approuvée.",
         "wtliveOff": "La navigation sur WT Live est désactivée dans les Paramètres",
         "followingNotSaved": "La liste des abonnements n’a pas pu être enregistrée",
+        "forYouNotSaved": "Ce que vous avez déjà vu dans Pour vous n’a pas pu être enregistré",
         "wtliveUnreadable": "WT Live a répondu d’une façon que Livery ne sait pas lire",
         "wtliveErrorAnswer": "WT Live a répondu par une erreur",
         "hiddenNotSaved": "Impossible d’enregistrer les skins masqués",

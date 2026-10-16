@@ -177,6 +177,7 @@
         "wtliveUnsupported": "No se puede conectar con WT Live desde esta versión.",
         "wtliveOff": "La navegación por WT Live está desactivada en Ajustes",
         "followingNotSaved": "No se ha podido guardar la lista de Siguiendo",
+        "forYouNotSaved": "No se ha podido guardar lo que ya has visto en Para ti",
         "wtliveUnreadable": "WT Live ha respondido de una forma que Livery no sabe leer",
         "wtliveErrorAnswer": "WT Live ha respondido con un error",
         "hiddenNotSaved": "No se han podido guardar las skins ocultas",

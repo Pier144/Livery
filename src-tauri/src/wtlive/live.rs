@@ -592,10 +592,12 @@ impl WtLiveClient for LiveClient {
     fn vehicle_top(&self, code: &str) -> AppResult<Vec<WtLiveSkin>> {
         self.check_enabled()?;
         let code = code.trim();
-        if code.is_empty() {
+        let tags = if code.is_empty() { Vec::new() } else { api::vehicle_tags(code) };
+        if tags.is_empty() {
+            // Nothing to search with ("", "a", "#"): without tags the feed is the global one.
             return Ok(Vec::new());
         }
-        let feed = Feed::Regular { sort: "downloads", tags: api::vehicle_tags(code) };
+        let feed = Feed::Regular { sort: "downloads", tags };
         let (posts, _) = self.feed_page(&feed, 0)?;
         Ok(posts
             .into_iter()
@@ -624,8 +626,10 @@ impl WtLiveClient for LiveClient {
             let posts = match self.feed_page(&feed, 0) {
                 Ok((posts, _)) => posts,
                 Err(e) if n == 0 => return Err(e),
+                // A partial answer is a success on purpose (online): `checked` stops before this
+                // chunk, so the UI shows the rest as not checked rather than as nothing new.
                 Err(e) => {
-                    tracing::debug!(code = ?e.code, "For you: a later request failed, keeping what was found");
+                    tracing::warn!(code = ?e.code, "For you: a later request failed, keeping what was found");
                     break;
                 }
             };

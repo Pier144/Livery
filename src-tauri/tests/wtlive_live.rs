@@ -522,6 +522,16 @@ fn vehicle_top_keeps_three_for_the_vehicle() {
     assert_eq!(env.transport.requests().len(), 1, "a blank code asks nothing");
 }
 
+#[test]
+fn vehicle_top_of_a_code_without_tags_asks_nothing() {
+    let env = Env::new("top-no-tags", catalogue(1, |_| vec![]));
+    for code in ["a", "#", " x ", "!?"] {
+        assert!(api::vehicle_tags(code).is_empty(), "{code}: {:?}", api::vehicle_tags(code));
+        assert!(env.client.vehicle_top(code).unwrap().is_empty(), "{code}");
+    }
+    assert!(env.transport.requests().is_empty(), "never the global downloads feed");
+}
+
 fn tags(prefix: &str, n: usize) -> Vec<String> {
     (0..n).map(|i| format!("{prefix}{i}")).collect()
 }
@@ -584,6 +594,34 @@ fn for_you_new_matches_each_post_to_a_vehicle() {
     assert!(new.items.iter().all(|f| f.skin.is_new == Some(true)));
     assert_eq!(new.checked, 2);
     assert_eq!(env.transport.requests().len(), 1, "both vehicles in one request");
+}
+
+#[test]
+fn a_post_for_two_vehicles_of_a_chunk_goes_to_the_first_in_list_order() {
+    // Neither code is in the catalog: the post matches both by its hashtags.
+    let transport = FakeTransport::new(|_, _| Ok(feed_json(&[fake(1, (7, "S"), &["zz_alpha", "zz_beta"], 2_000)])));
+    let env = Env::new("for-you-two", transport);
+    for vehicles in [["zz_beta", "zz_alpha"], ["zz_alpha", "zz_beta"]] {
+        let vehicles: Vec<String> = vehicles.iter().map(|v| (*v).to_owned()).collect();
+        let new = env.client.for_you_new(&vehicles, 1_000).unwrap();
+        let found: Vec<(&str, &str)> = new.items.iter().map(|f| (f.vehicle.as_str(), f.skin.id.as_str())).collect();
+        assert_eq!(found, [(vehicles[0].as_str(), "1")], "{vehicles:?}");
+    }
+}
+
+#[test]
+fn a_post_in_two_chunks_answers_comes_once() {
+    // Ten vehicles of four tags fill the first request; the eleventh opens a second one. WT Live
+    // answers the same post to both.
+    let transport = FakeTransport::new(|_, _| Ok(feed_json(&[fake(1, (7, "S"), &["ussr_zz_c0", "zz_d0"], 2_000)])));
+    let env = Env::new("for-you-twice", transport);
+    let mut vehicles: Vec<String> = (0..10).map(|n| format!("ussr_zz_c{n}")).collect();
+    vehicles.push("ussr_zz_d0".to_owned());
+    let new = env.client.for_you_new(&vehicles, 1_000).unwrap();
+    assert_eq!(env.transport.requests().len(), 2, "two chunks");
+    assert_eq!(new.checked, 11);
+    let found: Vec<(&str, &str)> = new.items.iter().map(|f| (f.vehicle.as_str(), f.skin.id.as_str())).collect();
+    assert_eq!(found, [("ussr_zz_c0", "1")], "once, for the vehicle of the first chunk");
 }
 
 #[test]
