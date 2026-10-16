@@ -204,13 +204,15 @@ export function useMarkFollowingSeen() {
  */
 export function useVehicleTop(code: string, { enabled: wanted = true }: { enabled?: boolean } = {}) {
   const enabled = useWtLiveEnabled();
-  return useQuery<WtLiveSkin[], AppError>({
-    queryKey: [...WTLIVE_KEY, 'vehicle-top', code],
-    queryFn: () => tracked(() => call<WtLiveSkin[]>('wtlive_vehicle_top', { code })),
-    enabled: wanted && enabled,
-    staleTime: 30 * 60_000,
-  });
+  return useQuery<WtLiveSkin[], AppError>({ ...vehicleTopQuery(code), enabled: wanted && enabled });
 }
+
+/** `useVehicleTop`'s query without `enabled`, for `useQueries` over several rows. */
+export const vehicleTopQuery = (code: string) => ({
+  queryKey: [...WTLIVE_KEY, 'vehicle-top', code],
+  queryFn: () => tracked(() => call<WtLiveSkin[]>('wtlive_vehicle_top', { code })),
+  staleTime: 30 * 60_000,
+});
 
 /**
  * New skins for the lineup vehicles (`vehicles` in display order) since For you was last seen.

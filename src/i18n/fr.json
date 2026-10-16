@@ -674,7 +674,42 @@
       "browse": "Parcourir les skins"
     },
     "forYou": {
-      "tab": "Pour vous"
+      "tab": "Pour vous",
+      "label": "Skins pour les véhicules de vos compositions",
+      "savedAt": "Profil enregistré {{time}}",
+      "active": "Active",
+      "count_one": "{{count, number}} véhicule",
+      "count_many": "{{count, number}} véhicules",
+      "count_other": "{{count, number}} véhicules",
+      "presetFallback": "Préréglage {{n}}",
+      "selectedNow": "sélectionné en ce moment",
+      "new_one": "{{count, number}} nouveau",
+      "new_many": "{{count, number}} nouveaux",
+      "new_other": "{{count, number}} nouveaux",
+      "all": "Tous",
+      "allFor": "Tous les skins pour {{vehicle}}",
+      "noSkins": "Aucun skin sur WT Live pour ce véhicule",
+      "searchInExplore": "Chercher dans Explorer",
+      "searchFor": "Chercher {{vehicle}} dans Explorer",
+      "offline": "Les skins apparaissent ici quand WT Live est joignable.",
+      "offNote": "Les skins apparaissent ici quand la navigation sur WT Live est activée.",
+      "topFailed": "WT Live n’a pas répondu. Réessayez dans un instant.",
+      "off": {
+        "title": "Les suggestions ont besoin des données du jeu",
+        "body": "Activez Lire les données du jeu dans Paramètres → Jeu pour voir des skins pour les véhicules de vos compositions.",
+        "settings": "Ouvrir les Paramètres"
+      },
+      "noProfile": {
+        "title": "Aucun profil War Thunder trouvé",
+        "body": "Lancez War Thunder une fois sur ce PC, puis revenez ici."
+      },
+      "noLineups": {
+        "title": "Pas encore de composition",
+        "body": "Aucune composition trouvée dans votre profil War Thunder."
+      },
+      "error": {
+        "title": "Impossible de lire vos compositions"
+      }
     }
   },
   "hangar": {

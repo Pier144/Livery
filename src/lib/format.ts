@@ -35,6 +35,19 @@ export function formatShortDate(iso: string, language: string): string | null {
   return `${part('day')} ${part('month')} ${part('year')}`;
 }
 
+const TIME: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+
+/**
+ * When a file was saved, in local time: "08:34" today, "12 Jun 2026 08:34" another day (the
+ * language's own clock: "8:34 AM" in English). Null for a date that can't be read.
+ */
+export function formatSavedAt(iso: string, language: string, now = new Date()): string | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const time = new Intl.DateTimeFormat(language, TIME).format(date);
+  return date.toDateString() === now.toDateString() ? time : `${formatShortDate(iso, language)} ${time}`;
+}
+
 const ARCHIVE_RE = /\.(zip|rar|7z)$/i;
 
 export function isArchive(fileName: string): boolean {

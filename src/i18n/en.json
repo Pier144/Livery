@@ -659,7 +659,40 @@
       "browse": "Browse skins"
     },
     "forYou": {
-      "tab": "For you"
+      "tab": "For you",
+      "label": "Skins for the vehicles in your lineups",
+      "savedAt": "Profile saved {{time}}",
+      "active": "Active",
+      "count_one": "{{count, number}} vehicle",
+      "count_other": "{{count, number}} vehicles",
+      "presetFallback": "Preset {{n}}",
+      "selectedNow": "selected now",
+      "new_one": "{{count, number}} new",
+      "new_other": "{{count, number}} new",
+      "all": "All",
+      "allFor": "All skins for {{vehicle}}",
+      "noSkins": "No skins on WT Live for this vehicle",
+      "searchInExplore": "Search in Explore",
+      "searchFor": "Search for {{vehicle}} in Explore",
+      "offline": "Skins show up here when WT Live can be reached.",
+      "offNote": "Skins show up here when WT Live browsing is on.",
+      "topFailed": "WT Live didn't answer. Try again in a moment.",
+      "off": {
+        "title": "Suggestions need the game’s data",
+        "body": "Turn on Read data from the game in Settings → Game to see skins for the vehicles in your lineups.",
+        "settings": "Open Settings"
+      },
+      "noProfile": {
+        "title": "No War Thunder profile found",
+        "body": "Start War Thunder once on this PC, then come back."
+      },
+      "noLineups": {
+        "title": "No lineups yet",
+        "body": "No lineups found in your War Thunder profile."
+      },
+      "error": {
+        "title": "Couldn't read your lineups"
+      }
     }
   },
   "hangar": {

@@ -659,7 +659,40 @@
       "browse": "Skins durchsuchen"
     },
     "forYou": {
-      "tab": "Für dich"
+      "tab": "Für dich",
+      "label": "Skins für die Fahrzeuge deiner Aufstellungen",
+      "savedAt": "Profil gespeichert {{time}}",
+      "active": "Aktiv",
+      "count_one": "{{count, number}} Fahrzeug",
+      "count_other": "{{count, number}} Fahrzeuge",
+      "presetFallback": "Voreinstellung {{n}}",
+      "selectedNow": "gerade ausgewählt",
+      "new_one": "{{count, number}} neu",
+      "new_other": "{{count, number}} neu",
+      "all": "Alle",
+      "allFor": "Alle Skins für {{vehicle}}",
+      "noSkins": "Keine Skins für dieses Fahrzeug auf WT Live",
+      "searchInExplore": "In Entdecken suchen",
+      "searchFor": "{{vehicle}} in Entdecken suchen",
+      "offline": "Skins erscheinen hier, sobald WT Live erreichbar ist.",
+      "offNote": "Skins erscheinen hier, wenn das Durchsuchen von WT Live eingeschaltet ist.",
+      "topFailed": "WT Live hat nicht geantwortet. Versuch es gleich noch einmal.",
+      "off": {
+        "title": "Vorschläge brauchen die Daten des Spiels",
+        "body": "Schalte Daten aus dem Spiel lesen unter Einstellungen → Spiel ein, um Skins für die Fahrzeuge deiner Aufstellungen zu sehen.",
+        "settings": "Einstellungen öffnen"
+      },
+      "noProfile": {
+        "title": "Kein War-Thunder-Profil gefunden",
+        "body": "Starte War Thunder einmal auf diesem PC und komm dann zurück."
+      },
+      "noLineups": {
+        "title": "Noch keine Aufstellungen",
+        "body": "In deinem War-Thunder-Profil wurden keine Aufstellungen gefunden."
+      },
+      "error": {
+        "title": "Deine Aufstellungen konnten nicht gelesen werden"
+      }
     }
   },
   "hangar": {

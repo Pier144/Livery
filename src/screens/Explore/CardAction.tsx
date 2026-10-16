@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { Fragment, useLayoutEffect, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatedCheck } from '@/components/ui/AnimatedCheck';
+import { cn } from '@/lib/cn';
 import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
 import { useJustEntered } from '@/lib/motion';
@@ -66,6 +67,67 @@ function Steps({ text, t }: { text: StepText; t: TFunction }) {
   );
 }
 
+/**
+ * The 3px install progress bar (the card's action row; For you's thumbnails). `text` is the
+ * current step and its percentage (`stepText`).
+ */
+export function InstallProgressBar({ text, t, className }: { text: StepText; t: TFunction; className?: string }) {
+  const pct = text.pct ?? 100;
+  return (
+    <div
+      role="progressbar"
+      aria-label={t('explore.card.progress')}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={pct}
+      aria-valuetext={stepNowText(t, text)}
+      className={cn('h-[3px] overflow-hidden rounded-[2px] bg-bg-5', className)}
+    >
+      <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-decel" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+/**
+ * The card's install state in small, over a thumbnail (For you): the progress bar while it
+ * installs, then "Installed" (or "Trying in game"), or "Install failed". Nothing before an
+ * install. Passive: installing, retrying and the reason are on the Skin detail. Draw it inside a
+ * `relative` box; it sits along the bottom edge.
+ */
+export function CompactInstallState({ skin }: { skin: Pick<WtLiveSkin, 'id'> }) {
+  const { t } = useTranslation();
+  const { state } = useWtLiveInstall(skin);
+  const label = 'flex items-center gap-0.5 truncate rounded-menu px-1.5 py-0.5 font-mono text-[10px] font-medium leading-[normal]';
+  switch (state.kind) {
+    case 'idle':
+      return null;
+    case 'installing':
+      return (
+        <span className="absolute inset-x-1.5 bottom-1.5 block">
+          <span className="sr-only">{t('explore.card.progress')}</span>
+          <InstallProgressBar text={stepText(state.step === 'error' ? 'download' : state.step, state.pct)} t={t} />
+        </span>
+      );
+    case 'installed':
+      return (
+        <span className="absolute bottom-1.5 left-1.5 right-1.5 flex">
+          <span className={cn(label, 'border border-amber-35 bg-bg-tag text-amber')}>
+            <span className="truncate">{state.temporary ? t('explore.card.trying') : t('explore.card.installed')}</span>
+            {!state.temporary && <Check size={10} strokeWidth={1.75} aria-hidden className="flex-none" />}
+          </span>
+        </span>
+      );
+    case 'error':
+      return (
+        <span className="absolute bottom-1.5 left-1.5 right-1.5 flex">
+          <span className={cn(label, 'border border-danger-40 bg-bg-tag text-danger')}>
+            <span className="truncate">{t('explore.card.failed')}</span>
+          </span>
+        </span>
+      );
+  }
+}
+
 /** Screen reader announcement for install state changes (the finished install has its own toast). */
 function announcement(t: TFunction, state: WtInstallState): string {
   if (state.kind === 'installing' && state.step !== 'done') return t('explore.card.progress');
@@ -118,20 +180,9 @@ export function CardAction({ skin }: { skin: WtLiveSkin }) {
       break;
     case 'installing': {
       const text = stepText(state.step === 'error' ? 'download' : state.step, state.pct);
-      const pct = text.pct ?? 100;
       body = (
         <div className="mt-1 flex h-btn flex-col justify-center gap-1.5">
-          <div
-            role="progressbar"
-            aria-label={t('explore.card.progress')}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={pct}
-            aria-valuetext={stepNowText(t, text)}
-            className="h-[3px] overflow-hidden rounded-[2px] bg-bg-5"
-          >
-            <div className="h-full bg-amber motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-decel" style={{ width: `${pct}%` }} />
-          </div>
+          <InstallProgressBar text={text} t={t} />
           <Steps text={text} t={t} />
         </div>
       );

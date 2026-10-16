@@ -689,7 +689,44 @@
       "browse": "Przeglądaj kamuflaże"
     },
     "forYou": {
-      "tab": "Dla ciebie"
+      "tab": "Dla ciebie",
+      "label": "Kamuflaże dla maszyn z twoich zestawów",
+      "savedAt": "Profil zapisany {{time}}",
+      "active": "Aktywny",
+      "count_one": "{{count, number}} maszyna",
+      "count_few": "{{count, number}} maszyny",
+      "count_many": "{{count, number}} maszyn",
+      "count_other": "{{count, number}} maszyny",
+      "presetFallback": "Zestaw {{n}}",
+      "selectedNow": "obecnie wybrana",
+      "new_one": "{{count, number}} nowy",
+      "new_few": "{{count, number}} nowe",
+      "new_many": "{{count, number}} nowych",
+      "new_other": "{{count, number}} nowego",
+      "all": "Wszystkie",
+      "allFor": "Wszystkie kamuflaże dla {{vehicle}}",
+      "noSkins": "Brak kamuflaży na WT Live dla tej maszyny",
+      "searchInExplore": "Szukaj w Odkrywaj",
+      "searchFor": "Szukaj {{vehicle}} w Odkrywaj",
+      "offline": "Kamuflaże pojawią się tutaj, gdy połączenie z WT Live będzie możliwe.",
+      "offNote": "Kamuflaże pojawią się tutaj, gdy przeglądanie WT Live będzie włączone.",
+      "topFailed": "WT Live nie odpowiedział. Spróbuj ponownie za chwilę.",
+      "off": {
+        "title": "Propozycje wymagają danych z gry",
+        "body": "Włącz Wczytuj dane z gry w Ustawienia → Gra, aby zobaczyć kamuflaże dla maszyn z twoich zestawów.",
+        "settings": "Otwórz Ustawienia"
+      },
+      "noProfile": {
+        "title": "Nie znaleziono profilu War Thunder",
+        "body": "Uruchom War Thunder raz na tym komputerze, a potem tu wróć."
+      },
+      "noLineups": {
+        "title": "Nie masz jeszcze zestawów",
+        "body": "W twoim profilu War Thunder nie znaleziono żadnych zestawów."
+      },
+      "error": {
+        "title": "Nie udało się wczytać twoich zestawów"
+      }
     }
   },
   "hangar": {

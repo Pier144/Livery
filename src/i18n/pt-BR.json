@@ -674,7 +674,42 @@
       "browse": "Ver skins"
     },
     "forYou": {
-      "tab": "Para você"
+      "tab": "Para você",
+      "label": "Skins para os veículos das suas escalações",
+      "savedAt": "Perfil salvo {{time}}",
+      "active": "Ativa",
+      "count_one": "{{count, number}} veículo",
+      "count_many": "{{count, number}} veículos",
+      "count_other": "{{count, number}} veículos",
+      "presetFallback": "Predefinição {{n}}",
+      "selectedNow": "selecionado agora",
+      "new_one": "{{count, number}} nova",
+      "new_many": "{{count, number}} novas",
+      "new_other": "{{count, number}} novas",
+      "all": "Todas",
+      "allFor": "Todas as skins de {{vehicle}}",
+      "noSkins": "Nenhuma skin no WT Live para este veículo",
+      "searchInExplore": "Buscar em Explorar",
+      "searchFor": "Buscar {{vehicle}} em Explorar",
+      "offline": "As skins aparecem aqui quando o WT Live estiver acessível.",
+      "offNote": "As skins aparecem aqui quando a navegação no WT Live estiver ativada.",
+      "topFailed": "O WT Live não respondeu. Tente de novo daqui a pouco.",
+      "off": {
+        "title": "As sugestões precisam dos dados do jogo",
+        "body": "Ative Ler dados do jogo em Configurações → Jogo para ver skins dos veículos das suas escalações.",
+        "settings": "Abrir Configurações"
+      },
+      "noProfile": {
+        "title": "Nenhum perfil do War Thunder encontrado",
+        "body": "Abra o War Thunder uma vez neste PC e depois volte aqui."
+      },
+      "noLineups": {
+        "title": "Ainda não há escalações",
+        "body": "Nenhuma escalação encontrada no seu perfil do War Thunder."
+      },
+      "error": {
+        "title": "Não foi possível ler suas escalações"
+      }
     }
   },
   "hangar": {

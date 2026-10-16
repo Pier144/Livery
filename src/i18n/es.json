@@ -674,7 +674,42 @@
       "browse": "Explorar skins"
     },
     "forYou": {
-      "tab": "Para ti"
+      "tab": "Para ti",
+      "label": "Skins para los vehículos de tus alineaciones",
+      "savedAt": "Perfil guardado {{time}}",
+      "active": "Activa",
+      "count_one": "{{count, number}} vehículo",
+      "count_many": "{{count, number}} vehículos",
+      "count_other": "{{count, number}} vehículos",
+      "presetFallback": "Preajuste {{n}}",
+      "selectedNow": "seleccionado ahora",
+      "new_one": "{{count, number}} nueva",
+      "new_many": "{{count, number}} nuevas",
+      "new_other": "{{count, number}} nuevas",
+      "all": "Todas",
+      "allFor": "Todas las skins de {{vehicle}}",
+      "noSkins": "No hay skins en WT Live para este vehículo",
+      "searchInExplore": "Buscar en Explorar",
+      "searchFor": "Buscar {{vehicle}} en Explorar",
+      "offline": "Las skins aparecen aquí cuando se puede conectar con WT Live.",
+      "offNote": "Las skins aparecen aquí cuando la navegación por WT Live está activada.",
+      "topFailed": "WT Live no respondió. Vuelve a intentarlo en un momento.",
+      "off": {
+        "title": "Las sugerencias necesitan los datos del juego",
+        "body": "Activa Leer datos del juego en Ajustes → Juego para ver skins de los vehículos de tus alineaciones.",
+        "settings": "Abrir Ajustes"
+      },
+      "noProfile": {
+        "title": "No se encontró ningún perfil de War Thunder",
+        "body": "Inicia War Thunder una vez en este PC y vuelve aquí."
+      },
+      "noLineups": {
+        "title": "Todavía no hay alineaciones",
+        "body": "No se encontraron alineaciones en tu perfil de War Thunder."
+      },
+      "error": {
+        "title": "No se pudieron leer tus alineaciones"
+      }
     }
   },
   "hangar": {

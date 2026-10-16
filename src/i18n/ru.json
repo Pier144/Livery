@@ -689,7 +689,44 @@
       "browse": "Смотреть камуфляжи"
     },
     "forYou": {
-      "tab": "Для вас"
+      "tab": "Для вас",
+      "label": "Камуфляжи для техники из ваших составов",
+      "savedAt": "Профиль сохранён {{time}}",
+      "active": "Активный",
+      "count_one": "{{count, number}} машина",
+      "count_few": "{{count, number}} машины",
+      "count_many": "{{count, number}} машин",
+      "count_other": "{{count, number}} машины",
+      "presetFallback": "Пресет {{n}}",
+      "selectedNow": "выбрана сейчас",
+      "new_one": "{{count, number}} новый",
+      "new_few": "{{count, number}} новых",
+      "new_many": "{{count, number}} новых",
+      "new_other": "{{count, number}} нового",
+      "all": "Все",
+      "allFor": "Все камуфляжи для {{vehicle}}",
+      "noSkins": "На WT Live нет камуфляжей для этой машины",
+      "searchInExplore": "Искать в обзоре",
+      "searchFor": "Искать {{vehicle}} в обзоре",
+      "offline": "Камуфляжи появятся здесь, когда WT Live станет доступен.",
+      "offNote": "Камуфляжи появятся здесь, когда просмотр WT Live будет включён.",
+      "topFailed": "WT Live не ответил. Попробуйте ещё раз чуть позже.",
+      "off": {
+        "title": "Для рекомендаций нужны данные игры",
+        "body": "Включите «Читать данные из игры» в разделе Настройки → Игра, чтобы видеть камуфляжи для техники из ваших составов.",
+        "settings": "Открыть настройки"
+      },
+      "noProfile": {
+        "title": "Профиль War Thunder не найден",
+        "body": "Запустите War Thunder на этом ПК хотя бы раз и возвращайтесь."
+      },
+      "noLineups": {
+        "title": "Составов пока нет",
+        "body": "В вашем профиле War Thunder не найдено ни одного состава."
+      },
+      "error": {
+        "title": "Не удалось прочитать ваши составы"
+      }
     }
   },
   "hangar": {

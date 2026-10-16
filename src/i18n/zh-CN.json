@@ -644,7 +644,38 @@
       "browse": "浏览涂装"
     },
     "forYou": {
-      "tab": "为您推荐"
+      "tab": "为您推荐",
+      "label": "适用于您阵容中载具的涂装",
+      "savedAt": "存档保存于 {{time}}",
+      "active": "当前阵容",
+      "count_other": "{{count, number}} 辆载具",
+      "presetFallback": "预设 {{n}}",
+      "selectedNow": "当前已选",
+      "new_other": "新增 {{count, number}}",
+      "all": "全部",
+      "allFor": "{{vehicle}} 的全部涂装",
+      "noSkins": "WT Live 上还没有此载具的涂装",
+      "searchInExplore": "在发现中搜索",
+      "searchFor": "在发现中搜索 {{vehicle}}",
+      "offline": "可以连接 WT Live 时，涂装会显示在这里。",
+      "offNote": "开启 WT Live 浏览后，涂装会显示在这里。",
+      "topFailed": "WT Live 没有响应。请稍后再试。",
+      "off": {
+        "title": "推荐需要读取游戏数据",
+        "body": "在 设置 → 游戏 中开启“从游戏读取数据”，即可查看适用于您阵容中载具的涂装。",
+        "settings": "打开设置"
+      },
+      "noProfile": {
+        "title": "未找到 War Thunder 存档",
+        "body": "请先在这台电脑上启动一次 War Thunder，然后再回来。"
+      },
+      "noLineups": {
+        "title": "还没有阵容",
+        "body": "您的 War Thunder 存档中没有找到任何阵容。"
+      },
+      "error": {
+        "title": "无法读取您的阵容"
+      }
     }
   },
   "hangar": {

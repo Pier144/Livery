@@ -674,7 +674,42 @@
       "browse": "Sfoglia le skin"
     },
     "forYou": {
-      "tab": "Per te"
+      "tab": "Per te",
+      "label": "Skin per i veicoli delle tue formazioni",
+      "savedAt": "Profilo salvato {{time}}",
+      "active": "Formazione attiva",
+      "count_one": "{{count, number}} veicolo",
+      "count_many": "{{count, number}} veicoli",
+      "count_other": "{{count, number}} veicoli",
+      "presetFallback": "Preselezione {{n}}",
+      "selectedNow": "selezionato ora",
+      "new_one": "{{count, number}} nuova",
+      "new_many": "{{count, number}} nuove",
+      "new_other": "{{count, number}} nuove",
+      "all": "Tutte",
+      "allFor": "Tutte le skin per {{vehicle}}",
+      "noSkins": "Nessuna skin su WT Live per questo veicolo",
+      "searchInExplore": "Cerca in Esplora",
+      "searchFor": "Cerca {{vehicle}} in Esplora",
+      "offline": "Le skin compaiono qui quando WT Live è raggiungibile.",
+      "offNote": "Le skin compaiono qui quando la navigazione su WT Live è attiva.",
+      "topFailed": "WT Live non ha risposto. Riprova tra poco.",
+      "off": {
+        "title": "I suggerimenti richiedono i dati del gioco",
+        "body": "Attiva Leggi i dati dal gioco in Impostazioni → Gioco per vedere le skin dei veicoli delle tue formazioni.",
+        "settings": "Apri Impostazioni"
+      },
+      "noProfile": {
+        "title": "Nessun profilo di War Thunder trovato",
+        "body": "Avvia War Thunder una volta su questo PC, poi torna qui."
+      },
+      "noLineups": {
+        "title": "Ancora nessuna formazione",
+        "body": "Nessuna formazione trovata nel tuo profilo di War Thunder."
+      },
+      "error": {
+        "title": "Impossibile leggere le tue formazioni"
+      }
     }
   },
   "hangar": {

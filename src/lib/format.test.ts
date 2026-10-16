@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseName, formatBytes, formatCompact, formatShortDate, isArchive } from './format';
+import { baseName, formatBytes, formatCompact, formatSavedAt, formatShortDate, isArchive } from './format';
 
 describe('format', () => {
   it('formats bytes like the UI copy', () => {
@@ -35,5 +35,14 @@ describe('formatShortDate', () => {
     expect(formatShortDate('2026-09-10T12:00:00Z', 'en')).toBe('10 Sep 2026');
     expect(formatShortDate('2026-06-12T12:00:00Z', 'it')).toBe('12 giu 2026');
     expect(formatShortDate('not a date', 'en')).toBeNull();
+  });
+});
+
+describe('formatSavedAt', () => {
+  it('formats a save time: the time today, date and time another day', () => {
+    const saved = new Date(2026, 9, 16, 8, 34).toISOString();
+    expect(formatSavedAt(saved, 'it', new Date(2026, 9, 16, 12, 0))).toBe('08:34');
+    expect(formatSavedAt(saved, 'it', new Date(2026, 9, 17, 9, 0))).toBe(`${formatShortDate(saved, 'it')} 08:34`);
+    expect(formatSavedAt('nope', 'en')).toBeNull();
   });
 });
