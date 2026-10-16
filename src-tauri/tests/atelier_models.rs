@@ -171,13 +171,19 @@ fn remove_deletes_the_files() {
     let flight = downloader.begin().unwrap();
     s.files.install(&downloader, &flight, &mut |_, _, _| {}).unwrap();
     drop(flight);
-    let status = s.files.remove();
+    let status = s.files.remove(false);
     assert!(!status.runtime && !status.model && !status.pending_removal);
     assert_eq!(status.bytes, 0);
     assert!(!s.files.runtime_dll().exists());
     assert!(!s.files.model_path().exists());
     // Removing again (or with no folder at all) is fine.
-    assert!(!s.files.remove().pending_removal);
+    assert!(!s.files.remove(false).pending_removal);
+
+    // After this process loaded the runtime, the folder is marked even when everything went.
+    let status = s.files.remove(true);
+    assert!(status.pending_removal);
+    assert!(s.files.dir().join(REMOVE_MARKER).exists());
+    assert!(s.files.purge_pending());
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -194,7 +200,7 @@ fn a_runtime_in_use_is_removed_at_the_next_launch() {
 
     // Like a loaded DLL: open without sharing delete.
     let held = fs::OpenOptions::new().read(true).share_mode(0).open(s.files.runtime_dll()).unwrap();
-    let status = s.files.remove();
+    let status = s.files.remove(false);
     assert!(status.pending_removal);
     assert!(!status.runtime && !status.model);
     assert!(s.files.dir().join(REMOVE_MARKER).exists());

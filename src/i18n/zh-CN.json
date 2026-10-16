@@ -227,7 +227,11 @@
         "downloadBusy": "已有下载正在进行",
         "cutoutBusy": "背景移除正忙，请在完成后重试",
         "cutoutRestartNeeded": "请重启 Livery 以完成删除背景移除文件",
-        "atelierDisabled": "请先在设置中开启 Atelier"
+        "atelierDisabled": "请先在设置中开启 Atelier",
+        "cutoutNotReady": "请先下载背景移除文件",
+        "cutoutFailed": "无法移除背景",
+        "cutoutRuntimeMissingDeps": "背景移除需要 Microsoft Visual C++ Redistributable (x64)：请安装后重试",
+        "cutoutCancelled": "背景移除已取消"
       }
     },
     "vehicleClass": {

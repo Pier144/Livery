@@ -263,9 +263,10 @@ impl ModelFiles {
     }
 
     /// Deletes every file of the models folder. What can't go (a loaded runtime) stays, and the
-    /// folder is marked for the next launch ([`Self::purge_pending`]). The caller makes sure no
-    /// download or background removal runs.
-    pub fn remove(&self) -> CutoutStatus {
+    /// folder is marked for the next launch ([`Self::purge_pending`]); it is marked too when
+    /// `runtime_loaded` (this process loaded the runtime, which stays mapped until it ends). The
+    /// caller makes sure no download or background removal runs.
+    pub fn remove(&self, runtime_loaded: bool) -> CutoutStatus {
         let left = match fs::read_dir(&self.dir) {
             Ok(entries) => entries
                 .filter_map(Result::ok)
@@ -285,7 +286,7 @@ impl ModelFiles {
                 .count(),
             Err(_) => 0,
         };
-        if left > 0 {
+        if left > 0 || (runtime_loaded && self.dir.is_dir()) {
             if let Err(e) = fs::write(self.dir.join(REMOVE_MARKER), b"") {
                 tracing::warn!(error = %e, "the background-removal files can't be marked for removal");
             }

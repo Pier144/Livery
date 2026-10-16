@@ -229,7 +229,11 @@
         "downloadBusy": "Es läuft bereits ein Download",
         "cutoutBusy": "Die Hintergrundentfernung ist gerade beschäftigt, versuche es danach erneut",
         "cutoutRestartNeeded": "Starte Livery neu, um das Entfernen der Dateien für die Hintergrundentfernung abzuschließen",
-        "atelierDisabled": "Schalte zuerst Atelier in den Einstellungen ein"
+        "atelierDisabled": "Schalte zuerst Atelier in den Einstellungen ein",
+        "cutoutNotReady": "Lade zuerst die Dateien für die Hintergrundentfernung herunter",
+        "cutoutFailed": "Der Hintergrund konnte nicht entfernt werden",
+        "cutoutRuntimeMissingDeps": "Die Hintergrundentfernung braucht Microsoft Visual C++ Redistributable (x64): installiere es und versuche es erneut",
+        "cutoutCancelled": "Hintergrundentfernung abgebrochen"
       }
     },
     "vehicleClass": {

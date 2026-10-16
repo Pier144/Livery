@@ -912,6 +912,41 @@ pub struct DownloadProgress {
     pub total: u64,
 }
 
+/// Steps of a background removal (`atelier://cutout-progress`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CutoutStep {
+    /// Loading the runtime and the model (the first time in a session, or after 5 idle minutes).
+    Load,
+    Run,
+    Write,
+}
+
+/// Payload of `atelier://cutout-progress`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CutoutProgress {
+    pub step: CutoutStep,
+}
+
+/// A rectangle in pixels of the source picture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PixelRect {
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+}
+
+/// `atelier_cutout`: the new picture (the original stays) and where it was cut from the source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CutoutResult {
+    pub asset: AssetRef,
+    pub crop: PixelRect,
+}
+
 /// Rust's steps of an apply (`atelier://apply-progress`); the bake before them is the frontend's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

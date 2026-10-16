@@ -852,3 +852,108 @@ fn a_sample_of_vehicles_loads() {
     let other: usize = failures.iter().filter(|(k, _)| !refused(k)).map(|(_, v)| v.len()).sum();
     assert!(other * 20 <= sampled, "more than 5% fail for other reasons: {failures:?}");
 }
+
+// ── Background removal (real runtime and model; nothing from the network) ───
+
+fn env_path(name: &str, default: &str) -> PathBuf {
+    std::env::var_os(name).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(default))
+}
+
+/// The real pinned runtime (from the zip in `LIVERY_ORT_ZIP`) and model (`LIVERY_ISNET_MODEL`)
+/// copied into a temp models folder; an anime picture's cut-out (`LIVERY_CUTOUT_SOURCE`, RGBA)
+/// composited over a flat background. The cut must cover the subject and make the background
+/// transparent.
+#[test]
+#[ignore = "needs the downloaded ONNX Runtime zip and the isnet-anime model"]
+fn background_removal_cuts_out_an_anime_picture() {
+    use image::{Rgba, RgbaImage};
+    use livery_lib::atelier::cutout::{alpha_bbox, ALPHA_THRESHOLD, CROP_MARGIN};
+    use livery_lib::atelier::models::{extract_runtime, pinned, ModelFiles};
+    use livery_lib::atelier::CutoutState;
+
+    let zip = env_path(
+        "LIVERY_ORT_ZIP",
+        r"C:\Users\piera\AppData\Local\Temp\claude\D--Dev-Progetti-Livery\f0929977-7776-4221-ba0c-79874e5498b5\scratchpad\downloads\onnxruntime-win-x64-1.30.0.zip",
+    );
+    let model = env_path("LIVERY_ISNET_MODEL", r"C:\Users\piera\.u2net\isnet-anime.onnx");
+    let cut_source =
+        env_path("LIVERY_CUTOUT_SOURCE", r"D:\Dev\Progetti\Livery-skin-lab\jumbo-megumin\megumin_isnet.png");
+
+    let dir = std::env::temp_dir().join(format!("livery-real-cutout-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let models = dir.join("models");
+    let files = ModelFiles::new(&models);
+    let pins = pinned();
+    extract_runtime(&zip, &pins.runtime_zip.hash, &pins.dll_entry, &pins.dll, &files.runtime_dll()).unwrap();
+    std::fs::copy(&model, files.model_path()).unwrap();
+    let state = CutoutState::new(&models);
+    let status = state.files.status();
+    assert!(status.runtime && status.model, "{status:?}");
+
+    // The subject over a flat blue, with 200 px of background around it.
+    let subject = image::open(&cut_source).unwrap().into_rgba8();
+    let pad = 200;
+    let bg = [40u16, 120, 200];
+    let source = RgbaImage::from_fn(subject.width() + 2 * pad, subject.height() + 2 * pad, |x, y| {
+        let inside = x >= pad && y >= pad && x < subject.width() + pad && y < subject.height() + pad;
+        let fg = if inside { *subject.get_pixel(x - pad, y - pad) } else { Rgba([0, 0, 0, 0]) };
+        let a = u16::from(fg[3]);
+        let mix = |c: usize| ((u16::from(fg[c]) * a + bg[c] * (255 - a) + 127) / 255) as u8;
+        Rgba([mix(0), mix(1), mix(2), 255])
+    });
+    let truth = alpha_bbox(&subject, ALPHA_THRESHOLD).unwrap();
+    let truth = livery_lib::model::PixelRect { x: truth.x + pad, y: truth.y + pad, ..truth };
+
+    let started = Instant::now();
+    let mut steps = Vec::new();
+    let (cut, crop) = state.cut(&source, &mut |s| steps.push(s)).unwrap();
+    let first = started.elapsed();
+    let started = Instant::now();
+    state.cut(&source, &mut |_| {}).unwrap();
+    let second = started.elapsed();
+    println!(
+        "cutout of {}x{}: first run (load + run) {first:?}, second run {second:?}; crop {crop:?}, subject {truth:?}",
+        source.width(),
+        source.height()
+    );
+    assert_eq!(steps.len(), 2);
+    assert!(state.cutout.runtime_loaded());
+
+    // The crop covers the subject (within a little of the model's edge) and not much background.
+    let slack = CROP_MARGIN + 60;
+    assert!(crop.x <= truth.x + 40 && crop.y <= truth.y + 40, "{crop:?} vs {truth:?}");
+    assert!(
+        crop.x + crop.w + 40 >= truth.x + truth.w && crop.y + crop.h + 40 >= truth.y + truth.h,
+        "{crop:?} vs {truth:?}"
+    );
+    assert!(crop.x + slack >= truth.x && crop.y + slack >= truth.y, "{crop:?} vs {truth:?}");
+    assert!(
+        crop.x + crop.w <= truth.x + truth.w + slack && crop.y + crop.h <= truth.y + truth.h + slack,
+        "{crop:?} vs {truth:?}"
+    );
+
+    // Background transparent, subject opaque, colours as in the source.
+    let (mut bg_px, mut bg_clear, mut fg_px, mut fg_solid) = (0u64, 0u64, 0u64, 0u64);
+    for (x, y, px) in cut.enumerate_pixels() {
+        let (sx, sy) = (crop.x + x, crop.y + y);
+        assert_eq!(px.0[..3], source.get_pixel(sx, sy).0[..3]);
+        let inside = sx >= pad && sy >= pad && sx < subject.width() + pad && sy < subject.height() + pad;
+        let a = if inside { subject.get_pixel(sx - pad, sy - pad)[3] } else { 0 };
+        if a == 0 {
+            bg_px += 1;
+            bg_clear += u64::from(px[3] < ALPHA_THRESHOLD);
+        } else if a >= 200 {
+            fg_px += 1;
+            fg_solid += u64::from(px[3] >= 150);
+        }
+    }
+    println!("background clear {bg_clear}/{bg_px}, subject solid {fg_solid}/{fg_px}");
+    assert!(bg_clear * 100 >= bg_px * 97, "background left: {bg_clear}/{bg_px}");
+    assert!(fg_solid * 100 >= fg_px * 95, "subject lost: {fg_solid}/{fg_px}");
+
+    // Removing now marks the folder: this process holds the DLL.
+    let status = state.remove().unwrap();
+    assert!(status.pending_removal);
+    drop(state);
+    let _ = std::fs::remove_dir_all(&dir);
+}

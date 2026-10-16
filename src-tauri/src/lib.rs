@@ -93,6 +93,7 @@ pub fn run() {
                 tracing::info!("background-removal files removed");
             }
             app.manage(cutout);
+            atelier::start_idle_ticker(app.handle());
             // Expired and ephemeral backups go away at launch, not only on the first library command.
             backup::purge_on_startup(app.handle());
             // Stale install staging (.livery/partial) from a crash or a closed window goes too.
@@ -184,6 +185,7 @@ pub fn run() {
             atelier::atelier_cutout_download,
             atelier::atelier_cutout_cancel,
             atelier::atelier_cutout_remove,
+            atelier::atelier_cutout,
             atelier::atelier_apply_begin,
             atelier::atelier_apply_texture,
             atelier::atelier_apply_commit,

@@ -1,7 +1,7 @@
 //! Atelier, the skin editor: the vehicle's model and template textures read from the game's packs
 //! (`game::gameres`), the projects (`project`) and their pictures (`assets`), the installed fonts
-//! (`fonts`), the background-removal files (`models`, `download`, `sha256`) and the apply to the
-//! game (`apply`).
+//! (`fonts`), background removal (`cutout`, with its files from `models`, `download`, `sha256`)
+//! and the apply to the game (`apply`).
 //!
 //! Binary payloads travel as raw bytes: `tauri::ipc::Response` out, raw request bodies in.
 //! Reading the packs may wait on the Oodle worker process, so every command works in
@@ -9,6 +9,7 @@
 
 pub mod apply;
 pub mod assets;
+pub mod cutout;
 pub mod download;
 pub mod fonts;
 pub mod models;
@@ -27,18 +28,19 @@ use crate::game::root;
 use crate::library::GameLibrary;
 use crate::model::{
     ApplyProgress, ApplyResult, ApplyStarted, ApplyStep, AssetRef, AtelierProject, AtelierProjectSummary,
-    AtelierSlotChoice, CutoutStatus, DownloadProgress, FontInfo, Settings,
+    AtelierSlotChoice, CutoutProgress, CutoutResult, CutoutStatus, CutoutStep, DownloadProgress, FontInfo, Settings,
 };
 use crate::settings::SettingsStore;
 use crate::textures::bc::APPLY_BAD_TEXTURE;
 use apply::{APPLY_BAD_SLOT, APPLY_NOT_FOUND, TEXTURES_PCT};
 use assets::ASSET_INVALID;
+use cutout::{Cutout, CUTOUT_NOT_READY};
 use download::Downloader;
 use models::{ModelFiles, CUTOUT_BUSY};
 use project::{is_slot_name, ProjectStore, PROJECT_NOT_FOUND, PROJECT_THUMB_INVALID};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::SystemTime;
 use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::{AppHandle, Emitter, Manager};
@@ -48,6 +50,9 @@ pub const ATELIER_NEEDS_GAME_DATA: &str = "Atelier needs Read data from the game
 
 /// `invalidInput`: Settings → Experimental → Atelier is off (downloads refuse to start).
 pub const ATELIER_DISABLED: &str = "Turn on Atelier in Settings first";
+
+/// Progress of a background removal (payload `CutoutProgress`).
+pub const CUTOUT_PROGRESS_EVENT: &str = "atelier://cutout-progress";
 
 /// Progress of a background-removal file download (payload `DownloadProgress`).
 pub const DOWNLOAD_PROGRESS_EVENT: &str = "atelier://download-progress";
@@ -425,21 +430,70 @@ pub async fn atelier_font_file(family: String, style: String) -> AppResult<Respo
 
 // ── Background-removal files ─────────────────────────────────────────────────
 
-/// The background-removal files and their downloader, managed by Tauri.
+/// Background removal: its files, their downloader and the remover, managed by Tauri.
 pub struct CutoutState {
     pub files: ModelFiles,
     pub downloader: Downloader,
+    pub cutout: Cutout,
+    /// Read-held by every download and background removal; a remove needs it free
+    /// (`try_write`, else [`CUTOUT_BUSY`]).
+    in_use: RwLock<()>,
 }
 
 impl CutoutState {
     /// The pinned files in `models_dir` (see `models`).
     pub fn new(models_dir: &Path) -> Self {
-        Self { files: ModelFiles::new(models_dir), downloader: Downloader::new() }
+        Self {
+            files: ModelFiles::new(models_dir),
+            downloader: Downloader::new(),
+            cutout: Cutout::new(),
+            in_use: RwLock::new(()),
+        }
     }
 
-    /// Whether a download (or, later, a background removal) runs.
-    pub fn busy(&self) -> bool {
-        self.downloader.is_busy()
+    fn use_files(&self) -> std::sync::RwLockReadGuard<'_, ()> {
+        self.in_use.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Removes the files unless a download or a background removal runs (`conflict`
+    /// [`CUTOUT_BUSY`]). The session goes first; a runtime this process loaded marks the folder
+    /// for the next launch.
+    pub fn remove(&self) -> AppResult<CutoutStatus> {
+        let _removing = match self.in_use.try_write() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::Poisoned(e)) => e.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return Err(AppError::new(ErrorCode::Conflict, CUTOUT_BUSY)),
+        };
+        self.cutout.unload();
+        Ok(self.files.remove(self.cutout.runtime_loaded()))
+    }
+
+    /// Cuts the background out of `source` with the downloaded files; `notFound`
+    /// ([`CUTOUT_NOT_READY`]) when they aren't all there.
+    pub fn cut(
+        &self,
+        source: &image::RgbaImage,
+        progress: &mut dyn FnMut(CutoutStep),
+    ) -> AppResult<(image::RgbaImage, crate::model::PixelRect)> {
+        let _using = self.use_files();
+        let status = self.files.status();
+        if !status.runtime || !status.model {
+            return Err(AppError::new(ErrorCode::NotFound, CUTOUT_NOT_READY));
+        }
+        let dll = self.files.runtime_dll();
+        self.cutout.run(&dll, &self.files.pins().dll, &self.files.model_path(), source, progress)
+    }
+}
+
+/// Every minute, drops a background-removal session idle for five (on its own light thread).
+pub fn start_idle_ticker(app: &AppHandle) {
+    let app = app.clone();
+    let spawned = std::thread::Builder::new().name("livery-cutout-idle".into()).spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        app.state::<CutoutState>().cutout.drop_idle();
+    });
+    if let Err(e) = spawned {
+        tracing::warn!(error = %e, "background-removal idle timer not started");
     }
 }
 
@@ -473,6 +527,7 @@ pub async fn atelier_cutout_download(app: AppHandle) -> AppResult<CutoutStatus> 
     }
     blocking(move || {
         let state = app.state::<CutoutState>();
+        let _using = state.use_files();
         let flight = state.downloader.begin()?;
         let started = std::time::Instant::now();
         let installed = state.files.install(&state.downloader, &flight, &mut |item, received, total| {
@@ -490,24 +545,50 @@ pub async fn atelier_cutout_download(app: AppHandle) -> AppResult<CutoutStatus> 
     .await
 }
 
-/// Stops the running download at its next chunk (nothing when none runs).
+/// Stops whichever runs: the download (at its next chunk) or the background removal.
 #[tauri::command]
 pub async fn atelier_cutout_cancel(app: AppHandle) -> AppResult<()> {
-    app.state::<CutoutState>().downloader.cancel();
+    let state = app.state::<CutoutState>();
+    state.downloader.cancel();
+    state.cutout.cancel();
     Ok(())
 }
 
-/// Deletes the background-removal files (Settings → Experimental); refused while a download runs.
+/// Deletes the background-removal files (Settings → Experimental); refused while a download or a
+/// background removal runs.
 #[tauri::command]
 pub async fn atelier_cutout_remove(app: AppHandle) -> AppResult<CutoutStatus> {
     blocking(move || {
-        let state = app.state::<CutoutState>();
-        if state.busy() {
-            return Err(AppError::new(ErrorCode::Conflict, CUTOUT_BUSY));
-        }
-        let status = state.files.remove();
+        let status = app.state::<CutoutState>().remove()?;
         tracing::info!(pending = status.pending_removal, "background-removal files removed");
         Ok(status)
+    })
+    .await
+}
+
+/// Removes the background of one of the project's pictures into a new picture (the original
+/// stays): progress `atelier://cutout-progress` (load, run, write); the crop is where the new
+/// picture sits in the source, in source pixels. Never touches the network.
+#[tauri::command]
+pub async fn atelier_cutout(app: AppHandle, project_id: String, asset_id: String) -> AppResult<CutoutResult> {
+    if !app.state::<SettingsStore>().get().atelier_enabled {
+        return Err(AppError::new(ErrorCode::InvalidInput, ATELIER_DISABLED));
+    }
+    blocking(move || {
+        let atelier = app.state::<AtelierState>();
+        let (w, h, rgba) = atelier.asset(&project_id, &asset_id)?;
+        let source = image::RgbaImage::from_raw(w, h, rgba)
+            .ok_or_else(|| AppError::new(ErrorCode::Internal, ASSET_INVALID).with_detail("size"))?;
+        let emit = |step: CutoutStep| {
+            if let Err(e) = app.emit(CUTOUT_PROGRESS_EVENT, CutoutProgress { step }) {
+                tracing::warn!(error = %e, "could not emit {CUTOUT_PROGRESS_EVENT}");
+            }
+        };
+        let (cut, crop) = app.state::<CutoutState>().cut(&source, &mut |step| emit(step))?;
+        drop(source);
+        emit(CutoutStep::Write);
+        let asset = atelier.put_asset(&project_id, cut.width(), cut.height(), cut.as_raw())?;
+        Ok(CutoutResult { asset, crop })
     })
     .await
 }

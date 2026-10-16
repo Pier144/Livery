@@ -233,7 +233,11 @@
         "downloadBusy": "Скачивание уже идёт",
         "cutoutBusy": "Удаление фона сейчас занято, повторите, когда оно закончится",
         "cutoutRestartNeeded": "Перезапустите Livery, чтобы закончить удаление файлов для удаления фона",
-        "atelierDisabled": "Сначала включите Atelier в настройках"
+        "atelierDisabled": "Сначала включите Atelier в настройках",
+        "cutoutNotReady": "Сначала скачайте файлы для удаления фона",
+        "cutoutFailed": "Не удалось удалить фон",
+        "cutoutRuntimeMissingDeps": "Для удаления фона нужен Microsoft Visual C++ Redistributable (x64): установите его и повторите попытку",
+        "cutoutCancelled": "Удаление фона отменено"
       }
     },
     "vehicleClass": {

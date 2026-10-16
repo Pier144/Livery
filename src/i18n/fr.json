@@ -231,7 +231,11 @@
         "downloadBusy": "Un téléchargement est déjà en cours",
         "cutoutBusy": "La suppression de l’arrière-plan est occupée, réessayez quand elle sera terminée",
         "cutoutRestartNeeded": "Redémarrez Livery pour finir de supprimer les fichiers de suppression de l’arrière-plan",
-        "atelierDisabled": "Activez d’abord Atelier dans les Paramètres"
+        "atelierDisabled": "Activez d’abord Atelier dans les Paramètres",
+        "cutoutNotReady": "Téléchargez d’abord les fichiers de suppression de l’arrière-plan",
+        "cutoutFailed": "Impossible de supprimer l’arrière-plan",
+        "cutoutRuntimeMissingDeps": "La suppression de l’arrière-plan nécessite Microsoft Visual C++ Redistributable (x64) : installez-le, puis réessayez",
+        "cutoutCancelled": "Suppression de l’arrière-plan annulée"
       }
     },
     "vehicleClass": {

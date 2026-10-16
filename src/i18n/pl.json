@@ -233,7 +233,11 @@
         "downloadBusy": "Pobieranie już trwa",
         "cutoutBusy": "Usuwanie tła jest zajęte, spróbuj ponownie, gdy się skończy",
         "cutoutRestartNeeded": "Uruchom Livery ponownie, aby dokończyć usuwanie plików do usuwania tła",
-        "atelierDisabled": "Najpierw włącz Atelier w Ustawieniach"
+        "atelierDisabled": "Najpierw włącz Atelier w Ustawieniach",
+        "cutoutNotReady": "Najpierw pobierz pliki do usuwania tła",
+        "cutoutFailed": "Nie udało się usunąć tła",
+        "cutoutRuntimeMissingDeps": "Usuwanie tła wymaga pakietu Microsoft Visual C++ Redistributable (x64): zainstaluj go i spróbuj ponownie",
+        "cutoutCancelled": "Usuwanie tła anulowane"
       }
     },
     "vehicleClass": {
