@@ -657,6 +657,9 @@
       "emptyTitle": "Du folgst noch niemandem",
       "emptyBody": "Öffne einen Skin und drücke neben dem Autor auf Folgen. Neue Skins von Leuten und Fahrzeugen, denen du folgst, erscheinen dann hier.",
       "browse": "Skins durchsuchen"
+    },
+    "forYou": {
+      "tab": "Für dich"
     }
   },
   "hangar": {

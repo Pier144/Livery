@@ -5,6 +5,9 @@ import { vehicles } from '@/data/vehicles';
 import i18n from '@/i18n';
 import itJson from '@/i18n/it.json';
 import { createQueryClient } from '@/queries/client';
+import { LINEUPS_KEY } from '@/queries/game';
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
+import { WTLIVE_KEY } from '@/queries/wtlive';
 import { mockLayout } from '@/screens/Hangar/testLayout';
 import { useExplore } from '@/store/explore';
 import { useWtLiveInstallEvents } from '@/store/installs';
@@ -12,7 +15,7 @@ import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
-import { EVENTS, type AppError, type HangarSkin, type SearchParams, type SearchResult, type WtLiveSkin } from '@/types';
+import { EVENTS, type AppError, type ForYouNew, type HangarSkin, type Lineups, type SearchParams, type SearchResult, type WtLiveSkin } from '@/types';
 import { useScreenFocus } from '@/hooks/useScreenFocus';
 import { Explore } from '../Explore';
 import { installErrorText } from './CardAction';
@@ -71,6 +74,14 @@ const CATALOG: WtLiveSkin[] = [
   post('s6', 'SEA Camo, 388th TFW', 'f_4e', 'Skyhook_Dan', { downloads: 27533 }),
 ];
 
+const LINEUPS: Lineups = {
+  status: 'ok',
+  savedAt: '2026-10-16T08:34:00Z',
+  current: 'germ_leopard_2a6',
+  currentNation: 'GER',
+  nations: [{ nation: 'GER', presets: [{ name: 'Heer', active: true, vehicles: ['germ_leopard_2a6', 'bf-109g-6'] }] }],
+};
+
 interface Fake {
   catalog: WtLiveSkin[];
   hangar: HangarSkin[];
@@ -119,6 +130,14 @@ function installBackend() {
       }
       case 'following_list':
         return [];
+      case 'game_lineups':
+        return LINEUPS;
+      case 'wtlive_vehicle_top':
+        return [];
+      case 'wtlive_for_you_new':
+        return { items: [], checked: 0 };
+      case 'for_you_mark_seen':
+        return '2026-10-16T10:00:00Z';
       default:
         throw { code: 'internal', message: `unexpected ${cmd}` };
     }
@@ -566,6 +585,72 @@ describe('Explore', () => {
     await within(card('Desert Storm Tan')).findByRole('button', { name: 'Install as a copy' });
     await user.click(within(card('Schwarzwald Ambush')).getByRole('button', { name: 'Install 48 MB' }));
     expect(await seriousViolations(container)).toEqual([]);
+  });
+});
+
+describe('Explore · tabs', () => {
+  const tabs = () => screen.getAllByRole('tab').map((t) => t.textContent);
+  const lineupCalls = () => backend.call.mock.calls.filter(([cmd]) => cmd === 'game_lineups');
+
+  it('has three tabs; the arrow keys, Home and End move through all three', async () => {
+    const user = userEvent.setup();
+    renderExplore();
+    await screen.findByRole('group', { name: 'Schwarzwald Ambush' });
+    expect(tabs()).toEqual(['Explore', 'Following', 'For you']);
+    act(() => screen.getByRole('tab', { name: 'Explore' }).focus());
+    await user.keyboard('{ArrowRight}{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'For you' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'For you' })).toHaveFocus();
+    expect(screen.getByRole('tabpanel', { name: 'For you' })).toBeInTheDocument();
+    await user.keyboard('{ArrowRight}');
+    expect(useExplore.getState().tab).toBe('explore');
+    await user.keyboard('{ArrowLeft}');
+    expect(useExplore.getState().tab).toBe('forYou');
+    await user.keyboard('{Home}');
+    expect(useExplore.getState().tab).toBe('explore');
+    await user.keyboard('{End}');
+    expect(useExplore.getState().tab).toBe('forYou');
+  });
+
+  it('reads the profile only on the For you tab', async () => {
+    const user = userEvent.setup();
+    renderExplore();
+    await screen.findByRole('group', { name: 'Schwarzwald Ambush' });
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(lineupCalls()).toHaveLength(0);
+    await user.click(screen.getByRole('tab', { name: 'For you' }));
+    await waitFor(() => expect(lineupCalls()).toHaveLength(1));
+  });
+
+  it('the For you pill shows the cached count without asking WT Live', async () => {
+    fake = { catalog: CATALOG, hangar: [], tookMs: 24 };
+    installBackend();
+    const client = createQueryClient();
+    client.setQueryData(SETTINGS_KEY, DEFAULT_SETTINGS);
+    client.setQueryData([...LINEUPS_KEY, true], LINEUPS);
+    const skin = CATALOG[3]!;
+    client.setQueryData<ForYouNew>([...WTLIVE_KEY, 'for-you-new', ['germ_leopard_2a6', 'bf-109g-6']], {
+      items: [
+        { vehicle: 'germ_leopard_2a6', skin },
+        { vehicle: 'germ_leopard_2a6', skin: { ...skin, id: 's14' } },
+      ],
+      checked: 2,
+    });
+    renderWithProviders(<Harness />, { client });
+    await screen.findByRole('group', { name: 'Schwarzwald Ambush' });
+    expect(screen.getByRole('tab', { name: /^For you/ })).toHaveTextContent('For you2 new');
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(backend.call.mock.calls.filter(([cmd]) => cmd === 'game_lineups' || cmd === 'wtlive_for_you_new')).toEqual([]);
+  });
+
+  it('with Browse WT Live off, For you is not the "turned off" state (its lineups are local)', async () => {
+    fake = { catalog: CATALOG, hangar: [], tookMs: 24 };
+    installBackend();
+    useExplore.setState({ tab: 'forYou' });
+    renderWithProviders(<Harness />, { client: createQueryClient(), settings: { wtliveEnabled: false } });
+    expect(await screen.findByRole('tabpanel', { name: 'For you' })).toBeInTheDocument();
+    await waitFor(() => expect(lineupCalls()).toHaveLength(1));
+    expect(screen.queryByRole('heading', { name: 'WT Live is turned off' })).not.toBeInTheDocument();
   });
 });
 

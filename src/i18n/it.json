@@ -672,6 +672,9 @@
       "emptyTitle": "Non segui ancora nessuno",
       "emptyBody": "Apri una skin e premi Segui accanto al nome dell'autore. Qui compaiono le nuove skin di persone e veicoli che segui.",
       "browse": "Sfoglia le skin"
+    },
+    "forYou": {
+      "tab": "Per te"
     }
   },
   "hangar": {

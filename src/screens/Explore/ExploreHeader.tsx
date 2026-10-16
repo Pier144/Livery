@@ -5,13 +5,32 @@ import { cn } from '@/lib/cn';
 import { useJustEntered } from '@/lib/motion';
 import type { ExploreTab } from '@/store/explore';
 
-const TABS: readonly ExploreTab[] = ['explore', 'following'];
+const TABS: readonly ExploreTab[] = ['explore', 'following', 'forYou'];
+
+const TAB_LABELS = { explore: 'explore.title', following: 'explore.following', forYou: 'explore.forYou.tab' } as const;
+
+/** A tab's "N new" pill; when new skins show up it sends out two soft rings, then rests. Nothing at 0. */
+function NewPill({ count }: { count: number }) {
+  const { t } = useTranslation();
+  const freshNews = useJustEntered(count > 0);
+  if (count <= 0) return null;
+  return (
+    <span
+      className={cn(
+        'whitespace-nowrap rounded-pill border border-amber-50 px-1.5 py-px font-mono text-[10px] font-medium leading-[normal] text-amber',
+        freshNews && 'motion-safe:animate-pill-pulse',
+      )}
+    >
+      {t('explore.newCount', { count })}
+    </span>
+  );
+}
 
 export interface ExploreHeaderProps {
   tab: ExploreTab;
   onTab: (tab: ExploreTab) => void;
-  /** New skins from follows (the Following tab's pill; hidden at 0). */
-  newCount: number;
+  /** "N new" pills per tab (Following: new skins from follows; For you: from the lineups); hidden at 0. */
+  newCounts: Partial<Record<ExploreTab, number>>;
   /** "1,284 results", or nothing. */
   meta: string;
   tabId: (tab: ExploreTab) => string;
@@ -19,18 +38,16 @@ export interface ExploreHeaderProps {
 }
 
 /**
- * Tabs Explore / Following (WAI-ARIA tabs, automatic activation: ←/→, Home/End) with the "N new"
- * pill, and the result count on the right (a status region, so filter changes are
+ * Tabs Explore / Following / For you (WAI-ARIA tabs, automatic activation: ←/→, Home/End) with
+ * their "N new" pills, and the result count on the right (a status region, so filter changes are
  * announced). Bottom rule line-2; the active tab's 2px amber underline sits on it and slides to
  * the next tab.
  */
-export function ExploreHeader({ tab, onTab, newCount, meta, tabId, panelId }: ExploreHeaderProps) {
+export function ExploreHeader({ tab, onTab, newCounts, meta, tabId, panelId }: ExploreHeaderProps) {
   const { t } = useTranslation();
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const indicator = useTabIndicator(listRef, tab);
-  // New skins from follows showed up: the pill sends out two soft rings, then rests.
-  const freshNews = useJustEntered(newCount > 0);
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
     let next: number;
@@ -81,17 +98,8 @@ export function ExploreHeader({ tab, onTab, newCount, meta, tabId, panelId }: Ex
                 selected ? cn('text-ink-1', indicator ? 'border-transparent' : 'border-amber') : 'border-transparent text-ink-3 hover:text-ink-1',
               )}
             >
-              {id === 'explore' ? t('explore.title') : t('explore.following')}
-              {id === 'following' && newCount > 0 && (
-                <span
-                  className={cn(
-                    'whitespace-nowrap rounded-pill border border-amber-50 px-1.5 py-px font-mono text-[10px] font-medium leading-[normal] text-amber',
-                    freshNews && 'motion-safe:animate-pill-pulse',
-                  )}
-                >
-                  {t('explore.newCount', { count: newCount })}
-                </span>
-              )}
+              {t(TAB_LABELS[id])}
+              <NewPill count={newCounts[id] ?? 0} />
             </button>
           );
         })}

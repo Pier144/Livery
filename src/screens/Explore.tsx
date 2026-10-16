@@ -2,8 +2,9 @@ import { useCallback, useId, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import { useLineups } from '@/queries/game';
 import { useWtLiveEnabled } from '@/queries/settings';
-import { isOfflineError, useFollowing, useFollowingNew, useWtLiveSearchPages } from '@/queries/wtlive';
+import { isOfflineError, useFollowing, useFollowingNew, useForYouNew, useWtLiveSearchPages } from '@/queries/wtlive';
 import { useExplore, type ExploreTab } from '@/store/explore';
 import { toast } from '@/store/toasts';
 import { useUi } from '@/store/ui';
@@ -12,6 +13,8 @@ import { ExploreHeader } from './Explore/ExploreHeader';
 import { toSearchParams } from './Explore/exploreModel';
 import { FilterRow } from './Explore/FilterRow';
 import { Following } from './Explore/Following';
+import { ForYou } from './Explore/ForYou';
+import { forYouSections, forYouVehicles, totalNew } from './Explore/forYouModel';
 import { SkinGrid } from './Explore/SkinGrid';
 import { ScreenFrame } from './ScreenHeader';
 import { openSettingsAt } from './Settings/settingsUi';
@@ -33,9 +36,10 @@ function useSearchParams() {
 
 /**
  * Explore (README §2): WT Live skins with filters, a virtual grid and install-from-card, plus the
- * Following tab. WT Live pages come from `useWtLiveSearchPages`. The header count comes from the
+ * Following and For you tabs. WT Live pages come from `useWtLiveSearchPages`. The header count comes from the
  * last loaded page ("75+ results" while it is only a lower bound), the query time from the first.
- * With Browse WT Live off, both tabs show the "turned off" state and nothing asks WT Live.
+ * With Browse WT Live off, Explore and Following show the "turned off" state and nothing asks WT
+ * Live; For you still lists the lineups (local data).
  */
 export function Explore() {
   const { t } = useTranslation();
@@ -46,7 +50,16 @@ export function Explore() {
   const following = useFollowing();
   // The pill reads what the Following tab fetched: opening Explore doesn't ask WT Live for every follow.
   const fresh = useFollowingNew(following.data, { fetch: tab === 'following' });
+  // The profile is read only while For you is open; elsewhere the lineups and the pill come from
+  // what that tab already read and fetched (no request to draw the pill).
+  const lineups = useLineups({ enabled: tab === 'forYou' });
+  const forYouList = useMemo(() => forYouVehicles(forYouSections(lineups.data)), [lineups.data]);
+  const forYouNew = useForYouNew(forYouList, { fetch: false });
   const enabled = useWtLiveEnabled();
+  const newCounts = useMemo(
+    () => (enabled ? { following: fresh.data?.length ?? 0, forYou: totalNew(forYouNew.data) } : {}),
+    [enabled, fresh.data, forYouNew.data],
+  );
 
   const baseId = useId();
   const tabId = useCallback((id: ExploreTab) => `${baseId}-tab-${id}`, [baseId]);
@@ -60,7 +73,7 @@ export function Explore() {
       <h1 tabIndex={-1} className="sr-only">
         {t('explore.title')}
       </h1>
-      <ExploreHeader tab={tab} onTab={setTab} newCount={enabled ? (fresh.data?.length ?? 0) : 0} meta={meta} tabId={tabId} panelId={panelId} />
+      <ExploreHeader tab={tab} onTab={setTab} newCounts={newCounts} meta={meta} tabId={tabId} panelId={panelId} />
       {/* Keyed by the tab: the new view fades in. */}
       <div
         key={tab}
@@ -69,7 +82,16 @@ export function Explore() {
         aria-labelledby={tabId(tab)}
         className="flex min-h-0 flex-1 flex-col gap-3.5 motion-safe:animate-panel-in"
       >
-        {!enabled ? <WtLiveOff /> : tab === 'explore' ? <ExploreTabPanel search={search} params={params} /> : <Following />}
+        {/* For you first: its lineups are local data, listed even with WT Live off. */}
+        {tab === 'forYou' ? (
+          <ForYou />
+        ) : !enabled ? (
+          <WtLiveOff />
+        ) : tab === 'explore' ? (
+          <ExploreTabPanel search={search} params={params} />
+        ) : (
+          <Following />
+        )}
       </div>
     </ScreenFrame>
   );

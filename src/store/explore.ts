@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Category, Nation, SortOrder, VehicleType } from '@/types';
 
-export type ExploreTab = 'explore' | 'following';
+export type ExploreTab = 'explore' | 'following' | 'forYou';
 
 /** Explore filters (README State: `explore {tab, q, nation, type, class, vehicle, category, sort}`); `null` = Any. */
 export interface ExploreFilters {

@@ -687,6 +687,9 @@
       "emptyTitle": "Jeszcze nikogo nie obserwujesz",
       "emptyBody": "Otwórz kamuflaż i naciśnij Obserwuj obok jego autora. Nowe kamuflaże od obserwowanych autorów i maszyn pojawią się tutaj.",
       "browse": "Przeglądaj kamuflaże"
+    },
+    "forYou": {
+      "tab": "Dla ciebie"
     }
   },
   "hangar": {

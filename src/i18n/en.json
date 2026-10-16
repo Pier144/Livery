@@ -657,6 +657,9 @@
       "emptyTitle": "You're not following anyone yet",
       "emptyBody": "Open a skin and press Follow next to its author. New skins from the people and vehicles you follow show up here.",
       "browse": "Browse skins"
+    },
+    "forYou": {
+      "tab": "For you"
     }
   },
   "hangar": {
