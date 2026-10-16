@@ -204,7 +204,12 @@
         "modelNotFound": "游戏文件中没有此载具的 3D 模型",
         "textureNotFound": "游戏文件中缺少此载具的一张纹理",
         "textureOverrides": "Atelier 暂时无法为此载具上色：它在共用模型上使用了自己的纹理",
-        "atelierNeedsGameData": "Atelier 需要开启“从游戏读取数据”"
+        "atelierNeedsGameData": "Atelier 需要开启“从游戏读取数据”",
+        "projectNotFound": "此 Atelier 项目已不存在",
+        "projectInvalid": "无法读取此 Atelier 项目",
+        "projectNameInvalid": "项目名称须为 1 到 80 个字符",
+        "projectThumbInvalid": "无法保存项目图片",
+        "projectSaveFailed": "无法保存 Atelier 项目"
       }
     },
     "vehicleClass": {

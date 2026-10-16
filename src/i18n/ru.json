@@ -210,7 +210,12 @@
         "modelNotFound": "3D-модели этой машины нет в файлах игры",
         "textureNotFound": "Одной из текстур этой машины нет в файлах игры",
         "textureOverrides": "Atelier пока не может раскрасить эту машину: она использует собственные текстуры на общей модели",
-        "atelierNeedsGameData": "Для Atelier нужно включить «Читать данные из игры»"
+        "atelierNeedsGameData": "Для Atelier нужно включить «Читать данные из игры»",
+        "projectNotFound": "Этого проекта Atelier больше нет",
+        "projectInvalid": "Не удаётся прочитать этот проект Atelier",
+        "projectNameInvalid": "Название проекта должно содержать от 1 до 80 символов",
+        "projectThumbInvalid": "Не удаётся сохранить изображение проекта",
+        "projectSaveFailed": "Не удалось сохранить проект Atelier"
       }
     },
     "vehicleClass": {

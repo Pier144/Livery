@@ -208,7 +208,12 @@
         "modelNotFound": "Le modèle 3D de ce véhicule n’est pas dans les fichiers du jeu",
         "textureNotFound": "Une texture de ce véhicule n’est pas dans les fichiers du jeu",
         "textureOverrides": "Atelier ne peut pas encore peindre ce véhicule : il utilise ses propres textures sur un modèle partagé",
-        "atelierNeedsGameData": "Atelier a besoin que Lire les données du jeu soit activé"
+        "atelierNeedsGameData": "Atelier a besoin que Lire les données du jeu soit activé",
+        "projectNotFound": "Ce projet Atelier n’existe plus",
+        "projectInvalid": "Impossible de lire ce projet Atelier",
+        "projectNameInvalid": "Le nom d’un projet doit compter de 1 à 80 caractères",
+        "projectThumbInvalid": "Impossible d’enregistrer l’image du projet",
+        "projectSaveFailed": "Impossible d’enregistrer le projet Atelier"
       }
     },
     "vehicleClass": {

@@ -208,7 +208,12 @@
         "modelNotFound": "O modelo 3D deste veículo não está nos arquivos do jogo",
         "textureNotFound": "Uma textura deste veículo não está nos arquivos do jogo",
         "textureOverrides": "O Atelier ainda não consegue pintar este veículo: ele usa texturas próprias em um modelo compartilhado",
-        "atelierNeedsGameData": "O Atelier precisa de Ler dados do jogo ativado"
+        "atelierNeedsGameData": "O Atelier precisa de Ler dados do jogo ativado",
+        "projectNotFound": "Este projeto do Atelier não existe mais",
+        "projectInvalid": "Não foi possível ler este projeto do Atelier",
+        "projectNameInvalid": "O nome de um projeto deve ter de 1 a 80 caracteres",
+        "projectThumbInvalid": "Não foi possível salvar a imagem do projeto",
+        "projectSaveFailed": "Não foi possível salvar o projeto do Atelier"
       }
     },
     "vehicleClass": {

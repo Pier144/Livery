@@ -83,7 +83,7 @@ pub fn run() {
             let enabled: wtlive::EnabledFn =
                 std::sync::Arc::new(move || handle.state::<settings::SettingsStore>().get().wtlive_enabled);
             app.manage(wtlive::WtLive::load(&data_dir, enabled));
-            // Atelier: the game-resource index cache (and, later, projects) under <data>/atelier.
+            // Atelier: projects and the game-resource index cache under <data>/atelier.
             app.manage(atelier::AtelierState::new(&data_dir.join(atelier::ATELIER_DIR)));
             // Expired and ephemeral backups go away at launch, not only on the first library command.
             backup::purge_on_startup(app.handle());
@@ -91,6 +91,8 @@ pub fn run() {
             archive::purge_on_startup(app.handle());
             // WT Live cache older than a day, and Try in game installs left by the last session.
             wtlive::purge_on_startup(app.handle());
+            // Atelier projects deleted last session (their toast closed with the app).
+            atelier::purge_on_startup(app.handle());
             // The game's vehicle list (cached in vehicles.json; read from the game when it changed).
             game::load_vehicles_in_background(app.handle());
             watch::start(app.handle());
@@ -154,6 +156,16 @@ pub fn run() {
             startup::app_ready,
             atelier::atelier_model,
             atelier::atelier_template_texture,
+            atelier::atelier_projects,
+            atelier::atelier_project_create,
+            atelier::atelier_project_get,
+            atelier::atelier_project_save,
+            atelier::atelier_project_duplicate,
+            atelier::atelier_project_delete,
+            atelier::atelier_project_undo_delete,
+            atelier::atelier_project_forget_deleted,
+            atelier::atelier_project_thumb,
+            atelier::atelier_project_thumb_get,
         ])
         .build(tauri::generate_context!())
         .expect("error while running Livery")
