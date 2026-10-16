@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ForYouNew, Lineups, WtLiveSkin } from '@/types';
-import { forYouRows, forYouSections, forYouVehicles, newCounts, totalNew, type ForYouSection } from './forYouModel';
+import { forYouRows, forYouSections, forYouVehicles, newCounts, newSkinIds, totalNew, type ForYouSection } from './forYouModel';
 
 const LINEUPS: Lineups = {
   status: 'ok',
@@ -95,6 +95,11 @@ describe('newCounts / totalNew', () => {
   it('counts per vehicle, only within checked', () => {
     expect(Object.fromEntries(newCounts(answer, vehicles))).toEqual({ ussr_t_34_85: 1, su_27: 2 });
     expect(newCounts(undefined, vehicles).size).toBe(0);
+  });
+
+  it('lists the new skin ids within checked', () => {
+    expect([...newSkinIds(answer, vehicles)].sort()).toEqual(['a', 'b', 'c']);
+    expect(newSkinIds(undefined, vehicles).size).toBe(0);
   });
 
   it('totals every new skin', () => {

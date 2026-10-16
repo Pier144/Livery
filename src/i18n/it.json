@@ -678,7 +678,7 @@
       "tab": "Per te",
       "label": "Skin per i veicoli delle tue formazioni",
       "savedAt": "Profilo salvato {{time}}",
-      "active": "Formazione attiva",
+      "active": "Attiva",
       "count_one": "{{count, number}} veicolo",
       "count_many": "{{count, number}} veicoli",
       "count_other": "{{count, number}} veicoli",

@@ -222,21 +222,27 @@ export const vehicleTopQuery = (code: string) => ({
 export function useForYouNew(vehicles: readonly string[], { fetch = true }: { fetch?: boolean } = {}) {
   const enabled = useWtLiveEnabled();
   return useQuery<ForYouNew, AppError>({
-    queryKey: [...WTLIVE_KEY, 'for-you-new', vehicles],
+    queryKey: forYouNewKey(vehicles),
     queryFn: () => tracked(() => call<ForYouNew>('wtlive_for_you_new', { vehicles })),
     enabled: fetch && enabled && vehicles.length > 0,
     staleTime: 5 * 60_000,
   });
 }
 
+/** The query key of `useForYouNew` for this vehicle list. */
+export const forYouNewKey = (vehicles: readonly string[]) => [...WTLIVE_KEY, 'for-you-new', vehicles];
+
 /**
- * Leaving the For you tab resets its "N new" (`for_you_mark_seen`, local). The cached answers keep
- * how many vehicles were checked but hold nothing new any more, then they are invalidated.
+ * Leaving the For you tab resets its "N new" (`for_you_mark_seen`, local). An answer still on its
+ * way is cancelled first (it was counted from the old time and would bring the count back); the
+ * cached answers keep how many vehicles were checked but hold nothing new any more, then they are
+ * invalidated.
  */
 export function useMarkForYouSeen() {
   const qc = useQueryClient();
   return useMutation<string, AppError, void>({
     mutationFn: () => call<string>('for_you_mark_seen'),
+    onMutate: () => qc.cancelQueries({ queryKey: [...WTLIVE_KEY, 'for-you-new'] }),
     onSuccess: () => {
       // Outside the tab the query doesn't refetch, so the pill must not keep the old count.
       qc.setQueriesData<ForYouNew>({ queryKey: [...WTLIVE_KEY, 'for-you-new'] }, (old) =>

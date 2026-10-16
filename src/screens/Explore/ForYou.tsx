@@ -1,4 +1,4 @@
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowRight } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -11,17 +11,19 @@ import { formatSavedAt } from '@/lib/format';
 import { useLineups } from '@/queries/game';
 import { useWtLiveEnabled } from '@/queries/settings';
 import { useVehicleName, useVehicles } from '@/queries/vehicles';
-import { isOfflineError, useForYouNew, useMarkForYouSeen, useVehicleTop, vehicleTopQuery } from '@/queries/wtlive';
+import { forYouNewKey, isOfflineError, useForYouNew, useMarkForYouSeen, useVehicleTop, vehicleTopQuery } from '@/queries/wtlive';
 import { openSettingsAt } from '@/screens/Settings/settingsUi';
 import { useExplore } from '@/store/explore';
 import { useUi } from '@/store/ui';
-import type { WtLiveSkin } from '@/types';
+import type { ForYouNew, WtLiveSkin } from '@/types';
 import { CompactInstallState } from './CardAction';
-import { forYouRows, forYouSections, forYouVehicles, newCounts, type ForYouSection } from './forYouModel';
+import { forYouRows, forYouSections, forYouVehicles, newCounts, newSkinIds, type ForYouSection } from './forYouModel';
 import { SkinImage } from './SkinCard';
 
-/** Top skins per vehicle row (the 4th column holds "All →"). */
+/** Top skins per vehicle row ("All →" follows them). */
 const TOP = 3;
+/** Thumbnails stay small strips (16:9, at most 160 px wide), "All →" right after them. */
+const THUMB_COLUMNS = 'grid-cols-[repeat(3,minmax(0,160px))_auto]';
 /** Rows rendered above and below the viewport. */
 const OVERSCAN = 4;
 /** Room around the rows for focus rings (the scroll area is pulled out by as much). */
@@ -40,21 +42,37 @@ let pendingMark: ReturnType<typeof setTimeout> | null = null;
  * Thunder profile (local data, listed with WT Live off or offline too), each with its 3 most
  * downloaded WT Live skins and how many skins are new since the last visit. The list is virtual
  * and each mounted row asks for its own top skins, so requests follow the scroll; the new skins
- * are asked for once the visible rows have loaded (or after 15 s). Leaving the tab counts as
- * having seen it (`for_you_mark_seen`), not opening a skin from it.
+ * are asked for once the visible rows have loaded, or 15 s after the tab opened. Leaving the tab
+ * counts as having seen it (`for_you_mark_seen`) once WT Live's answer was on screen, not opening a
+ * skin from it.
  */
 export function ForYou() {
   const { t } = useTranslation();
   const lineups = useLineups({ enabled: true });
   const enabled = useWtLiveEnabled();
   const markSeen = useMarkForYouSeen();
+  const qc = useQueryClient();
+  const sections = useMemo(() => forYouSections(lineups.data), [lineups.data]);
+  const vehicles = useMemo(() => forYouVehicles(sections), [sections]);
 
-  // ── Mark seen on leaving the tab ──
+  // ── New skins: once the rows on screen have their top skins (Lineups says so), or 15 s after opening ──
+  const [started, setStarted] = useState(false);
+  const start = useCallback(() => setStarted(true), []);
+  useEffect(() => {
+    const timer = setTimeout(start, FOR_YOU_NEW_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [start]);
+  const fresh = useForYouNew(vehicles, { fetch: started });
+
+  // ── Mark seen on leaving the tab, only once an answer was shown ──
+  // (whether or not it had anything new). The answer emptied by the last mark is invalidated: it
+  // is a placeholder until WT Live answers again, so it doesn't count.
+  const seen = useRef(false);
+  useEffect(() => {
+    if (enabled && fresh.isSuccess && !qc.getQueryState(forYouNewKey(vehicles))?.isInvalidated) seen.current = true;
+  }, [enabled, fresh.isSuccess, fresh.dataUpdatedAt, qc, vehicles]);
   const mark = useRef(markSeen.mutateAsync);
   mark.current = markSeen.mutateAsync;
-  // Nothing could be seen with WT Live off: its new skins stay new for when it is turned on.
-  const wtlive = useRef(enabled);
-  wtlive.current = enabled;
   useEffect(() => {
     if (pendingMark !== null) {
       clearTimeout(pendingMark);
@@ -63,17 +81,16 @@ export function ForYou() {
     return () => {
       pendingMark = setTimeout(() => {
         pendingMark = null;
-        if (!wtlive.current || useUi.getState().screen === 'detail') return;
+        if (!seen.current || useUi.getState().screen === 'detail') return;
         void mark.current().catch((e: unknown) => console.error('[livery] for_you_mark_seen failed', e));
       }, 0);
     };
   }, []);
 
-  const sections = useMemo(() => forYouSections(lineups.data), [lineups.data]);
-
   if (lineups.isPending) return <LoadingRows />;
 
-  if (lineups.isError) {
+  // A failed refetch (window focus) keeps the lineups already on screen.
+  if (!lineups.data) {
     return (
       <EmptyState
         title={t('explore.forYou.error.title')}
@@ -100,7 +117,16 @@ export function ForYou() {
       if (sections.length === 0) {
         return <EmptyState title={t('explore.forYou.noLineups.title')} body={t('explore.forYou.noLineups.body')} className="pb-6" />;
       }
-      return <Lineups sections={sections} savedAt={lineups.data.savedAt ?? undefined} current={lineups.data.current ?? undefined} />;
+      return (
+        <Lineups
+          sections={sections}
+          vehicles={vehicles}
+          fresh={enabled ? fresh.data : undefined}
+          onRowsLoaded={start}
+          savedAt={lineups.data.savedAt ?? undefined}
+          current={lineups.data.current ?? undefined}
+        />
+      );
   }
 }
 
@@ -123,7 +149,7 @@ function LoadingRows() {
 
 function ThumbSkeletons() {
   return (
-    <div aria-hidden className="grid grid-cols-4 gap-2">
+    <div aria-hidden className={cn('grid justify-start gap-2', THUMB_COLUMNS)}>
       {Array.from({ length: TOP }, (_, i) => (
         <Skeleton key={i} className="aspect-video rounded-ctl" />
       ))}
@@ -133,20 +159,25 @@ function ThumbSkeletons() {
 
 interface LineupsProps {
   sections: ForYouSection[];
+  /** `forYouVehicles(sections)`: the list `fresh` answers. */
+  vehicles: string[];
+  /** New skins (none with WT Live off). */
+  fresh: ForYouNew | undefined;
+  /** No mounted row's top skins are loading any more. */
+  onRowsLoaded: () => void;
   savedAt?: string;
   current?: string;
 }
 
 /** The profile's save time, then the virtual list of sections and vehicle rows. */
-function Lineups({ sections, savedAt, current }: LineupsProps) {
+function Lineups({ sections, vehicles, fresh, onRowsLoaded, savedAt, current }: LineupsProps) {
   const { t, i18n } = useTranslation();
   const enabled = useWtLiveEnabled();
   const rows = useMemo(() => forYouRows(sections), [sections]);
-  const vehicles = useMemo(() => forYouVehicles(sections), [sections]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const getItemKey = useCallback((index: number) => rows[index]?.key ?? index, [rows]);
-  const estimateSize = useCallback((index: number) => (rows[index]?.kind === 'header' ? 44 : 84), [rows]);
+  const estimateSize = useCallback((index: number) => (rows[index]?.kind === 'header' ? 44 : 104), [rows]);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
@@ -158,7 +189,7 @@ function Lineups({ sections, savedAt, current }: LineupsProps) {
   });
   const items = virtualizer.getVirtualItems();
 
-  // ── New skins: once no mounted row's top skins are loading, or FOR_YOU_NEW_DELAY_MS after opening ──
+  // ── Tell ForYou when no mounted row's top skins are loading (it then asks for the new skins) ──
   // The mounted rows' codes as a string: `items` is a new array on every render.
   const mountedKey = JSON.stringify(
     items.map((item) => rows[item.index]).flatMap((row) => (row?.kind === 'vehicle' ? [row.code] : [])),
@@ -168,18 +199,12 @@ function Lineups({ sections, savedAt, current }: LineupsProps) {
     [mountedKey, enabled],
   );
   const rowsLoading = useQueries({ queries: rowQueries, combine: (results) => results.some((r) => r.isPending) });
-  const [started, setStarted] = useState(false);
   useEffect(() => {
-    if (!started && rowQueries.length > 0 && !rowsLoading) setStarted(true);
-  }, [started, rowQueries.length, rowsLoading]);
-  useEffect(() => {
-    const timer = setTimeout(() => setStarted(true), FOR_YOU_NEW_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, []);
+    if (rowQueries.length > 0 && !rowsLoading) onRowsLoaded();
+  }, [rowQueries.length, rowsLoading, onRowsLoaded]);
 
-  const fresh = useForYouNew(vehicles, { fetch: started });
-  const counts = useMemo(() => newCounts(fresh.data, vehicles), [fresh.data, vehicles]);
-  const newIds = useMemo(() => new Set(fresh.data?.items.map((i) => i.skin.id)), [fresh.data]);
+  const counts = useMemo(() => newCounts(fresh, vehicles), [fresh, vehicles]);
+  const newIds = useMemo(() => newSkinIds(fresh, vehicles), [fresh, vehicles]);
   const saved = savedAt ? formatSavedAt(savedAt, i18n.language) : null;
 
   return (
@@ -244,7 +269,7 @@ interface VehicleRowProps {
   code: string;
   selected: boolean;
   newCount: number;
-  /** Skins new since the last visit (their thumbnails carry the NEW badge). */
+  /** Skins new since the last visit: the only thumbnails with the NEW badge. */
   newIds: ReadonlySet<string>;
 }
 
@@ -278,9 +303,10 @@ const VehicleRow = memo(function VehicleRow({ code, selected, newCount, newIds }
     );
   } else {
     skins = (
-      <div className="grid grid-cols-4 items-center gap-2">
+      <div className={cn('grid items-center justify-start gap-2', THUMB_COLUMNS)}>
         {top.data.map((skin) => (
-          <Thumb key={skin.id} skin={newIds.has(skin.id) ? { ...skin, isNew: true } : skin} onOpen={openSkin} />
+          // WT Live's own flag on the post says nothing about this visit.
+          <Thumb key={skin.id} skin={{ ...skin, isNew: newIds.has(skin.id) }} onOpen={openSkin} />
         ))}
         {Array.from({ length: TOP - top.data.length }, (_, i) => (
           <span key={`gap-${i}`} aria-hidden />
@@ -298,18 +324,18 @@ const VehicleRow = memo(function VehicleRow({ code, selected, newCount, newIds }
         <span className="truncate text-meta leading-[normal] text-ink-1" title={name}>
           {name}
         </span>
-        {(selected || newCount > 0) && (
-          <span className="truncate font-mono text-mono-sm leading-[normal]">
-            {selected && (
-              <span className="text-ink-4">
-                <span aria-hidden>● </span>
-                {t('explore.forYou.selectedNow')}
-              </span>
-            )}
-            {selected && newCount > 0 && <span className="text-ink-4"> · </span>}
-            {newCount > 0 && <span className="text-amber">{t('explore.forYou.new', { count: newCount })}</span>}
-          </span>
-        )}
+        {/* Always there (empty when there is nothing to say), so the names line up. */}
+        <span data-testid="vehicle-sub" className="truncate font-mono text-mono-sm leading-[normal]">
+          {selected && (
+            <span className="text-ink-4">
+              <span aria-hidden>● </span>
+              {t('explore.forYou.selectedNow')}
+            </span>
+          )}
+          {selected && newCount > 0 && <span className="text-ink-4"> · </span>}
+          {newCount > 0 && <span className="text-amber">{t('explore.forYou.new', { count: newCount })}</span>}
+          {!selected && newCount === 0 && <span aria-hidden>{'\u00a0'}</span>}
+        </span>
       </div>
       {skins}
     </div>

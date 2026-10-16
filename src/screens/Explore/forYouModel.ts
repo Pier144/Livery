@@ -70,6 +70,16 @@ export function newCounts(answer: ForYouNew | undefined, vehicles: readonly stri
   return counts;
 }
 
+/**
+ * Ids of the new skins of the vehicles the answer covered: the only source of a thumbnail's NEW
+ * badge (WT Live's own flag on a post says nothing about this visit).
+ */
+export function newSkinIds(answer: ForYouNew | undefined, vehicles: readonly string[]): Set<string> {
+  if (!answer) return new Set();
+  const covered = new Set(vehicles.slice(0, answer.checked));
+  return new Set(answer.items.filter((i) => covered.has(i.vehicle)).map((i) => i.skin.id));
+}
+
 /** Every new skin of the answer (the tab's pill). */
 export function totalNew(answer: ForYouNew | undefined): number {
   return answer?.items.length ?? 0;

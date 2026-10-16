@@ -279,4 +279,24 @@ describe('For you', () => {
     expect(client.getQueryState(key)?.isInvalidated).toBe(true);
     expect(client.getQueryState([...WTLIVE_KEY, 'vehicle-top', 'su_27'])?.isInvalidated, 'top skins stay').toBe(false);
   });
+
+  it('useMarkForYouSeen cancels an answer still on its way, so it cannot bring the old count back', async () => {
+    let answer!: (value: ForYouNew) => void;
+    backend.call.mockImplementation((cmd) =>
+      cmd === 'wtlive_for_you_new' ? new Promise((resolve) => (answer = resolve)) : Promise.resolve('2026-10-16T10:00:00Z'),
+    );
+    const client = seeded();
+    const key = [...WTLIVE_KEY, 'for-you-new', ['su_27']];
+    client.setQueryData<ForYouNew>(key, { items: [], checked: 1 });
+    void client
+      .fetchQuery({ queryKey: key, queryFn: () => backend.call('wtlive_for_you_new') as Promise<ForYouNew>, staleTime: 0 })
+      .catch(() => undefined);
+    await waitFor(() => expect(client.getQueryState(key)?.fetchStatus).toBe('fetching'));
+    const { result } = renderHook(() => useMarkForYouSeen(), { wrapper: clientWrapper(client) });
+
+    await act(() => result.current.mutateAsync());
+    act(() => answer({ items: [{ vehicle: 'su_27', skin: item(9) }], checked: 1 }));
+    await act(() => new Promise((r) => setTimeout(r, 10)));
+    expect(client.getQueryData(key)).toEqual({ items: [], checked: 1 });
+  });
 });

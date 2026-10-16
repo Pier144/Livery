@@ -104,7 +104,6 @@ export function CompactInstallState({ skin }: { skin: Pick<WtLiveSkin, 'id'> }) 
     case 'installing':
       return (
         <span className="absolute inset-x-1.5 bottom-1.5 block">
-          <span className="sr-only">{t('explore.card.progress')}</span>
           <InstallProgressBar text={stepText(state.step === 'error' ? 'download' : state.step, state.pct)} t={t} />
         </span>
       );

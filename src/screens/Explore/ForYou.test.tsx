@@ -76,6 +76,8 @@ interface Fake {
   topError?: AppError;
   /** `wtlive_vehicle_top` waits for this before answering (when set). */
   topGate?: Promise<void>;
+  /** `wtlive_for_you_new` waits for this before answering (when set). */
+  freshGate?: Promise<void>;
   fresh: ForYouNew;
   hangar: HangarSkin[];
 }
@@ -92,6 +94,7 @@ function installBackend() {
         if (fake.topError) throw fake.topError;
         return TOP[args.code as string] ?? [];
       case 'wtlive_for_you_new':
+        if (fake.freshGate) await fake.freshGate;
         if (fake.topError) throw fake.topError;
         return fake.fresh;
       case 'for_you_mark_seen':
@@ -199,10 +202,11 @@ describe('For you', () => {
     await waitFor(() => expect(thumb).toHaveTextContent('Installed'));
   });
 
-  it('leaving the tab marks it seen once, even with nothing new; opening a skin does not', async () => {
+  it('leaving after the new skins answered marks it seen once, even with nothing new; opening a skin does not', async () => {
     const user = userEvent.setup();
     fake.fresh = { items: [], checked: 5 };
     renderForYou();
+    await waitFor(() => expect(calls('wtlive_for_you_new')).toHaveLength(1));
     await user.click(await findThumb('Russian Knights Blue'));
     await act(() => new Promise((r) => setTimeout(r, 10)));
     expect(calls('for_you_mark_seen')).toHaveLength(0);
@@ -213,6 +217,85 @@ describe('For you', () => {
     await waitFor(() => expect(calls('for_you_mark_seen')).toHaveLength(1));
     await act(() => new Promise((r) => setTimeout(r, 10)));
     expect(calls('for_you_mark_seen')).toHaveLength(1);
+  });
+
+  it('leaving before the new skins answered does not mark it seen', async () => {
+    const user = userEvent.setup();
+    fake.topGate = new Promise(() => {});
+    renderForYou();
+    await waitFor(() => expect(calls('wtlive_vehicle_top').length).toBeGreaterThan(0));
+    await user.click(screen.getByRole('tab', { name: 'Explore' }));
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(calls('wtlive_for_you_new')).toHaveLength(0);
+    expect(calls('for_you_mark_seen')).toHaveLength(0);
+  });
+
+  it('a later visit left before its new skins answered does not mark it seen again', async () => {
+    const user = userEvent.setup();
+    renderForYou();
+    await waitFor(() => expect(forYouTab()).toHaveTextContent('2 new'));
+    await user.click(screen.getByRole('tab', { name: 'Explore' }));
+    await waitFor(() => expect(calls('for_you_mark_seen')).toHaveLength(1));
+    await waitFor(() => expect(forYouTab()).toHaveTextContent(/^For you$/));
+
+    // Back on the tab: the emptied answer is only a placeholder until WT Live answers again.
+    fake.freshGate = new Promise(() => {});
+    await user.click(forYouTab());
+    await screen.findByRole('heading', { name: 'Germany · Heer' });
+    await waitFor(() => expect(calls('wtlive_for_you_new')).toHaveLength(2));
+    await user.click(screen.getByRole('tab', { name: 'Explore' }));
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(calls('for_you_mark_seen')).toHaveLength(1);
+  });
+
+  it('NEW badges come only from the current new skins within checked, never from the post itself', async () => {
+    const user = userEvent.setup();
+    const flecktarn = TOP.germ_leopard_2a6![0]!;
+    // WT Live's own flag on a top skin is not For you's "new".
+    TOP.germ_leopard_2a6![0] = { ...flecktarn, isNew: true };
+    // Russian Knights Blue is new but beyond `checked` (the Su-27 is the 5th vehicle).
+    fake.fresh = {
+      items: [
+        { vehicle: 'germ_leopard_2a6', skin: { ...TOP.germ_leopard_2a6![1]!, isNew: true } },
+        { vehicle: 'su_27', skin: { ...TOP.su_27![0]!, isNew: true } },
+      ],
+      checked: 4,
+    };
+    try {
+      renderForYou();
+      await waitFor(async () => expect(within(await findThumb(/^Baltic Winter/)).getByText('New')).toBeInTheDocument());
+      expect(within(await findThumb(/^Bundeswehr Flecktarn/)).queryByText('New')).not.toBeInTheDocument();
+      expect(within(await findThumb(/^Russian Knights Blue/)).queryByText('New')).not.toBeInTheDocument();
+
+      // Seen: on the next visit nothing is new any more.
+      await user.click(screen.getByRole('tab', { name: 'Explore' }));
+      await waitFor(() => expect(calls('for_you_mark_seen')).toHaveLength(1));
+      await user.click(forYouTab());
+      const baltic = await findThumb(/^Baltic Winter/);
+      await waitFor(() => expect(calls('wtlive_for_you_new')).toHaveLength(2));
+      await act(() => new Promise((r) => setTimeout(r, 20)));
+      expect(within(baltic).queryByText('New')).not.toBeInTheDocument();
+    } finally {
+      TOP.germ_leopard_2a6![0] = flecktarn;
+    }
+  });
+
+  it('a failed refetch of the lineups keeps the list', async () => {
+    const client = createQueryClient();
+    useExplore.setState({ tab: 'forYou' });
+    installBackend();
+    renderWithProviders(<Explore />, { client, settings: {} });
+    expect(await screen.findByRole('heading', { name: 'Germany · Heer' })).toBeInTheDocument();
+    fake.lineupsError = { code: 'io', message: "Livery couldn't read your War Thunder profile" };
+    await act(() => client.refetchQueries({ queryKey: ['lineups'] }));
+    expect(screen.getByRole('heading', { name: 'Germany · Heer' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: "Couldn't read your lineups" })).not.toBeInTheDocument();
+  });
+
+  it('every vehicle name has a sub-line, so names line up', async () => {
+    renderForYou();
+    await findThumb('JG 52 Yellow Nose');
+    expect(screen.getAllByTestId('vehicle-sub')).toHaveLength(5);
   });
 
   it('the pill goes away after the visit', async () => {

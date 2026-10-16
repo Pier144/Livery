@@ -35,7 +35,12 @@ export function formatShortDate(iso: string, language: string): string | null {
   return `${part('day')} ${part('month')} ${part('year')}`;
 }
 
-const TIME: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+/** "08:34" on a 24-hour clock, "8:34 AM" on a 12-hour one (no leading zero there). */
+function timeFormat(language: string): Intl.DateTimeFormat {
+  const cycle = new Intl.DateTimeFormat(language, { hour: 'numeric' }).resolvedOptions().hourCycle;
+  const twelve = cycle === 'h11' || cycle === 'h12';
+  return new Intl.DateTimeFormat(language, { hour: twelve ? 'numeric' : '2-digit', minute: '2-digit' });
+}
 
 /**
  * When a file was saved, in local time: "08:34" today, "12 Jun 2026 08:34" another day (the
@@ -44,7 +49,7 @@ const TIME: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
 export function formatSavedAt(iso: string, language: string, now = new Date()): string | null {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
-  const time = new Intl.DateTimeFormat(language, TIME).format(date);
+  const time = timeFormat(language).format(date);
   return date.toDateString() === now.toDateString() ? time : `${formatShortDate(iso, language)} ${time}`;
 }
 

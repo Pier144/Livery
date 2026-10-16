@@ -43,6 +43,8 @@ describe('formatSavedAt', () => {
     const saved = new Date(2026, 9, 16, 8, 34).toISOString();
     expect(formatSavedAt(saved, 'it', new Date(2026, 9, 16, 12, 0))).toBe('08:34');
     expect(formatSavedAt(saved, 'it', new Date(2026, 9, 17, 9, 0))).toBe(`${formatShortDate(saved, 'it')} 08:34`);
+    // A 12-hour clock has no leading zero.
+    expect(formatSavedAt(saved, 'en', new Date(2026, 9, 16, 12, 0))).toMatch(/^8:34\sAM$/);
     expect(formatSavedAt('nope', 'en')).toBeNull();
   });
 });
