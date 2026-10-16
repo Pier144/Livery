@@ -128,3 +128,66 @@ fn a_missing_executable_is_an_io_error_and_retried_next_time() {
         assert_eq!(w.pid(), None);
     }
 }
+
+// ── The worker's own exits ──────────────────────────────────────────────────
+
+/// Starts the worker by hand (stdin and stdout piped) and reads its "ready" frame.
+fn raw_worker(idle_ms: Option<&str>) -> std::process::Child {
+    use std::io::Read;
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_livery"));
+    command.arg("--livery-oodle-worker").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped());
+    if let Some(ms) = idle_ms {
+        command.env("LIVERY_OODLE_WORKER_IDLE_MS", ms);
+    }
+    let mut child = command.spawn().unwrap();
+    let mut ready = [0u8; 5];
+    child.stdout.as_mut().unwrap().read_exact(&mut ready).unwrap();
+    assert_eq!(ready, [2, 0, 0, 0, 0], "the worker announces itself first");
+    child
+}
+
+#[test]
+fn a_panic_in_the_decoder_exits_quietly_with_code_70() {
+    use std::io::Write;
+    let mut child = raw_worker(None);
+    let mut request = Vec::new();
+    request.extend_from_slice(&(CRASHER_RAW as u32).to_le_bytes());
+    request.extend_from_slice(&(CRASHER.len() as u32).to_le_bytes());
+    request.extend_from_slice(&CRASHER);
+    child.stdin.as_mut().unwrap().write_all(&request).unwrap();
+    let status = child.wait().unwrap();
+    assert_eq!(status.code(), Some(70));
+}
+
+#[test]
+fn an_idle_worker_quits_with_code_72() {
+    let mut child = raw_worker(Some("200"));
+    // `wait` closes stdin, which would end the worker cleanly; keep the pipe open instead.
+    let _stdin = child.stdin.take();
+    let status = child.wait().unwrap();
+    assert_eq!(status.code(), Some(72), "no request for the idle limit");
+}
+
+#[test]
+fn a_worker_that_quit_idle_is_replaced_without_an_error() {
+    let mut w = worker().idle_limit_for_tests(300);
+    assert_eq!(w.decode(&stored(b"abc"), 3).unwrap(), b"abc");
+    let first = w.pid().unwrap();
+    // Long enough for the worker to quit on its own.
+    std::thread::sleep(Duration::from_millis(1500));
+    assert_eq!(w.decode(&stored(b"def"), 3).unwrap(), b"def", "no error for a worker that had quit idle");
+    let second = w.pid().unwrap();
+    assert_ne!(first, second);
+}
+
+#[test]
+fn a_request_that_races_the_idle_exit_still_succeeds() {
+    // The worker quits 60 ms after its last request; the next one comes about then, so now and
+    // then it goes to a process that is exiting. Every request must still be answered.
+    let mut w = worker().idle_limit_for_tests(60);
+    for i in 0..40u64 {
+        let data = [i as u8; 4];
+        assert_eq!(w.decode(&stored(&data), 4).unwrap(), data, "request {i}");
+        std::thread::sleep(Duration::from_millis(30 + (i % 7) * 10));
+    }
+}

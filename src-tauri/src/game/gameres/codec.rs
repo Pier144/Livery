@@ -16,10 +16,11 @@ use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::zstd_frame::read_frame;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 /// Largest unpacked block of vertex data accepted.
 pub const MAX_VERTEX_DATA: usize = 256 * 1024 * 1024;
@@ -77,6 +78,8 @@ const OODLE_BLOCK: usize = 0x40000;
 /// some damaged streams, so it must only run inside the worker process ([`serve_requests`]);
 /// everything else goes through [`oodle`] / [`oodle_with`]. Fails unless the stream unpacks to
 /// exactly `raw_len` bytes; `raw_len > max` is rejected before allocating.
+///
+/// For tests only (and the worker): the app never calls it.
 #[doc(hidden)]
 pub fn decode_in_process(src: &[u8], raw_len: usize, max: usize) -> AppResult<Vec<u8>> {
     if raw_len > max {
@@ -148,8 +151,32 @@ pub fn check_kraken_family(src: &[u8], raw_len: usize) -> AppResult<()> {
 /// First argument of the executable when it runs as the Oodle worker.
 pub const OODLE_WORKER_ARG: &str = "--livery-oodle-worker";
 
-/// How long a request may take before the worker is killed.
+/// How long a request may take (from the moment it is sent) before the caller kills the worker.
 pub const WORKER_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long a new worker may take to announce itself (cold start, antivirus scans).
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The worker's own watchdog: it exits when a decode runs longer than this (the caller has
+/// given up by then, but a caller that exited or died can't kill it)...
+const WORKER_DECODE_LIMIT: Duration = Duration::from_secs(WORKER_TIMEOUT.as_secs() + 5);
+/// ...or when no request has come for this long, so no idle `livery.exe` stays around. The
+/// caller notices (exit code [`EXIT_IDLE`]) and starts a new worker for its next request.
+const WORKER_IDLE_LIMIT: Duration = Duration::from_secs(60);
+
+/// Environment variable that overrides [`WORKER_IDLE_LIMIT`], in milliseconds. Read only in
+/// worker mode, and set only by tests (through [`OodleWorker::idle_limit_for_tests`]).
+const IDLE_ENV: &str = "LIVERY_OODLE_WORKER_IDLE_MS";
+
+/// Exit codes of the worker: a panic in the decoder, a decode over the limit, an idle shutdown.
+const EXIT_PANIC: i32 = 70;
+const EXIT_HUNG: i32 = 71;
+const EXIT_IDLE: i32 = 72;
+
+/// Response status: the decoded bytes / an error text / the worker is ready (sent once, first).
+const STATUS_OK: u8 = 0;
+const STATUS_ERROR: u8 = 1;
+const STATUS_READY: u8 = 2;
 
 /// Longest error text the worker sends back.
 const MAX_ERROR: usize = 4096;
@@ -205,39 +232,139 @@ fn read_exact_or_eof(input: &mut impl Read, buf: &mut [u8]) -> io::Result<bool> 
     Ok(true)
 }
 
+/// What the worker's watchdog watches: times in milliseconds since the worker started, plus one
+/// so that 0 can mean "not decoding".
+struct Activity {
+    base: Instant,
+    /// When the current decode began; 0 while idle.
+    decoding_since: AtomicU64,
+    /// The last time a request arrived or an answer went out.
+    last: AtomicU64,
+}
+
+impl Activity {
+    fn new() -> Self {
+        Self { base: Instant::now(), decoding_since: AtomicU64::new(0), last: AtomicU64::new(1) }
+    }
+
+    fn now(&self) -> u64 {
+        self.base.elapsed().as_millis() as u64 + 1
+    }
+
+    fn touch(&self) {
+        self.last.store(self.now(), Ordering::Relaxed);
+    }
+
+    fn begin_decode(&self) {
+        let now = self.now();
+        self.decoding_since.store(now, Ordering::Relaxed);
+        self.last.store(now, Ordering::Relaxed);
+    }
+
+    fn end_decode(&self) {
+        self.decoding_since.store(0, Ordering::Relaxed);
+        self.touch();
+    }
+
+    fn verdict(&self, decode_limit: Duration, idle_limit: Duration) -> Option<i32> {
+        watchdog_verdict(
+            self.now(),
+            self.decoding_since.load(Ordering::Relaxed),
+            self.last.load(Ordering::Relaxed),
+            decode_limit.as_millis() as u64,
+            idle_limit.as_millis() as u64,
+        )
+    }
+}
+
+/// The watchdog's decision: the exit code to leave with, if any. A decode that has run longer
+/// than `decode_limit_ms` is [`EXIT_HUNG`]; with nothing decoding, `idle_limit_ms` without a
+/// request is [`EXIT_IDLE`]. Times are milliseconds on one clock; `decoding_since` is 0 when idle.
+fn watchdog_verdict(
+    now: u64,
+    decoding_since: u64,
+    last_activity: u64,
+    decode_limit_ms: u64,
+    idle_limit_ms: u64,
+) -> Option<i32> {
+    if decoding_since != 0 {
+        return (now.saturating_sub(decoding_since) > decode_limit_ms).then_some(EXIT_HUNG);
+    }
+    (now.saturating_sub(last_activity) > idle_limit_ms).then_some(EXIT_IDLE)
+}
+
 /// The worker's loop: reads requests from `input` until it ends and answers each on `output`.
 /// A request over [`MAX_VERTEX_DATA`] (compressed or unpacked) is refused; an oversized
 /// compressed part can't be skipped, so that one ends the loop. Panics in the decoder end the
 /// process, which is the point: the caller sees the pipe break.
 pub fn serve_requests(input: &mut impl Read, output: &mut impl Write) -> io::Result<()> {
+    serve_watched(input, output, &Activity::new())
+}
+
+fn serve_watched(input: &mut impl Read, output: &mut impl Write, activity: &Activity) -> io::Result<()> {
     loop {
         let mut head = [0u8; 8];
         if !read_exact_or_eof(input, &mut head)? {
             return Ok(());
         }
+        activity.touch();
         let raw_len = u32::from_le_bytes([head[0], head[1], head[2], head[3]]) as usize;
         let src_len = u32::from_le_bytes([head[4], head[5], head[6], head[7]]) as usize;
         if src_len > MAX_VERTEX_DATA {
-            write_response(output, 1, b"request over the limit")?;
+            write_response(output, STATUS_ERROR, b"request over the limit")?;
             return Ok(());
         }
         let mut src = vec![0u8; src_len];
         input.read_exact(&mut src)?;
-        match decode_in_process(&src, raw_len, MAX_VERTEX_DATA) {
-            Ok(bytes) => write_response(output, 0, &bytes)?,
+        activity.begin_decode();
+        let result = decode_in_process(&src, raw_len, MAX_VERTEX_DATA);
+        activity.end_decode();
+        match result {
+            Ok(bytes) => write_response(output, STATUS_OK, &bytes)?,
             Err(e) => {
                 let text = e.detail.unwrap_or(e.message);
-                write_response(output, 1, &text.as_bytes()[..text.len().min(MAX_ERROR)])?;
+                write_response(output, STATUS_ERROR, &text.as_bytes()[..text.len().min(MAX_ERROR)])?;
             }
         }
+        activity.touch();
     }
 }
 
 /// Entry point of the worker process (`main.rs` calls it first thing when the executable is
-/// started with [`OODLE_WORKER_ARG`]): serves requests on stdin and stdout until stdin ends.
+/// started with [`OODLE_WORKER_ARG`]): announces itself, then serves requests on stdin and stdout
+/// until stdin ends.
+///
+/// - A panic in the decoder exits at once with code 70 (no crash dialog, no error report).
+/// - A watchdog thread exits with 71 when a decode runs 15 s (the caller's deadline is 10 s, and
+///   a caller that has itself exited never closes the pipe), and with 72 after 60 s without a
+///   request, so no idle `livery.exe` lingers in the Task Manager or blocks the installer. The
+///   idle limit can be set (in milliseconds) with `LIVERY_OODLE_WORKER_IDLE_MS`, which only
+///   tests use.
 pub fn worker_main() {
+    std::panic::set_hook(Box::new(|_| std::process::exit(EXIT_PANIC)));
+    let idle = std::env::var(IDLE_ENV)
+        .ok()
+        .and_then(|ms| ms.parse::<u64>().ok())
+        .map_or(WORKER_IDLE_LIMIT, Duration::from_millis);
+    let activity = Arc::new(Activity::new());
+    let watched = Arc::clone(&activity);
+    // Short limits (tests) are checked more often; the real ones every half second.
+    let tick = (idle / 4).clamp(Duration::from_millis(10), Duration::from_millis(500));
+    let watchdog = std::thread::Builder::new().name("oodle-watchdog".into()).spawn(move || loop {
+        std::thread::sleep(tick);
+        if let Some(code) = watched.verdict(WORKER_DECODE_LIMIT, idle) {
+            std::process::exit(code);
+        }
+    });
+    if watchdog.is_err() {
+        return;
+    }
     let (stdin, stdout) = (io::stdin(), io::stdout());
-    let _ = serve_requests(&mut io::BufReader::new(stdin.lock()), &mut stdout.lock());
+    let mut output = stdout.lock();
+    if write_response(&mut output, STATUS_READY, &[]).is_err() {
+        return;
+    }
+    let _ = serve_watched(&mut io::BufReader::new(stdin.lock()), &mut output, &activity);
 }
 
 // ── Oodle: the caller side ──────────────────────────────────────────────────
@@ -260,9 +387,14 @@ struct Live {
 }
 
 impl Live {
-    fn start(exe: &Path) -> io::Result<Self> {
+    /// Starts the worker and waits (at most [`STARTUP_TIMEOUT`]) for it to announce itself, so a
+    /// slow start (antivirus, a cold disk) never counts against a request's deadline.
+    fn start(exe: &Path, idle_ms: Option<u64>) -> io::Result<Self> {
         let mut command = Command::new(exe);
         command.arg(OODLE_WORKER_ARG).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
+        if let Some(ms) = idle_ms {
+            command.env(IDLE_ENV, ms.to_string());
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -298,7 +430,13 @@ impl Live {
                 }
             }
         })?;
-        Ok(live)
+        match live.responses.recv_timeout(STARTUP_TIMEOUT) {
+            Ok(Some((STATUS_READY, bytes))) if bytes.is_empty() => Ok(live),
+            Ok(_) | Err(RecvTimeoutError::Disconnected) => Err(io::Error::other("the worker didn't announce itself")),
+            Err(RecvTimeoutError::Timeout) => {
+                Err(io::Error::new(io::ErrorKind::TimedOut, "the worker didn't start in time"))
+            }
+        }
     }
 
     /// Sends one request and waits for its answer, at most `timeout`.
@@ -317,6 +455,20 @@ impl Live {
     fn alive(&mut self) -> bool {
         matches!(self.child.try_wait(), Ok(None))
     }
+
+    /// How the process ended: it gets a moment to finish exiting (the pipe closes a little before
+    /// the process is gone), then it is killed if it is somehow still there.
+    fn reap(&mut self) -> Option<ExitStatus> {
+        for _ in 0..60 {
+            match self.child.try_wait() {
+                Ok(Some(status)) => return Some(status),
+                Ok(None) => std::thread::sleep(Duration::from_millis(5)),
+                Err(_) => return None,
+            }
+        }
+        let _ = self.child.kill();
+        self.child.wait().ok()
+    }
 }
 
 impl Drop for Live {
@@ -330,9 +482,14 @@ impl Drop for Live {
 /// four streams). The process starts with the first request. When it dies (a damaged stream made
 /// `oozextract` panic and abort it), times out, or breaks the pipe, the request fails with
 /// "oodle stream damaged" / "oodle stream timed out" and the next request starts a new one.
+///
+/// A worker that quit on its own because it sat idle (exit code 72) is not an error: the handle
+/// starts a new one, and when the request had already gone to the old process (it quit in the
+/// same instant) the request is sent again, once.
 pub struct OodleWorker {
     exe: PathBuf,
     timeout: Duration,
+    idle_ms: Option<u64>,
     live: Option<Live>,
 }
 
@@ -340,17 +497,43 @@ impl OodleWorker {
     /// A handle for the worker `exe` (the Livery executable; see [`worker_main`]). Nothing runs
     /// until the first [`decode`](Self::decode).
     pub fn new(exe: impl Into<PathBuf>) -> Self {
-        Self { exe: exe.into(), timeout: WORKER_TIMEOUT, live: None }
+        Self { exe: exe.into(), timeout: WORKER_TIMEOUT, idle_ms: None, live: None }
     }
 
-    /// Sets the per-request deadline (default [`WORKER_TIMEOUT`]).
+    /// Sets the per-request deadline (default [`WORKER_TIMEOUT`]). It starts when the request is
+    /// sent, after the worker has announced itself. The worker's own watchdog gives up on a
+    /// decode after [`WORKER_TIMEOUT`] + 5 s whatever this says.
     pub fn set_timeout(&mut self, timeout: Duration) {
         self.timeout = timeout;
+    }
+
+    /// Makes workers started from now on quit after `ms` milliseconds without a request (the
+    /// default is 60 s). For tests only.
+    #[doc(hidden)]
+    pub fn idle_limit_for_tests(mut self, ms: u64) -> Self {
+        self.idle_ms = Some(ms);
+        self
     }
 
     /// The process id of the running worker, if one is running.
     pub fn pid(&self) -> Option<u32> {
         self.live.as_ref().map(|live| live.child.id())
+    }
+
+    /// Makes sure a worker is running: `true` when one already was, `false` when this started it.
+    fn ensure_live(&mut self) -> AppResult<bool> {
+        if self.live.as_mut().is_some_and(|live| !live.alive()) {
+            self.live = None;
+        }
+        if self.live.is_some() {
+            return Ok(true);
+        }
+        let live = Live::start(&self.exe, self.idle_ms).map_err(|e| {
+            AppError::new(ErrorCode::Io, super::MODEL_UNREADABLE)
+                .with_detail(format!("Oodle worker {}: {e}", self.exe.display()))
+        })?;
+        self.live = Some(live);
+        Ok(false)
     }
 
     /// Decodes `src` (a bare Oodle stream) to exactly `raw_len` bytes in the worker. The worker
@@ -359,35 +542,51 @@ impl OodleWorker {
         if raw_len > MAX_VERTEX_DATA || src.len() > MAX_VERTEX_DATA {
             return Err(bad(format!("Oodle stream of {} bytes unpacking to {raw_len} is over the limit", src.len())));
         }
-        if self.live.as_mut().is_some_and(|live| !live.alive()) {
-            self.live = None;
+        let mut retried = false;
+        loop {
+            let reused = self.ensure_live()?;
+            let Some(live) = self.live.as_mut() else { return Err(bad("oodle worker missing")) };
+            let outcome = live.exchange(request_frame(src, raw_len as u32), self.timeout);
+            match outcome {
+                Outcome::Reply(STATUS_OK, bytes) if bytes.len() == raw_len => return Ok(bytes),
+                Outcome::Reply(STATUS_ERROR, text) => return Err(bad(String::from_utf8_lossy(&text).into_owned())),
+                Outcome::Reply(status, bytes) => {
+                    self.live = None;
+                    return Err(bad(format!(
+                        "Oodle worker answered {status} with {} bytes for {raw_len}",
+                        bytes.len()
+                    )));
+                }
+                Outcome::Died => {
+                    let status = self.live.take().and_then(|mut live| live.reap());
+                    // A worker that had been idle quit just as the request went out: not a damaged
+                    // stream. Ask a new one, once.
+                    if reused && !retried && status.and_then(|s| s.code()) == Some(EXIT_IDLE) {
+                        retried = true;
+                        continue;
+                    }
+                    tracing::warn!(
+                        "the Oodle worker died ({}) on a stream of {} bytes ({raw_len} out)",
+                        describe(status),
+                        src.len()
+                    );
+                    return Err(bad("oodle stream damaged"));
+                }
+                Outcome::TimedOut => {
+                    self.live = None;
+                    tracing::warn!("the Oodle worker timed out on a stream of {} bytes ({raw_len} out)", src.len());
+                    return Err(bad("oodle stream timed out"));
+                }
+            }
         }
-        let live = match &mut self.live {
-            Some(live) => live,
-            None => self.live.insert(Live::start(&self.exe).map_err(|e| {
-                AppError::new(ErrorCode::Io, super::MODEL_UNREADABLE)
-                    .with_detail(format!("Oodle worker {}: {e}", self.exe.display()))
-            })?),
-        };
-        let outcome = live.exchange(request_frame(src, raw_len as u32), self.timeout);
-        match outcome {
-            Outcome::Reply(0, bytes) if bytes.len() == raw_len => Ok(bytes),
-            Outcome::Reply(1, text) => Err(bad(String::from_utf8_lossy(&text).into_owned())),
-            Outcome::Reply(status, bytes) => {
-                self.live = None;
-                Err(bad(format!("Oodle worker answered {status} with {} bytes for {raw_len}", bytes.len())))
-            }
-            Outcome::Died => {
-                self.live = None;
-                tracing::warn!("the Oodle worker died on a stream of {} bytes ({raw_len} out)", src.len());
-                Err(bad("oodle stream damaged"))
-            }
-            Outcome::TimedOut => {
-                self.live = None;
-                tracing::warn!("the Oodle worker timed out on a stream of {} bytes ({raw_len} out)", src.len());
-                Err(bad("oodle stream timed out"))
-            }
-        }
+    }
+}
+
+/// An exit status for the log.
+fn describe(status: Option<ExitStatus>) -> String {
+    match status {
+        Some(status) => status.to_string(),
+        None => "exit status unknown".into(),
     }
 }
 
@@ -406,6 +605,9 @@ static WORKER: Mutex<Option<OodleWorker>> = Mutex::new(None);
 /// Sets the executable [`oodle`] starts as its worker, for tests (the test binary can't be the
 /// worker; use `env!("CARGO_BIN_EXE_livery")`). The first call wins; it must come before the
 /// first [`oodle`] call. The app never calls it: the default is the running executable.
+///
+/// For tests only.
+#[doc(hidden)]
 pub fn set_worker_exe(exe: impl Into<PathBuf>) {
     let _ = WORKER_EXE.set(exe.into());
 }
@@ -452,6 +654,41 @@ mod tests {
         let mut out = vec![0xCC, 0x0C];
         out.extend_from_slice(data);
         out
+    }
+
+    #[test]
+    fn the_watchdog_exits_on_a_long_decode_or_a_long_idle_and_otherwise_waits() {
+        let (decode, idle) = (15_000, 60_000);
+        // Decoding: only the decode limit counts, however long ago the last request came.
+        assert_eq!(watchdog_verdict(20_000, 6_000, 6_000, decode, idle), None, "14 s into a decode");
+        assert_eq!(watchdog_verdict(21_000, 6_000, 6_000, decode, idle), None, "exactly 15 s in");
+        assert_eq!(watchdog_verdict(21_001, 6_000, 6_000, decode, idle), Some(EXIT_HUNG), "15 s and a ms in");
+        assert_eq!(watchdog_verdict(500_000, 499_000, 1, decode, idle), None, "a decode that just began");
+        // Idle (decoding_since 0): only the idle limit counts.
+        assert_eq!(watchdog_verdict(61_000, 0, 1_001, decode, idle), None, "60 s idle exactly");
+        assert_eq!(watchdog_verdict(61_002, 0, 1_001, decode, idle), Some(EXIT_IDLE));
+        assert_eq!(watchdog_verdict(5, 0, 1, decode, idle), None, "just started");
+        // A clock that reads before the last activity doesn't underflow.
+        assert_eq!(watchdog_verdict(3, 9, 9, decode, idle), None);
+        assert_eq!(watchdog_verdict(3, 0, 9, decode, idle), None);
+    }
+
+    #[test]
+    fn activity_follows_a_request_through_the_server_loop() {
+        let activity = Activity::new();
+        assert_eq!(activity.decoding_since.load(Ordering::Relaxed), 0);
+        let data = b"abc".to_vec();
+        let input = request_frame(&stored(&data), 3);
+        let mut output = Vec::new();
+        serve_watched(&mut &input[..], &mut output, &activity).unwrap();
+        // Back to idle once the answer has gone out, with the activity time moved on.
+        assert_eq!(activity.decoding_since.load(Ordering::Relaxed), 0);
+        assert!(activity.last.load(Ordering::Relaxed) >= 1);
+        assert_eq!(activity.verdict(Duration::from_secs(15), Duration::from_secs(60)), None);
+        activity.begin_decode();
+        assert!(activity.decoding_since.load(Ordering::Relaxed) > 0);
+        activity.end_decode();
+        assert_eq!(activity.decoding_since.load(Ordering::Relaxed), 0);
     }
 
     #[test]

@@ -131,8 +131,7 @@ struct Tally {
     rejected_by_decoder: usize,
     /// Past the walk, the decoder asserted and the worker died; the caller got "oodle stream damaged".
     crashed: usize,
-    /// Past the walk, the decoder looped (release builds wrap arithmetic where debug builds panic)
-    /// until the deadline killed the worker.
+    /// Past the walk, the worker did not answer within the deadline and was killed.
     timed_out: usize,
 }
 
@@ -237,11 +236,9 @@ fn damaged_headers_are_refused_or_judged_by_the_decoder() {
 }
 
 /// Damage inside a complete block reaches the Kraken/Leviathan decoders of `oozextract` 0.5.5.
-/// They `assert!` on bad data (about one block in eight), which ends the worker process, and in
-/// release builds (arithmetic wraps instead of panicking) some copies loop until the deadline
-/// kills the worker. The handle starts a new worker after each crash or timeout, and the test
-/// process never notices anything but the "damaged" and "timed out" errors. 2,000 rounds (not
-/// 20,000): every crash costs a process start and every hang the 2 s deadline set here.
+/// They `assert!` on bad data (about one block in eight), which ends the worker process. The
+/// handle starts a new worker after each crash, and the test process never notices anything but
+/// the "damaged" error (a 2 s deadline is set so that a hang would show up as "timed out").
 #[test]
 #[ignore = "reads the real War Thunder install"]
 fn damaged_blocks_crash_the_worker_never_the_caller() {
@@ -249,10 +246,11 @@ fn damaged_blocks_crash_the_worker_never_the_caller() {
     let mut w = worker();
     w.set_timeout(Duration::from_secs(2));
     let started = Instant::now();
-    let tally = mutate(&mut w, 2_000, Mode::Block);
+    let tally = mutate(&mut w, 20_000, Mode::Block);
     println!("damaged blocks: {tally:?} in {} s", started.elapsed().as_secs());
-    assert_eq!(tally.decoded + tally.refused + tally.rejected_by_decoder + tally.crashed + tally.timed_out, 2_000);
-    assert!(tally.crashed > 50, "about one block in eight should kill the worker: {tally:?}");
+    assert_eq!(tally.decoded + tally.refused + tally.rejected_by_decoder + tally.crashed + tally.timed_out, 20_000);
+    assert_eq!(tally.timed_out, 0, "nothing should hang: {tally:?}");
+    assert!(tally.crashed > 1_000, "about one block in eight should kill the worker: {tally:?}");
     assert!(tally.decoded > 0 && tally.rejected_by_decoder + tally.refused > 0);
     w.set_timeout(Duration::from_secs(10));
     // After all those crashes the handle still decodes the real thing.
