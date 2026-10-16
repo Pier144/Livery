@@ -75,6 +75,8 @@ pub fn run() {
             app.manage(libraries);
             app.manage(archive::QueueStore::default());
             app.manage(game::catalog::CatalogStore::new(data_dir.join(game::catalog::CATALOG_FILE)));
+            // For you: the lineups read from the player's profile, cached in memory.
+            app.manage(game::profile::ProfileStore::new());
             // Settings → WT Live → Browse WT Live, read on every WT Live call.
             let handle = app.handle().clone();
             let enabled: wtlive::EnabledFn =
@@ -101,6 +103,7 @@ pub fn run() {
             game::set_game_path,
             game::game_vehicles,
             game::game_vehicle_names,
+            game::game_lineups,
             feedback::feedback_diagnostics,
             library::scan_user_skins,
             library::import_skins,

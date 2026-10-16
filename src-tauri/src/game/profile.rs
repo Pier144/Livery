@@ -14,6 +14,9 @@ use crate::library::blk;
 use crate::model::{Lineups, LineupsStatus, Nation, NationLineups, Preset};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, SystemTime};
 
 /// Largest block [`find_block`] cuts out (the author's `slotbar_presets` is about 4 KB).
 pub const MAX_BLOCK_BYTES: usize = 64 * 1024;
@@ -352,4 +355,77 @@ pub fn read_lineups(path: &Path) -> AppResult<Lineups> {
     }
     let saved_at = meta.modified().ok().map(crate::library::time::rfc3339_utc);
     Ok(Lineups { status: LineupsStatus::Ok, saved_at, current, current_nation, nations })
+}
+
+// ── Cache ───────────────────────────────────────────────────────────────────
+
+/// How long [`ProfileStore::lineups`] waits before reading lineups cut mid-write once more.
+pub const RETRY_DELAY: Duration = Duration::from_millis(150);
+
+/// The last lineups read, with the file they came from.
+struct Cached {
+    path: PathBuf,
+    size: u64,
+    modified: Option<SystemTime>,
+    lineups: Lineups,
+}
+
+/// The lineups of the last profile read, kept in memory: a call reads the file again only when
+/// its path (an account switch), size or modification time changed. Errors aren't kept.
+#[derive(Default)]
+pub struct ProfileStore {
+    cached: Mutex<Option<Cached>>,
+    reads: AtomicU32,
+}
+
+impl ProfileStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// `read_game_data` false: `off`, without touching the disk. Otherwise the profile `locate`
+    /// finds (none: `noProfile`), read through the cache; a `parse` error is retried once after
+    /// [`RETRY_DELAY`], since the game may be writing the file.
+    pub fn lineups(&self, read_game_data: bool, locate: impl FnOnce() -> Option<PathBuf>) -> AppResult<Lineups> {
+        if !read_game_data {
+            return Ok(Lineups::empty(LineupsStatus::Off));
+        }
+        let Some(path) = locate() else {
+            return Ok(Lineups::empty(LineupsStatus::NoProfile));
+        };
+        match self.read(&path) {
+            Err(e) if e.code == ErrorCode::Parse => {
+                tracing::info!("lineups: reading the profile again, the game may be writing it");
+                std::thread::sleep(RETRY_DELAY);
+                self.read(&path)
+            }
+            other => other,
+        }
+    }
+
+    /// How many times the file was actually read (tests).
+    #[doc(hidden)]
+    pub fn reads(&self) -> u32 {
+        self.reads.load(Ordering::Relaxed)
+    }
+
+    fn read(&self, path: &Path) -> AppResult<Lineups> {
+        // Taken before reading: a file changed during the read is read again next time.
+        let stamp = std::fs::metadata(path).ok().map(|m| (m.len(), m.modified().ok()));
+        let mut cached = self.cached.lock().unwrap_or_else(|e| e.into_inner());
+        if let (Some((size, modified)), Some(c)) = (stamp, cached.as_ref()) {
+            if c.path == path && c.size == size && c.modified == modified {
+                return Ok(c.lineups.clone());
+            }
+        }
+        self.reads.fetch_add(1, Ordering::Relaxed);
+        let result = read_lineups(path);
+        *cached = match (&result, stamp) {
+            (Ok(lineups), Some((size, modified))) => {
+                Some(Cached { path: path.to_path_buf(), size, modified, lineups: lineups.clone() })
+            }
+            _ => None,
+        };
+        result
+    }
 }

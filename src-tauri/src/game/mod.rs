@@ -8,6 +8,9 @@
 //!
 //! [`catalog`] reads the game's vehicle list from the install's data archives ([`vromfs`],
 //! [`binblk`]), read-only; `game_vehicles` hands it to the UI.
+//!
+//! [`profile`] reads the player's lineups from their War Thunder profile (`global.blk`),
+//! read-only and only those two blocks; `game_lineups` hands them to the For you tab.
 
 pub mod binblk;
 pub mod catalog;
@@ -201,6 +204,18 @@ pub async fn game_vehicle_names(
         }
         let Ok(root) = crate::library::game_root(&settings) else { return Ok(Default::default()) };
         Ok(app.state::<catalog::CatalogStore>().names_for(&root, language).unwrap_or_default())
+    })
+    .await
+}
+
+/// For you: the lineups in the player's War Thunder profile (see [`profile`]). Local; `off`
+/// without touching the disk when reading the game's data is off in Settings.
+#[tauri::command]
+pub async fn game_lineups(app: AppHandle) -> AppResult<crate::model::Lineups> {
+    blocking(move || {
+        let on = app.state::<SettingsStore>().get().read_game_data;
+        app.state::<profile::ProfileStore>()
+            .lineups(on, || profile::system_documents_dir().and_then(|d| profile::profile_file(&d)))
     })
     .await
 }
