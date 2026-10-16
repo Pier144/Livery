@@ -1,4 +1,4 @@
-//! WT Live (M5): Explore search, posts, Following, installs from WT Live and Try in game.
+//! WT Live (M5): Explore search, posts, Following, For you, installs from WT Live and Try in game.
 //!
 //! # Layout
 //! - [`client`]: the [`WtLiveClient`] trait the commands use, and the [`DisabledClient`].
@@ -42,8 +42,8 @@ use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::{self, GameLibrary};
 use crate::model::{
-    ConflictPolicy, FollowEntry, FollowKind, HangarSkin, InstallMode, InstallStarted, SearchParams, SearchResult,
-    TextureInfo, WtLiveSkin, WtLiveStorage,
+    ConflictPolicy, FollowEntry, FollowKind, ForYouNew, HangarSkin, InstallMode, InstallStarted, SearchParams,
+    SearchResult, TextureInfo, WtLiveSkin, WtLiveStorage,
 };
 use cache::DiskCache;
 use hidden::HiddenStore;
@@ -68,10 +68,12 @@ pub struct NetStatus {
 /// Whether Settings → WT Live → Browse WT Live is on (read on every call).
 pub type EnabledFn = Arc<dyn Fn() -> bool + Send + Sync>;
 
-/// Managed state: the WT Live client, the Following list, the hidden posts and the cache.
+/// Managed state: the WT Live client, the Following list, For you's seen state, the hidden posts
+/// and the cache.
 pub struct WtLive {
     client: Arc<dyn WtLiveClient>,
     following: FollowingStore,
+    for_you: ForYouStore,
     hidden: Arc<HiddenStore>,
     cache: Arc<DiskCache>,
     installing: install::Installing,
@@ -88,8 +90,8 @@ impl WtLive {
         Self::with_parts(client, data_dir.join(FOLLOWING_FILE), hidden, cache)
     }
 
-    /// Another client (tests), with the Following list at `following_path` and the hidden posts
-    /// and the cache next to it.
+    /// Another client (tests), with the Following list at `following_path` and For you's seen
+    /// state, the hidden posts and the cache next to it.
     pub fn with_client(client: Arc<dyn WtLiveClient>, following_path: PathBuf) -> Self {
         let dir = following_path.parent().map(Path::to_path_buf).unwrap_or_default();
         let cache = Arc::new(DiskCache::new(dir.join(cache::CACHE_DIR)));
@@ -97,14 +99,17 @@ impl WtLive {
         Self::with_parts(client, following_path, hidden, cache)
     }
 
+    /// The state from its parts; For you's seen state sits next to the Following list.
     pub fn with_parts(
         client: Arc<dyn WtLiveClient>,
         following_path: PathBuf,
         hidden: Arc<HiddenStore>,
         cache: Arc<DiskCache>,
     ) -> Self {
+        let dir = following_path.parent().map(Path::to_path_buf).unwrap_or_default();
         Self {
             client,
+            for_you: ForYouStore::load(dir.join(FOR_YOU_FILE)),
             following: FollowingStore::load(following_path),
             hidden,
             cache,
@@ -118,6 +123,10 @@ impl WtLive {
 
     pub fn following(&self) -> &FollowingStore {
         &self.following
+    }
+
+    pub fn for_you(&self) -> &ForYouStore {
+        &self.for_you
     }
 
     pub fn hidden(&self) -> &HiddenStore {
@@ -146,6 +155,8 @@ pub enum WtLiveCall {
     Search,
     Post,
     FollowingNew,
+    VehicleTop,
+    ForYouNew,
     Install,
     /// `read_textures { wtliveId }`.
     Textures,
@@ -195,6 +206,15 @@ pub fn following_new(
     authors: &[String],
 ) -> AppResult<Vec<WtLiveSkin>> {
     client.following_new(&following::select(followed, vehicles, authors))
+}
+
+/// `wtlive_for_you_new`: new skins for the lineup vehicles since For you was last seen.
+pub fn for_you_new(client: &dyn WtLiveClient, store: &ForYouStore, vehicles: &[String]) -> AppResult<ForYouNew> {
+    // Unparseable can't happen (the store validates); if it did, nothing would count as new.
+    let since = crate::library::time::parse_rfc3339(&store.last_seen_at()).unwrap_or(i64::MAX);
+    // Blanks stay in place (they get no tags): `checked` counts positions in the UI's own list.
+    let vehicles: Vec<String> = vehicles.iter().map(|v| v.trim().to_owned()).collect();
+    client.for_you_new(&vehicles, since)
 }
 
 /// `read_textures { wtliveId }`: the texture headers of a post that isn't installed.
@@ -262,6 +282,32 @@ pub async fn wtlive_following_new(
     })
     .await;
     reported(&app, WtLiveCall::FollowingNew, result)
+}
+
+/// For you: the 3 most downloaded skins of one lineup vehicle.
+#[tauri::command]
+pub async fn wtlive_vehicle_top(app: AppHandle, code: String) -> AppResult<Vec<WtLiveSkin>> {
+    let handle = app.clone();
+    let result = blocking(move || {
+        crate::game::current_vehicles(&handle);
+        handle.state::<WtLive>().client().vehicle_top(&code)
+    })
+    .await;
+    reported(&app, WtLiveCall::VehicleTop, result)
+}
+
+/// For you: new skins for the lineup vehicles (`vehicles` in display order) since For you was
+/// last seen.
+#[tauri::command]
+pub async fn wtlive_for_you_new(app: AppHandle, vehicles: Vec<String>) -> AppResult<ForYouNew> {
+    let handle = app.clone();
+    let result = blocking(move || {
+        crate::game::current_vehicles(&handle);
+        let state = handle.state::<WtLive>();
+        for_you_new(state.client().as_ref(), state.for_you(), &vehicles)
+    })
+    .await;
+    reported(&app, WtLiveCall::ForYouNew, result)
 }
 
 #[tauri::command]
@@ -378,6 +424,18 @@ pub async fn following_set(
 #[tauri::command]
 pub async fn following_mark_seen(app: AppHandle) -> AppResult<Vec<FollowEntry>> {
     blocking(move || app.state::<WtLive>().following().mark_seen()).await
+}
+
+/// When For you was last seen (RFC 3339). Local.
+#[tauri::command]
+pub async fn for_you_seen(app: AppHandle) -> AppResult<String> {
+    Ok(app.state::<WtLive>().for_you().last_seen_at())
+}
+
+/// Marks For you as seen now (its "N new" resets); returns the stored time. Local.
+#[tauri::command]
+pub async fn for_you_mark_seen(app: AppHandle) -> AppResult<String> {
+    blocking(move || app.state::<WtLive>().for_you().mark_seen()).await
 }
 
 /// Settings → WT Live: cache size and hidden posts. Local.

@@ -5,15 +5,17 @@
 
 use livery_lib::error::{AppError, AppResult, ErrorCode};
 use livery_lib::library::index::LibraryStore;
+use livery_lib::library::time::parse_rfc3339;
 use livery_lib::model::{
     Author, Category, FollowEntry, FollowKind, ForYouNew, Nation, SearchParams, SearchResult, Vehicle, VehicleType,
     WtLiveSkin,
 };
 use livery_lib::textures::{texture_target, TextureTarget, ONE_TEXTURE_TARGET};
 use livery_lib::wtlive::{
-    following_new, is_offline_error, keep_or_discard, net_status_after, net_status_of, post, post_textures, turned_off,
-    unsupported, DisabledClient, DownloadProgress, NetStatus, WtLive, WtLiveCall, WtLiveClient, FOLLOWING_FILE,
-    MISSING_SKIN_ID, NET_STATUS_EVENT, TURNED_OFF_MESSAGE, UNSUPPORTED_MESSAGE,
+    following_new, for_you_new, is_offline_error, keep_or_discard, net_status_after, net_status_of, post,
+    post_textures, turned_off, unsupported, DisabledClient, DownloadProgress, ForYouStore, NetStatus, WtLive,
+    WtLiveCall, WtLiveClient, FOLLOWING_FILE, FOR_YOU_FILE, MISSING_SKIN_ID, NET_STATUS_EVENT, TURNED_OFF_MESSAGE,
+    UNSUPPORTED_MESSAGE,
 };
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -107,11 +109,14 @@ fn net_status_follows_the_outcome() {
 fn every_wtlive_call_of_the_disabled_client_is_unsupported_and_offline() {
     let client = DisabledClient;
     let followed = [follow(FollowKind::Author, "a1", "2026-09-01T00:00:00Z")];
+    let for_you = ForYouStore::load(temp_dir("disabled-for-you").join(FOR_YOU_FILE));
     let outcomes = [
         client.search(&params()).map(|_| ()).unwrap_err(),
         post(&client, "1").map(|_| ()).unwrap_err(),
         following_new(&client, &followed, &[], &["a1".into()]).map(|_| ()).unwrap_err(),
         post_textures(&client, "1").map(|_| ()).unwrap_err(),
+        client.vehicle_top("ussr_t_34_85").map(|_| ()).unwrap_err(),
+        for_you_new(&client, &for_you, &["ussr_t_34_85".into()]).map(|_| ()).unwrap_err(),
     ];
     for e in outcomes {
         assert_eq!(e.code, ErrorCode::Unsupported, "{e:?}");
@@ -143,8 +148,15 @@ fn finalize_try_is_local_and_never_reports_the_network() {
 
 #[test]
 fn every_other_wtlive_call_reports_its_outcome() {
-    let calls =
-        [WtLiveCall::Search, WtLiveCall::Post, WtLiveCall::FollowingNew, WtLiveCall::Install, WtLiveCall::Textures];
+    let calls = [
+        WtLiveCall::Search,
+        WtLiveCall::Post,
+        WtLiveCall::FollowingNew,
+        WtLiveCall::VehicleTop,
+        WtLiveCall::ForYouNew,
+        WtLiveCall::Install,
+        WtLiveCall::Textures,
+    ];
     for call in calls {
         assert!(call.reaches_wtlive(), "{call:?}");
         assert_eq!(net_status_after(call, &Err::<(), _>(unsupported())), Some(NetStatus { online: false }), "{call:?}");
@@ -258,6 +270,28 @@ fn following_new_hands_the_client_each_followed_entry_with_its_last_seen() {
 }
 
 #[test]
+fn for_you_new_hands_the_client_the_trimmed_codes_and_the_last_seen_time() {
+    let dir = temp_dir("for-you-seam");
+    let store = ForYouStore::load(dir.join(FOR_YOU_FILE));
+    store.mark_seen_at("2026-09-01T10:00:00Z").unwrap();
+    let client = Recorder::default();
+    let asked: Vec<String> = [" ussr_t_34_85 ", "", "  ", "us_m18_hellcat"].iter().map(|v| (*v).to_owned()).collect();
+    let new = for_you_new(&client, &store, &asked).unwrap();
+    assert_eq!(new.checked, 4, "blanks stay in place");
+    let since = parse_rfc3339("2026-09-01T10:00:00Z").unwrap();
+    let expected: Vec<String> = ["ussr_t_34_85", "", "", "us_m18_hellcat"].iter().map(|v| (*v).to_owned()).collect();
+    assert_eq!(*client.for_you.lock().unwrap(), vec![(expected, since)]);
+
+    // Never marked seen: new since a week before the store was loaded.
+    let fresh = ForYouStore::load(dir.join("other").join(FOR_YOU_FILE));
+    let client = Recorder::default();
+    for_you_new(&client, &fresh, &["ussr_t_34_85".into()]).unwrap();
+    let since = client.for_you.lock().unwrap()[0].1;
+    assert_eq!(Some(since), parse_rfc3339(&fresh.last_seen_at()));
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
 fn a_download_failure_reaches_textures_as_network() {
     let e = post_textures(&Recorder::default(), "1").unwrap_err();
     assert_eq!(e.code, ErrorCode::Network);
@@ -272,8 +306,12 @@ fn managed_state_with_browsing_off_sends_nothing_and_writes_nothing() {
     assert_unsupported(client.search(&params()), TURNED_OFF_MESSAGE);
     assert_unsupported(client.post("1"), TURNED_OFF_MESSAGE);
     assert_unsupported(client.following_new(&[]), TURNED_OFF_MESSAGE);
+    assert_unsupported(client.vehicle_top("ussr_t_34_85"), TURNED_OFF_MESSAGE);
+    assert_unsupported(for_you_new(client.as_ref(), state.for_you(), &[]), TURNED_OFF_MESSAGE);
     assert_unsupported(client.archive("1", &mut |_| {}), TURNED_OFF_MESSAGE);
     assert_eq!(state.following().path(), dir.join(FOLLOWING_FILE));
+    assert_eq!(state.for_you().path(), dir.join(FOR_YOU_FILE));
+    assert!(!state.for_you().is_read_only());
     assert!(state.following().list().is_empty());
     assert_eq!(state.storage().cache_bytes, 0);
     assert_eq!(state.storage().hidden_count, 0);
@@ -281,6 +319,8 @@ fn managed_state_with_browsing_off_sends_nothing_and_writes_nothing() {
 
     let custom = WtLive::with_client(Arc::new(Recorder::default()), dir.join("f.json"));
     assert!(custom.client().ready().is_ok(), "another client plugs in without touching the commands");
+    assert_eq!(custom.for_you().path(), dir.join(FOR_YOU_FILE), "next to the Following list");
+    assert!(!dir.exists(), "still nothing written");
 }
 
 // ── read_textures ───────────────────────────────────────────────────────────

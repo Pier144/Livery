@@ -1,6 +1,6 @@
-//! Against the real WT Live (ignored by default: it sends about ten requests, one a second).
+//! Against the real WT Live (ignored by default: they send about a dozen requests, one a second).
 //! Run by hand after a change to the client, or when WT Live may have changed its answers:
-//! `cargo test --test wtlive_real -- --ignored --nocapture`.
+//! `cargo test --test wtlive_real -- --ignored --nocapture` (add `for_you` for For you only).
 
 use livery_lib::library::index::LibraryStore;
 use livery_lib::model::{FollowEntry, FollowKind, InstallMode, SearchParams, Settings};
@@ -92,4 +92,32 @@ fn the_real_wt_live_answers_and_a_skin_installs() {
 
 fn first_created(result: &livery_lib::model::SearchResult) -> i64 {
     livery_lib::library::time::parse_rfc3339(&result.items[0].posted_at).unwrap()
+}
+
+#[test]
+#[ignore = "reaches the real WT Live"]
+fn for_you_on_the_real_wt_live() {
+    let dir = std::env::temp_dir().join(format!("livery-wtlive-real-for-you-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let cache = Arc::new(DiskCache::new(dir.join("cache")));
+    let hidden = Arc::new(HiddenStore::load(dir.join("hidden.json")));
+    let client = LiveClient::new(Arc::new(HttpTransport::new()), cache, hidden, Arc::new(|| true));
+
+    // Two vehicles in one request (one chunk): the site ORs their hashtags.
+    let vehicles = vec!["us_m18_hellcat".to_owned(), "ussr_t_34_85".to_owned()];
+    let now = livery_lib::library::time::unix_secs(std::time::SystemTime::now());
+    let new = client.for_you_new(&vehicles, now - 30 * 24 * 3600).unwrap();
+    println!("for you new: {} skins, {} vehicles checked", new.items.len(), new.checked);
+    for found in new.items.iter().take(10) {
+        println!("  {} · {} · {}", found.vehicle, found.skin.name, found.skin.posted_at);
+    }
+    assert_eq!(new.checked, 2);
+    assert!(new.items.iter().all(|f| vehicles.contains(&f.vehicle)));
+
+    let top = client.vehicle_top("ussr_t_34_85").unwrap();
+    println!("T-34-85 top: {:?}", top.iter().map(|s| (&s.name, s.downloads)).collect::<Vec<_>>());
+    assert!(top.len() <= 3);
+    // Matched by its code, or by a hashtag when the post's vehicle isn't in the built-in list.
+    assert!(top.iter().all(|s| s.vehicle.code.is_empty() || s.vehicle.code == "ussr_t_34_85"));
+    let _ = std::fs::remove_dir_all(&dir);
 }
