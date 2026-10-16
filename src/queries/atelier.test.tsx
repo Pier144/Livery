@@ -253,6 +253,7 @@ describe('Atelier queries · pictures, fonts, background removal', () => {
     const result = { asset: { id: 'img-3', width: 10, height: 10 }, crop: { x: 1, y: 2, w: 10, h: 10 } };
     backend.call.mockImplementation(async (cmd) => {
       if (cmd === 'atelier_cutout_status') return status;
+      if (cmd === 'atelier_cutout_download') return { ...status, runtime: true, model: true, downloadBytes: 0 };
       if (cmd === 'atelier_cutout_remove') return { ...status, pendingRemoval: true };
       if (cmd === 'atelier_cutout') return result;
       return null;
@@ -262,6 +263,7 @@ describe('Atelier queries · pictures, fonts, background removal', () => {
     await waitFor(() => expect(hooks.result.current[0].data).toEqual(status));
     await act(() => hooks.result.current[1].mutateAsync());
     expect(backend.call).toHaveBeenCalledWith('atelier_cutout_download', undefined);
+    expect(client.getQueryData(CUTOUT_STATUS_KEY)).toMatchObject({ runtime: true, model: true });
     await act(() => hooks.result.current[2].mutateAsync());
     expect(client.getQueryData(CUTOUT_STATUS_KEY)).toMatchObject({ pendingRemoval: true });
     await expect(act(() => hooks.result.current[3].mutateAsync({ projectId: 'p-1', assetId: 'img-1' }))).resolves.toEqual(result);

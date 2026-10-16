@@ -21,6 +21,7 @@ import {
   type Stroke,
   type TextLayer,
 } from './project';
+import { measureTextAspect } from './text';
 
 const PROJECT: AtelierProject = {
   version: 1,
@@ -239,7 +240,12 @@ const layer = <T extends Layer = DecalLayer>(id: string) => S().layers.find((l) 
 const image = (id: string, over: Partial<ImageLayer> = {}): ImageLayer => ({ ...newImageLayer(`img-${id}`, DECAL), id, ...over });
 
 describe('editor store · image and text layers', () => {
-  afterEach(() => setTextMeasurer(null));
+  afterEach(() => setTextMeasurer(measureTextAspect));
+
+  it('measures text with text.ts by default (nothing to measure with in jsdom: the width stays)', () => {
+    S().addDecalLayer({ ...newTextLayer('ABCD', DECAL), id: 't' });
+    expect(layer<TextLayer>('t').decal!.width).toBe(DECAL.width);
+  });
 
   it('adds a decal layer just under the mask, or above the selected image/text layer, and selects it', () => {
     S().addStroke({ ...brush, points: [[0, 0, 0]] });

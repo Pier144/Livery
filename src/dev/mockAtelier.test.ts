@@ -1,6 +1,8 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseModelBuffer } from '@/atelier/modelBuffer';
-import en from '@/i18n/en.json';
 import { parseAssetBuffer } from '@/queries/atelier';
 import {
   EVENTS,
@@ -24,12 +26,16 @@ import { MOCK_GAME } from './mockData';
 import {
   ASSET_INVALID,
   ASSET_NOT_FOUND,
+  ATELIER_DISABLED,
   CUTOUT_BUSY,
   CUTOUT_FAILED,
   CUTOUT_MARGIN,
   CUTOUT_NOT_READY,
+  CUTOUT_RESTART_NEEDED,
   DOWNLOAD_BUSY,
   DOWNLOAD_CANCELLED,
+  DOWNLOAD_CORRUPT,
+  DOWNLOAD_FAILED,
   FONT_NOT_FOUND,
   IMAGE_TOO_LARGE,
   IMAGE_UNREADABLE,
@@ -51,6 +57,16 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2
 const call = <T>(cmd: string, args: Record<string, unknown> = {}) => mockCall<T>(cmd, args);
 const raw = <T>(cmd: string, body: Uint8Array, headers: Record<string, string>) =>
   mockCall<T>(cmd, { __body: body, __headers: headers });
+
+// Not `new URL(…, import.meta.url)`: Vite rewrites that pattern into an asset URL.
+const RUST_ATELIER = resolve(dirname(fileURLToPath(import.meta.url)), '../../src-tauri/src/atelier');
+
+/** Every plain string literal in src-tauri/src/atelier/*.rs (the messages the mock must match). */
+function rustAtelierLiterals(): string[] {
+  return readdirSync(RUST_ATELIER)
+    .filter((f) => f.endsWith('.rs'))
+    .flatMap((f) => [...readFileSync(join(RUST_ATELIER, f), 'utf8').matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]!.replace(/\\(["\\'])/g, '$1')));
+}
 
 async function rejection(promise: Promise<unknown>): Promise<AppError> {
   try {
@@ -355,10 +371,10 @@ describe('mock Atelier · pictures', () => {
     expect(await rejection(put(rgba, '2', '1', 'p-none'))).toMatchObject({ code: 'notFound' });
   });
 
-  it('sends the messages Rust sends (translated in every UI language)', () => {
-    const backend = Object.values(en.common.errors.backend) as string[];
+  it('sends the messages Rust sends', () => {
+    const literals = rustAtelierLiterals();
     for (const message of [IMAGE_UNREADABLE, IMAGE_TOO_LARGE, ASSET_NOT_FOUND, ASSET_INVALID, FONT_NOT_FOUND]) {
-      expect(backend).toContain(message);
+      expect(literals).toContain(message);
     }
   });
 });
@@ -386,6 +402,15 @@ describe('mock Atelier · fonts', () => {
 describe('mock Atelier · background removal', () => {
   const status = () => call<CutoutStatus>('atelier_cutout_status');
 
+  beforeEach(async () => {
+    await call('set_settings', { patch: { atelierEnabled: true } });
+  });
+
+  it('needs Atelier on', async () => {
+    await call('set_settings', { patch: { atelierEnabled: false } });
+    expect(await rejection(call('atelier_cutout_download'))).toMatchObject({ code: 'invalidInput', message: ATELIER_DISABLED });
+  });
+
   it('downloads the runtime then the model with progress, then cuts out a disc cropped with its margin', async () => {
     expect(await status()).toEqual({
       runtime: false,
@@ -400,7 +425,7 @@ describe('mock Atelier · background removal', () => {
 
     const seen: DownloadProgress[] = [];
     const off = mockListen<DownloadProgress>(EVENTS.atelierDownloadProgress, (e) => seen.push(e));
-    await call('atelier_cutout_download');
+    expect(await call<CutoutStatus>('atelier_cutout_download')).toMatchObject({ runtime: true, model: true, downloadBytes: 0 });
     off();
     expect(seen[0]).toEqual({ item: 'runtime', received: 0, total: MOCK_RUNTIME_DOWNLOAD_BYTES });
     expect(seen.at(-1)).toEqual({ item: 'model', received: MOCK_MODEL_BYTES, total: MOCK_MODEL_BYTES });
@@ -451,6 +476,16 @@ describe('mock Atelier · background removal', () => {
       bytes: MOCK_RUNTIME_BYTES,
       pendingRemoval: true,
     });
+    // Until a restart: no download, no cutout.
+    expect(await rejection(call('atelier_cutout_download'))).toMatchObject({ code: 'conflict', message: CUTOUT_RESTART_NEEDED });
+    expect(await rejection(call('atelier_cutout', { projectId: p.id, assetId: source.id }))).toMatchObject({ message: CUTOUT_NOT_READY });
+  });
+
+  it('sends the messages Rust sends', () => {
+    const literals = rustAtelierLiterals();
+    for (const message of [ATELIER_DISABLED, DOWNLOAD_FAILED, DOWNLOAD_CORRUPT, DOWNLOAD_CANCELLED, DOWNLOAD_BUSY, CUTOUT_BUSY, CUTOUT_RESTART_NEEDED]) {
+      expect(literals).toContain(message);
+    }
   });
 
   it('cancel stops a cutout', async () => {

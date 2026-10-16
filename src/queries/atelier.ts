@@ -271,9 +271,9 @@ export function fetchCutoutStatus(): Promise<CutoutStatus> {
   return call<CutoutStatus>(ATELIER_CMD.cutoutStatus);
 }
 
-/** Downloads what background removal still needs (progress on `atelier://download-progress`). */
-export async function downloadCutoutFiles(): Promise<void> {
-  await call<null>(ATELIER_CMD.cutoutDownload);
+/** Downloads what background removal still needs (progress on `atelier://download-progress`); the status after. */
+export function downloadCutoutFiles(): Promise<CutoutStatus> {
+  return call<CutoutStatus>(ATELIER_CMD.cutoutDownload);
 }
 
 /** Cancels the running download or cutout, whichever runs (it then fails with its cancelled error). */
@@ -346,12 +346,13 @@ export function useCutoutStatus(enabled = true) {
   });
 }
 
-/** Downloads the background-removal files; the status is read again however it ends. */
+/** Downloads the background-removal files: the answer is the new status; after a failure it is read again. */
 export function useDownloadCutoutFiles() {
   const qc = useQueryClient();
-  return useMutation<void, AppError, void>({
+  return useMutation<CutoutStatus, AppError, void>({
     mutationFn: downloadCutoutFiles,
-    onSettled: () => qc.invalidateQueries({ queryKey: CUTOUT_STATUS_KEY }),
+    onSuccess: (status) => qc.setQueryData(CUTOUT_STATUS_KEY, status),
+    onError: () => qc.invalidateQueries({ queryKey: CUTOUT_STATUS_KEY }),
   });
 }
 

@@ -80,12 +80,14 @@ export const IMAGE_TOO_LARGE = 'This picture is too large';
 export const ASSET_NOT_FOUND = 'This picture is missing from the project';
 export const ASSET_INVALID = "This picture can't be used";
 export const FONT_NOT_FOUND = "This font isn't installed";
-// Background removal (Rust Tasks P2/P3): kept in step with src-tauri/src/atelier/{download,models,cutout}.rs.
-export const DOWNLOAD_FAILED = "The background removal files couldn't be downloaded";
-export const DOWNLOAD_CORRUPT = 'A downloaded file is damaged';
-export const DOWNLOAD_CANCELLED = 'The download was cancelled';
-export const DOWNLOAD_BUSY = 'The background removal files are already downloading';
-export const CUTOUT_BUSY = 'Background removal is busy';
+export const ATELIER_DISABLED = 'Turn on Atelier in Settings first';
+export const DOWNLOAD_FAILED = "The download didn't finish";
+export const DOWNLOAD_CORRUPT = 'The downloaded file is damaged';
+export const DOWNLOAD_CANCELLED = 'Download cancelled';
+export const DOWNLOAD_BUSY = 'A download is already running';
+export const CUTOUT_BUSY = 'Background removal is busy, try again when it finishes';
+export const CUTOUT_RESTART_NEEDED = 'Restart Livery to finish removing the background-removal files';
+// Not in Rust yet (Task P3, cutout.rs): placeholders until it lands.
 export const CUTOUT_NOT_READY = 'Background removal needs its files first';
 export const CUTOUT_FAILED = "The background couldn't be removed";
 
@@ -564,6 +566,7 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
 
   const cutoutStatus = (): CutoutStatus => {
     const c = host.atelier().cutout;
+    // Like models.rs: while a remove waits for a restart, nothing counts as installed; `bytes` is what is still on disk.
     return {
       runtime: c.runtime,
       model: c.model,
@@ -858,10 +861,12 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
 
     atelier_cutout_status: (): CutoutStatus => cutoutStatus(),
 
-    atelier_cutout_download: async () => {
+    atelier_cutout_download: async (): Promise<CutoutStatus> => {
+      if (!host.settings().atelierEnabled) fail('invalidInput', ATELIER_DISABLED);
       const c = host.atelier().cutout;
       if (c.busy === 'download') fail('conflict', DOWNLOAD_BUSY);
       if (c.busy) fail('conflict', CUTOUT_BUSY);
+      if (c.pendingRemoval) fail('conflict', CUTOUT_RESTART_NEEDED);
       c.busy = 'download';
       c.cancelled = false;
       try {
@@ -875,9 +880,8 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
             if (step < DOWNLOAD_STEPS) await host.wait(DOWNLOAD_STEP_MS);
           }
           c[item] = true;
-          c.pendingRemoval = false;
         }
-        return null;
+        return cutoutStatus();
       } finally {
         c.busy = null;
         c.cancelled = false;
@@ -903,8 +907,9 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
     atelier_cutout: async (args): Promise<CutoutResult> => {
       const projectId = str('atelier_cutout', args, 'projectId');
       const assetId = str('atelier_cutout', args, 'assetId');
+      if (!host.settings().atelierEnabled) fail('invalidInput', ATELIER_DISABLED);
       const c = host.atelier().cutout;
-      if (!c.runtime || !c.model) fail('unsupported', CUTOUT_NOT_READY);
+      if (!c.runtime || !c.model || c.pendingRemoval) fail('unsupported', CUTOUT_NOT_READY);
       if (c.busy) fail('conflict', CUTOUT_BUSY);
       const source = picture(projectId, assetId);
       c.busy = 'cutout';

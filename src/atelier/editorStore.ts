@@ -29,6 +29,7 @@ import {
   type TextLayer,
   type Vec3,
 } from './project';
+import { measureTextAspect } from './text';
 
 /** Undo steps kept by the editor. */
 export const HISTORY_LIMIT = 100;
@@ -52,11 +53,11 @@ export const DUPLICATE_OFFSET = 0.05;
 
 /**
  * The width / height of a text layer as drawn now (its font, or the stand-in while the font
- * loads), or null when it can't be measured. `src/atelier/text.ts` provides it; tests set their own.
+ * loads), or null when it can't be measured. Defaults to `measureTextAspect` (text.ts); tests set their own.
  */
 export type TextMeasurer = (layer: TextLayer) => number | null;
 
-let textMeasurer: TextMeasurer | null = null;
+let textMeasurer: TextMeasurer | null = measureTextAspect;
 
 /** Sets how text layers are measured (null: text widths are left as they are). */
 export function setTextMeasurer(measurer: TextMeasurer | null): void {
