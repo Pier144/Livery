@@ -252,3 +252,103 @@ fn a_model_without_lods_is_an_error() {
     m.lods.clear();
     assert!(assert_parse(dynmodel::parse(&dynmodel_bytes(&m))).contains("LOD"));
 }
+
+// ── GeomNodeTree ────────────────────────────────────────────────────────────
+
+use common::gameres::{skeleton_bytes, TNode, SKELETON_DUMP_AT};
+use livery_lib::game::gameres::skeleton::{transform_point, Skeleton};
+
+fn translate(x: f32, y: f32, z: f32) -> [[f32; 4]; 4] {
+    [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [x, y, z, 1.0]]
+}
+
+/// `bone_body` -> `bone_turret` -> `bone_gun`, plus `hatch` under the body.
+fn tree() -> Vec<TNode> {
+    vec![
+        TNode { name: "bone_body", parent: None, wtm: translate(0.0, 0.0, 0.0) },
+        TNode { name: "bone_turret", parent: Some(0), wtm: translate(0.5, 1.5, 0.0) },
+        TNode { name: "hatch", parent: Some(0), wtm: translate(-1.0, 1.0, 0.25) },
+        TNode {
+            name: "bone_gun",
+            parent: Some(1),
+            wtm: [[0.0, 1.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [2.0, 1.75, 0.0, 1.0]],
+        },
+    ]
+}
+
+#[test]
+fn a_skeleton_reads_names_parents_and_matrices() {
+    for zstd in [false, true] {
+        let s = Skeleton::parse(&skeleton_bytes(&tree(), zstd)).unwrap();
+        let names: Vec<&str> = s.nodes.iter().map(|n| n.name.as_str()).collect();
+        assert_eq!(names, ["bone_body", "bone_turret", "hatch", "bone_gun"]);
+        let parents: Vec<Option<usize>> = s.nodes.iter().map(|n| n.parent).collect();
+        assert_eq!(parents, [None, Some(0), Some(0), Some(1)]);
+        assert_eq!(s.by_name("bone_gun").unwrap().wtm, tree()[3].wtm);
+        assert_eq!(s.by_name("hatch").unwrap().wtm[3], [-1.0, 1.0, 0.25, 1.0]);
+        assert_eq!(s.ancestry("bone_gun"), ["bone_gun", "bone_turret", "bone_body"]);
+        assert_eq!(s.ancestry("hatch"), ["hatch", "bone_body"]);
+        assert_eq!(s.ancestry("bone_body"), ["bone_body"]);
+        assert!(s.ancestry("@root").is_empty());
+        assert!(s.by_name("@root").is_none());
+        // The gun's matrix places a point: col0 * x + col1 * y + col2 * z + col3.
+        assert_eq!(transform_point(&s.by_name("bone_gun").unwrap().wtm, [1.0, 2.0, 3.0]), [0.0, 2.75, 3.0]);
+    }
+}
+
+/// Offset of node `i`'s child tab in an uncompressed skeleton.
+fn child_tab(i: usize) -> usize {
+    SKELETON_DUMP_AT + 160 * i + 128
+}
+
+#[test]
+fn bad_child_tables_are_errors() {
+    let bytes = skeleton_bytes(&tree(), false);
+    let mut cases: Vec<(&str, Vec<u8>)> = Vec::new();
+    // bone_body's children are 1..3; running past the 4 nodes.
+    let mut b = bytes.clone();
+    patch_u32(&mut b, child_tab(0) + 4, 4);
+    cases.push(("past the end", b));
+    // bone_turret's child pointing back at the root.
+    let mut b = bytes.clone();
+    patch_u32(&mut b, child_tab(1), 0);
+    cases.push(("backwards", b));
+    // bone_turret's child pointing at itself.
+    let mut b = bytes.clone();
+    patch_u32(&mut b, child_tab(1), 160);
+    cases.push(("itself", b));
+    // bone_body claims bone_gun too (bone_turret already does).
+    let mut b = bytes.clone();
+    patch_u32(&mut b, child_tab(0) + 4, 3);
+    cases.push(("two parents", b));
+    // Not a node boundary.
+    let mut b = bytes.clone();
+    patch_u32(&mut b, child_tab(0), 161);
+    cases.push(("misaligned", b));
+    // More nodes than the dump holds.
+    let mut b = bytes.clone();
+    patch_u32(&mut b, 4, 40);
+    cases.push(("node count", b));
+    // A name pointer past the dump.
+    let mut b = bytes.clone();
+    patch_u32(&mut b, child_tab(2) + 24, 100_000);
+    cases.push(("name", b));
+    for (what, b) in cases {
+        let r = Skeleton::parse(&b);
+        assert!(r.as_ref().is_err_and(|e| e.code == ErrorCode::Parse), "{what}: {r:?}");
+    }
+    // An empty child tab ignores its offset.
+    let mut b = bytes.clone();
+    patch_u32(&mut b, child_tab(3), 12_345);
+    Skeleton::parse(&b).unwrap();
+}
+
+#[test]
+fn every_skeleton_truncation_is_an_error() {
+    for zstd in [false, true] {
+        let bytes = skeleton_bytes(&tree(), zstd);
+        for cut in 0..bytes.len() {
+            assert_parse(Skeleton::parse(&bytes[..cut]));
+        }
+    }
+}

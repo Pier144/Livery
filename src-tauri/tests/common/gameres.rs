@@ -337,6 +337,60 @@ pub fn dynmodel_bytes(m: &TModel) -> Vec<u8> {
     out
 }
 
+// ── GeomNodeTree ────────────────────────────────────────────────────────────
+
+pub struct TNode {
+    pub name: &'static str,
+    pub parent: Option<usize>,
+    /// Model-space matrix as 4 columns (the 4th is the translation).
+    pub wtm: [[f32; 4]; 4],
+}
+
+/// Bytes before a skeleton's dump (`u32 a`, `u32 n`) when it is stored uncompressed.
+pub const SKELETON_DUMP_AT: usize = 8;
+
+/// A GeomNodeTree resource (formats doc section 2b): `u32 a` (dump size), `u32 n` (bit 31 =
+/// compressed), then the dump (stored, or a zstd IGenLoad block when `zstd`): `n` x 160-byte
+/// nodes (tm = wtm here, wtm, child tab, parent ptr, name ptr), then the names. Each node's
+/// children must be contiguous (the game stores the tree breadth-first).
+pub fn skeleton_bytes(nodes: &[TNode], zstd: bool) -> Vec<u8> {
+    let n = nodes.len();
+    let mut dump = Vec::new();
+    let mut name_at = 160 * n;
+    for (i, node) in nodes.iter().enumerate() {
+        for _ in 0..2 {
+            for column in node.wtm {
+                for v in column {
+                    dump.extend_from_slice(&v.to_le_bytes());
+                }
+            }
+        }
+        let children: Vec<usize> = (0..n).filter(|&j| nodes[j].parent == Some(i)).collect();
+        if let (Some(&first), Some(&last)) = (children.first(), children.last()) {
+            assert_eq!(last - first + 1, children.len(), "node {i}: children must be contiguous");
+        }
+        tab(&mut dump, 160 * children.first().copied().unwrap_or(0), children.len());
+        dump.extend_from_slice(&((160 * node.parent.unwrap_or(i)) as u64).to_le_bytes());
+        dump.extend_from_slice(&(name_at as u64).to_le_bytes());
+        name_at += node.name.len() + 1;
+    }
+    for node in nodes {
+        dump.extend_from_slice(node.name.as_bytes());
+        dump.push(0);
+    }
+    let mut out = Vec::new();
+    out.extend_from_slice(&(dump.len() as u32).to_le_bytes());
+    out.extend_from_slice(&(n as u32 | if zstd { 0x8000_0000 } else { 0 }).to_le_bytes());
+    if zstd {
+        let frame = zstd::bulk::compress(&dump, 3).unwrap();
+        out.extend_from_slice(&((1u32 << 30) | frame.len() as u32).to_le_bytes());
+        out.extend_from_slice(&frame);
+    } else {
+        out.extend_from_slice(&dump);
+    }
+    out
+}
+
 /// Overwrites the `u32` at `at` (for damaging a built resource).
 pub fn patch_u32(bytes: &mut [u8], at: usize, v: u32) {
     bytes[at..at + 4].copy_from_slice(&v.to_le_bytes());

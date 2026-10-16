@@ -10,7 +10,8 @@ use livery_lib::game::gameres::codec::{
     check_kraken_family, decode_in_process, oodle, read_block, set_worker_exe, OodleWorker, MAX_VERTEX_DATA,
 };
 use livery_lib::game::gameres::dynmodel;
-use livery_lib::game::gameres::grp::{Grp, DYN_MODEL};
+use livery_lib::game::gameres::grp::{Grp, DYN_MODEL, GEOM_NODE_TREE};
+use livery_lib::game::gameres::skeleton::Skeleton;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -411,4 +412,63 @@ fn every_tank_dynmodel_parses() {
     // by design (the unpack constants apply to SHORT4N only); nothing else may fail.
     assert!(failed.iter().all(|f| f.contains("vertex layout")), "{failed:?}");
     assert!(failed.len() <= 5, "{failed:?}");
+}
+
+fn jumbo_pack() -> Vec<u8> {
+    let path = game_root().join("content/base/res/tanks/usa_m4a3e2_sherman_jumbo.grp");
+    std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// The Jumbo's skeleton: 169 nodes with the turret and gun bones, and every LOD 0 rigid but the
+/// `@root` ones sits on a node of it.
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn the_jumbo_skeleton_places_every_rigid() {
+    set_worker_exe(worker_exe());
+    let file = jumbo_pack();
+    let grp = Grp::parse(&file, Some(file.len())).unwrap();
+    let res = grp.find("m4a3e2_sherman_jumbo_skeleton", GEOM_NODE_TREE).unwrap();
+    let skeleton = Skeleton::parse(&file[res.start..res.end]).unwrap();
+    assert_eq!(skeleton.nodes.len(), 169);
+    let gun = skeleton.ancestry("bone_gun");
+    println!("bone_gun ancestry: {gun:?}");
+    assert!(gun.contains(&"bone_turret"), "{gun:?}");
+    assert!(skeleton.by_name("bone_turret").is_some());
+    assert!(skeleton.nodes[1..].iter().all(|n| n.parent.is_some()), "one root");
+
+    let model = dynmodel::parse(&jumbo_model()).unwrap();
+    let mut missing = std::collections::BTreeSet::new();
+    for rigid in &model.rigids {
+        let name = &model.node_names[&rigid.node_id];
+        if skeleton.by_name(name).is_none() {
+            missing.insert(name.clone());
+        }
+    }
+    println!("rigid nodes missing from the skeleton: {missing:?}");
+    assert_eq!(missing.into_iter().collect::<Vec<_>>(), ["@root"]);
+}
+
+/// Every skeleton of the tank packs parses (none is compressed today).
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn every_tank_skeleton_parses() {
+    set_worker_exe(worker_exe());
+    let dir = game_root().join("content/base/res/tanks");
+    let (mut count, mut failed) = (0, Vec::new());
+    for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("grp") {
+            continue;
+        }
+        let file = std::fs::read(&path).unwrap();
+        let grp = Grp::parse(&file, Some(file.len())).unwrap();
+        for res in grp.resources.iter().filter(|r| r.class_id == GEOM_NODE_TREE && r.start != 0) {
+            count += 1;
+            if let Err(e) = Skeleton::parse(&file[res.start..res.end]) {
+                failed.push(format!("{}: {:?}", res.name, e.detail));
+            }
+        }
+    }
+    println!("{count} skeletons, {} failed {:?}", failed.len(), failed.iter().take(10).collect::<Vec<_>>());
+    assert!(count > 3000 && failed.is_empty());
 }
