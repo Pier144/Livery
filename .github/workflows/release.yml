@@ -1,8 +1,10 @@
 # Builds the NSIS installer and attaches it to a DRAFT GitHub release.
 # Trigger: push a tag `v<version>` (it must match tauri.conf.json), or run it by hand
 # (workflow_dispatch), which drafts `v<version>` on the chosen branch's commit.
-# Code signing is optional and off until the secrets exist. The updater signing key
-# (TAURI_SIGNING_PRIVATE_KEY) is required: it signs the update feed. See docs/release.md.
+# Code signing is optional and off until its secrets exist: a certificate of your own
+# (WINDOWS_CERTIFICATE) or SignPath (SIGNPATH_API_TOKEN + the SIGNPATH_* variables), never both.
+# The updater signing key (TAURI_SIGNING_PRIVATE_KEY) is required: it signs the update feed.
+# See docs/release.md.
 name: Release
 
 on:
@@ -143,10 +145,35 @@ jobs:
           "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           Write-Host "Signing with certificate $($cert.Subject)"
 
+      # ── Optional SignPath signing (off until the SignPath secret and variables exist) ──
+      # SignPath Foundation signs open-source releases for free (docs/release.md, "SignPath").
+      # It signs files outside the build, so the build runs in three parts: livery.exe, sent for
+      # signing; then the installer around the signed exe, sent for signing; then the updater
+      # signature of the signed installer. Each request waits for its approval on signpath.io.
+      - name: Check for SignPath
+        id: signpath-check
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          CERTIFICATE: ${{ steps.signing-check.outputs.enabled }}
+        run: |
+          if [ -n "${SIGNPATH_API_TOKEN}" ] && [ -n "${SIGNPATH_ORGANIZATION_ID}" ]; then
+            if [ "${CERTIFICATE}" = "true" ]; then
+              echo "::error::Both WINDOWS_CERTIFICATE and SignPath are set up. Keep only one."
+              exit 1
+            fi
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "SignPath: on"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "SignPath: off (no SIGNPATH_API_TOKEN secret or SIGNPATH_ORGANIZATION_ID variable)."
+          fi
+
       # ── Build ─────────────────────────────────────────────────────────────
       # `tauri build` runs `pnpm build` (tsc + vite) first, then cargo in release mode, then makensis,
       # then signs the installer for the updater (`<installer>.sig`, createUpdaterArtifacts).
       - name: Build the installer
+        if: steps.signpath-check.outputs.enabled != 'true'
         env:
           SIGNING_CONFIG: ${{ steps.signing.outputs.config }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -161,6 +188,104 @@ jobs:
           else
             pnpm tauri build --ci
           fi
+
+      # The SignPath way: the same build, in three parts (see "Check for SignPath"). Bundling writes
+      # the bundle type into livery.exe, so it runs once here, before the exe is signed; the
+      # second bundle below then finds it written and leaves the signed exe as it is.
+      - name: Build the app (SignPath)
+        if: steps.signpath-check.outputs.enabled == 'true'
+        run: pnpm tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Upload livery.exe for signing
+        id: upload-exe
+        if: steps.signpath-check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          path: src-tauri/target/release/livery.exe
+          archive: false
+          overwrite: true
+          retention-days: 1
+
+      # The only action not from `actions/*`: SignPath verifies the build's origin through it.
+      # Pinned to the commit of its v3.0 tag.
+      - name: Sign livery.exe (SignPath)
+        if: steps.signpath-check.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'Livery' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_EXE_CONFIGURATION || 'exe' }}
+          github-artifact-id: ${{ steps.upload-exe.outputs.artifact-id }}
+          wait-for-completion: true
+          # An approver signs off by hand on signpath.io.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/signed-exe
+          skip-decompress: true
+
+      - name: Bundle the installer around the signed app (SignPath)
+        if: steps.signpath-check.outputs.enabled == 'true'
+        run: |
+          shopt -s nullglob
+          signed=("${RUNNER_TEMP}"/signed-exe/*.exe)
+          if [ "${#signed[@]}" -ne 1 ]; then
+            echo "::error::Expected one signed exe from SignPath, found ${#signed[@]}."
+            exit 1
+          fi
+          cp "${signed[0]}" src-tauri/target/release/livery.exe
+          # The updater signature is written after the installer itself is signed.
+          pnpm tauri bundle --ci --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          files=(src-tauri/target/release/bundle/nsis/*-setup.exe)
+          if [ "${#files[@]}" -ne 1 ]; then
+            echo "::error::Expected one NSIS installer, found ${#files[@]}."
+            exit 1
+          fi
+          echo "INSTALLER=${files[0]}" >> "$GITHUB_ENV"
+
+      - name: Upload the installer for signing
+        id: upload-installer
+        if: steps.signpath-check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.INSTALLER }}
+          archive: false
+          overwrite: true
+          retention-days: 1
+
+      - name: Sign the installer (SignPath)
+        if: steps.signpath-check.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'Livery' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_INSTALLER_CONFIGURATION || 'installer' }}
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/signed-installer
+          skip-decompress: true
+
+      - name: Sign the signed installer for the updater (SignPath)
+        if: steps.signpath-check.outputs.enabled == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing: updates can't be signed (docs/release.md, \"Updates\")."
+            exit 1
+          fi
+          shopt -s nullglob
+          signed=("${RUNNER_TEMP}"/signed-installer/*.exe)
+          if [ "${#signed[@]}" -ne 1 ]; then
+            echo "::error::Expected one signed installer from SignPath, found ${#signed[@]}."
+            exit 1
+          fi
+          cp "${signed[0]}" "${INSTALLER}"
+          pnpm tauri signer sign "${INSTALLER}"
 
       - name: Locate the installer
         id: installer
@@ -209,6 +334,18 @@ jobs:
           Write-Host "Signature status: $($sig.Status) ($($sig.StatusMessage))"
           if (-not $sig.SignerCertificate -or $sig.SignerCertificate.Thumbprint -ne $env:THUMBPRINT) {
             throw 'The installer is not signed with the imported certificate.'
+          }
+
+      - name: Verify the SignPath signatures
+        if: steps.signpath-check.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          INSTALLER: ${{ steps.installer.outputs.path }}
+        run: |
+          foreach ($file in @('src-tauri/target/release/livery.exe', $env:INSTALLER)) {
+            $sig = Get-AuthenticodeSignature -FilePath $file
+            Write-Host "${file}: $($sig.Status), $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') { throw "$file is not validly signed ($($sig.StatusMessage))." }
           }
 
       # ── Draft release ─────────────────────────────────────────────────────

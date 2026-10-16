@@ -55,7 +55,7 @@ Checked on 2026-10-15 without buying anything; prices and eligibility change, so
 | Option | Fit for Livery | What to know |
 |---|---|---|
 | **Certum "Open Source Code Signing"** (Asseco, Poland) | The most likely fit: issued to individuals who maintain open-source projects, EU-based identity check. | Paid (yearly). The key lives on a Certum card/token or their SimplySign cloud, not in a `.pfx`, so it goes through way **B** (`signCommand` with signtool + their tool). The signer shown by Windows is your legal name, not "Pier144". |
-| **SignPath Foundation** | Free for open-source projects, signs in CI. | Reviews the project first; it expects every shipped component under an OSI licence, and UnRAR (freeware) may not qualify. Ask before applying, or ship a build without RAR support. |
+| **SignPath Foundation** | **The chosen way** (2026-10-16): free for open-source projects, signs in CI. See way **C**. | Reviews the project first and expects every shipped component under an OSI licence. Since 2026-10-16 Livery ships no UnRAR code (RAR is decoded by the user's 7-Zip or WinRAR), so nothing proprietary is left in the build. The signer Windows shows is "SignPath Foundation". |
 | **Azure Artifact Signing** (Microsoft; was Trusted Signing) | Cheapest per month and integrates with signtool (way **B**). | Identity validation for individuals was limited to some countries (US/Canada) when last checked: verify it's open in Italy. |
 | Classic OV certificate (DigiCert, Sectigo resellers…) | Works with way **A** or **B**. | Most expensive for an individual; since 2023 keys must be on hardware tokens, so no plain `.pfx`. |
 
@@ -115,6 +115,36 @@ What to change for B:
 2. In `release.yml`, replace the "Import the signing certificate" step with one that installs the vendor tool and writes that overlay. The vendor credentials become repository secrets passed as `env:` to that step and to "Build the installer" only (Tauri runs the command during the build). Install the tool with its own installer or CLI: the project uses official `actions/*` only, no third-party actions.
 3. Update "Verify the signature" (it compares the signer with an imported thumbprint).
 
+### C. SignPath Foundation (free, open source)
+
+SignPath signs files that a GitHub workflow uploads, outside the build, and only after a person approves each request on signpath.io. `release.yml` has this wired and **off** until the secret and variable below exist. With it on, the build runs in three parts:
+
+1. `pnpm tauri build --ci` (without updater artifacts) builds `livery.exe` and a first installer; bundling writes the bundle type into the exe, so this has to happen before the exe is signed. The exe is uploaded and signed (configuration `exe`).
+2. The signed exe goes back in place and `pnpm tauri bundle` builds the NSIS installer again around it, without the updater signature (the bundle type is already written, so the exe isn't changed: checked on 2026-10-16, same SHA-256 before and after); the installer is uploaded and signed (configuration `installer`).
+3. `pnpm tauri signer sign` writes `<installer>.sig` for the **signed** installer (signing changes the file, so the updater signature must come last). The usual steps then write the checksum, `latest.json` and the draft release, and "Verify the SignPath signatures" checks both files.
+
+Each release therefore waits for **two approvals** on signpath.io (the run waits up to an hour for each). The uninstaller inside the installer stays unsigned: Tauri signs it only while it builds the installer, which SignPath can't do.
+
+**One-time setup, after SignPath Foundation accepts the project:**
+
+1. In SignPath: add the predefined **GitHub.com** trusted build system and link it to the project; install the SignPath GitHub App on the repository. All team members (just you) need multi-factor authentication on GitHub and SignPath.
+2. Create the project (slug `Livery`), a signing policy `release-signing` with the Foundation's certificate and you as approver, and two artifact configurations. SignPath's onboarding gives the final form; a starting point, with the metadata restriction the Foundation asks for:
+
+   `exe`:
+   ```xml
+   <?xml version="1.0" encoding="utf-8"?>
+   <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+     <pe-file product-name="Livery">
+       <authenticode-sign/>
+     </pe-file>
+   </artifact-configuration>
+   ```
+   `installer`: the same, for `Livery_<version>_x64-setup.exe` (Tauri writes the product name into both files).
+3. In GitHub → Settings → Secrets and variables → Actions: the **secret** `SIGNPATH_API_TOKEN` (a CI user with the submitter role) and the **variable** `SIGNPATH_ORGANIZATION_ID`. The slugs default to `Livery`, `release-signing`, `exe` and `installer`; set the variables `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG`, `SIGNPATH_EXE_CONFIGURATION` or `SIGNPATH_INSTALLER_CONFIGURATION` only if you named them otherwise.
+4. Run the release. "Check for SignPath" prints `SignPath: on`; approve the two requests on signpath.io when the run waits for them.
+
+`signpath/github-action-submit-signing-request` is the only action not from `actions/*` (SignPath verifies the build's origin through it); it is pinned to the commit of its `v3.0` tag. A certificate of your own (way A) and SignPath can't both be on: the run stops if it finds both.
+
 ### Check a signed build
 
 ```powershell
@@ -173,7 +203,7 @@ The workflow needs only `GITHUB_TOKEN` with `contents: write` (declared in the w
 | Signing placeholder | `certificateThumbprint: null`, `digestAlgorithm: "sha256"`, `timestampUrl: ""` in `tauri.conf.json`. CI signs through a `--config` overlay only when the secret exists. | Unsigned builds work everywhere today; turning signing on needs no change to the committed config. |
 | Signing inside the build | Signing happens in `tauri build`, not on the finished installer. | The app exe and the uninstaller get signed too. |
 | Draft releases only | CI never publishes; a person does, after the VM test. | Acceptance on a clean VM comes before users see it. |
-| Official actions only | `actions/checkout@v7`, `actions/setup-node@v7`, `actions/cache@v6`; the rest are shell steps with preinstalled tools (rustup, gh, pwsh). | The author: no third-party actions. |
+| Official actions only | `actions/checkout@v7`, `actions/setup-node@v7`, `actions/cache@v6`, `actions/upload-artifact@v7`; the rest are shell steps with preinstalled tools (rustup, gh, pwsh). One exception, off until SignPath is set up: SignPath's own action, pinned to a commit (way C). | The author: no third-party actions. SignPath's origin check works only through its action. |
 | Node 24, pnpm pinned | Node 24 because it still bundles corepack (Node 25+ doesn't); pnpm 10.32.1 pinned in both workflows (`PNPM_VERSION`). | `package.json` has no `packageManager` field; the pin keeps CI on the version that wrote the lockfile. Update both workflows when you upgrade pnpm locally. |
 | Release caches | Restore-only for the pnpm store and cargo registry; the release build starts from a clean `target/`. | A release never writes caches, and its binaries don't depend on a cached build. |
 | Updater | `tauri-plugin-updater`, Rust side only; feed = `latest.json` on the latest published GitHub release; passive NSIS install; automatic updates install on close. | Approved by the author on 2026-10-15. No JS plugin package or extra capability: the commands are Livery's own (`check_update`, `install_update`). |

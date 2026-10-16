@@ -30,6 +30,7 @@ them with one click, and keep your `UserSkins` folder tidy.
 - **Install with one click**, or **try a skin in the game first** and keep it only if you like it.
 - **Install from files**: drop a ZIP, 7z or RAR (or a folder) on the window, or let Livery watch
   your Downloads folder. Packs with several skins install every skin, each for its own vehicle.
+  RAR archives open with the 7-Zip or WinRAR installed on your PC.
 - **My Hangar**: every installed skin with its picture, grouped by vehicle. Turn skins on and off,
   rename them (the name you see in the game's customisation menu changes too), uninstall them, and
   undo any of it.
@@ -91,6 +92,8 @@ then uses a smaller built-in list and recognises fewer skins.
 - **Something went wrong, or you have an idea:** use **Send feedback** in Settings → About (or type
   "feedback" in the command palette, Ctrl K). Bugs become [issues](https://github.com/Pier144/Livery/issues),
   ideas go to [Discussions](https://github.com/Pier144/Livery/discussions).
+- **A RAR archive doesn't open:** Livery unpacks RAR with the 7-Zip or WinRAR on your PC. Install
+  [7-Zip](https://www.7-zip.org/) (free), or unpack the archive yourself and drop the folder.
 
 ## In italiano
 
@@ -98,7 +101,7 @@ Livery è un gestore di skin per War Thunder, gratuito e non ufficiale (non affi
 Entertainment). Ti permette di:
 
 - sfogliare le skin di WT Live, installarle con un clic o provarle prima nel gioco;
-- installare skin da ZIP, 7z, RAR o cartelle;
+- installare skin da ZIP, 7z, RAR (con 7-Zip o WinRAR installato) o cartelle;
 - rinominare, disattivare e disinstallare le skin dall'Hangar, sempre con la possibilità di
   annullare;
 - usarlo in italiano (e in altre otto lingue), con i nomi dei veicoli come li scrive il gioco.
@@ -109,12 +112,29 @@ l'installer non è ancora firmato. Livery si aggiorna da solo. Per segnalare un 
 un'idea usa **Invia un feedback** in Impostazioni → Informazioni. Si collega solo a WT Live e a GitHub,
 non raccoglie dati e non ha account.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+- **What is signed:** the Windows installer (`Livery_<version>_x64-setup.exe`) and the app inside it
+  (`livery.exe`), built from this repository by the public
+  [release workflow](.github/workflows/release.yml) on GitHub-hosted runners. Nothing built
+  elsewhere is signed.
+- **Committers and reviewers:** [Pier144](https://github.com/Pier144) (the maintainer). Changes
+  from anyone else are reviewed by the maintainer before they are merged.
+- **Approvers:** [Pier144](https://github.com/Pier144). Every release is approved by hand before it
+  is signed.
+- **Privacy:** Livery's privacy policy is the [Privacy](#privacy) section above. In short, no
+  account and no telemetry: it connects only to WT Live, when you browse or install skins, and to
+  GitHub, to check for updates.
+
 ## License
 
 Livery is free software under the [MIT licence](LICENSE). It includes open-source libraries and
 fonts under their own licences: every one, with its full text, is listed in the app (Settings →
-About → Licenses) and in `THIRD-PARTY-NOTICES.txt` attached to each release. RAR support uses the
-freeware UnRAR library by Alexander Roshal, under its own licence.
+About → Licenses) and in `THIRD-PARTY-NOTICES.txt` attached to each release. Livery contains no
+RAR code of its own: RAR archives are unpacked by the 7-Zip or WinRAR already installed on your PC.
 
 **Developers:** see [docs/development.md](docs/development.md) to build and run Livery, and
 [docs/release.md](docs/release.md) for releases.
