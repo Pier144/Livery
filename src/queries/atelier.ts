@@ -4,7 +4,16 @@ import { parseModelBuffer, type VehicleModelData } from '@/atelier/modelBuffer';
 import { errorText } from '@/lib/errors';
 import { call, callRaw, hasBackend, toAppError } from '@/lib/tauri';
 import { toast } from '@/store/toasts';
-import type { AppError, AtelierProject, AtelierProjectSummary } from '@/types';
+import type { FontRef } from '@/atelier/project';
+import type {
+  AppError,
+  AssetRef,
+  AtelierProject,
+  AtelierProjectSummary,
+  CutoutResult,
+  CutoutStatus,
+  FontInfo,
+} from '@/types';
 
 /** Everything Atelier caches (projects, models, templates, thumbnails). */
 export const ATELIER_KEY = ['atelier'] as const;
@@ -177,5 +186,186 @@ export function useSetThumb() {
     mutationFn: ({ id, png }) => callRaw<null>('atelier_project_thumb', png, { 'x-project-id': id }),
     onSuccess: (_, { id }) =>
       Promise.all([qc.invalidateQueries({ queryKey: thumbKey(id) }), qc.invalidateQueries({ queryKey: ATELIER_PROJECTS_KEY })]),
+  });
+}
+
+// ── Pictures, fonts, background removal (Phase 2) ───────────────────────────
+
+/** The backend's command names for pictures, fonts and background removal (a rename is one line here). */
+export const ATELIER_CMD = {
+  importImage: 'atelier_import_image',
+  asset: 'atelier_asset',
+  assetPut: 'atelier_asset_put',
+  projectOpen: 'atelier_project_open',
+  fonts: 'atelier_fonts',
+  fontFile: 'atelier_font_file',
+  cutoutStatus: 'atelier_cutout_status',
+  cutoutDownload: 'atelier_cutout_download',
+  cutoutCancel: 'atelier_cutout_cancel',
+  cutoutRemove: 'atelier_cutout_remove',
+  cutout: 'atelier_cutout',
+} as const;
+
+export const atelierAssetKey = (projectId: string, assetId: string) => ['atelier', 'asset', projectId, assetId] as const;
+export const ATELIER_FONTS_KEY = ['atelier', 'fonts'] as const;
+export const fontFileKey = (font: FontRef) => ['atelier', 'font', font.family, font.style] as const;
+export const CUTOUT_STATUS_KEY = ['atelier', 'cutout-status'] as const;
+
+/** A picture as RGBA8 rows top to bottom, straight alpha. */
+export interface RawPicture {
+  width: number;
+  height: number;
+  rgba: Uint8Array<ArrayBuffer>;
+}
+
+/** Bytes before the pixels in `atelier_asset`'s answer: `u32` width and height, little-endian. */
+export const ASSET_HEADER_BYTES = 8;
+
+/** `atelier_asset`'s answer read; throws `Error('asset: …')` when its length doesn't match its size. */
+export function parseAssetBuffer(buf: ArrayBuffer): RawPicture {
+  if (buf.byteLength < ASSET_HEADER_BYTES) throw new Error(`asset: ${buf.byteLength} bytes`);
+  const view = new DataView(buf);
+  const width = view.getUint32(0, true);
+  const height = view.getUint32(4, true);
+  if (width === 0 || height === 0 || buf.byteLength !== ASSET_HEADER_BYTES + width * height * 4) {
+    throw new Error(`asset: ${width}x${height} in ${buf.byteLength} bytes`);
+  }
+  return { width, height, rgba: new Uint8Array(buf, ASSET_HEADER_BYTES) };
+}
+
+/** Imports a picture the user picked (a local absolute path) into the project's assets. */
+export function importImage(projectId: string, path: string): Promise<AssetRef> {
+  return call<AssetRef>(ATELIER_CMD.importImage, { projectId, path });
+}
+
+/** A picture of the project, as raw RGBA (never through PNG in the webview: colour under alpha 0 stays). */
+export async function fetchAsset(projectId: string, assetId: string): Promise<RawPicture> {
+  return parseAssetBuffer(toArrayBuffer(await call<unknown>(ATELIER_CMD.asset, { projectId, assetId })));
+}
+
+/** Stores raw RGBA pixels as a new picture of the project (Refine edge); sides up to 4096. */
+export function putAsset(projectId: string, picture: RawPicture): Promise<AssetRef> {
+  return callRaw<AssetRef>(ATELIER_CMD.assetPut, picture.rgba, {
+    'x-project-id': projectId,
+    'x-width': String(picture.width),
+    'x-height': String(picture.height),
+  });
+}
+
+/** The editor opened the project (history empty): the backend drops pictures nothing uses. */
+export async function openProjectAssets(projectId: string): Promise<void> {
+  await call<null>(ATELIER_CMD.projectOpen, { projectId });
+}
+
+/** The installed fonts (read again on every call). */
+export function fetchFonts(): Promise<FontInfo[]> {
+  return call<FontInfo[]>(ATELIER_CMD.fonts);
+}
+
+/** The bytes of an installed font (for `new FontFace`). */
+export async function fetchFontFile(font: FontRef): Promise<ArrayBuffer> {
+  return toArrayBuffer(await call<unknown>(ATELIER_CMD.fontFile, { family: font.family, style: font.style }));
+}
+
+export function fetchCutoutStatus(): Promise<CutoutStatus> {
+  return call<CutoutStatus>(ATELIER_CMD.cutoutStatus);
+}
+
+/** Downloads what background removal still needs (progress on `atelier://download-progress`). */
+export async function downloadCutoutFiles(): Promise<void> {
+  await call<null>(ATELIER_CMD.cutoutDownload);
+}
+
+/** Cancels the running download or cutout, whichever runs (it then fails with its cancelled error). */
+export async function cancelCutoutWork(): Promise<void> {
+  await call<null>(ATELIER_CMD.cutoutCancel);
+}
+
+export function removeCutoutFiles(): Promise<CutoutStatus> {
+  return call<CutoutStatus>(ATELIER_CMD.cutoutRemove);
+}
+
+/** Removes the background of a picture into a new asset (progress on `atelier://cutout-progress`); the original stays. */
+export function cutoutAsset(projectId: string, assetId: string): Promise<CutoutResult> {
+  return call<CutoutResult>(ATELIER_CMD.cutout, { projectId, assetId });
+}
+
+export function useImportImage() {
+  return useMutation<AssetRef, AppError, { projectId: string; path: string }>({
+    mutationFn: ({ projectId, path }) => importImage(projectId, path),
+  });
+}
+
+/**
+ * A picture of the project. Not kept once nothing reads it (`gcTime: 0`): consumers turn it into
+ * an ImageBitmap or texture and drop the bytes.
+ */
+export function useAsset(projectId: string | null, assetId: string | null) {
+  return useQuery<RawPicture, AppError>({
+    queryKey: atelierAssetKey(projectId ?? '', assetId ?? ''),
+    queryFn: () => fetchAsset(projectId ?? '', assetId ?? ''),
+    enabled: projectId !== null && assetId !== null && hasBackend(),
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+}
+
+export function usePutAsset() {
+  return useMutation<AssetRef, AppError, { projectId: string; picture: RawPicture }>({
+    mutationFn: ({ projectId, picture }) => putAsset(projectId, picture),
+  });
+}
+
+/** The installed fonts for the text pickers. */
+export function useFonts() {
+  return useQuery<FontInfo[], AppError>({
+    queryKey: ATELIER_FONTS_KEY,
+    queryFn: fetchFonts,
+    enabled: hasBackend(),
+    staleTime: 60_000,
+  });
+}
+
+/** A font's bytes; not kept once nothing reads them (`gcTime: 0`, consumers make a FontFace). */
+export function useFontFile(font: FontRef | null) {
+  return useQuery<ArrayBuffer, AppError>({
+    queryKey: fontFileKey(font ?? { family: '', style: '' }),
+    queryFn: () => fetchFontFile(font ?? { family: '', style: '' }),
+    enabled: font !== null && hasBackend(),
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+}
+
+/** Whether the background-removal files are on this PC (Settings and the Remove background flow). */
+export function useCutoutStatus(enabled = true) {
+  return useQuery<CutoutStatus, AppError>({
+    queryKey: CUTOUT_STATUS_KEY,
+    queryFn: fetchCutoutStatus,
+    enabled: enabled && hasBackend(),
+  });
+}
+
+/** Downloads the background-removal files; the status is read again however it ends. */
+export function useDownloadCutoutFiles() {
+  const qc = useQueryClient();
+  return useMutation<void, AppError, void>({
+    mutationFn: downloadCutoutFiles,
+    onSettled: () => qc.invalidateQueries({ queryKey: CUTOUT_STATUS_KEY }),
+  });
+}
+
+/** Removes the background-removal files (Settings); the answer is the new status. */
+export function useRemoveCutoutFiles() {
+  const qc = useQueryClient();
+  return useMutation<CutoutStatus, AppError, void>({
+    mutationFn: removeCutoutFiles,
+    onSuccess: (status) => qc.setQueryData(CUTOUT_STATUS_KEY, status),
+  });
+}
+
+export function useCutout() {
+  return useMutation<CutoutResult, AppError, { projectId: string; assetId: string }>({
+    mutationFn: ({ projectId, assetId }) => cutoutAsset(projectId, assetId),
   });
 }

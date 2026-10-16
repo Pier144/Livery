@@ -1,19 +1,47 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseModelBuffer } from '@/atelier/modelBuffer';
+import en from '@/i18n/en.json';
+import { parseAssetBuffer } from '@/queries/atelier';
 import {
   EVENTS,
   type AppError,
   type ApplyProgress,
   type ApplyResult,
   type ApplyStarted,
+  type AssetRef,
   type AtelierProject,
   type AtelierProjectSummary,
+  type CutoutProgress,
+  type CutoutResult,
+  type CutoutStatus,
+  type DownloadProgress,
+  type FontInfo,
   type HangarSkin,
   type Settings,
 } from '@/types';
 import { configureMockBackend, mockCall, mockListen, resetMockBackend } from './mockBackend';
 import { MOCK_GAME } from './mockData';
-import { MOCK_TEXTURE_SIZE, mockTemplate } from './mockAtelier';
+import {
+  ASSET_INVALID,
+  ASSET_NOT_FOUND,
+  CUTOUT_BUSY,
+  CUTOUT_FAILED,
+  CUTOUT_MARGIN,
+  CUTOUT_NOT_READY,
+  DOWNLOAD_BUSY,
+  DOWNLOAD_CANCELLED,
+  FONT_NOT_FOUND,
+  IMAGE_TOO_LARGE,
+  IMAGE_UNREADABLE,
+  MOCK_MODEL_BYTES,
+  MOCK_PICTURE_HEIGHT,
+  MOCK_PICTURE_WIDTH,
+  MOCK_RUNTIME_BYTES,
+  MOCK_RUNTIME_DOWNLOAD_BYTES,
+  MOCK_TEXTURE_SIZE,
+  mockPicture,
+  mockTemplate,
+} from './mockAtelier';
 
 const VEHICLE = 'germ_leopard_2a6';
 const BODY = `${VEHICLE}_body_c`;
@@ -284,5 +312,153 @@ describe('mock Atelier · start-up switch', () => {
     resetMockBackend();
     expect((await call<Settings>('get_settings')).atelierEnabled).toBe(true);
     expect((await call<Settings>('set_settings', { patch: { atelierEnabled: false } })).atelierEnabled).toBe(false);
+  });
+});
+
+describe('mock Atelier · pictures', () => {
+  it('imports a generated picture and answers it as raw RGBA with a size header', async () => {
+    const p = await create();
+    await expect(call('atelier_project_open', { projectId: p.id })).resolves.toBeNull();
+    const ref = await call<AssetRef>('atelier_import_image', { projectId: p.id, path: 'C:\\Pictures\\megumin.PNG' });
+    expect(ref).toEqual({ id: expect.stringMatching(/^img-/), width: MOCK_PICTURE_WIDTH, height: MOCK_PICTURE_HEIGHT });
+    const picture = parseAssetBuffer(await call<ArrayBuffer>('atelier_asset', { projectId: p.id, assetId: ref.id }));
+    expect(picture).toMatchObject({ width: MOCK_PICTURE_WIDTH, height: MOCK_PICTURE_HEIGHT });
+    expect(picture.rgba).toEqual(mockPicture().rgba);
+  });
+
+  it('refuses paths and extensions like Rust, and unknown projects and assets', async () => {
+    const p = await create();
+    for (const path of ['relative\\a.png', '\\\\server\\share\\a.png', '\\\\?\\C:\\a.png', 'C:\\a.gif', 'C:\\noext']) {
+      expect(await rejection(call('atelier_import_image', { projectId: p.id, path })), path).toMatchObject({
+        code: 'invalidInput',
+        message: IMAGE_UNREADABLE,
+      });
+    }
+    expect(await rejection(call('atelier_import_image', { projectId: 'p-none', path: 'C:\\a.png' }))).toMatchObject({ code: 'notFound' });
+    expect(await rejection(call('atelier_asset', { projectId: p.id, assetId: 'img-none' }))).toMatchObject({
+      code: 'notFound',
+      message: ASSET_NOT_FOUND,
+    });
+  });
+
+  it('stores raw RGBA as a new picture, keeping colour under alpha 0, and checks its size', async () => {
+    const p = await create();
+    const rgba = new Uint8Array([10, 20, 30, 0, 40, 50, 60, 255]);
+    const put = (body: Uint8Array, w: string, h: string, id = p.id) =>
+      raw<AssetRef>('atelier_asset_put', body, { 'x-project-id': id, 'x-width': w, 'x-height': h });
+    const ref = await put(rgba, '2', '1');
+    expect(ref).toMatchObject({ width: 2, height: 1 });
+    expect(parseAssetBuffer(await call<ArrayBuffer>('atelier_asset', { projectId: p.id, assetId: ref.id })).rgba).toEqual(rgba);
+    for (const [w, h] of [['2', '2'], ['x', '1'], ['0', '0'], ['4097', '1']] as const) {
+      expect(await rejection(put(rgba, w, h)), `${w}x${h}`).toMatchObject({ code: 'invalidInput', message: ASSET_INVALID });
+    }
+    expect(await rejection(put(rgba, '2', '1', 'p-none'))).toMatchObject({ code: 'notFound' });
+  });
+
+  it('sends the messages Rust sends (translated in every UI language)', () => {
+    const backend = Object.values(en.common.errors.backend) as string[];
+    for (const message of [IMAGE_UNREADABLE, IMAGE_TOO_LARGE, ASSET_NOT_FOUND, ASSET_INVALID, FONT_NOT_FOUND]) {
+      expect(backend).toContain(message);
+    }
+  });
+});
+
+describe('mock Atelier · fonts', () => {
+  it('lists two families and answers their bytes from the self-hosted files', async () => {
+    const fonts = await call<FontInfo[]>('atelier_fonts');
+    expect(new Set(fonts.map((f) => f.family))).toEqual(new Set(['Geist', 'IBM Plex Mono']));
+    expect(fonts).toContainEqual({ family: 'Geist', style: 'Regular', file: 'Geist-Regular.woff2' });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(new Uint8Array([0x77, 0x4f, 0x46, 0x32])));
+    try {
+      const bytes = await call<ArrayBuffer>('atelier_font_file', { family: 'Geist', style: 'Regular' });
+      expect(new Uint8Array(bytes)).toEqual(new Uint8Array([0x77, 0x4f, 0x46, 0x32]));
+      expect(String(fetchSpy.mock.calls[0]?.[0])).toContain('Geist-Regular');
+      expect(await rejection(call('atelier_font_file', { family: 'Arial', style: 'Regular' }))).toMatchObject({
+        code: 'notFound',
+        message: FONT_NOT_FOUND,
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+describe('mock Atelier · background removal', () => {
+  const status = () => call<CutoutStatus>('atelier_cutout_status');
+
+  it('downloads the runtime then the model with progress, then cuts out a disc cropped with its margin', async () => {
+    expect(await status()).toEqual({
+      runtime: false,
+      model: false,
+      bytes: 0,
+      downloadBytes: MOCK_RUNTIME_DOWNLOAD_BYTES + MOCK_MODEL_BYTES,
+      pendingRemoval: false,
+    });
+    const p = await create();
+    const source = await call<AssetRef>('atelier_import_image', { projectId: p.id, path: 'C:\\a.png' });
+    expect(await rejection(call('atelier_cutout', { projectId: p.id, assetId: source.id }))).toMatchObject({ message: CUTOUT_NOT_READY });
+
+    const seen: DownloadProgress[] = [];
+    const off = mockListen<DownloadProgress>(EVENTS.atelierDownloadProgress, (e) => seen.push(e));
+    await call('atelier_cutout_download');
+    off();
+    expect(seen[0]).toEqual({ item: 'runtime', received: 0, total: MOCK_RUNTIME_DOWNLOAD_BYTES });
+    expect(seen.at(-1)).toEqual({ item: 'model', received: MOCK_MODEL_BYTES, total: MOCK_MODEL_BYTES });
+    expect(await status()).toMatchObject({ runtime: true, model: true, bytes: MOCK_RUNTIME_BYTES + MOCK_MODEL_BYTES, downloadBytes: 0 });
+
+    const steps: string[] = [];
+    const offSteps = mockListen<CutoutProgress>(EVENTS.atelierCutoutProgress, (e) => steps.push(e.step));
+    const { asset, crop } = await call<CutoutResult>('atelier_cutout', { projectId: p.id, assetId: source.id });
+    offSteps();
+    expect(steps).toEqual(['load', 'run', 'write']);
+    expect(crop).toEqual({ x: 140 - CUTOUT_MARGIN, y: 50 - CUTOUT_MARGIN, w: 200 + 2 * CUTOUT_MARGIN, h: 200 + 2 * CUTOUT_MARGIN });
+    expect(asset).toMatchObject({ width: crop.w, height: crop.h });
+    const cut = parseAssetBuffer(await call<ArrayBuffer>('atelier_asset', { projectId: p.id, assetId: asset.id }));
+    const at = (x: number, y: number) => cut.rgba.slice((y * cut.width + x) * 4, (y * cut.width + x) * 4 + 4);
+    // The corner is background: transparent, its colour kept. The centre is the opaque disc.
+    const original = mockPicture();
+    const so = (crop.y * original.width + crop.x) * 4;
+    expect([...at(0, 0)]).toEqual([...original.rgba.slice(so, so + 3), 0]);
+    expect(at(cut.width >> 1, cut.height >> 1)[3]).toBe(255);
+    // The original stays.
+    await expect(call('atelier_asset', { projectId: p.id, assetId: source.id })).resolves.toBeInstanceOf(ArrayBuffer);
+  });
+
+  it('cancel stops a download; a second one while one runs is refused', async () => {
+    const first = call('atelier_cutout_download');
+    expect(await rejection(call('atelier_cutout_download'))).toMatchObject({ code: 'conflict', message: DOWNLOAD_BUSY });
+    await call('atelier_cutout_cancel');
+    expect(await rejection(first)).toMatchObject({ message: DOWNLOAD_CANCELLED });
+    expect((await status()).model).toBe(false);
+    // Nothing runs any more: cancel is a no-op, a new download completes.
+    await expect(call('atelier_cutout_cancel')).resolves.toBeNull();
+    await call('atelier_cutout_download');
+    expect(await status()).toMatchObject({ runtime: true, model: true });
+  });
+
+  it('remove: refused while busy; pending when the runtime was loaded', async () => {
+    await call('atelier_cutout_download');
+    expect(await call<CutoutStatus>('atelier_cutout_remove')).toMatchObject({ runtime: false, model: false, bytes: 0, pendingRemoval: false });
+    await call('atelier_cutout_download');
+    const p = await create();
+    const source = await call<AssetRef>('atelier_import_image', { projectId: p.id, path: 'C:\\a.png' });
+    const running = call('atelier_cutout', { projectId: p.id, assetId: source.id });
+    expect(await rejection(call('atelier_cutout_remove'))).toMatchObject({ code: 'conflict', message: CUTOUT_BUSY });
+    await running;
+    expect(await call<CutoutStatus>('atelier_cutout_remove')).toMatchObject({
+      runtime: false,
+      model: false,
+      bytes: MOCK_RUNTIME_BYTES,
+      pendingRemoval: true,
+    });
+  });
+
+  it('cancel stops a cutout', async () => {
+    await call('atelier_cutout_download');
+    const p = await create();
+    const source = await call<AssetRef>('atelier_import_image', { projectId: p.id, path: 'C:\\a.png' });
+    const running = call('atelier_cutout', { projectId: p.id, assetId: source.id });
+    await call('atelier_cutout_cancel');
+    expect(await rejection(running)).toMatchObject({ message: CUTOUT_FAILED });
   });
 });

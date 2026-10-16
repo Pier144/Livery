@@ -16,7 +16,19 @@
 // and write steps of `atelier://apply-progress` a moment apart → `atelier_apply_commit` installs
 // a `mine` skin in the hangar (over the project's skin, keeping its id, when it is still there)
 // and emits install then done.
+//
+// Pictures (src-tauri/src/atelier/assets.rs): `atelier_import_image` checks the path like Rust
+// and stores a generated picture (a gradient background with a disc), whatever the file is;
+// `atelier_asset` / `atelier_asset_put` move raw RGBA (8-byte size header on the answer). Fonts:
+// two families, Geist and IBM Plex Mono, whose bytes are the app's self-hosted woff2 files.
+// Background removal: the files "download" with fake progress, a cutout makes a disc-masked copy
+// cropped to the disc (plus the 16 px margin), like the real crop.
 
+import geistMediumUrl from '@/assets/fonts/Geist-Medium.woff2?url';
+import geistRegularUrl from '@/assets/fonts/Geist-Regular.woff2?url';
+import geistSemiBoldUrl from '@/assets/fonts/Geist-SemiBold.woff2?url';
+import plexMonoRegularUrl from '@/assets/fonts/ibm-plex-mono-latin-400-normal.woff2?url';
+import plexMonoMediumUrl from '@/assets/fonts/ibm-plex-mono-latin-500-normal.woff2?url';
 import {
   MODEL_MAGIC,
   MODEL_PREAMBLE_BYTES,
@@ -31,8 +43,15 @@ import {
   type ApplyResult,
   type ApplyStarted,
   type ApplyStep,
+  type AssetRef,
   type AtelierProject,
   type AtelierProjectSummary,
+  type CropRect,
+  type CutoutProgress,
+  type CutoutResult,
+  type CutoutStatus,
+  type DownloadProgress,
+  type FontInfo,
   type HangarSkin,
   type ModelHeader,
   type ModelPart,
@@ -56,6 +75,19 @@ export const APPLY_NOTHING = 'Turn on at least one part to apply';
 export const APPLY_BAD_SLOT = "This part isn't turned on for this apply";
 export const APPLY_BAD_TEXTURE = 'A painted texture has the wrong size';
 export const APPLY_FAILED = "The skin couldn't be applied to the game";
+export const IMAGE_UNREADABLE = "This picture can't be read";
+export const IMAGE_TOO_LARGE = 'This picture is too large';
+export const ASSET_NOT_FOUND = 'This picture is missing from the project';
+export const ASSET_INVALID = "This picture can't be used";
+export const FONT_NOT_FOUND = "This font isn't installed";
+// Background removal (Rust Tasks P2/P3): kept in step with src-tauri/src/atelier/{download,models,cutout}.rs.
+export const DOWNLOAD_FAILED = "The background removal files couldn't be downloaded";
+export const DOWNLOAD_CORRUPT = 'A downloaded file is damaged';
+export const DOWNLOAD_CANCELLED = 'The download was cancelled';
+export const DOWNLOAD_BUSY = 'The background removal files are already downloading';
+export const CUTOUT_BUSY = 'Background removal is busy';
+export const CUTOUT_NOT_READY = 'Background removal needs its files first';
+export const CUTOUT_FAILED = "The background couldn't be removed";
 
 const MAX_NAME_CHARS = 80;
 const MAX_LAYERS = 500;
@@ -271,16 +303,140 @@ interface MockApply {
   lastPct: number;
 }
 
+/** A stored picture: RGBA8 rows top to bottom, straight alpha. */
+export interface MockPicture {
+  width: number;
+  height: number;
+  rgba: Uint8Array;
+}
+
+/** The background-removal files and what is running with them. */
+interface MockCutout {
+  runtime: boolean;
+  model: boolean;
+  /** Removed while the runtime was loaded: gone at the next start. */
+  pendingRemoval: boolean;
+  /** A cutout ran in this process (the runtime DLL is mapped). */
+  loaded: boolean;
+  busy: 'download' | 'cutout' | null;
+  cancelled: boolean;
+}
+
 export interface AtelierMockState {
   projects: Map<string, AtelierProject>;
   trash: Map<string, { project: AtelierProject; thumb?: Uint8Array }>;
   thumbs: Map<string, Uint8Array>;
   applies: Map<string, MockApply>;
+  /** Pictures per project id, by asset id. */
+  assets: Map<string, Map<string, MockPicture>>;
+  cutout: MockCutout;
 }
 
 export function createAtelierState(): AtelierMockState {
-  return { projects: new Map(), trash: new Map(), thumbs: new Map(), applies: new Map() };
+  return {
+    projects: new Map(),
+    trash: new Map(),
+    thumbs: new Map(),
+    applies: new Map(),
+    assets: new Map(),
+    cutout: { runtime: false, model: false, pendingRemoval: false, loaded: false, busy: null, cancelled: false },
+  };
 }
+
+// ── Pictures, fonts, background removal ────────────────────────────────────
+
+/** Size of the picture `atelier_import_image` makes. */
+export const MOCK_PICTURE_WIDTH = 480;
+export const MOCK_PICTURE_HEIGHT = 320;
+/** Rust `MAX_ASSET_SIDE`. */
+const MAX_ASSET_SIDE = 4096;
+const IMPORT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tga'];
+/** The disc of the generated picture (and the cutout's mask): centre and radius in pixels. */
+const DISC = { x: 240, y: 150, r: 100 };
+/** Margin the cutout's crop keeps around the subject (cutout.rs). */
+export const CUTOUT_MARGIN = 16;
+/** Pinned sizes (models.rs): the ONNX Runtime zip and the model to download, the runtime DLL on disk. */
+export const MOCK_RUNTIME_DOWNLOAD_BYTES = 60_000_000;
+export const MOCK_RUNTIME_BYTES = 14_000_000;
+export const MOCK_MODEL_BYTES = 176_069_933;
+/** Fake progress: steps per file and the time between them (scaled by the mock's time scale). */
+const DOWNLOAD_STEPS = 10;
+const DOWNLOAD_STEP_MS = 150;
+const CUTOUT_STEP_MS = 400;
+
+/** The fonts `atelier_fonts` lists (the app's own woff2 files stand in for Windows fonts). */
+const MOCK_FONTS: readonly (FontInfo & { url: string })[] = [
+  { family: 'Geist', style: 'Regular', file: 'Geist-Regular.woff2', url: geistRegularUrl },
+  { family: 'Geist', style: 'Medium', file: 'Geist-Medium.woff2', url: geistMediumUrl },
+  { family: 'Geist', style: 'SemiBold', file: 'Geist-SemiBold.woff2', url: geistSemiBoldUrl },
+  { family: 'IBM Plex Mono', style: 'Regular', file: 'ibm-plex-mono-latin-400-normal.woff2', url: plexMonoRegularUrl },
+  { family: 'IBM Plex Mono', style: 'Medium', file: 'ibm-plex-mono-latin-500-normal.woff2', url: plexMonoMediumUrl },
+];
+
+/**
+ * The picture every import gives: a vertical gradient (sky to sand) with a hill band, and an
+ * opaque disc (the "subject") in a warm colour. Colours are data, not UI styling.
+ */
+export function mockPicture(width = MOCK_PICTURE_WIDTH, height = MOCK_PICTURE_HEIGHT): MockPicture {
+  const rgba = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    const t = y / Math.max(1, height - 1);
+    for (let x = 0; x < width; x += 1) {
+      const o = (y * width + x) * 4;
+      const inDisc = Math.hypot(x - DISC.x, y - DISC.y) <= DISC.r;
+      const hill = y > height * 0.7 + Math.sin(x / 40) * 12;
+      const [r, g, b] = inDisc ? [214, 92, 64] : hill ? [96, 128, 72] : [Math.round(120 + 100 * t), Math.round(170 + 40 * t), Math.round(230 - 90 * t)];
+      rgba[o] = r;
+      rgba[o + 1] = g;
+      rgba[o + 2] = b;
+      rgba[o + 3] = 255;
+    }
+  }
+  return { width, height, rgba };
+}
+
+/**
+ * The mock cutout: alpha multiplied by a disc mask (the generated picture's disc, scaled to the
+ * picture's size; RGB untouched), cropped to the disc's box plus CUTOUT_MARGIN (clamped).
+ */
+export function mockCutout(source: MockPicture): { picture: MockPicture; crop: CropRect } {
+  const k = Math.min(source.width / MOCK_PICTURE_WIDTH, source.height / MOCK_PICTURE_HEIGHT);
+  const cx = DISC.x * (source.width / MOCK_PICTURE_WIDTH);
+  const cy = DISC.y * (source.height / MOCK_PICTURE_HEIGHT);
+  const r = Math.max(1, DISC.r * k);
+  const x0 = Math.max(0, Math.floor(cx - r) - CUTOUT_MARGIN);
+  const y0 = Math.max(0, Math.floor(cy - r) - CUTOUT_MARGIN);
+  const x1 = Math.min(source.width, Math.ceil(cx + r) + CUTOUT_MARGIN);
+  const y1 = Math.min(source.height, Math.ceil(cy + r) + CUTOUT_MARGIN);
+  const crop: CropRect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  const rgba = new Uint8Array(crop.w * crop.h * 4);
+  for (let y = 0; y < crop.h; y += 1) {
+    for (let x = 0; x < crop.w; x += 1) {
+      const sx = x + x0;
+      const sy = y + y0;
+      const from = (sy * source.width + sx) * 4;
+      const to = (y * crop.w + x) * 4;
+      rgba.set(source.rgba.subarray(from, from + 4), to);
+      // Soft one-pixel edge, like a model's mask.
+      const inside = Math.min(1, Math.max(0, r + 0.5 - Math.hypot(sx + 0.5 - cx, sy + 0.5 - cy)));
+      rgba[to + 3] = Math.round((source.rgba[from + 3] ?? 0) * inside);
+    }
+  }
+  return { picture: { width: crop.w, height: crop.h, rgba }, crop };
+}
+
+/** `atelier_asset`'s answer: `u32` width and height (little-endian), then the pixels. */
+export function encodeAsset(picture: MockPicture): ArrayBuffer {
+  const buf = new ArrayBuffer(8 + picture.rgba.length);
+  const view = new DataView(buf);
+  view.setUint32(0, picture.width, true);
+  view.setUint32(4, picture.height, true);
+  new Uint8Array(buf, 8).set(picture.rgba);
+  return buf;
+}
+
+/** Rust `is_local_absolute`: a drive path (`C:\…`), never UNC or device paths. */
+const isLocalAbsolute = (path: string) => /^[A-Za-z]:[\\/]/.test(path);
 
 /** What Atelier needs from the rest of the mock backend. */
 export interface AtelierHost {
@@ -390,6 +546,32 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
 
   const progress = (applyId: string, step: ApplyStep, pct: number, extra: Partial<ApplyProgress> = {}) =>
     host.emit(EVENTS.atelierApplyProgress, { applyId, step, pct, ...extra } satisfies ApplyProgress);
+
+  /** Stores a picture as a new asset of the project. */
+  const store = (projectId: string, pic: MockPicture): AssetRef => {
+    const st = host.atelier();
+    const id = host.newId('img');
+    const assets = st.assets.get(projectId) ?? new Map<string, MockPicture>();
+    assets.set(id, pic);
+    st.assets.set(projectId, assets);
+    return { id, width: pic.width, height: pic.height };
+  };
+
+  const picture = (projectId: string, assetId: string): MockPicture => {
+    project(projectId);
+    return host.atelier().assets.get(projectId)?.get(assetId) ?? fail('notFound', ASSET_NOT_FOUND, assetId);
+  };
+
+  const cutoutStatus = (): CutoutStatus => {
+    const c = host.atelier().cutout;
+    return {
+      runtime: c.runtime,
+      model: c.model,
+      bytes: (c.runtime || c.pendingRemoval ? MOCK_RUNTIME_BYTES : 0) + (c.model ? MOCK_MODEL_BYTES : 0),
+      downloadBytes: (c.runtime ? 0 : MOCK_RUNTIME_DOWNLOAD_BYTES) + (c.model ? 0 : MOCK_MODEL_BYTES),
+      pendingRemoval: c.pendingRemoval,
+    };
+  };
 
   return {
     atelier_model: (args) => {
@@ -619,6 +801,128 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
     atelier_apply_cancel: (args) => {
       host.atelier().applies.delete(str('atelier_apply_cancel', args, 'applyId'));
       return null;
+    },
+
+    // ── Pictures ──
+
+    atelier_project_open: (args) => {
+      project(str('atelier_project_open', args, 'projectId'));
+      return null;
+    },
+
+    atelier_import_image: (args): AssetRef => {
+      const projectId = str('atelier_import_image', args, 'projectId');
+      const path = str('atelier_import_image', args, 'path');
+      project(projectId);
+      if (!isLocalAbsolute(path)) fail('invalidInput', IMAGE_UNREADABLE, 'not a local absolute path');
+      const ext = /\.([^.\\/]+)$/.exec(path)?.[1]?.toLowerCase() ?? '';
+      if (!IMPORT_EXTENSIONS.includes(ext)) fail('invalidInput', IMAGE_UNREADABLE, `extension ${JSON.stringify(ext)}`);
+      return store(projectId, mockPicture());
+    },
+
+    atelier_asset: (args) => {
+      const projectId = str('atelier_asset', args, 'projectId');
+      const assetId = str('atelier_asset', args, 'assetId');
+      return encodeAsset(picture(projectId, assetId));
+    },
+
+    atelier_asset_put: (args): AssetRef => {
+      const projectId = header(args, 'x-project-id') ?? fail('notFound', PROJECT_NOT_FOUND, 'no x-project-id header');
+      const side = (name: string): number => {
+        const value = header(args, name)?.trim() ?? '';
+        return /^\d+$/.test(value) ? Number(value) : fail('invalidInput', ASSET_INVALID, `no number in ${name}`);
+      };
+      const w = side('x-width');
+      const h = side('x-height');
+      const rgba = body(args) ?? fail('invalidInput', ASSET_INVALID, 'not a raw request body');
+      const sideOk = (s: number) => s > 0 && s <= MAX_ASSET_SIDE;
+      if (!sideOk(w) || !sideOk(h) || rgba.length !== w * h * 4) fail('invalidInput', ASSET_INVALID, `${w}x${h} picture in ${rgba.length} bytes`);
+      project(projectId);
+      return store(projectId, { width: w, height: h, rgba: rgba.slice() });
+    },
+
+    // ── Fonts ──
+
+    atelier_fonts: (): FontInfo[] => MOCK_FONTS.map(({ family, style, file }) => ({ family, style, file })),
+
+    atelier_font_file: async (args) => {
+      const family = str('atelier_font_file', args, 'family');
+      const style = str('atelier_font_file', args, 'style');
+      const font = MOCK_FONTS.find((f) => f.family === family && f.style === style) ?? fail('notFound', FONT_NOT_FOUND, `${family} ${style}`);
+      const response = await fetch(font.url);
+      if (!response.ok) fail('io', FONT_NOT_FOUND, `${font.file}: HTTP ${response.status}`);
+      return response.arrayBuffer();
+    },
+
+    // ── Background removal ──
+
+    atelier_cutout_status: (): CutoutStatus => cutoutStatus(),
+
+    atelier_cutout_download: async () => {
+      const c = host.atelier().cutout;
+      if (c.busy === 'download') fail('conflict', DOWNLOAD_BUSY);
+      if (c.busy) fail('conflict', CUTOUT_BUSY);
+      c.busy = 'download';
+      c.cancelled = false;
+      try {
+        for (const item of ['runtime', 'model'] as const) {
+          if (c[item]) continue;
+          const total = item === 'runtime' ? MOCK_RUNTIME_DOWNLOAD_BYTES : MOCK_MODEL_BYTES;
+          for (let step = 0; step <= DOWNLOAD_STEPS; step += 1) {
+            if (c.cancelled) fail('network', DOWNLOAD_CANCELLED);
+            const received = Math.round((total * step) / DOWNLOAD_STEPS);
+            host.emit(EVENTS.atelierDownloadProgress, { item, received, total } satisfies DownloadProgress);
+            if (step < DOWNLOAD_STEPS) await host.wait(DOWNLOAD_STEP_MS);
+          }
+          c[item] = true;
+          c.pendingRemoval = false;
+        }
+        return null;
+      } finally {
+        c.busy = null;
+        c.cancelled = false;
+      }
+    },
+
+    atelier_cutout_cancel: () => {
+      const c = host.atelier().cutout;
+      if (c.busy) c.cancelled = true;
+      return null;
+    },
+
+    atelier_cutout_remove: (): CutoutStatus => {
+      const c = host.atelier().cutout;
+      if (c.busy) fail('conflict', CUTOUT_BUSY);
+      // A runtime loaded in this process can't be deleted until Livery restarts.
+      c.pendingRemoval = c.runtime && c.loaded;
+      c.runtime = false;
+      c.model = false;
+      return cutoutStatus();
+    },
+
+    atelier_cutout: async (args): Promise<CutoutResult> => {
+      const projectId = str('atelier_cutout', args, 'projectId');
+      const assetId = str('atelier_cutout', args, 'assetId');
+      const c = host.atelier().cutout;
+      if (!c.runtime || !c.model) fail('unsupported', CUTOUT_NOT_READY);
+      if (c.busy) fail('conflict', CUTOUT_BUSY);
+      const source = picture(projectId, assetId);
+      c.busy = 'cutout';
+      c.cancelled = false;
+      try {
+        for (const step of ['load', 'run', 'write'] as const) {
+          if (c.cancelled) fail('internal', CUTOUT_FAILED, 'cancelled');
+          host.emit(EVENTS.atelierCutoutProgress, { step } satisfies CutoutProgress);
+          if (step === 'load') c.loaded = true;
+          await host.wait(CUTOUT_STEP_MS);
+        }
+        if (c.cancelled) fail('internal', CUTOUT_FAILED, 'cancelled');
+        const { picture: cut, crop } = mockCutout(source);
+        return { asset: store(projectId, cut), crop };
+      } finally {
+        c.busy = null;
+        c.cancelled = false;
+      }
     },
   };
 }

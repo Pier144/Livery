@@ -2,16 +2,35 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_BASE_COLOR,
   DEFAULT_CAMO_COLOR,
+  DEFAULT_FONT,
+  DEFAULT_OUTLINE_COLOR,
+  DEFAULT_TEXT_COLOR,
+  MAX_DECAL_SIZE,
+  MAX_OUTLINE_WIDTH,
+  MAX_SKEW,
+  MAX_TEXT_CHARS,
+  MIN_DECAL_SIZE,
   baseOf,
+  checkDecalLayer,
+  decalLayers,
+  decalRight,
+  defaultDepth,
+  isDecalLayer,
   maskOf,
   newBaseLayer,
+  newImageLayer,
   newMaskLayer,
+  newTextLayer,
   serializeLayers,
   checkLayers,
   partGroupOf,
+  toDecal,
   validateLayers,
+  type ImageLayer,
   type MaskLayer,
   type Stroke,
+  type TextLayer,
+  type Vec3,
 } from './project';
 
 const stroke = (over: Partial<Stroke> = {}): Stroke => ({
@@ -43,7 +62,7 @@ describe('layers', () => {
   it('moves the Base to the bottom and the mask to the top, keeping the first of each', () => {
     const json = [
       { id: 'm1', kind: 'mask', name: '', visible: true, strokes: [] },
-      { id: 'img', kind: 'image', name: 'Bust', visible: true, assetId: 'x' },
+      { id: 'img', kind: 'sticker', name: 'Bust', visible: true, assetId: 'x' },
       { id: 'b1', kind: 'base', name: '', visible: true, mode: 'solid', colors: ['#112233'], scale: 1, seed: 1 },
       { id: 'b2', kind: 'base', name: '', visible: true, mode: 'solid', colors: ['#445566'], scale: 1, seed: 1 },
       { id: 'm2', kind: 'mask', name: '', visible: true, strokes: [] },
@@ -54,7 +73,7 @@ describe('layers', () => {
   });
 
   it('keeps unsupported kinds exactly as they came when saved back', () => {
-    const image = { id: 'img', kind: 'image', name: 'Bust', visible: false, assetId: 'a1', decal: { width: 1 } };
+    const image = { id: 'img', kind: 'sticker', name: 'Bust', visible: false, assetId: 'a1', decal: { width: 1 } };
     const layers = validateLayers([image]);
     expect(serializeLayers(layers)[1]).toEqual(image);
   });
@@ -136,5 +155,183 @@ describe('layers', () => {
     const layers = validateLayers([{ id: 'b', kind: 'base' }, { id: 'm', kind: 'mask', strokes: [stroke()] }]);
     const json = JSON.parse(JSON.stringify(serializeLayers(layers))) as unknown;
     expect(validateLayers(json)).toEqual(layers);
+  });
+});
+
+const decal = (over: Record<string, unknown> = {}) => ({
+  center: [0.5, 0.2, 0.1],
+  normal: [1, 0, 0],
+  up: [0, 1, 0],
+  width: 0.4,
+  height: 0.2,
+  depth: 0.04,
+  part: 'all',
+  mirror: false,
+  ...over,
+});
+const image = (over: Record<string, unknown> = {}) => ({
+  id: 'i',
+  kind: 'image',
+  name: '',
+  visible: true,
+  assetId: 'img-1',
+  decal: decal(),
+  opacity: 1,
+  flipX: false,
+  ...over,
+});
+const text = (over: Record<string, unknown> = {}) => ({
+  id: 't',
+  kind: 'text',
+  name: '',
+  visible: true,
+  text: 'EXPLOSION!',
+  font: { family: 'Arial', style: 'Bold' },
+  color: '#ffffff',
+  outlineColor: '#000000',
+  outlineWidth: 4,
+  skew: 0.1,
+  decal: decal(),
+  opacity: 0.8,
+  ...over,
+});
+const BASE = { id: 'b', kind: 'base', name: '', visible: true, mode: 'solid', colors: ['#56603f'], scale: 1, seed: 1 };
+const MASK = { id: 'm', kind: 'mask', name: '', visible: true, strokes: [] };
+
+describe('image and text layers', () => {
+  it('keeps them between Base and mask in their order, valid ones clean and saved back as they came', () => {
+    const json = [
+      BASE,
+      text({ id: 't1' }),
+      image({ id: 'i1', sourceAssetId: 'img-0', sourceOffset: { x: 3, y: 4, w: 10, h: 20 } }),
+      image({ id: 'i2' }),
+      { id: 'u', kind: 'sticker', name: '', visible: true },
+      MASK,
+    ];
+    const { layers, repaired } = checkLayers(json);
+    expect(repaired).toBe(false);
+    expect(layers.map((l) => `${l.kind}:${l.id}`)).toEqual(['base:b', 'text:t1', 'image:i1', 'image:i2', 'unsupported:u', 'mask:m']);
+    expect(serializeLayers(layers)).toEqual(json);
+    expect(decalLayers(layers).map((l) => l.id)).toEqual(['t1', 'i1', 'i2']);
+    expect(isDecalLayer(layers[1])).toBe(true);
+    expect(isDecalLayer(layers[4])).toBe(false);
+  });
+
+  it('moves misplaced ones between Base and mask (a structural repair)', () => {
+    const { layers, repaired } = checkLayers([image({ id: 'i1' }), MASK, BASE, text({ id: 't1' })]);
+    expect(layers.map((l) => l.id)).toEqual(['b', 'i1', 't1', 'm']);
+    expect(repaired).toBe(true);
+  });
+
+  it('clamps numbers and repairs fields', () => {
+    const [, img, txt] = validateLayers([
+      BASE,
+      image({ opacity: 3, flipX: 'yes', sourceAssetId: '', sourceOffset: { x: -1, y: 0, w: 1, h: 1 }, extra: 7 }),
+      text({
+        text: 'x'.repeat(250),
+        font: 'Impact',
+        color: 'red',
+        outlineColor: '#ABCDEF',
+        outlineWidth: 99,
+        skew: -2,
+        opacity: Number.NaN,
+        decal: decal({ width: 1e6, height: -1, depth: 'deep', part: '', mirror: 1 }),
+      }),
+    ]);
+    expect(img).toMatchObject({ kind: 'image', opacity: 1, flipX: false, extra: 7 });
+    expect(img).not.toHaveProperty('sourceAssetId');
+    expect(img).not.toHaveProperty('sourceOffset');
+    expect(txt).toMatchObject({
+      kind: 'text',
+      font: { family: 'Impact', style: 'Regular' },
+      color: DEFAULT_TEXT_COLOR,
+      outlineColor: '#abcdef',
+      outlineWidth: MAX_OUTLINE_WIDTH,
+      skew: -MAX_SKEW,
+      opacity: 1,
+    });
+    expect((txt as TextLayer).text).toHaveLength(MAX_TEXT_CHARS);
+    expect((txt as TextLayer).decal).toMatchObject({
+      width: MAX_DECAL_SIZE,
+      height: MIN_DECAL_SIZE,
+      depth: defaultDepth(MAX_DECAL_SIZE),
+      part: 'all',
+      mirror: false,
+    });
+  });
+
+  it('text defaults: font, colours, empty text, no decal', () => {
+    const [, txt] = validateLayers([BASE, { id: 't', kind: 'text' }]);
+    expect(txt).toMatchObject({
+      text: '',
+      font: DEFAULT_FONT,
+      color: DEFAULT_TEXT_COLOR,
+      outlineColor: DEFAULT_OUTLINE_COLOR,
+      outlineWidth: 0,
+      skew: 0,
+      opacity: 1,
+      decal: null,
+    });
+  });
+
+  it('keeps a layer whose decal does not check out, with the decal dropped (flagged)', () => {
+    for (const bad of [
+      decal({ center: [0, Number.NaN, 0] }),
+      decal({ normal: [0, 0, 0] }),
+      decal({ up: [2, 0, 0] }), // parallel to the normal
+      decal({ up: [0, 0, 0] }),
+      decal({ width: Number.POSITIVE_INFINITY }),
+      decal({ height: undefined }),
+      'here',
+    ]) {
+      const [, img] = validateLayers([BASE, image({ decal: bad })]);
+      expect(img).toMatchObject({ kind: 'image', assetId: 'img-1', decal: null });
+    }
+  });
+
+  it('makes the decal frame orthonormal, and keeps a valid one bit for bit', () => {
+    const [, img] = validateLayers([BASE, image({ decal: decal({ normal: [2, 0, 0], up: [0.5, 3, 0] }) })]);
+    const d = (img as ImageLayer).decal!;
+    expect(d.normal).toEqual([1, 0, 0]);
+    expect(d.up[0]).toBeCloseTo(0);
+    expect(d.up[1]).toBeCloseTo(1);
+    const n: Vec3 = [0.6, 0.8, 0];
+    const u: Vec3 = [-0.8, 0.6, 0];
+    const [, kept] = validateLayers([BASE, image({ decal: decal({ normal: n, up: u }) })]);
+    expect((kept as ImageLayer).decal?.normal).toBe(n);
+    expect((kept as ImageLayer).decal?.up).toBe(u);
+    expect(decalRight({ normal: [0, 0, 1], up: [0, 1, 0] })).toEqual([1, 0, 0]);
+  });
+
+  it('an image without an asset is kept as unsupported, exactly as it came', () => {
+    const raw = image({ assetId: 42 });
+    const layers = validateLayers([BASE, raw]);
+    expect(layers[1]?.kind).toBe('unsupported');
+    expect(serializeLayers(layers)[1]).toEqual(raw);
+  });
+
+  it('checkDecalLayer re-checks an edited layer', () => {
+    const [, txt] = validateLayers([BASE, text()]);
+    expect(checkDecalLayer({ ...(txt as TextLayer), skew: 4 })).toMatchObject({ skew: MAX_SKEW });
+    const [, img] = validateLayers([BASE, image()]);
+    expect(checkDecalLayer({ ...(img as ImageLayer), assetId: '' })).toBeNull();
+  });
+
+  it('new image and text layers have their defaults', () => {
+    const d = toDecal(decal())!;
+    expect(newImageLayer('img-1', d, 'Bust')).toMatchObject({
+      kind: 'image',
+      name: 'Bust',
+      visible: true,
+      assetId: 'img-1',
+      decal: d,
+      opacity: 1,
+      flipX: false,
+    });
+    const t = newTextLayer('y'.repeat(300), d);
+    expect(t).toMatchObject({ kind: 'text', font: DEFAULT_FONT, color: DEFAULT_TEXT_COLOR, outlineWidth: 0, skew: 0 });
+    expect(t.text).toHaveLength(MAX_TEXT_CHARS);
+    expect(defaultDepth(0.05)).toBe(0.02);
+    expect(defaultDepth(1)).toBeCloseTo(0.1);
   });
 });

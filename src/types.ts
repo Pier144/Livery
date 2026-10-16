@@ -149,6 +149,8 @@ export const EVENTS = {
   hangarChanged: 'hangar://changed',
   netStatus: 'net://status',
   atelierApplyProgress: 'atelier://apply-progress',
+  atelierDownloadProgress: 'atelier://download-progress',
+  atelierCutoutProgress: 'atelier://cutout-progress',
 } as const;
 export type ConflictPolicy = 'ask' | 'replace' | 'copy' | 'skip';
 export type GameSource = 'steam' | 'standalone' | 'custom';
@@ -460,4 +462,54 @@ export interface ModelHeader {
   parts: ModelPart[];
   vertexCount: number;
   indexCount: number;
+}
+/** A picture in a project's assets (`atelier_import_image`, `atelier_asset_put`); sizes in pixels. */
+export interface AssetRef {
+  id: string;
+  width: number;
+  height: number;
+}
+/** A crop rectangle in pixels (origin top-left, y down). */
+export interface CropRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+/** `atelier_cutout`: the cut-out picture (a new asset) and where it lies inside the source picture. */
+export interface CutoutResult {
+  asset: AssetRef;
+  crop: CropRect;
+}
+/** A Windows font (`atelier_fonts`): layers store `{ family, style }`; `file` is the font's file name. */
+export interface FontInfo {
+  family: string;
+  /** `Regular`, `Bold`, `Italic`, `Bold Italic`… */
+  style: string;
+  file: string;
+}
+/** `atelier_cutout_status`: whether the background-removal files are on this PC. */
+export interface CutoutStatus {
+  /** ONNX Runtime is installed. */
+  runtime: boolean;
+  /** The isnet-anime model is installed. */
+  model: boolean;
+  /** Bytes they take on disk now. */
+  bytes: number;
+  /** Bytes still to download: the pinned sizes of the files that are missing (0 when ready). */
+  downloadBytes: number;
+  /** Removed, but the runtime was in use: the files go the next time Livery starts. */
+  pendingRemoval: boolean;
+}
+export type DownloadItem = 'runtime' | 'model';
+/** Payload of `atelier://download-progress` (at most ten a second). */
+export interface DownloadProgress {
+  item: DownloadItem;
+  received: number;
+  total: number;
+}
+export type CutoutStep = 'load' | 'run' | 'write';
+/** Payload of `atelier://cutout-progress`. */
+export interface CutoutProgress {
+  step: CutoutStep;
 }

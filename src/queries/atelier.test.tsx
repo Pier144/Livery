@@ -9,9 +9,24 @@ import { resetStores } from '@/test/render';
 import type { AtelierProject } from '@/types';
 import {
   ATELIER_PROJECTS_KEY,
+  CUTOUT_STATUS_KEY,
+  atelierAssetKey,
   atelierProjectKey,
+  cancelCutoutWork,
+  fontFileKey,
+  importImage,
+  openProjectAssets,
+  parseAssetBuffer,
+  putAsset,
   thumbKey,
   toArrayBuffer,
+  useAsset,
+  useCutout,
+  useCutoutStatus,
+  useDownloadCutoutFiles,
+  useFontFile,
+  useFonts,
+  useRemoveCutoutFiles,
   useDeleteProject,
   useSaveProject,
   useSetThumb,
@@ -172,5 +187,86 @@ describe('Atelier queries', () => {
     expect(backend.callRaw).toHaveBeenCalledWith('atelier_project_thumb', png, { 'x-project-id': 'p-1' });
     expect(client.getQueryState(thumbKey('p-1'))?.isInvalidated).toBe(true);
     expect(client.getQueryState(ATELIER_PROJECTS_KEY)?.isInvalidated).toBe(true);
+  });
+});
+
+/** `atelier_asset`'s answer for a w×h picture whose bytes count up. */
+function assetBuffer(w: number, h: number, extra = 0): ArrayBuffer {
+  const buf = new ArrayBuffer(8 + w * h * 4 + extra);
+  const view = new DataView(buf);
+  view.setUint32(0, w, true);
+  view.setUint32(4, h, true);
+  new Uint8Array(buf, 8).forEach((_, i, a) => (a[i] = i % 256));
+  return buf;
+}
+
+describe('Atelier queries · pictures, fonts, background removal', () => {
+  it('parseAssetBuffer reads the size header and checks the length', () => {
+    const picture = parseAssetBuffer(assetBuffer(2, 3));
+    expect(picture).toMatchObject({ width: 2, height: 3 });
+    expect(picture.rgba).toHaveLength(24);
+    expect(picture.rgba[5]).toBe(5);
+    expect(() => parseAssetBuffer(assetBuffer(2, 3, 1))).toThrow('asset: 2x3');
+    expect(() => parseAssetBuffer(new ArrayBuffer(4))).toThrow('asset: 4 bytes');
+    expect(() => parseAssetBuffer(assetBuffer(0, 3))).toThrow('asset: 0x3');
+  });
+
+  it('useAsset reads raw RGBA and is dropped from the cache once unused', async () => {
+    backend.call.mockResolvedValue(assetBuffer(1, 1));
+    const { client, wrapper } = setup();
+    const { result, unmount } = renderHook(() => useAsset('p-1', 'img-1'), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(backend.call).toHaveBeenCalledWith('atelier_asset', { projectId: 'p-1', assetId: 'img-1' });
+    expect(result.current.data?.rgba).toEqual(new Uint8Array([0, 1, 2, 3]));
+    unmount();
+    await waitFor(() => expect(client.getQueryData(atelierAssetKey('p-1', 'img-1'))).toBeUndefined());
+  });
+
+  it('putAsset sends the pixels as a raw body with the size headers; importImage and openProjectAssets pass their ids', async () => {
+    const ref = { id: 'img-2', width: 2, height: 1 };
+    backend.callRaw.mockResolvedValue(ref);
+    backend.call.mockResolvedValue(ref);
+    const rgba = new Uint8Array(8);
+    await expect(putAsset('p-1', { width: 2, height: 1, rgba })).resolves.toEqual(ref);
+    expect(backend.callRaw).toHaveBeenCalledWith('atelier_asset_put', rgba, { 'x-project-id': 'p-1', 'x-width': '2', 'x-height': '1' });
+    await importImage('p-1', 'C:\\pics\\a.png');
+    expect(backend.call).toHaveBeenCalledWith('atelier_import_image', { projectId: 'p-1', path: 'C:\\pics\\a.png' });
+    backend.call.mockResolvedValue(null);
+    await openProjectAssets('p-1');
+    expect(backend.call).toHaveBeenCalledWith('atelier_project_open', { projectId: 'p-1' });
+  });
+
+  it('fonts: the list, and a font file not kept in the cache', async () => {
+    const fonts = [{ family: 'Arial', style: 'Regular', file: 'arial.ttf' }];
+    backend.call.mockImplementation(async (cmd) => (cmd === 'atelier_fonts' ? fonts : new Uint8Array([7, 8]).buffer));
+    const { client, wrapper } = setup();
+    const { result } = renderHook(() => [useFonts(), useFontFile({ family: 'Arial', style: 'Regular' })] as const, { wrapper });
+    await waitFor(() => expect(result.current[0].isSuccess && result.current[1].isSuccess).toBe(true));
+    expect(result.current[0].data).toEqual(fonts);
+    expect(new Uint8Array(result.current[1].data!)).toEqual(new Uint8Array([7, 8]));
+    expect(backend.call).toHaveBeenCalledWith('atelier_font_file', { family: 'Arial', style: 'Regular' });
+    expect(client.getQueryCache().find({ queryKey: fontFileKey({ family: 'Arial', style: 'Regular' }) })?.options.gcTime).toBe(0);
+  });
+
+  it('background removal: status, download refreshes it, remove writes it, cutout and cancel', async () => {
+    const status = { runtime: false, model: false, bytes: 0, downloadBytes: 190e6, pendingRemoval: false };
+    const result = { asset: { id: 'img-3', width: 10, height: 10 }, crop: { x: 1, y: 2, w: 10, h: 10 } };
+    backend.call.mockImplementation(async (cmd) => {
+      if (cmd === 'atelier_cutout_status') return status;
+      if (cmd === 'atelier_cutout_remove') return { ...status, pendingRemoval: true };
+      if (cmd === 'atelier_cutout') return result;
+      return null;
+    });
+    const { client, wrapper } = setup();
+    const hooks = renderHook(() => [useCutoutStatus(), useDownloadCutoutFiles(), useRemoveCutoutFiles(), useCutout()] as const, { wrapper });
+    await waitFor(() => expect(hooks.result.current[0].data).toEqual(status));
+    await act(() => hooks.result.current[1].mutateAsync());
+    expect(backend.call).toHaveBeenCalledWith('atelier_cutout_download', undefined);
+    await act(() => hooks.result.current[2].mutateAsync());
+    expect(client.getQueryData(CUTOUT_STATUS_KEY)).toMatchObject({ pendingRemoval: true });
+    await expect(act(() => hooks.result.current[3].mutateAsync({ projectId: 'p-1', assetId: 'img-1' }))).resolves.toEqual(result);
+    expect(backend.call).toHaveBeenCalledWith('atelier_cutout', { projectId: 'p-1', assetId: 'img-1' });
+    await cancelCutoutWork();
+    expect(backend.call).toHaveBeenCalledWith('atelier_cutout_cancel', undefined);
   });
 });

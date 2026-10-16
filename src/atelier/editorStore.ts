@@ -1,15 +1,32 @@
 import { create } from 'zustand';
-import type { AtelierProject } from '@/types';
+import type { AssetRef, AtelierProject, CropRect } from '@/types';
 import {
+  MAX_DECAL_SIZE,
+  MIN_DECAL_SIZE,
+  add,
   baseOf,
+  checkDecalLayer,
   checkLayers,
+  decalRight,
+  isDecalLayer,
   maskOf,
+  newImageLayer,
+  newLayerId,
   newMaskLayer,
+  newTextLayer,
+  scale,
   serializeLayers,
+  sub,
+  toDecal,
   type BaseLayer,
+  type Decal,
+  type DecalLayer,
+  type FontRef,
+  type ImageLayer,
   type Layer,
   type MaskLayer,
   type Stroke,
+  type TextLayer,
   type Vec3,
 } from './project';
 
@@ -18,6 +35,63 @@ export const HISTORY_LIMIT = 100;
 
 /** What a Base edit may change. */
 export type BasePatch = Partial<Pick<BaseLayer, 'mode' | 'colors' | 'scale' | 'seed'>>;
+
+/** What `setLayerProps` may change on an image or text layer (fields of the other kind are ignored). */
+export type LayerPropsPatch = Partial<Omit<ImageLayer, 'id' | 'kind' | 'decal'> & Omit<TextLayer, 'id' | 'kind' | 'decal'>>;
+
+/**
+ * A new image or text layer waiting for its placement click (outside `layers`: no history, no
+ * autosave). `aspect` is width / height of the picture or of the measured text, for the default size.
+ */
+export type PendingPlacement =
+  | { kind: 'image'; assetId: string; aspect: number; name?: string }
+  | { kind: 'text'; text: string; font: FontRef; aspect: number };
+
+/** Where `duplicateLayer` puts the copy: this fraction of the decal's height down and right along the surface. */
+export const DUPLICATE_OFFSET = 0.05;
+
+/**
+ * The width / height of a text layer as drawn now (its font, or the stand-in while the font
+ * loads), or null when it can't be measured. `src/atelier/text.ts` provides it; tests set their own.
+ */
+export type TextMeasurer = (layer: TextLayer) => number | null;
+
+let textMeasurer: TextMeasurer | null = null;
+
+/** Sets how text layers are measured (null: text widths are left as they are). */
+export function setTextMeasurer(measurer: TextMeasurer | null): void {
+  textMeasurer = measurer;
+}
+
+/** `layer` with a text decal's width set from the measured aspect (the same object when nothing changes). */
+function withTextWidth<T extends DecalLayer>(layer: T): T {
+  if (layer.kind !== 'text' || !layer.decal || !textMeasurer) return layer;
+  const aspect = textMeasurer(layer);
+  if (aspect === null || !Number.isFinite(aspect) || aspect <= 0) return layer;
+  const width = Math.min(MAX_DECAL_SIZE, Math.max(MIN_DECAL_SIZE, layer.decal.height * aspect));
+  return width === layer.decal.width ? layer : { ...layer, decal: { ...layer.decal, width } };
+}
+
+/** The decal of a duplicate: moved down and right along the surface by DUPLICATE_OFFSET of its height. */
+function offsetDecal(decal: Decal): Decal {
+  const step = (DUPLICATE_OFFSET * decal.height) / Math.SQRT2;
+  return { ...decal, center: add(decal.center, scale(sub(decalRight(decal), decal.up), step)) };
+}
+
+/**
+ * The decal refitted after a cutout: the same model units per source pixel (per axis, so a
+ * stretched picture stays stretched alike), sized to the crop and moved by the crop centre's
+ * offset from the source centre (image y down; mirrored along u when the layer is flipped), so
+ * the picture neither stretches nor moves on the model.
+ */
+export function refitDecal(decal: Decal, crop: CropRect, source: { width: number; height: number }, flipX: boolean): Decal {
+  const sx = decal.width / source.width;
+  const sy = decal.height / source.height;
+  const du = (crop.x + crop.w / 2 - source.width / 2) * sx * (flipX ? -1 : 1);
+  const dv = -(crop.y + crop.h / 2 - source.height / 2) * sy;
+  const center = add(add(decal.center, scale(decalRight(decal), du)), scale(decal.up, dv));
+  return { ...decal, center, width: crop.w * sx, height: crop.h * sy };
+}
 
 interface EditorState {
   /** The open project (its `layers` field is stale: `layers` below is the truth). */
@@ -36,11 +110,14 @@ interface EditorState {
   /**
    * Edits sharing this key make a single undo step (one slider drag, one colour picker session).
    * The gesture ends with `endGesture()`, which callers call on pointer-up / change-commit / blur;
-   * any other action ends it too. Two drags with the same key are two steps.
+   * any other action ends it too. Two drags with the same key are two steps. Layer edits
+   * (`setDecal`, `setLayerProps`) scope the key to the layer.
    */
   mergeKey: string | null;
   /** What `beginStroke` replaced, put back when the stroke ends without a point. */
   strokeBefore: { future: Layer[][]; dirty: boolean; revision: number } | null;
+  /** A new image or text layer waiting for its placement click (see PendingPlacement). */
+  pending: PendingPlacement | null;
 
   load(project: AtelierProject): void;
   setBase(patch: BasePatch, mergeKey?: string): void;
@@ -55,6 +132,28 @@ interface EditorState {
   toggleLayerVisible(id: string): void;
   renameLayer(id: string, name: string): void;
   select(id: string | null): void;
+  /** Adds an image or text layer above the selected image/text layer, else just under the mask; selects it. */
+  addDecalLayer(layer: DecalLayer): void;
+  /** Any layer but the Base; the selection moves to the layer below. */
+  deleteLayer(id: string): void;
+  /** A copy of an image or text layer right above it, moved a little along the surface; selects it. */
+  duplicateLayer(id: string): void;
+  /** Image, text and unsupported layers only, kept between the Base and the mask. */
+  moveLayer(id: string, toIndex: number): void;
+  /** A decal edit; on a layer without a decal, `patch` must be a whole decal. Ignored when the result doesn't check out. */
+  setDecal(id: string, patch: Partial<Decal>, mergeKey?: string): void;
+  /** Ignored when the result doesn't check out (e.g. an empty asset id); numbers are clamped. */
+  setLayerProps(id: string, patch: LayerPropsPatch, mergeKey?: string): void;
+  /** Switches an image layer to its cut-out picture, keeping it where it was on the model (one undo step). */
+  applyCutout(layerId: string, asset: AssetRef, crop: CropRect, sourceAsset: AssetRef): void;
+  /** Re-measures a text layer (its font finished loading): no undo step, saved like any change. */
+  refreshTextMetrics(layerId: string): void;
+  /** Placement: a new layer waits for its click (replaces any pending one). */
+  beginPlacement(pending: PendingPlacement): void;
+  /** Escape: drops the pending layer (nothing to undo). */
+  cancelPlacement(): void;
+  /** The placement click: adds the pending layer with this decal as one undo step and selects it; its id, or null without a pending layer or a valid decal. */
+  placePending(decal: Decal): string | null;
   undo(): void;
   redo(): void;
   /** Project settings (outside the undo history): */
@@ -77,6 +176,7 @@ const initial = {
   stroking: false,
   mergeKey: null,
   strokeBefore: null,
+  pending: null,
 };
 
 /** The project as `atelier_project_save` takes it (null when none is open). */
@@ -88,6 +188,25 @@ export function currentProject(state: Pick<EditorState, 'project' | 'layers'>): 
 function pushed(past: Layer[][], layers: Layer[]): Layer[][] {
   const next = [...past, layers];
   return next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next;
+}
+
+/** `layers` with the layer `id` replaced by `next`. */
+function replaced(layers: readonly Layer[], id: string, next: Layer): Layer[] {
+  return layers.map((l) => (l.id === id ? next : l));
+}
+
+/** Where a new decal layer goes: above the selected image, text or unsupported layer, else just under the mask. */
+function insertIndex(layers: readonly Layer[], selectedId: string | null): number {
+  const selected = layers.findIndex((l) => l.id === selectedId);
+  const kind = layers[selected]?.kind;
+  if (selected >= 0 && kind !== 'base' && kind !== 'mask') return selected + 1;
+  const mask = layers.findIndex((l) => l.kind === 'mask');
+  return mask >= 0 ? mask : layers.length;
+}
+
+/** `layers` with `layer` inserted at `at`. */
+function inserted(layers: readonly Layer[], at: number, layer: Layer): Layer[] {
+  return [...layers.slice(0, at), layer, ...layers.slice(at)];
 }
 
 /** `layers` with the mask replaced by `change(mask)`; a mask is added (pinned last) when there is none. */
@@ -110,6 +229,24 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       ...extra,
     }));
 
+  /** A layer change merged into the current gesture when `mergeKey` is its key, else one undo step. */
+  const change = (layers: Layer[], mergeKey?: string) => {
+    if (mergeKey !== undefined && mergeKey === get().mergeKey) {
+      // Same gesture: the step pushed at its start already holds the layers before it.
+      set((s) => ({ layers, dirty: true, revision: s.revision + 1, future: [] }));
+      return;
+    }
+    commit(layers, { mergeKey: mergeKey ?? null });
+  };
+
+  /** A merge key scoped to one layer, so the same gesture on two layers makes two steps. */
+  const layerKey = (id: string, mergeKey?: string) => (mergeKey === undefined ? undefined : `${id}\u0000${mergeKey}`);
+
+  const decalLayer = (id: string): DecalLayer | undefined => {
+    const layer = get().layers.find((l) => l.id === id);
+    return isDecalLayer(layer) ? layer : undefined;
+  };
+
   /** A project setting change (saved, never undone). */
   const setProject = (change: (p: AtelierProject) => AtelierProject) =>
     set((s) => (s.project ? { project: change(s.project), dirty: true, revision: s.revision + 1 } : {}));
@@ -124,16 +261,13 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     },
 
     setBase: (patch, mergeKey) => {
-      const { layers, mergeKey: current } = get();
+      const { layers } = get();
       const base = baseOf(layers);
       if (!base) return;
-      const next = layers.map((l) => (l === base ? { ...base, ...patch } : l));
-      if (mergeKey !== undefined && mergeKey === current) {
-        // Same gesture: the step pushed at its start already holds the layers before it.
-        set((s) => ({ layers: next, dirty: true, revision: s.revision + 1, future: [] }));
-        return;
-      }
-      commit(next, { mergeKey: mergeKey ?? null });
+      change(
+        layers.map((l) => (l === base ? { ...base, ...patch } : l)),
+        mergeKey,
+      );
     },
 
     endGesture: () => set({ mergeKey: null }),
@@ -208,6 +342,111 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     },
 
     select: (id) => set({ selectedId: id, mergeKey: null }),
+
+    addDecalLayer: (layer) => {
+      const { layers, selectedId } = get();
+      const added = withTextWidth(layer);
+      commit(inserted(layers, insertIndex(layers, selectedId), added), { selectedId: added.id });
+    },
+
+    deleteLayer: (id) => {
+      const { layers, selectedId } = get();
+      const at = layers.findIndex((l) => l.id === id);
+      if (at < 0 || layers[at]?.kind === 'base') return;
+      commit(
+        layers.filter((l) => l.id !== id),
+        { selectedId: selectedId === id ? (layers[at - 1]?.id ?? null) : selectedId },
+      );
+    },
+
+    duplicateLayer: (id) => {
+      const { layers } = get();
+      const at = layers.findIndex((l) => l.id === id);
+      const layer = layers[at];
+      if (!isDecalLayer(layer)) return;
+      const copy: DecalLayer = { ...structuredClone(layer), id: newLayerId() };
+      if (copy.decal) copy.decal = offsetDecal(copy.decal);
+      commit(inserted(layers, at + 1, copy), { selectedId: copy.id });
+    },
+
+    moveLayer: (id, toIndex) => {
+      const { layers } = get();
+      const at = layers.findIndex((l) => l.id === id);
+      const layer = layers[at];
+      if (!layer || layer.kind === 'base' || layer.kind === 'mask' || !Number.isFinite(toIndex)) return;
+      const last = layers.length - 1 - (maskOf(layers) ? 1 : 0);
+      const target = Math.min(last, Math.max(1, Math.round(toIndex)));
+      if (target === at) return;
+      commit(inserted(layers.filter((l) => l.id !== id), target, layer));
+    },
+
+    setDecal: (id, patch, mergeKey) => {
+      const layer = decalLayer(id);
+      if (!layer) return;
+      const decal = toDecal({ ...(layer.decal ?? {}), ...patch });
+      if (!decal) return;
+      change(replaced(get().layers, id, withTextWidth({ ...layer, decal })), layerKey(id, mergeKey));
+    },
+
+    setLayerProps: (id, patch, mergeKey) => {
+      const layer = decalLayer(id);
+      if (!layer) return;
+      const next = checkDecalLayer({ ...layer, ...patch, id: layer.id, kind: layer.kind, decal: layer.decal } as DecalLayer);
+      if (!next) return;
+      change(replaced(get().layers, id, withTextWidth(next)), layerKey(id, mergeKey));
+    },
+
+    applyCutout: (layerId, asset, crop, sourceAsset) => {
+      const layer = decalLayer(layerId);
+      if (layer?.kind !== 'image' || sourceAsset.width <= 0 || sourceAsset.height <= 0 || crop.w <= 0 || crop.h <= 0) return;
+      // A cutout of a cutout: the crop is inside the current picture, which lies at the earlier offset in the original.
+      const before = layer.sourceAssetId ? layer.sourceOffset : undefined;
+      const sourceOffset: CropRect = { x: (before?.x ?? 0) + crop.x, y: (before?.y ?? 0) + crop.y, w: crop.w, h: crop.h };
+      const refit = layer.decal ? toDecal(refitDecal(layer.decal, crop, sourceAsset, layer.flipX)) : null;
+      const next: ImageLayer = {
+        ...layer,
+        assetId: asset.id,
+        sourceAssetId: layer.sourceAssetId ?? sourceAsset.id,
+        sourceOffset,
+        decal: refit ?? layer.decal,
+      };
+      commit(replaced(get().layers, layerId, next));
+    },
+
+    refreshTextMetrics: (layerId) => {
+      const layer = decalLayer(layerId);
+      if (layer?.kind !== 'text') return;
+      const next = withTextWidth(layer);
+      if (next === layer) return;
+      // Earlier and later versions of the layer were measured with the same stand-in font: fix them too.
+      const fix = (snapshot: Layer[]) => snapshot.map((l) => (l.id === layerId && l.kind === 'text' ? withTextWidth(l) : l));
+      set((s) => ({
+        layers: replaced(s.layers, layerId, next),
+        past: s.past.map(fix),
+        future: s.future.map(fix),
+        dirty: true,
+        revision: s.revision + 1,
+      }));
+    },
+
+    beginPlacement: (pending) => set({ pending, mergeKey: null }),
+
+    cancelPlacement: () => {
+      if (get().pending) set({ pending: null });
+    },
+
+    placePending: (decal) => {
+      const { pending, layers, selectedId } = get();
+      const checked = toDecal(decal);
+      if (!pending || !checked) return null;
+      const made =
+        pending.kind === 'image'
+          ? newImageLayer(pending.assetId, checked, pending.name)
+          : newTextLayer(pending.text, checked, pending.font);
+      const layer = withTextWidth(made);
+      commit(inserted(layers, insertIndex(layers, selectedId), layer), { selectedId: layer.id, pending: null });
+      return layer.id;
+    },
 
     undo: () => {
       const { past, layers, future, stroking } = get();

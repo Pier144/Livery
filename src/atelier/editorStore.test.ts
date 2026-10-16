@@ -1,7 +1,26 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import type { AtelierProject } from '@/types';
-import { HISTORY_LIMIT, currentProject, resetAtelierEditor, useAtelierEditor } from './editorStore';
-import { baseOf, maskOf, type Stroke } from './project';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { AssetRef, AtelierProject } from '@/types';
+import {
+  DUPLICATE_OFFSET,
+  HISTORY_LIMIT,
+  currentProject,
+  refitDecal,
+  resetAtelierEditor,
+  setTextMeasurer,
+  useAtelierEditor,
+} from './editorStore';
+import {
+  baseOf,
+  maskOf,
+  newImageLayer,
+  newTextLayer,
+  type Decal,
+  type DecalLayer,
+  type ImageLayer,
+  type Layer,
+  type Stroke,
+  type TextLayer,
+} from './project';
 
 const PROJECT: AtelierProject = {
   version: 1,
@@ -201,5 +220,260 @@ describe('editor store', () => {
     const project = currentProject(S());
     expect(project?.layers).toEqual(S().layers);
     expect(project?.id).toBe('p-1');
+  });
+});
+
+const DECAL: Decal = {
+  center: [0.5, 0, 0],
+  normal: [1, 0, 0],
+  up: [0, 1, 0],
+  width: 0.4,
+  height: 0.2,
+  depth: 0.04,
+  part: 'all',
+  mirror: false,
+};
+const kinds = () => S().layers.map((l) => l.kind);
+const ids = () => S().layers.map((l) => l.id);
+const layer = <T extends Layer = DecalLayer>(id: string) => S().layers.find((l) => l.id === id) as T;
+const image = (id: string, over: Partial<ImageLayer> = {}): ImageLayer => ({ ...newImageLayer(`img-${id}`, DECAL), id, ...over });
+
+describe('editor store · image and text layers', () => {
+  afterEach(() => setTextMeasurer(null));
+
+  it('adds a decal layer just under the mask, or above the selected image/text layer, and selects it', () => {
+    S().addStroke({ ...brush, points: [[0, 0, 0]] });
+    S().select(base()!.id);
+    S().addDecalLayer(image('a'));
+    expect(kinds()).toEqual(['base', 'image', 'mask']);
+    expect(S().selectedId).toBe('a');
+    S().addDecalLayer(image('b'));
+    S().select('a');
+    S().addDecalLayer(image('c'));
+    expect(ids().slice(1, 4)).toEqual(['a', 'c', 'b']);
+    // With the mask selected: just under it.
+    S().select(maskOf(S().layers)!.id);
+    S().addDecalLayer(image('d'));
+    expect(ids().slice(1, 5)).toEqual(['a', 'c', 'b', 'd']);
+    expect(S().past).toHaveLength(5);
+    S().undo();
+    expect(ids()).not.toContain('d');
+  });
+
+  it('deletes any layer but the Base, selecting the one below; undo brings it back', () => {
+    S().addDecalLayer(image('a'));
+    S().addDecalLayer(image('b'));
+    S().deleteLayer(base()!.id);
+    expect(kinds()).toEqual(['base', 'image', 'image']);
+    S().deleteLayer('b');
+    expect(ids()).toEqual([base()!.id, 'a']);
+    expect(S().selectedId).toBe('a');
+    S().undo();
+    expect(ids()).toEqual([base()!.id, 'a', 'b']);
+    S().addStroke({ ...brush, points: [[0, 0, 0]] });
+    S().deleteLayer(maskOf(S().layers)!.id);
+    expect(maskOf(S().layers)).toBeUndefined();
+  });
+
+  it('duplicates an image or text layer right above it, moved down-right along the surface', () => {
+    S().addDecalLayer(image('a', { opacity: 0.5 }));
+    S().addDecalLayer(image('b'));
+    S().duplicateLayer('a');
+    const copyId = S().selectedId!;
+    expect(ids().slice(1)).toEqual(['a', copyId, 'b']);
+    const copy = layer<ImageLayer>(copyId);
+    expect(copy).toMatchObject({ kind: 'image', assetId: 'img-a', opacity: 0.5 });
+    const step = (DUPLICATE_OFFSET * DECAL.height) / Math.SQRT2;
+    // right = cross(up, normal) = (0,0,-1) here; down = (0,-1,0).
+    expect(copy.decal!.center[0]).toBeCloseTo(0.5);
+    expect(copy.decal!.center[1]).toBeCloseTo(-step);
+    expect(copy.decal!.center[2]).toBeCloseTo(-step);
+    // The original is untouched (a deep copy).
+    expect(layer<ImageLayer>('a').decal).toEqual(DECAL);
+    S().duplicateLayer(base()!.id);
+    expect(S().layers).toHaveLength(4);
+    S().undo();
+    expect(ids().slice(1)).toEqual(['a', 'b']);
+  });
+
+  it('moves layers between the Base and the mask only', () => {
+    S().addStroke({ ...brush, points: [[0, 0, 0]] });
+    for (const id of ['a', 'b', 'c']) S().addDecalLayer(image(id));
+    expect(ids().slice(1, 4)).toEqual(['a', 'b', 'c']);
+    S().moveLayer('c', 0);
+    expect(ids().slice(1, 4)).toEqual(['c', 'a', 'b']);
+    S().moveLayer('c', 99);
+    expect(ids().slice(1, 4)).toEqual(['a', 'b', 'c']);
+    expect(kinds()[0]).toBe('base');
+    expect(kinds()[4]).toBe('mask');
+    const past = S().past.length;
+    S().moveLayer(base()!.id, 2);
+    S().moveLayer(maskOf(S().layers)!.id, 1);
+    S().moveLayer('c', 3);
+    expect(S().past).toHaveLength(past);
+    S().undo();
+    expect(ids().slice(1, 4)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('setDecal: a drag is one undo step per layer; bad results are ignored', () => {
+    S().addDecalLayer(image('a'));
+    S().addDecalLayer(image('b'));
+    const past = S().past.length;
+    S().setDecal('a', { center: [0.5, 0.1, 0] }, 'move');
+    S().setDecal('a', { center: [0.5, 0.2, 0] }, 'move');
+    S().setDecal('b', { center: [0.5, 0.3, 0] }, 'move');
+    expect(S().past).toHaveLength(past + 2);
+    S().setDecal('a', { normal: [0, 0, 0] }, 'move');
+    S().setDecal('a', { width: Number.NaN });
+    expect(layer<ImageLayer>('a').decal!.center).toEqual([0.5, 0.2, 0]);
+    expect(S().past).toHaveLength(past + 2);
+    S().undo();
+    S().undo();
+    expect(layer<ImageLayer>('a').decal!.center).toEqual([0.5, 0, 0]);
+  });
+
+  it('setDecal on a layer without a decal needs a whole decal', () => {
+    S().addDecalLayer(image('a', { decal: null }));
+    S().setDecal('a', { width: 1 });
+    expect(layer<ImageLayer>('a').decal).toBeNull();
+    S().setDecal('a', DECAL);
+    expect(layer<ImageLayer>('a').decal).toEqual(DECAL);
+  });
+
+  it('setLayerProps clamps, ignores what does not check out, and merges a gesture', () => {
+    S().addDecalLayer(image('a'));
+    const past = S().past.length;
+    S().setLayerProps('a', { opacity: 0.4 }, 'opacity');
+    S().setLayerProps('a', { opacity: 7 }, 'opacity');
+    expect(layer<ImageLayer>('a').opacity).toBe(1);
+    expect(S().past).toHaveLength(past + 1);
+    S().setLayerProps('a', { assetId: '' });
+    expect(layer<ImageLayer>('a').assetId).toBe('img-a');
+    S().setLayerProps('a', { flipX: true, kind: 'text' } as never);
+    expect(layer<ImageLayer>('a')).toMatchObject({ kind: 'image', flipX: true });
+  });
+
+  it('text layers: width = height × measured aspect, in the same step as the edit', () => {
+    setTextMeasurer((l) => [...l.text].length * 0.5 + l.skew);
+    const text = { ...newTextLayer('ABCD', DECAL), id: 't' };
+    S().addDecalLayer(text);
+    expect(layer<TextLayer>('t').decal!.width).toBeCloseTo(DECAL.height * 2);
+    const past = S().past.length;
+    S().setLayerProps('t', { text: 'ABCDEFGH' }, 'text');
+    expect(layer<TextLayer>('t').decal!.width).toBeCloseTo(DECAL.height * 4);
+    S().setDecal('t', { height: 0.5 }, 'size');
+    expect(layer<TextLayer>('t').decal!.width).toBeCloseTo(0.5 * 4);
+    expect(S().past).toHaveLength(past + 2);
+    S().undo();
+    expect(layer<TextLayer>('t').decal).toMatchObject({ height: DECAL.height });
+    expect(layer<TextLayer>('t').decal!.width).toBeCloseTo(DECAL.height * 4);
+  });
+
+  it('refreshTextMetrics updates the width without an undo step, history included', () => {
+    let wide = 1;
+    setTextMeasurer(() => wide);
+    S().addDecalLayer({ ...newTextLayer('A', DECAL), id: 't' });
+    S().setLayerProps('t', { color: '#ff0000' });
+    S().undo();
+    S().markSaved(currentProject(S())!, S().revision);
+    const { past, future } = S();
+    wide = 3;
+    S().refreshTextMetrics('t');
+    expect(layer<TextLayer>('t').decal!.width).toBeCloseTo(DECAL.height * 3);
+    expect(S().past).toHaveLength(past.length);
+    expect(S().future).toHaveLength(future.length);
+    expect(S().dirty).toBe(true);
+    S().redo();
+    expect(layer<TextLayer>('t')).toMatchObject({ color: '#ff0000' });
+    expect(layer<TextLayer>('t').decal!.width).toBeCloseTo(DECAL.height * 3);
+    // Nothing to change: nothing happens.
+    const revision = S().revision;
+    S().refreshTextMetrics('t');
+    expect(S().revision).toBe(revision);
+  });
+
+  it('applyCutout switches the asset and refits the decal in one undo step', () => {
+    // 400×200 px on a 0.4×0.2 decal: 0.001 units per pixel.
+    S().addDecalLayer(image('a'));
+    const past = S().past.length;
+    const source: AssetRef = { id: 'img-a', width: 400, height: 200 };
+    const cut: AssetRef = { id: 'img-cut', width: 100, height: 50 };
+    S().applyCutout('a', cut, { x: 250, y: 20, w: 100, h: 50 }, source);
+    const a = layer<ImageLayer>('a');
+    expect(a).toMatchObject({ assetId: 'img-cut', sourceAssetId: 'img-a', sourceOffset: { x: 250, y: 20, w: 100, h: 50 } });
+    expect(a.decal!.width).toBeCloseTo(0.1);
+    expect(a.decal!.height).toBeCloseTo(0.05);
+    // Crop centre (300, 45) vs source centre (200, 100): +100 px along right (0,0,-1), +55 px up.
+    expect(a.decal!.center[0]).toBeCloseTo(0.5);
+    expect(a.decal!.center[1]).toBeCloseTo(0.055);
+    expect(a.decal!.center[2]).toBeCloseTo(-0.1);
+    expect(S().past).toHaveLength(past + 1);
+    // A second cutout keeps the original source and composes the offset.
+    S().applyCutout('a', { id: 'img-cut2', width: 50, height: 50 }, { x: 10, y: 0, w: 50, h: 50 }, cut);
+    expect(layer<ImageLayer>('a')).toMatchObject({ sourceAssetId: 'img-a', sourceOffset: { x: 260, y: 20, w: 50, h: 50 } });
+    S().undo();
+    S().undo();
+    expect(layer<ImageLayer>('a')).toMatchObject({ assetId: 'img-a', decal: DECAL });
+    expect(layer<ImageLayer>('a')).not.toHaveProperty('sourceAssetId');
+  });
+
+  it('refitDecal mirrors the horizontal move of a flipped picture', () => {
+    const moved = refitDecal(DECAL, { x: 250, y: 75, w: 100, h: 50 }, { width: 400, height: 200 }, true);
+    // +100 px along u, flipped: along -right = (0,0,+1).
+    expect(moved.center[2]).toBeCloseTo(0.1);
+    expect(moved.center[1]).toBeCloseTo(0);
+  });
+
+  it('pending placement: no history until placed, Escape drops it, the click is one undo step', () => {
+    setTextMeasurer(() => 2);
+    const past = S().past.length;
+    const { revision, dirty } = S();
+    S().beginPlacement({ kind: 'image', assetId: 'img-1', aspect: 2, name: 'Bust' });
+    expect(S().pending).toMatchObject({ kind: 'image' });
+    expect(S().layers).toHaveLength(1);
+    expect(currentProject(S())?.layers).toHaveLength(1);
+    expect(S().past).toHaveLength(past);
+    expect(S().revision).toBe(revision);
+    S().cancelPlacement();
+    expect(S().pending).toBeNull();
+    expect(S().past).toHaveLength(past);
+    expect(S().dirty).toBe(dirty);
+    // Escape with nothing pending: nothing happens.
+    S().cancelPlacement();
+    expect(S().revision).toBe(revision);
+
+    expect(S().placePending(DECAL)).toBeNull();
+    S().beginPlacement({ kind: 'text', text: 'HELLO', font: { family: 'Geist', style: 'Regular' }, aspect: 2 });
+    expect(S().placePending({ ...DECAL, up: [1, 0, 0] })).toBeNull();
+    expect(S().pending).not.toBeNull();
+    const id = S().placePending(DECAL);
+    expect(id).not.toBeNull();
+    expect(S().pending).toBeNull();
+    expect(S().selectedId).toBe(id);
+    expect(layer<TextLayer>(id!)).toMatchObject({ kind: 'text', text: 'HELLO', font: { family: 'Geist', style: 'Regular' } });
+    expect(layer<TextLayer>(id!).decal!.width).toBeCloseTo(DECAL.height * 2);
+    expect(S().past).toHaveLength(past + 1);
+    S().undo();
+    expect(S().layers).toHaveLength(1);
+    expect(S().pending).toBeNull();
+  });
+
+  it('a placed image keeps its name; loading a project drops a pending placement', () => {
+    S().beginPlacement({ kind: 'image', assetId: 'img-1', aspect: 2, name: 'Bust' });
+    const id = S().placePending(DECAL)!;
+    expect(layer<ImageLayer>(id)).toMatchObject({ kind: 'image', name: 'Bust', assetId: 'img-1', decal: DECAL });
+    S().beginPlacement({ kind: 'image', assetId: 'img-2', aspect: 1 });
+    S().load(PROJECT);
+    expect(S().pending).toBeNull();
+  });
+
+  it('image and text layers are saved and load back clean', () => {
+    S().addDecalLayer(image('a'));
+    S().addDecalLayer({ ...newTextLayer('HI', DECAL), id: 't' });
+    const saved = currentProject(S())!;
+    resetAtelierEditor();
+    S().load(JSON.parse(JSON.stringify(saved)) as AtelierProject);
+    expect(S().dirty).toBe(false);
+    expect(ids().slice(1)).toEqual(['a', 't']);
   });
 });
