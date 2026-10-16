@@ -124,7 +124,7 @@ fn bad_input_is_an_error() {
         let r = decode(fourcc, data, w, h);
         assert!(r.is_err_and(|e| e.code == ErrorCode::Parse), "{fourcc:?} {w}x{h}");
     }
-    assert!(decode(b"DXT1", &block[..], 8193, 4).is_err(), "over MAX_DECODE_SIDE");
+    assert!(decode(b"DXT1", &block[..], 8193, 4).is_err(), "over MAX_SIDE_PX");
 }
 
 #[test]

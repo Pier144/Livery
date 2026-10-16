@@ -12,7 +12,7 @@ use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::gameres::MODEL_UNREADABLE;
 
 /// Widest or tallest texture decoded or encoded (the game's own `_c` textures are at most 4096).
-pub const MAX_DECODE_SIDE: usize = 8192;
+pub const MAX_SIDE_PX: usize = 8192;
 
 /// `invalidInput` when a painted texture handed to [`encode_dxt5`] doesn't match its size.
 pub const APPLY_BAD_TEXTURE: &str = "A painted texture has the wrong size";
@@ -65,7 +65,7 @@ pub fn decode(fourcc: &[u8; 4], blocks: &[u8], w: usize, h: usize) -> AppResult<
 }
 
 /// Encodes RGBA8 (`w * h * 4` bytes) to DXT5 blocks with texpresso (quality: ClusterFit). A
-/// size of 0 or over [`MAX_DECODE_SIDE`], or a buffer that isn't `w * h * 4` bytes, is
+/// size of 0 or over [`MAX_SIDE_PX`], or a buffer that isn't `w * h * 4` bytes, is
 /// `invalidInput` ([`APPLY_BAD_TEXTURE`]): the image comes from the frontend's bake.
 pub fn encode_dxt5(rgba: &[u8], w: usize, h: usize) -> AppResult<Vec<u8>> {
     if !size_ok(w, h) || rgba.len() != w * h * 4 {
@@ -80,7 +80,7 @@ pub fn encode_dxt5(rgba: &[u8], w: usize, h: usize) -> AppResult<Vec<u8>> {
 }
 
 fn size_ok(w: usize, h: usize) -> bool {
-    (1..=MAX_DECODE_SIDE).contains(&w) && (1..=MAX_DECODE_SIDE).contains(&h)
+    (1..=MAX_SIDE_PX).contains(&w) && (1..=MAX_SIDE_PX).contains(&h)
 }
 
 fn rgb565(c: u16) -> [u8; 3] {

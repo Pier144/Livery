@@ -13,7 +13,7 @@ use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::binblk::Blk;
 use crate::textures::bc;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::Path;
 
@@ -116,7 +116,9 @@ pub fn load(game_root: &Path, index: &GameResIndex, desc: &Blk, vehicle: &str) -
     let mats = materials(desc, model).ok_or_else(|| bad(format!("no materials for {model}")))?;
 
     let mut slots: Vec<Slot> = Vec::new();
+    // Keyed by the lowercased name: materials may spell one texture in different cases.
     let mut slot_of: HashMap<String, usize> = HashMap::new();
+    let mut skipped: HashSet<String> = HashSet::new();
     let mut parts: Vec<(Part, PartBuf)> = Vec::new();
     let mut part_of: HashMap<(i32, usize), usize> = HashMap::new();
     for rigid in &dm.rigids {
@@ -124,11 +126,18 @@ pub fn load(game_root: &Path, index: &GameResIndex, desc: &Blk, vehicle: &str) -
         let wtm = skeleton.by_name(&node).map_or(IDENTITY, |n| n.wtm);
         for elem in &rigid.elems {
             let Some(texture) = mats.diffuse_of_mat.get(elem.mat as usize).and_then(Option::as_deref) else { continue };
-            if !texture.to_lowercase().ends_with("_c") {
+            let key = texture.to_lowercase();
+            if !key.ends_with("_c") {
                 continue;
             }
             let Some(tex) = index.texture(texture) else { continue };
-            let slot = *slot_of.entry(texture.to_owned()).or_insert_with(|| {
+            if !matches!(&tex.fourcc, b"DXT1" | b"DXT5") {
+                if skipped.insert(key) {
+                    tracing::warn!(texture, fourcc = ?String::from_utf8_lossy(&tex.fourcc), "texture format Atelier can't paint, left out");
+                }
+                continue;
+            }
+            let slot = *slot_of.entry(key).or_insert_with(|| {
                 slots.push(Slot {
                     texture: texture.to_owned(),
                     width: u32::from(tex.w),
@@ -198,11 +207,26 @@ fn group_of(ancestry: &[&str]) -> PartGroup {
     }
 }
 
+/// Determinant of the 3x3 part of a column-major matrix: negative for a mirroring transform.
+/// Informational (see [`append`] on winding).
+pub fn determinant(m: &[[f32; 4]; 4]) -> f32 {
+    let [a, b, c] = [m[0], m[1], m[2]];
+    a[0] * (b[1] * c[2] - b[2] * c[1]) - b[0] * (a[1] * c[2] - a[2] * c[1]) + c[0] * (a[1] * b[2] - a[2] * b[1])
+}
+
 /// Appends an element's triangles to `buf`, copying only the vertices they use (remapped per
 /// element), placed by `wtm`, z negated, each triangle's 2nd and 3rd index swapped. LOD 0 has
 /// at most `dynmodel::MAX_INDICES` element indices, so the part's counts fit `u32`.
+///
+/// One swap fits every node, mirrored or not. Almost every skeleton node's `wtm` mirrors
+/// (det < 0: 12,483 of 12,598 rigids in a sample of 136 vehicles), and the game stores those
+/// nodes' triangles reversed, so that after `wtm` every triangle has the same winding against
+/// its normals; only the z negation then needs undoing. Checked on the real install: with this
+/// rule 100% of the Jumbo's and the Tiger II's triangles face their normals; flipping only where
+/// det > 0 left every mirrored node's triangles inside out.
 fn append(buf: &mut PartBuf, elem: &dynmodel::Elem, vdata: &dynmodel::Vdata, wtm: &[[f32; 4]; 4]) {
-    let mut local: HashMap<usize, u32> = HashMap::with_capacity(elem.numf as usize * 2);
+    let mut local: HashMap<usize, u32> =
+        HashMap::with_capacity((elem.numf as usize).saturating_mul(3).min(vdata.positions.len()));
     let mut tri = [0u32; 3];
     for (k, v) in elem.vertex_indices(vdata).enumerate() {
         let next = (buf.positions.len() / 3) as u32;

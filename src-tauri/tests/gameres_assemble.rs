@@ -127,8 +127,9 @@ fn translate(x: f32, y: f32, z: f32) -> [[f32; 4]; 4] {
     [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [x, y, z, 1.0]]
 }
 
-/// `tank_a`: a quad on `@root` (body), a triangle on the turret (turret) and one on the gun
-/// (body); plus glass and a `_c` texture no pack has, both left out.
+/// `tank_a`: a quad on `@root` (body), a triangle on the turret (turret), one on the gun
+/// (body) and one on a mirrored node (body, spelled in another case); plus glass, a `_c`
+/// texture no pack has and a BC7 one, all left out.
 fn grp() -> Vec<u8> {
     let model = TModel {
         vdata: vec![TVdata::new(
@@ -137,20 +138,23 @@ fn grp() -> Vec<u8> {
             Ib::Packed,
         )],
         lods: vec![vec![
-            TRigid { node_id: 0, elems: vec![elem(0, 0, 2), elem(2, 0, 1), elem(3, 0, 1)] },
+            TRigid { node_id: 0, elems: vec![elem(0, 0, 2), elem(2, 0, 1), elem(3, 0, 1), elem(5, 0, 1)] },
             TRigid { node_id: 1, elems: vec![elem(1, 0, 1)] },
             TRigid { node_id: 2, elems: vec![elem(0, 3, 1)] },
+            TRigid { node_id: 3, elems: vec![elem(4, 0, 1)] },
         ]],
-        names: vec![("@root", 0), ("bone_gun", 2), ("bone_turret", 1)],
+        names: vec![("@root", 0), ("bone_gun", 2), ("bone_turret", 1), ("mirror_r", 3)],
         offset: [0.0; 3],
         scale: [1.0; 3],
         tag: 0,
         tex_str: None,
     };
+    let mirror_x = [[-1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
     let skeleton = skeleton_bytes(
         &[
             TNode { name: "", parent: None, wtm: translate(0.0, 0.0, 0.0) },
             TNode { name: "bone_turret", parent: Some(0), wtm: translate(0.5, 1.5, 0.0) },
+            TNode { name: "mirror_r", parent: Some(0), wtm: mirror_x },
             TNode { name: "bone_gun", parent: Some(1), wtm: translate(2.0, 0.0, 0.0) },
         ],
         false,
@@ -167,7 +171,7 @@ fn grp() -> Vec<u8> {
 fn desc_file() -> Vec<u8> {
     let names = &["tank_a", "tex", "matR", "mat", "t0"];
     // Names may differ in case from the packs' (the Tiger II's do).
-    let tex = ["tank_a_body_c*", "TANK_A_Turret_C*", "glass*", "tank_a_missing_c*"];
+    let tex = ["tank_a_body_c*", "TANK_A_Turret_C*", "glass*", "tank_a_missing_c*", "Tank_A_Body_C*", "tank_a_bc7_c*"];
     let root = b(
         "",
         vec![],
@@ -176,7 +180,7 @@ fn desc_file() -> Vec<u8> {
             vec![],
             vec![
                 b("tex", tex.into_iter().map(|t| ("tex", V::Str(t))).collect(), vec![]),
-                b("matR", vec![], (0..4).map(|i| b("mat", vec![("t0", V::Int(i))], vec![])).collect()),
+                b("matR", vec![], (0..6).map(|i| b("mat", vec![("t0", V::Int(i))], vec![])).collect()),
             ],
         )],
     );
@@ -221,7 +225,8 @@ fn game() -> TempDir {
     dir.write(index::ACES, &aces());
     let grp = grp();
     dir.write("content/base/res/tanks/tank_a.grp", &grp);
-    let base = dxp_bytes(2, &[tex("tank_a_body_c*?q0-1-1u01", 8, 8, GREY), tex("tank_a_body_c$tq*", 4, 4, 0)]);
+    let bc7 = TTex { fourcc: *b"BC7 ", ..tex("tank_a_bc7_c*", 4, 4, 0) };
+    let base = dxp_bytes(2, &[tex("tank_a_body_c*?q0-1-1u01", 8, 8, GREY), tex("tank_a_body_c$tq*", 4, 4, 0), bc7]);
     dir.write("content/base/res/tanks/tank_a.dxp.bin", &base);
     let other = dxp_bytes(3, &[tex("tank_a_body_c*", 4, 4, 0), tex("tank_a_turret_c*", 4, 4, 0)]);
     dir.write(
@@ -254,7 +259,7 @@ fn root(dir: &TempDir) -> &Path {
 fn the_index_maps_vehicles_models_packs_and_textures() {
     let dir = game();
     let index = index::build(root(&dir)).unwrap();
-    assert!(index.version.starts_with("aces 2.59.0.65; content/base/res "), "{}", index.version);
+    assert!(index.version.starts_with("index 1; aces 2.59.0.65; content/base/res "), "{}", index.version);
     assert!(index.version.contains("; content.hq/hq_tex/res "));
     let mut vehicles: Vec<_> = index.model_of.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
     vehicles.sort_unstable();
@@ -291,7 +296,8 @@ fn the_model_is_assembled_right_handed_by_node_and_slot() {
     let m = assemble::load(root(&dir), &index, &desc, "Tank_A").unwrap();
     assert_eq!((m.vehicle.as_str(), m.model.as_str(), m.mirror_axis), ("Tank_A", "tank_a", 2));
 
-    // Slots in order of first use; HQ size when there is one, else the largest pack's.
+    // Slots in order of first use; HQ size when there is one, else the largest pack's. One slot
+    // per texture whatever the case (`Tank_A_Body_C` is the body); BC7 left out.
     let slots: Vec<_> =
         m.slots.iter().map(|s| (s.texture.as_str(), s.width, s.height, s.hq, s.paintable_by_default)).collect();
     assert_eq!(slots, [("tank_a_body_c", 8, 8, false, true), ("TANK_A_Turret_C", 8, 4, true, true)]);
@@ -303,7 +309,8 @@ fn the_model_is_assembled_right_handed_by_node_and_slot() {
         [
             ("@root", PartGroup::Hull, 0, 4, 6),
             ("bone_turret", PartGroup::Turret, 1, 3, 3),
-            ("bone_gun", PartGroup::Gun, 0, 3, 3)
+            ("bone_gun", PartGroup::Gun, 0, 3, 3),
+            ("mirror_r", PartGroup::Hull, 0, 3, 3),
         ]
     );
 
@@ -324,17 +331,35 @@ fn the_model_is_assembled_right_handed_by_node_and_slot() {
             [2.0, 0.0, -1.0],
             [2.0, 1.0, 0.0],
             [3.0, 1.0, -1.0],
+            // Mirrored in x: vertices 0, 1, 2.
+            [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, -1.0],
         ]
     );
-    // Winding flipped (2nd and 3rd swapped), absolute into the shared arrays.
-    assert_eq!(m.indices, [0, 2, 1, 2, 3, 1, 4, 6, 5, 7, 9, 8]);
+    // Winding flipped (2nd and 3rd swapped), absolute into the shared arrays; on the mirrored
+    // node too (the game stores mirrored nodes' triangles reversed, see `assemble::append`).
+    assert_eq!(m.indices, [0, 2, 1, 2, 3, 1, 4, 6, 5, 7, 9, 8, 10, 12, 11]);
     // Normals: placed, normalised, z negated (bytes B,G,R = 255,128,128).
     let n = &m.normals[..3];
     let c = 128.0 / 255.0 * 2.0 - 1.0;
     let len = (2.0 * c * c + 1.0f32).sqrt();
     assert!((n[0] - c / len).abs() < 1e-5 && (n[1] - c / len).abs() < 1e-5 && (n[2] + 1.0 / len).abs() < 1e-5, "{n:?}");
     assert_eq!(&m.uvs[..2], &[0.25, 0.5]);
-    assert_eq!((m.normals.len(), m.uvs.len()), (30, 20));
+    assert_eq!((m.normals.len(), m.uvs.len()), (39, 26));
+    // The mirrored node's normal: x flipped by the node, z by the conversion.
+    let n = &m.normals[30..33];
+    assert!((n[0] + c / len).abs() < 1e-5 && (n[1] - c / len).abs() < 1e-5 && (n[2] + 1.0 / len).abs() < 1e-5, "{n:?}");
+}
+
+#[test]
+fn the_determinant_tells_mirrored_nodes() {
+    let mirror = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -2.0, 0.0], [5.0, 5.0, 5.0, 1.0]];
+    assert_eq!(assemble::determinant(&mirror), -2.0);
+    assert_eq!(assemble::determinant(&translate(1.0, 2.0, 3.0)), 1.0);
+    // A rotation about y keeps handedness.
+    let rot = [[0.0, 0.0, -1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+    assert_eq!(assemble::determinant(&rot), 1.0);
 }
 
 #[test]
@@ -401,7 +426,7 @@ fn encode_writes_the_documented_binary() {
     assert_eq!(header["vehicle"], "tank_a");
     assert_eq!(header["model"], "tank_a");
     assert_eq!(header["mirrorAxis"], 2);
-    assert_eq!((header["vertexCount"].as_u64(), header["indexCount"].as_u64()), (Some(10), Some(12)));
+    assert_eq!((header["vertexCount"].as_u64(), header["indexCount"].as_u64()), (Some(13), Some(15)));
     assert_eq!(
         header["slots"][1],
         serde_json::json!({ "texture": "TANK_A_Turret_C", "width": 8, "height": 4, "hq": true, "paintableByDefault": true })
@@ -414,11 +439,11 @@ fn encode_writes_the_documented_binary() {
     assert_eq!(header["parts"][0]["group"], "hull");
 
     let body = &bytes[8 + len..];
-    assert_eq!(body.len(), 4 * (10 * 3 + 10 * 3 + 10 * 2) + 4 * 12);
+    assert_eq!(body.len(), 4 * (13 * 3 + 13 * 3 + 13 * 2) + 4 * 15);
     let f32_at = |i: usize| f32::from_le_bytes(body[4 * i..4 * i + 4].try_into().unwrap());
     assert_eq!(f32_at(8), -1.0, "positions first: vertex 2's z");
-    assert_eq!(f32_at(60), 0.25, "then normals, then UVs");
-    let indices: Vec<u32> = body[4 * 80..].chunks(4).map(|c| u32::from_le_bytes(c.try_into().unwrap())).collect();
+    assert_eq!(f32_at(78), 0.25, "then normals, then UVs");
+    let indices: Vec<u32> = body[4 * 104..].chunks(4).map(|c| u32::from_le_bytes(c.try_into().unwrap())).collect();
     assert_eq!(indices, m.indices);
 }
 
@@ -468,6 +493,18 @@ fn body_turret_gun_and_the_models_own_textures_are_paintable_by_default() {
         assert!(!assemble::paintable_by_default(texture, model), "{texture}");
     }
     assert!(assemble::paintable_by_default("pzkpfw_vi_ausf_b_tiger_h_armor_c", "pzkpfw_VI_ausf_B_tiger_h"));
+}
+
+#[test]
+fn an_index_without_vehicles_is_an_error_not_a_cache() {
+    let dir = game();
+    let nm = name_map(NAMES);
+    dir.write(index::ACES, &vromfs(&[(NAME_MAP_FILE, &nm)], true));
+    let e = index::build(root(&dir)).unwrap_err();
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::NotFound, MODEL_NOT_FOUND));
+    let cache = dir.0.join("data/gameres-index.json");
+    assert!(IndexStore::new(cache.clone()).get(root(&dir)).is_err());
+    assert!(!cache.exists());
 }
 
 #[test]

@@ -617,6 +617,25 @@ fn every_tank_texture_pack_directory_parses() {
 
 // ── Index and assembled model ───────────────────────────────────────────────
 
+/// Share of triangles whose counter-clockwise face normal points the way their vertex normals
+/// do (the right-handed front face three.js culls by).
+fn facing_normals(m: &assemble::VehicleModel) -> f64 {
+    let at = |a: &[f32], i: u32| [0, 1, 2].map(|k| a[3 * i as usize + k]);
+    let (mut agree, mut total) = (0usize, 0usize);
+    for t in m.indices.chunks_exact(3) {
+        let [a, b, c] = [at(&m.positions, t[0]), at(&m.positions, t[1]), at(&m.positions, t[2])];
+        let (e1, e2) = ([0, 1, 2].map(|k| b[k] - a[k]), [0, 1, 2].map(|k| c[k] - a[k]));
+        let face = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+        let n = [0, 1, 2].map(|k| at(&m.normals, t[0])[k] + at(&m.normals, t[1])[k] + at(&m.normals, t[2])[k]);
+        let dot = face[0] * n[0] + face[1] * n[1] + face[2] * n[2];
+        if dot.abs() > 1e-12 {
+            total += 1;
+            agree += usize::from(dot > 0.0);
+        }
+    }
+    agree as f64 / total.max(1) as f64
+}
+
 /// The index (first build, then a cached load in a new store), the Jumbo assembled, its body
 /// template against the game's skin template, and two more tanks.
 #[test]
@@ -685,6 +704,9 @@ fn the_jumbo_is_assembled_from_the_index() {
     assert!(vertices > 100_000, "{vertices}");
     assert!(count(PartGroup::Hull) > 0 && count(PartGroup::Turret) > 0 && count(PartGroup::Gun) > 0);
     assert!(m.indices.iter().all(|&i| (i as usize) < vertices));
+    let facing = facing_normals(&m);
+    println!("  {:.2}% of triangles face their normals (counter-clockwise, right-handed)", 100.0 * facing);
+    assert!(facing > 0.99, "{facing}");
     let encoded = assemble::encode(&m);
     println!("  encoded: {} bytes", encoded.len());
 
@@ -719,6 +741,9 @@ fn the_jumbo_is_assembled_from_the_index() {
             m.slots.iter().map(|s| (s.texture.as_str(), s.width, s.height, s.paintable_by_default)).collect::<Vec<_>>()
         );
         assert!(m.slots.iter().all(|s| s.width > 0 && s.height > 0));
+        let facing = facing_normals(&m);
+        println!("  {:.2}% of triangles face their normals", 100.0 * facing);
+        assert!(facing > 0.99, "{vehicle}: {facing}");
         // Body, turret and gun are painted by default (the 76W's body and turret are the
         // Jumbo's textures); shared ones (machine guns, nets, tracks, barrels, glass) aren't.
         let paintable: Vec<&str> =
@@ -740,4 +765,88 @@ fn the_jumbo_is_assembled_from_the_index() {
             );
         }
     }
+}
+
+/// Over the ground vehicles: how many have a model the packs don't list, how many sampled ones
+/// load (failures by error), and how many rigids sit on mirrored nodes (their winding isn't
+/// flipped). Every `LIVERY_SAMPLE_STEP`-th vehicle in code order (default 10).
+#[test]
+#[ignore = "reads the real War Thunder install; slow"]
+fn a_sample_of_vehicles_loads() {
+    set_worker_exe(worker_exe());
+    let root = game_root();
+    let step: usize = std::env::var("LIVERY_SAMPLE_STEP").ok().and_then(|s| s.parse().ok()).unwrap_or(10);
+    let index = livery_lib::game::gameres::index::build(&root).unwrap();
+    let desc = desc::read(&root).unwrap();
+    let mut codes: Vec<&str> = index.model_of.keys().map(String::as_str).collect();
+    codes.sort_unstable();
+    let no_pack: Vec<&str> =
+        codes.iter().copied().filter(|c| !index.grp_of.contains_key(&index.model_of[*c])).collect();
+    println!(
+        "{} vehicles, {} with a model no pack lists (first 10: {:?})",
+        codes.len(),
+        no_pack.len(),
+        &no_pack[..no_pack.len().min(10)]
+    );
+
+    let started = Instant::now();
+    let (mut loaded, mut failures) = (0, std::collections::BTreeMap::<String, Vec<&str>>::new());
+    let (mut worst, mut inside_out) = (1.0f64, Vec::new());
+    let (mut rigids, mut mirrored, mut mirrored_models) = (0, 0, 0);
+    for &code in codes.iter().step_by(step.max(1)) {
+        match assemble::load(&root, &index, &desc, code) {
+            Ok(m) => {
+                loaded += 1;
+                let facing = facing_normals(&m);
+                worst = worst.min(facing);
+                if facing < 0.98 {
+                    inside_out.push((code, facing));
+                }
+            }
+            Err(e) => {
+                let detail = e.detail.unwrap_or_default();
+                let kind = if detail.contains("vertex layout") { "vertex layout".to_string() } else { e.message };
+                failures.entry(format!("{:?}: {kind}", e.code)).or_default().push(code);
+            }
+        }
+        // Mirrored nodes, read the way `load` places rigids.
+        let model = &index.model_of[code];
+        let Some(pack) = index.grp_of.get(model) else { continue };
+        let Ok(file) = std::fs::read(root.join(pack)) else { continue };
+        let Ok(grp) = Grp::parse(&file, Some(file.len())) else { continue };
+        let (Some(dm), Some(sk)) = (grp.find(model, DYN_MODEL), grp.find(&format!("{model}_skeleton"), GEOM_NODE_TREE))
+        else {
+            continue;
+        };
+        let (Ok(dm), Ok(sk)) = (dynmodel::parse(&file[dm.start..dm.end]), Skeleton::parse(&file[sk.start..sk.end]))
+        else {
+            continue;
+        };
+        let before = mirrored;
+        for rigid in &dm.rigids {
+            rigids += 1;
+            let node = dm.node_names.get(&rigid.node_id).and_then(|n| sk.by_name(n));
+            if node.is_some_and(|n| assemble::determinant(&n.wtm) < 0.0) {
+                mirrored += 1;
+            }
+        }
+        if mirrored > before {
+            mirrored_models += 1;
+        }
+    }
+    let sampled = loaded + failures.values().map(Vec::len).sum::<usize>();
+    println!("{sampled} sampled in {} s: {loaded} loaded", started.elapsed().as_secs());
+    for (kind, codes) in &failures {
+        println!("  {kind}: {} {:?}", codes.len(), &codes[..codes.len().min(8)]);
+    }
+    println!("{rigids} LOD 0 rigids, {mirrored} on mirrored nodes (in {mirrored_models} models)");
+    println!(
+        "triangles facing their normals: worst model {:.2}%, {} models under 98% {inside_out:?}",
+        100.0 * worst,
+        inside_out.len()
+    );
+    assert!(inside_out.len() * 20 <= loaded, "winding looks wrong on many models: {inside_out:?}");
+    let refused = |k: &str| k.contains("can't paint this vehicle yet") || k.contains("vertex layout");
+    let other: usize = failures.iter().filter(|(k, _)| !refused(k)).map(|(_, v)| v.len()).sum();
+    assert!(other * 20 <= sampled, "more than 5% fail for other reasons: {failures:?}");
 }

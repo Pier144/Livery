@@ -12,7 +12,8 @@
 
 use super::dxp::{base_name, is_hq, DxpDir};
 use super::grp::{Grp, DYN_MODEL};
-use crate::error::AppResult;
+use super::MODEL_NOT_FOUND;
+use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::binblk::{Blk, Block, NameMap};
 use crate::game::vromfs::{read_header_of, Vromfs, NAME_MAP_FILE};
 use serde::{Deserialize, Serialize};
@@ -82,14 +83,19 @@ impl GameResIndex {
     }
 }
 
-/// What the index of `game_root` is keyed by: the game version from [`ACES`]'s header (its
-/// size and modification time when it has none), plus the size and modification time of every
-/// `grp_hdr.vromfs.bin` (so installing the HQ texture pack rebuilds it too).
+/// Version of what [`build`] produces. Bump it whenever the build logic or [`GameResIndex`]
+/// changes, so indexes cached by an older Livery are rebuilt.
+pub const INDEX_FORMAT: u32 = 1;
+
+/// What the index of `game_root` is keyed by: [`INDEX_FORMAT`], the game version from
+/// [`ACES`]'s header (its size and modification time when it has none), plus the size and
+/// modification time of every `grp_hdr.vromfs.bin` (so installing the HQ texture pack rebuilds
+/// it too).
 pub fn version_of(game_root: &Path) -> AppResult<String> {
     let aces = game_root.join(ACES);
     let mut key = match read_header_of(&aces)?.version {
-        Some(v) => format!("aces {v}"),
-        None => format!("aces {}", stamp(&aces)),
+        Some(v) => format!("index {INDEX_FORMAT}; aces {v}"),
+        None => format!("index {INDEX_FORMAT}; aces {}", stamp(&aces)),
     };
     for root in RES_ROOTS {
         let path = game_root.join(root).join(GRP_HDR);
@@ -129,7 +135,7 @@ pub fn build(game_root: &Path) -> AppResult<GameResIndex> {
             Ok(blk) => blk,
             Err(e) => {
                 unreadable += 1;
-                tracing::debug!(path, detail = ?e.detail, "tankmodels BLK unreadable");
+                tracing::warn!(path, detail = ?e.detail, "tankmodels BLK unreadable, vehicle skipped");
                 continue;
             }
         };
@@ -140,6 +146,11 @@ pub fn build(game_root: &Path) -> AppResult<GameResIndex> {
         if overrides_c_textures(&root) {
             index.overrides_of.insert(code.to_owned());
         }
+    }
+    if index.model_of.is_empty() {
+        // An index without vehicles would be cached and hide every model until the next update.
+        return Err(AppError::new(ErrorCode::NotFound, MODEL_NOT_FOUND)
+            .with_detail(format!("no vehicle models in {ACES} ({unreadable} tankmodels BLKs unreadable)")));
     }
 
     let mut packs = 0;
