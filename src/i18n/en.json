@@ -200,7 +200,8 @@
         "skinNeedsName": "A skin needs a name",
         "renameFailed": "Could not rename the skin folder",
         "lineupsUnreadable": "Livery couldn't read your War Thunder profile",
-        "lineupsUnparsable": "The lineups in your War Thunder profile can't be read"
+        "lineupsUnparsable": "The lineups in your War Thunder profile can't be read",
+        "modelUnreadable": "This vehicle's 3D model can't be read"
       }
     },
     "vehicleClass": {

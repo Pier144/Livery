@@ -204,7 +204,8 @@
         "skinNeedsName": "У камуфляжа должно быть название",
         "renameFailed": "Не удалось переименовать папку камуфляжа",
         "lineupsUnreadable": "Livery не удалось прочитать ваш профиль War Thunder",
-        "lineupsUnparsable": "Не удалось прочитать составы в вашем профиле War Thunder"
+        "lineupsUnparsable": "Не удалось прочитать составы в вашем профиле War Thunder",
+        "modelUnreadable": "Не удалось прочитать 3D-модель этой машины"
       }
     },
     "vehicleClass": {
