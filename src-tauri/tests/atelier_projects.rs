@@ -4,8 +4,8 @@
 //! thumbnails must be PNGs.
 
 use livery_lib::atelier::project::{
-    is_slot_name, ProjectStore, MAX_LAYERS, MAX_NAME_CHARS, MAX_THUMB_BYTES, PROJECT_FILE, PROJECT_INVALID,
-    PROJECT_NAME_INVALID, PROJECT_NOT_FOUND, PROJECT_THUMB_INVALID, THUMB_FILE,
+    is_slot_name, ProjectStore, MAX_LAYERS, MAX_LAYERS_BYTES, MAX_NAME_CHARS, MAX_THUMB_BYTES, PROJECT_FILE,
+    PROJECT_INVALID, PROJECT_NAME_INVALID, PROJECT_NOT_FOUND, PROJECT_THUMB_INVALID, THUMB_FILE,
 };
 use livery_lib::error::{AppError, ErrorCode};
 use livery_lib::model::{AtelierProject, AtelierSlotChoice};
@@ -309,4 +309,24 @@ fn slot_names_are_safe_texture_names() {
         assert!(!is_slot_name(bad), "{bad}");
     }
     assert!(!is_slot_name(&format!("{}_c", "x".repeat(200))));
+}
+
+#[test]
+fn a_project_near_the_layers_limit_saves_compact_and_reads_back() {
+    let dir = TempDir::new("large");
+    let store = store(&dir);
+    let p = store.create("Large", JUMBO, slots(), at(0)).unwrap();
+    // Mask strokes of many points: deep arrays of short numbers, which pretty-printing would
+    // blow up past the read limit. Each point is 16 bytes compact.
+    let points: Vec<serde_json::Value> =
+        (0..(MAX_LAYERS_BYTES - 64 * 1024) / 16).map(|_| json!([0.5, -0.25, 1.0])).collect();
+    let layers = json!([{ "id": "m", "kind": "mask", "strokes": [{ "points": points }] }]);
+    let size = serde_json::to_vec(&layers).unwrap().len();
+    assert!(size > MAX_LAYERS_BYTES - 128 * 1024 && size < MAX_LAYERS_BYTES, "{size}");
+    let saved = store.save(&AtelierProject { layers: layers.clone(), ..p.clone() }, at(1)).unwrap();
+    assert_eq!(store.get(&p.id).unwrap(), saved);
+    assert_eq!(saved.layers, layers);
+    let file = dir.path().join("atelier").join("projects").join(&p.id).join(PROJECT_FILE);
+    assert!((fs::metadata(&file).unwrap().len() as usize) < size + 4096, "written compact");
+    assert_eq!(store.list().unwrap().len(), 1);
 }

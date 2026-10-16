@@ -60,7 +60,8 @@ pub fn is_slot_name(name: &str) -> bool {
         && name[name.len() - 2..].eq_ignore_ascii_case("_c")
 }
 
-fn is_vehicle_code(code: &str) -> bool {
+/// A vehicle code as the game names its `.blk` files: ASCII letters, digits, `_` and `-`.
+pub(crate) fn is_vehicle_code(code: &str) -> bool {
     !code.is_empty()
         && code.len() <= MAX_VEHICLE_CHARS
         && code.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
@@ -88,6 +89,16 @@ fn checked_name(name: &str) -> AppResult<String> {
         );
     }
     Ok(name.to_owned())
+}
+
+/// What `create` checks before anything else: a name ([`PROJECT_NAME_INVALID`]) and a plain
+/// vehicle code ([`PROJECT_INVALID`]). Commands call it before reading the vehicle's model.
+pub(crate) fn check_new(name: &str, vehicle: &str) -> AppResult<()> {
+    checked_name(name)?;
+    if !is_vehicle_code(vehicle) {
+        return Err(invalid(format!("vehicle {vehicle:?}")));
+    }
+    Ok(())
 }
 
 /// Checks everything but the id (see the module doc); `invalidInput` with the reason as detail.
@@ -223,8 +234,13 @@ impl ProjectStore {
         Ok(project)
     }
 
+    /// Writes `project.json` compact (pretty-printing deep layer arrays multiplies their size), and
+    /// never a file [`Self::read`] would refuse.
     fn write(dir: &Path, project: &AtelierProject) -> AppResult<()> {
-        let bytes = serde_json::to_vec_pretty(project)?;
+        let bytes = serde_json::to_vec(project)?;
+        if bytes.len() as u64 > MAX_FILE_BYTES {
+            return Err(invalid(format!("{} bytes", bytes.len())));
+        }
         write_atomic(&dir.join(PROJECT_FILE), &bytes).map_err(save_failed)
     }
 

@@ -5,8 +5,8 @@
 use livery_lib::archive::generated::Target;
 use livery_lib::archive::{partial_dir, QueueStore};
 use livery_lib::atelier::apply::{
-    self, blk_text, encode_painted, folder_name, Applies, ApplyJob, APPLY_BAD_SLOT, APPLY_NOTHING, APPLY_NOT_FOUND,
-    CLUSTER_FIT_MAX_SIDE,
+    self, blk_text, encode_painted, folder_name, Applies, ApplyJob, APPLY_BAD_SLOT, APPLY_FAILED, APPLY_NOTHING,
+    APPLY_NOT_FOUND, CLUSTER_FIT_MAX_SIDE, STALE_APPLY,
 };
 use livery_lib::atelier::project::ProjectStore;
 use livery_lib::error::{AppError, ErrorCode};
@@ -17,7 +17,7 @@ use livery_lib::textures::header::parse_dds;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 /// Unique temp folder, removed on drop.
 struct TempDir(PathBuf);
@@ -295,13 +295,13 @@ fn the_registry_hands_out_each_job_once_and_honours_a_cancel_during_work() {
 
     let (id, job) = env.begin(&project, &[BODY]);
     let root = job.root.clone();
-    applies.insert(id.clone(), job);
+    applies.insert(id.clone(), job).unwrap();
     let mut job = applies.checkout(&id).unwrap();
     // While a texture is being written, the job is busy.
     unknown(err(applies.checkout(&id)));
     unknown(err(applies.remove(&id)));
     paint(&mut job, BODY, 4).unwrap();
-    applies.checkin(&id, job).unwrap();
+    job.checkin().unwrap();
     let job = applies.remove(&id).unwrap();
     unknown(err(applies.checkout(&id)));
     apply::cancel(job);
@@ -309,18 +309,18 @@ fn the_registry_hands_out_each_job_once_and_honours_a_cancel_during_work() {
     // Cancel while busy: the texture call finds it cancelled when it returns, and the folder goes.
     let (id, job) = env.begin(&project, &[BODY]);
     let busy_root = job.root.clone();
-    applies.insert(id.clone(), job);
+    applies.insert(id.clone(), job).unwrap();
     let job = applies.checkout(&id).unwrap();
     applies.cancel(&id);
     assert!(busy_root.exists(), "the encode in progress still has it");
-    unknown(err(applies.checkin(&id, job)));
+    unknown(err(job.checkin()));
     assert!(!busy_root.exists());
     unknown(err(applies.checkout(&id)));
 
     // Cancel while idle removes at once.
     let (id, job) = env.begin(&project, &[BODY]);
     let idle_root = job.root.clone();
-    applies.insert(id.clone(), job);
+    applies.insert(id.clone(), job).unwrap();
     applies.cancel(&id);
     assert!(!idle_root.exists());
     unknown(err(applies.remove(&id)));
@@ -357,4 +357,72 @@ fn painted_textures_encode_in_strips_like_the_whole_image() {
 
     let e = encode_painted(&flat, 6, 8).unwrap_err();
     assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, APPLY_BAD_TEXTURE));
+}
+
+#[test]
+fn a_project_has_one_apply_at_a_time() {
+    let env = Env::new("one");
+    let project = env.project("One");
+    let other = env.project("Other");
+    let applies = Applies::default();
+    let (first, job) = env.begin(&project, &[BODY]);
+    let first_root = job.root.clone();
+    applies.insert(first.clone(), job).unwrap();
+    let (_, job) = env.begin(&other, &[BODY]);
+    let other_root = job.root.clone();
+    applies.insert("a-other".into(), job).unwrap();
+
+    // A second begin of the same project is refused and leaves no staging.
+    let (second, job) = env.begin(&project, &[BODY]);
+    let second_root = job.root.clone();
+    let e = err(applies.insert(second.clone(), job));
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::Conflict, APPLY_FAILED));
+    assert!(!second_root.exists());
+    // Busy counts too.
+    let busy = applies.checkout(&first).unwrap();
+    let (_, job) = env.begin(&project, &[BODY]);
+    assert!(applies.insert("a-busy".into(), job).is_err());
+    busy.checkin().unwrap();
+
+    // One left idle longer than STALE_APPLY (its editor went away) is replaced.
+    let later = Instant::now() + STALE_APPLY + Duration::from_secs(1);
+    let (third, job) = env.begin(&project, &[BODY]);
+    applies.insert_at(third.clone(), job, later).unwrap();
+    assert!(!first_root.exists());
+    assert!(applies.remove(&first).is_err());
+    assert!(applies.remove(&third).is_ok());
+    assert!(other_root.exists(), "other projects' applies stay");
+}
+
+#[test]
+fn a_job_dropped_while_checked_out_ends_the_apply() {
+    let env = Env::new("unwind");
+    let project = env.project("Unwind");
+    let applies = Applies::default();
+    let (id, job) = env.begin(&project, &[BODY]);
+    let root = job.root.clone();
+    applies.insert(id.clone(), job).unwrap();
+    let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _job = applies.checkout(&id).unwrap();
+        panic!("the encoder failed");
+    }));
+    assert!(unwound.is_err());
+    assert!(!root.exists(), "the staging went");
+    assert_eq!(err(applies.checkout(&id)).message, APPLY_NOT_FOUND);
+    // The project can be applied again at once.
+    let (again, job) = env.begin(&project, &[BODY]);
+    applies.insert(again, job).unwrap();
+}
+
+#[test]
+fn the_job_remembers_the_installed_skin_and_the_last_pct() {
+    let env = Env::new("remember");
+    let project = env.project("Remember");
+    let project = env.projects.set_installed_skin(&project.id, "s-1", SystemTime::now()).unwrap();
+    let (_, mut job) = env.begin(&project, &[BODY, TURRET]);
+    assert_eq!(job.installed_skin_id.as_deref(), Some("s-1"));
+    assert_eq!(job.last_pct, 0);
+    paint(&mut job, TURRET, 4).unwrap();
+    assert_eq!(job.last_pct, 67);
+    apply::cancel(job);
 }

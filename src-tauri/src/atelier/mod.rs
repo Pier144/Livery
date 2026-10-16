@@ -230,6 +230,8 @@ pub async fn atelier_projects(app: AppHandle) -> AppResult<Vec<AtelierProjectSum
 #[tauri::command]
 pub async fn atelier_project_create(app: AppHandle, name: String, vehicle: String) -> AppResult<AtelierProject> {
     blocking(move || {
+        // Name and vehicle code first: reading the model can take a while.
+        project::check_new(&name, &vehicle)?;
         let game_root = game_root_for_atelier(&app)?;
         let state = app.state::<AtelierState>();
         let model = state.model(&game_root, &vehicle)?;
@@ -310,7 +312,7 @@ pub async fn atelier_apply_begin(app: AppHandle, project_id: String, enabled: Ve
         let state = app.state::<AtelierState>();
         let project = state.projects().get(&project_id)?;
         let (apply_id, job) = apply::begin(&library.user_skins, &app.state::<QueueStore>(), &project, enabled)?;
-        state.applies.insert(apply_id.clone(), job);
+        state.applies.insert(apply_id.clone(), job)?;
         tracing::info!(%apply_id, "Atelier apply started");
         Ok(ApplyStarted { apply_id })
     })
@@ -334,17 +336,25 @@ pub async fn atelier_apply_texture(app: AppHandle, request: Request<'_>) -> AppR
         })
     };
     let (w, h) = (side("x-width")?, side("x-height")?);
-    let rgba = raw_body(&request).ok_or_else(|| {
-        AppError::new(ErrorCode::InvalidInput, APPLY_BAD_TEXTURE).with_detail("not a raw request body")
-    })?;
+    // Checked on the request's own bytes, so a wrong size never costs a copy of them.
+    let rgba = match request.body() {
+        InvokeBody::Raw(bytes) => {
+            apply::check_size(bytes, w, h)?;
+            bytes.clone()
+        }
+        InvokeBody::Json(_) => {
+            return Err(AppError::new(ErrorCode::InvalidInput, APPLY_BAD_TEXTURE).with_detail("not a raw request body"))
+        }
+    };
     blocking(move || {
         let state = app.state::<AtelierState>();
+        // Given back below; dropped while unwinding instead, it ends the apply and removes the staging.
         let mut job = state.applies.checkout(&apply_id)?;
         let written = apply::texture(&mut job, &slot, w, h, &rgba, &mut |step, pct| {
             emit_progress(&app, progress(&apply_id, step, pct));
         });
         drop(rgba);
-        state.applies.checkin(&apply_id, job)?;
+        job.checkin()?;
         written
     })
     .await
@@ -357,11 +367,36 @@ pub async fn atelier_apply_texture(app: AppHandle, request: Request<'_>) -> AppR
 pub async fn atelier_apply_commit(app: AppHandle, apply_id: String) -> AppResult<ApplyResult> {
     blocking(move || {
         let state = app.state::<AtelierState>();
-        let library = GameLibrary::current(&app)?;
         let job = state.applies.remove(&apply_id)?;
+        // From here every failure ends the apply the same way: an error event at the last pct,
+        // and the staging removed (by `apply::commit` itself once it has the job).
+        let fail = |e: AppError, pct: u8| {
+            emit_progress(
+                &app,
+                ApplyProgress { message: Some(e.message.clone()), ..progress(&apply_id, ApplyStep::Error, pct) },
+            );
+            tracing::warn!(%apply_id, error = %e, "Atelier apply failed");
+            e
+        };
+        let library = match GameLibrary::current(&app) {
+            Ok(library) => library,
+            Err(e) => {
+                let pct = job.last_pct;
+                apply::cancel(job);
+                return Err(fail(e, pct));
+            }
+        };
         let project_id = job.project_id.clone();
-        let project = state.projects().get(&project_id);
-        let target = match project.as_ref().ok().and_then(|p| p.installed_skin_id.clone()) {
+        // The project's skin as saved now; when the project can't be read, the one it had at begin
+        // (falling back to a new skin would install a second copy).
+        let installed = match state.projects().get(&project_id) {
+            Ok(project) => project.installed_skin_id.or_else(|| job.installed_skin_id.clone()),
+            Err(e) => {
+                tracing::warn!(error = %e, "the project can't be read again: replacing the skin it had at begin");
+                job.installed_skin_id.clone()
+            }
+        };
+        let target = match installed {
             Some(skin_id) => Target::Replace(skin_id),
             // The staged folder's name is the one wanted (see `apply::begin`).
             None => Target::New(job.dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()),
@@ -369,32 +404,22 @@ pub async fn atelier_apply_commit(app: AppHandle, apply_id: String) -> AppResult
         emit_progress(&app, progress(&apply_id, ApplyStep::Install, TEXTURES_PCT));
         let GameLibrary { settings, user_skins, store } = library;
         let now = SystemTime::now();
-        match apply::commit(job, &user_skins, &store, target, settings.backups, settings.backup_days, now) {
-            Ok(generated) => {
-                if let Err(e) = state.projects().set_installed_skin(&project_id, &generated.skin.id, now) {
-                    tracing::warn!(error = %e, "the project doesn't record its installed skin");
-                }
-                crate::archive::recheck_queue(&app);
-                emit_progress(
-                    &app,
-                    ApplyProgress {
-                        skin_id: Some(generated.skin.id.clone()),
-                        backup_id: generated.backup_id.clone(),
-                        ..progress(&apply_id, ApplyStep::Done, 100)
-                    },
-                );
-                tracing::info!(%apply_id, skin = %generated.skin.id, "Atelier apply installed");
-                Ok(ApplyResult { skin: generated.skin, backup_id: generated.backup_id })
-            }
-            Err(e) => {
-                emit_progress(
-                    &app,
-                    ApplyProgress { message: Some(e.message.clone()), ..progress(&apply_id, ApplyStep::Error, 100) },
-                );
-                tracing::warn!(%apply_id, error = %e, "Atelier apply failed");
-                Err(e)
-            }
+        let generated = apply::commit(job, &user_skins, &store, target, settings.backups, settings.backup_days, now)
+            .map_err(|e| fail(e, TEXTURES_PCT))?;
+        if let Err(e) = state.projects().set_installed_skin(&project_id, &generated.skin.id, now) {
+            tracing::warn!(error = %e, "the project doesn't record its installed skin");
         }
+        crate::archive::recheck_queue(&app);
+        emit_progress(
+            &app,
+            ApplyProgress {
+                skin_id: Some(generated.skin.id.clone()),
+                backup_id: generated.backup_id.clone(),
+                ..progress(&apply_id, ApplyStep::Done, 100)
+            },
+        );
+        tracing::info!(%apply_id, skin = %generated.skin.id, "Atelier apply installed");
+        Ok(ApplyResult { skin: generated.skin, backup_id: generated.backup_id })
     })
     .await
 }

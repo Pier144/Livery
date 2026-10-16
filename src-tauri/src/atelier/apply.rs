@@ -7,7 +7,7 @@
 use crate::archive::analyze::sanitize_folder_name;
 use crate::archive::generated::{install_generated, Generated, Target};
 use crate::archive::{partial_dir, QueueStore};
-use crate::atelier::project::{is_slot_name, PROJECT_INVALID};
+use crate::atelier::project::{is_slot_name, is_vehicle_code, PROJECT_INVALID};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::index::{new_id_with, LibraryStore};
 use crate::model::{ApplyStep, AtelierProject};
@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 /// `notFound`: an apply id that was committed, cancelled, never started, or is busy with a texture.
 pub const APPLY_NOT_FOUND: &str = "This apply is no longer running";
@@ -50,6 +50,11 @@ pub struct ApplyJob {
     pub enabled: Vec<String>,
     /// Slots written so far.
     pub written: Vec<String>,
+    /// The project's installed skin when the apply began (commit's target if the project can't
+    /// be read again then).
+    pub installed_skin_id: Option<String>,
+    /// The last `pct` reported (an error event repeats it).
+    pub last_pct: u8,
 }
 
 fn bad_slot(slot: &str) -> AppError {
@@ -67,7 +72,7 @@ pub fn folder_name(project: &AtelierProject) -> String {
 }
 
 /// `w`×`h` RGBA8 in `rgba`, both sides multiples of 4 up to [`MAX_APPLY_SIDE`].
-fn check_size(rgba: &[u8], w: u32, h: u32) -> AppResult<()> {
+pub(crate) fn check_size(rgba: &[u8], w: u32, h: u32) -> AppResult<()> {
     let side_ok = |s: u32| s > 0 && s <= MAX_APPLY_SIDE && s % 4 == 0;
     let expected = (w as usize).checked_mul(h as usize).and_then(|n| n.checked_mul(4));
     if !side_ok(w) || !side_ok(h) || expected != Some(rgba.len()) {
@@ -135,8 +140,7 @@ pub fn begin(
         return Err(AppError::new(ErrorCode::InvalidInput, APPLY_NOTHING));
     }
     // The vehicle code names the `.blk`: it must be a plain code (the project store checks it too).
-    let plain = |c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '-');
-    if project.vehicle.is_empty() || !project.vehicle.chars().all(plain) {
+    if !is_vehicle_code(&project.vehicle) {
         return Err(AppError::new(ErrorCode::InvalidInput, PROJECT_INVALID).with_detail(project.vehicle.clone()));
     }
     let mut slots: Vec<String> = Vec::new();
@@ -166,6 +170,8 @@ pub fn begin(
         root,
         enabled: slots,
         written: Vec::new(),
+        installed_skin_id: project.installed_skin_id.clone(),
+        last_pct: 0,
     };
     Ok((id, job))
 }
@@ -186,9 +192,11 @@ pub fn texture(
     let slot = job.enabled[at].clone();
     let n = job.enabled.len();
     let pct = |half: usize| (usize::from(TEXTURES_PCT) * half / (2 * n)) as u8;
-    report(ApplyStep::Encode, pct(2 * at));
+    job.last_pct = pct(2 * at);
+    report(ApplyStep::Encode, job.last_pct);
     let blocks = encode_painted(rgba, w, h)?;
-    report(ApplyStep::Write, pct(2 * at + 1));
+    job.last_pct = pct(2 * at + 1);
+    report(ApplyStep::Write, job.last_pct);
     let file = dds::write_dxt5(w, h, &blocks);
     drop(blocks);
     fs::write(job.dir.join(format!("{}.dds", base_of(&slot))), file).map_err(failed)?;
@@ -236,26 +244,45 @@ pub fn commit(
 
 /// Removes the apply's staging.
 pub fn cancel(job: ApplyJob) {
-    if let Err(e) = fs::remove_dir_all(&job.root) {
+    remove_staging(&job.root);
+}
+
+fn remove_staging(root: &Path) {
+    if let Err(e) = fs::remove_dir_all(root) {
         if e.kind() != std::io::ErrorKind::NotFound {
             tracing::warn!(error = %e, "Atelier apply staging not removed");
         }
     }
 }
 
+/// An idle apply untouched for this long no longer blocks a new apply of its project (its
+/// frontend went away mid-apply: a reload, an editor closed before it could cancel).
+pub const STALE_APPLY: Duration = Duration::from_secs(10 * 60);
+
 /// A job in the registry: waiting for the next call, or taken by a texture call.
 #[derive(Debug)]
 enum Entry {
-    Idle(ApplyJob),
+    Idle {
+        job: ApplyJob,
+        /// When it was begun or last given back.
+        since: Instant,
+    },
     /// `cancelled`: a cancel came while the texture was being encoded; the texture call removes
     /// the staging when it returns.
-    Busy {
-        cancelled: bool,
-    },
+    Busy { project_id: String, cancelled: bool },
 }
 
-/// The applies in progress, by id. A texture call checks its job out for the encode (the lock is
-/// never held while encoding) and checks it back in.
+impl Entry {
+    fn project_id(&self) -> &str {
+        match self {
+            Entry::Idle { job, .. } => &job.project_id,
+            Entry::Busy { project_id, .. } => project_id,
+        }
+    }
+}
+
+/// The applies in progress, by id; one per project. A texture call checks its job out for the
+/// encode (the lock is never held while encoding) and checks it back in.
 #[derive(Debug, Default)]
 pub struct Applies {
     jobs: Mutex<HashMap<String, Entry>>,
@@ -265,34 +292,112 @@ fn not_found(id: &str) -> AppError {
     AppError::new(ErrorCode::NotFound, APPLY_NOT_FOUND).with_detail(id.to_owned())
 }
 
+/// A job checked out for a texture call. [`CheckedOut::checkin`] gives it back; dropped without
+/// that (the encode unwound), the apply ends and its staging goes.
+#[derive(Debug)]
+pub struct CheckedOut<'a> {
+    applies: &'a Applies,
+    id: String,
+    job: Option<ApplyJob>,
+}
+
+impl std::ops::Deref for CheckedOut<'_> {
+    type Target = ApplyJob;
+    fn deref(&self) -> &ApplyJob {
+        match &self.job {
+            Some(job) => job,
+            None => unreachable!("the job is only taken by checkin and drop"),
+        }
+    }
+}
+
+impl std::ops::DerefMut for CheckedOut<'_> {
+    fn deref_mut(&mut self) -> &mut ApplyJob {
+        match &mut self.job {
+            Some(job) => job,
+            None => unreachable!("the job is only taken by checkin and drop"),
+        }
+    }
+}
+
+impl CheckedOut<'_> {
+    /// Gives the job back. Cancelled meanwhile: its staging goes and the call is `notFound`.
+    pub fn checkin(mut self) -> AppResult<()> {
+        match self.job.take() {
+            Some(job) => self.applies.checkin(&self.id, job),
+            None => Err(not_found(&self.id)),
+        }
+    }
+}
+
+impl Drop for CheckedOut<'_> {
+    fn drop(&mut self) {
+        if let Some(job) = self.job.take() {
+            tracing::warn!(apply_id = %self.id, "Atelier apply ended while a texture was being written");
+            self.applies.lock().remove(&self.id);
+            cancel(job);
+        }
+    }
+}
+
 impl Applies {
     fn lock(&self) -> MutexGuard<'_, HashMap<String, Entry>> {
         self.jobs.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    pub fn insert(&self, id: String, job: ApplyJob) {
-        self.lock().insert(id, Entry::Idle(job));
+    /// Registers a job `begin` made. Another apply of the same project that is busy or was used
+    /// within [`STALE_APPLY`] refuses this one (`conflict`, its staging removed); an older idle
+    /// one is cancelled and replaced.
+    pub fn insert(&self, id: String, job: ApplyJob) -> AppResult<()> {
+        self.insert_at(id, job, Instant::now())
+    }
+
+    /// [`Self::insert`] at `now`.
+    pub fn insert_at(&self, id: String, job: ApplyJob, now: Instant) -> AppResult<()> {
+        let mut jobs = self.lock();
+        let other = jobs.iter().find(|(_, e)| e.project_id() == job.project_id).map(|(k, _)| k.clone());
+        let mut replaced = None;
+        if let Some(other) = other {
+            let stale = matches!(jobs.get(&other), Some(Entry::Idle { since, .. })
+                if now.saturating_duration_since(*since) >= STALE_APPLY);
+            if !stale {
+                drop(jobs);
+                cancel(job);
+                return Err(AppError::new(ErrorCode::Conflict, APPLY_FAILED)
+                    .with_detail(format!("another apply of this project is running ({other})")));
+            }
+            if let Some(Entry::Idle { job: old, .. }) = jobs.remove(&other) {
+                replaced = Some(old);
+            }
+        }
+        jobs.insert(id, Entry::Idle { job, since: now });
+        drop(jobs);
+        if let Some(old) = replaced {
+            tracing::info!("a stale Atelier apply of the same project was cancelled");
+            cancel(old);
+        }
+        Ok(())
     }
 
     /// Takes the job for a texture call; `notFound` when unknown or busy.
-    pub fn checkout(&self, id: &str) -> AppResult<ApplyJob> {
+    pub fn checkout(&self, id: &str) -> AppResult<CheckedOut<'_>> {
         let mut jobs = self.lock();
-        match jobs.get_mut(id) {
-            Some(entry @ Entry::Idle(_)) => match std::mem::replace(entry, Entry::Busy { cancelled: false }) {
-                Entry::Idle(job) => Ok(job),
-                Entry::Busy { .. } => Err(not_found(id)),
-            },
-            _ => Err(not_found(id)),
+        let Some(entry) = jobs.get_mut(id) else { return Err(not_found(id)) };
+        let project_id = entry.project_id().to_owned();
+        match std::mem::replace(entry, Entry::Busy { project_id, cancelled: false }) {
+            Entry::Idle { job, .. } => Ok(CheckedOut { applies: self, id: id.to_owned(), job: Some(job) }),
+            busy => {
+                *entry = busy;
+                Err(not_found(id))
+            }
         }
     }
 
-    /// Gives a checked-out job back. Cancelled meanwhile: its staging goes and the call is
-    /// `notFound`.
-    pub fn checkin(&self, id: &str, job: ApplyJob) -> AppResult<()> {
+    fn checkin(&self, id: &str, job: ApplyJob) -> AppResult<()> {
         let mut jobs = self.lock();
         match jobs.get(id) {
-            Some(Entry::Busy { cancelled: false }) => {
-                jobs.insert(id.to_owned(), Entry::Idle(job));
+            Some(Entry::Busy { cancelled: false, .. }) => {
+                jobs.insert(id.to_owned(), Entry::Idle { job, since: Instant::now() });
                 Ok(())
             }
             _ => {
@@ -308,7 +413,7 @@ impl Applies {
     pub fn remove(&self, id: &str) -> AppResult<ApplyJob> {
         let mut jobs = self.lock();
         match jobs.remove(id) {
-            Some(Entry::Idle(job)) => Ok(job),
+            Some(Entry::Idle { job, .. }) => Ok(job),
             Some(busy) => {
                 jobs.insert(id.to_owned(), busy);
                 Err(not_found(id))
@@ -321,13 +426,13 @@ impl Applies {
     /// Unknown ids are fine.
     pub fn cancel(&self, id: &str) {
         let mut jobs = self.lock();
-        match jobs.remove(id) {
-            Some(Entry::Idle(job)) => {
-                drop(jobs);
-                cancel(job);
-            }
-            Some(Entry::Busy { .. }) => {
-                jobs.insert(id.to_owned(), Entry::Busy { cancelled: true });
+        match jobs.get_mut(id) {
+            Some(Entry::Busy { cancelled, .. }) => *cancelled = true,
+            Some(Entry::Idle { .. }) => {
+                if let Some(Entry::Idle { job, .. }) = jobs.remove(id) {
+                    drop(jobs);
+                    cancel(job);
+                }
             }
             None => {}
         }
