@@ -1065,6 +1065,11 @@
       "error": "Не удалось установить {{name}}. {{message}}"
     }
   },
+  "atelier": {
+    "toast": {
+      "deleted": "Проект «{{name}}» удалён"
+    }
+  },
   "settings": {
     "saved": "Сохранено",
     "title": "Настройки",

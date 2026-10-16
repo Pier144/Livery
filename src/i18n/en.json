@@ -981,6 +981,11 @@
       "error": "{{name}} can’t be installed. {{message}}"
     }
   },
+  "atelier": {
+    "toast": {
+      "deleted": "Deleted project “{{name}}”"
+    }
+  },
   "settings": {
     "saved": "Saved",
     "title": "Settings",

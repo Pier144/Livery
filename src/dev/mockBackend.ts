@@ -132,12 +132,15 @@
 //                                        query parameter, setting or removing the localStorage
 //                                        key takes effect at the next call, and a call that
 //                                        succeeds again emits { online: true }
+//   ?atelier=1    livery.mock.atelier    Settings → Experimental → Atelier starts on (sidebar entry);
+//                                        Atelier's commands are in src/dev/mockAtelier.ts
 // A query parameter wins over localStorage; `=0` turns a stored switch off for that load.
 // Without switches the app opens on First run (onboarded: false, no game folder), which saves the
 // Steam folder; until a folder is saved, commands that touch UserSkins fail like the real app
 // ("No game folder set").
 
 import { DEFAULT_SETTINGS } from '@/queries/settings';
+import { atelierCommands, createAtelierState, type AtelierMockState } from './mockAtelier';
 import { version as PACKAGE_VERSION } from '../../package.json';
 import { vehicles as builtInVehicles } from '@/data/vehicles';
 import {
@@ -175,6 +178,7 @@ import {
   type SortOrder,
   type TextureInfo,
   type UpdateInfo,
+  type Vehicle,
   type VehicleType,
   type WtLiveSkin,
   type WtLiveStorage,
@@ -205,7 +209,7 @@ import {
 
 // ── Start-up switches ───────────────────────────────────────────────────────
 
-type Flag = 'onboarded' | 'empty' | 'notfound' | 'many' | 'watch' | 'offline';
+type Flag = 'onboarded' | 'empty' | 'notfound' | 'many' | 'watch' | 'offline' | 'atelier';
 
 function readFlag(name: Flag): boolean {
   try {
@@ -337,6 +341,8 @@ interface MockState extends RootLibrary {
   cacheBytes: number;
   /** For you was last seen (`<appData>/for_you.json` in the real app), RFC 3339. */
   forYouSeenAt: string;
+  /** Atelier projects, their trash and thumbnails, applies in progress (`<appData>/atelier`). */
+  atelier: AtelierMockState;
 }
 
 /** Declared before `createState` runs at load. */
@@ -358,6 +364,7 @@ function createState(): MockState {
         ? { onboarded: true, gamePath: MOCK_GAME.path, gameSource: 'steam' as const, gameVersion: MOCK_GAME.version }
         : {}),
       ...(readFlag('watch') ? { watchFolder: MOCK_DOWNLOADS, autoInstall: true } : {}),
+      ...(readFlag('atelier') ? { atelierEnabled: true } : {}),
     },
     index: empty ? [] : many ? seedManyHangar() : seedHangar(),
     diskOnly: seedDiskOnly(),
@@ -376,6 +383,7 @@ function createState(): MockState {
     forYouSeenAt: '',
     triedBackups: new Map(),
     libraries: new Map(),
+    atelier: createAtelierState(),
   };
   // A day before the newest post, so a couple of posts are new on the first visit.
   const newest = Math.max(...created.catalog.map((p) => Date.parse(p.postedAt)));
@@ -533,6 +541,7 @@ const PATCH_FIELDS: Partial<Record<keyof Settings, (v: unknown) => boolean>> = {
   reduceMotion: oneOf(REDUCE_MOTION),
   wtliveEnabled: isBool,
   readGameData: isBool,
+  atelierEnabled: isBool,
 };
 
 /**
@@ -1856,6 +1865,49 @@ function finalizeTry(args: Args): HangarSkin | null {
   return null;
 }
 
+// ── Atelier ─────────────────────────────────────────────────────────────────
+
+/** Size of a skin Atelier installs in the mock: three 256² DXT5 textures and the blk. */
+const ATELIER_SKIN_BYTES = 3 * 65_536 + 220;
+
+/**
+ * `install_generated`: over `replaceId` when that skin is in the library (its id, name, folder
+ * and active state stay; the previous version goes to a replace backup), else a new active `mine`
+ * skin in `folder` (`<folder> (2)` when taken).
+ */
+function installGenerated(target: { replaceId?: string; folder: string; vehicle: Vehicle }): { skin: HangarSkin; backupId?: string } {
+  purgeExpired();
+  const build = (id: string, folder: string, name: string, active: boolean): HangarSkin => ({
+    id,
+    folder,
+    name,
+    vehicle: { ...target.vehicle },
+    origin: 'mine',
+    sizeBytes: ATELIER_SKIN_BYTES,
+    active,
+    installedAt: stamp(Date.now()),
+  });
+  const existing = target.replaceId === undefined ? undefined : state.index.find((s) => s.id === target.replaceId);
+  if (existing) return replaceSkin(existing, (id) => build(id, existing.folder, existing.name, existing.active));
+  const folder = uniqueName(target.folder, (name) => installedAt(state, name) !== undefined);
+  const skin = build(newId('s'), folder, folder, true);
+  state.index.push(skin);
+  return { skin };
+}
+
+const ATELIER_COMMANDS = atelierCommands({
+  atelier: () => state.atelier,
+  settings: () => state.settings,
+  hasGameFolder,
+  groundVehicle: (code) => builtInVehicles.find((v) => v.code === code && v.type === 'ground'),
+  newId,
+  now: () => stamp(Date.now()),
+  fail,
+  emit: mockEmit,
+  wait: (ms) => new Promise((resolve) => later(ms, resolve)),
+  installGenerated,
+});
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 const COMMANDS: Record<string, (args: Args) => unknown> = {
@@ -1939,17 +1991,23 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
     state.hidden.clear();
     return wtliveStorage();
   },
+  ...ATELIER_COMMANDS,
 };
 
 /** Answers `cmd` like the Rust backend would, after a short simulated delay. */
 export async function mockCall<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
-  const input = wire(args ?? {});
+  // A raw request body (`callRaw`) travels as bytes, not JSON.
+  const { __body, ...rest } = args ?? {};
+  const input = wire(rest);
+  if (__body instanceof Uint8Array) input.__body = __body.slice();
   await pause();
   const handler = Object.hasOwn(COMMANDS, cmd) ? COMMANDS[cmd] : undefined;
   if (!handler) return fail('noBackend', `"${cmd}" needs the desktop app`);
   followGameRoot();
   try {
-    return wire((await handler(input)) as T);
+    const result = await handler(input);
+    // A binary answer (`tauri::ipc::Response`) arrives as an ArrayBuffer.
+    return (result instanceof ArrayBuffer ? result.slice(0) : wire(result)) as T;
   } finally {
     // `set_settings` may have saved another game folder.
     followGameRoot();

@@ -148,6 +148,7 @@ export const EVENTS = {
   queueAdded: 'queue://added',
   hangarChanged: 'hangar://changed',
   netStatus: 'net://status',
+  atelierApplyProgress: 'atelier://apply-progress',
 } as const;
 export type ConflictPolicy = 'ask' | 'replace' | 'copy' | 'skip';
 export type GameSource = 'steam' | 'standalone' | 'custom';
@@ -179,6 +180,8 @@ export interface Settings {
    * the lineups from the War Thunder profile (off: built-in list, no For you suggestions).
    */
   readGameData: boolean;
+  /** Settings → Experimental → Atelier (the skin editor). Off by default. */
+  atelierEnabled: boolean;
 }
 /** `set_settings({ patch })`: the fields to change. */
 export type SettingsPatch = Partial<Settings>;
@@ -357,4 +360,104 @@ export interface ForYouSkin {
 export interface ForYouNew {
   items: ForYouSkin[];
   checked: number;
+}
+
+// ── Atelier (skin editor) ───────────────────────────────────────────────────
+
+/** A project as the Atelier home lists it (`atelier_projects`), most recently saved first. */
+export interface AtelierProjectSummary {
+  id: string;
+  name: string;
+  /** Vehicle code, e.g. `us_m4a3e2_sherman_jumbo`. */
+  vehicle: string;
+  /** RFC 3339 UTC. */
+  updatedAt: string;
+  hasThumb: boolean;
+}
+/** One paintable texture of the vehicle (`<base>_c`) and whether the user paints it. */
+export interface AtelierSlotChoice {
+  texture: string;
+  enabled: boolean;
+}
+/** Export options of a project. */
+export interface AtelierOutput {
+  /** The body slot goes to 4096 when its template is smaller. */
+  highQuality: boolean;
+}
+/**
+ * `project.json` of an Atelier project. Rust checks the envelope and stores `layers` as it comes:
+ * the frontend owns the layer schema (`src/atelier/project.ts` validates it on load).
+ */
+export interface AtelierProject {
+  /** Schema version, 1. */
+  version: number;
+  id: string;
+  name: string;
+  vehicle: string;
+  /** RFC 3339 UTC. */
+  createdAt: string;
+  updatedAt: string;
+  slots: AtelierSlotChoice[];
+  output: AtelierOutput;
+  /** The library id of the skin the last apply installed (never a path). */
+  installedSkinId?: string;
+  /** Bottom to top; `layers[0]` is the Base. Empty for a new project (the editor adds the Base). */
+  layers: unknown[];
+}
+/** Rust's steps of an apply (`atelier://apply-progress`); the bake before them is the frontend's. */
+export type ApplyStep = 'encode' | 'write' | 'install' | 'done' | 'error';
+/** Payload of `atelier://apply-progress`. */
+export interface ApplyProgress {
+  applyId: string;
+  step: ApplyStep;
+  /** 0 to 100 within Rust's part of the apply (encode, write, install). */
+  pct: number;
+  message?: string;
+  /** done: the installed skin. */
+  skinId?: string;
+  /** done after a replace: the backup of the previous version (drives Undo). */
+  backupId?: string;
+}
+/** `atelier_apply_begin`. */
+export interface ApplyStarted {
+  applyId: string;
+}
+/** `atelier_apply_commit`: the installed skin and, after a replace, the backup Undo restores. */
+export interface ApplyResult {
+  skin: HangarSkin;
+  backupId?: string;
+}
+/** Which of the vehicle's three groups a part belongs to ("Only this part"). */
+export type PartGroup = 'hull' | 'turret' | 'gun';
+/** A paintable texture of the model, as `atelier_model`'s header lists it. */
+export interface ModelSlot {
+  /** Base name, ends in `_c`. */
+  texture: string;
+  width: number;
+  height: number;
+  /** False when the game's high-quality pack isn't installed (a smaller texture is used). */
+  hq: boolean;
+  paintableByDefault: boolean;
+}
+/** The triangles of one node drawn with one slot; offsets into the model's arrays, in vertices and indices. */
+export interface ModelPart {
+  node: string;
+  group: PartGroup;
+  /** Index into `ModelHeader.slots`. */
+  slot: number;
+  vertexOffset: number;
+  vertexCount: number;
+  indexOffset: number;
+  indexCount: number;
+}
+/** The JSON header of the `LVM1` model binary (`atelier_model`, see `src/atelier/modelBuffer.ts`). */
+export interface ModelHeader {
+  vehicle: string;
+  model: string;
+  /** The left/right mirror axis (2 = z). */
+  mirrorAxis: number;
+  slots: ModelSlot[];
+  parts: ModelPart[];
+  vertexCount: number;
+  indexCount: number;
 }

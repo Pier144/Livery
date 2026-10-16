@@ -1065,6 +1065,11 @@
       "error": "Nie można zainstalować {{name}}. {{message}}"
     }
   },
+  "atelier": {
+    "toast": {
+      "deleted": "Usunięto projekt „{{name}}”"
+    }
+  },
   "settings": {
     "saved": "Zapisano",
     "title": "Ustawienia",

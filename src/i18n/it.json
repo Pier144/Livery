@@ -1023,6 +1023,11 @@
       "error": "Impossibile installare {{name}}. {{message}}"
     }
   },
+  "atelier": {
+    "toast": {
+      "deleted": "Progetto “{{name}}” eliminato"
+    }
+  },
   "settings": {
     "saved": "Salvato",
     "title": "Impostazioni",

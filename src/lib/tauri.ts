@@ -46,6 +46,27 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
   }
 }
 
+/**
+ * `call` with a raw request body (bytes, never a JSON array) and request headers, for commands
+ * that take a `tauri::ipc::Request` (Atelier's painted textures and thumbnails). The mock backend
+ * gets them as `{ __body, __headers }`. Binary answers from either function arrive as `ArrayBuffer`.
+ */
+export async function callRaw<T>(cmd: string, body: Uint8Array, headers: Record<string, string>): Promise<T> {
+  if (!isTauri()) {
+    // The env check is inline (not `MOCK_BACKEND`) so the production build drops the mock chunk.
+    if (import.meta.env.VITE_MOCK_BACKEND === '1') {
+      const { mockCall } = await import('@/dev/mockBackend');
+      return mockCall<T>(cmd, { __body: body, __headers: headers });
+    }
+    throw { code: 'noBackend', message: `"${cmd}" needs the desktop app` } satisfies AppError;
+  }
+  try {
+    return await invoke<T>(cmd, body, { headers });
+  } catch (e) {
+    throw toAppError(e);
+  }
+}
+
 /** Window controls for the frameless title bar. No-ops outside Tauri. */
 export const appWindow = {
   async minimize() {
