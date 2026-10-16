@@ -41,3 +41,17 @@ fn language_codes_match_the_ui() {
     let newer: Settings = serde_json::from_str(r#"{ "language": "ja", "backups": false }"#).unwrap();
     assert_eq!((newer.language, newer.backups), (Language::En, false));
 }
+
+#[test]
+fn atelier_is_off_by_default_and_in_old_files() {
+    assert!(!Settings::default().atelier_enabled);
+    assert_eq!(serde_json::to_value(Settings::default()).unwrap()["atelierEnabled"], false);
+    let text = std::fs::read_to_string(fixture("partial.json")).unwrap();
+    let old_file: Settings = serde_json::from_str(&text).unwrap();
+    assert!(!old_file.atelier_enabled, "files from before the switch load with Atelier off");
+    let mut settings = Settings::default();
+    settings.apply(serde_json::from_str(r#"{ "atelierEnabled": true }"#).unwrap());
+    assert!(settings.atelier_enabled);
+    settings.apply(serde_json::from_str(r#"{ "language": "en" }"#).unwrap());
+    assert!(settings.atelier_enabled, "a patch without it leaves it");
+}

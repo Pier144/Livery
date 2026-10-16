@@ -209,7 +209,8 @@
         "applyBadTexture": "Pomalowana tekstura ma nieprawidłowy rozmiar",
         "modelNotFound": "Modelu 3D tego pojazdu nie ma w plikach gry",
         "textureNotFound": "Jednej z tekstur tego pojazdu nie ma w plikach gry",
-        "textureOverrides": "Atelier nie może jeszcze malować tego pojazdu: używa własnych tekstur na wspólnym modelu"
+        "textureOverrides": "Atelier nie może jeszcze malować tego pojazdu: używa własnych tekstur na wspólnym modelu",
+        "atelierNeedsGameData": "Atelier wymaga włączenia opcji Wczytuj dane z gry"
       }
     },
     "vehicleClass": {

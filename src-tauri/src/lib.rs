@@ -5,6 +5,7 @@
 //! (`tauri::async_runtime::spawn_blocking`) so the UI thread never waits on I/O.
 
 pub mod archive;
+pub mod atelier;
 pub mod backup;
 pub mod error;
 pub mod feedback;
@@ -82,6 +83,8 @@ pub fn run() {
             let enabled: wtlive::EnabledFn =
                 std::sync::Arc::new(move || handle.state::<settings::SettingsStore>().get().wtlive_enabled);
             app.manage(wtlive::WtLive::load(&data_dir, enabled));
+            // Atelier: the game-resource index cache (and, later, projects) under <data>/atelier.
+            app.manage(atelier::AtelierState::new(&data_dir.join(atelier::ATELIER_DIR)));
             // Expired and ephemeral backups go away at launch, not only on the first library command.
             backup::purge_on_startup(app.handle());
             // Stale install staging (.livery/partial) from a crash or a closed window goes too.
@@ -149,6 +152,8 @@ pub fn run() {
             update::check_update,
             update::install_update,
             startup::app_ready,
+            atelier::atelier_model,
+            atelier::atelier_template_texture,
         ])
         .build(tauri::generate_context!())
         .expect("error while running Livery")

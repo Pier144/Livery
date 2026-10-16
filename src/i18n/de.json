@@ -205,7 +205,8 @@
         "applyBadTexture": "Eine bemalte Textur hat die falsche Größe",
         "modelNotFound": "Das 3D-Modell dieses Fahrzeugs ist nicht in den Spieldateien",
         "textureNotFound": "Eine Textur dieses Fahrzeugs ist nicht in den Spieldateien",
-        "textureOverrides": "Atelier kann dieses Fahrzeug noch nicht bemalen: Es nutzt eigene Texturen auf einem gemeinsamen Modell"
+        "textureOverrides": "Atelier kann dieses Fahrzeug noch nicht bemalen: Es nutzt eigene Texturen auf einem gemeinsamen Modell",
+        "atelierNeedsGameData": "Schalte Daten aus dem Spiel lesen ein, um Atelier zu nutzen"
       }
     },
     "vehicleClass": {

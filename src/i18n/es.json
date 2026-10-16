@@ -207,7 +207,8 @@
         "applyBadTexture": "Una textura pintada tiene un tamaño incorrecto",
         "modelNotFound": "El modelo 3D de este vehículo no está en los archivos del juego",
         "textureNotFound": "Una textura de este vehículo no está en los archivos del juego",
-        "textureOverrides": "Atelier aún no puede pintar este vehículo: usa sus propias texturas sobre un modelo compartido"
+        "textureOverrides": "Atelier aún no puede pintar este vehículo: usa sus propias texturas sobre un modelo compartido",
+        "atelierNeedsGameData": "Atelier necesita que Leer datos del juego esté activado"
       }
     },
     "vehicleClass": {

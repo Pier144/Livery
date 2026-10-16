@@ -106,6 +106,9 @@ pub struct Settings {
     /// data archives (`char.vromfs.bin`, `lang.vromfs.bin`) and uses its built-in list.
     #[serde(default = "yes")]
     pub read_game_data: bool,
+    /// Settings → Experimental → Atelier (the skin editor). Off by default; files from before the
+    /// switch load with it off.
+    pub atelier_enabled: bool,
 }
 
 fn yes() -> bool {
@@ -139,6 +142,7 @@ impl Default for Settings {
             reduce_motion: ReduceMotion::System,
             wtlive_enabled: true,
             read_game_data: true,
+            atelier_enabled: false,
         }
     }
 }
@@ -164,6 +168,7 @@ pub struct SettingsPatch {
     pub reduce_motion: Option<ReduceMotion>,
     pub wtlive_enabled: Option<bool>,
     pub read_game_data: Option<bool>,
+    pub atelier_enabled: Option<bool>,
 }
 
 /// Deserializes a present field as `Some(value)`, so `Option<Option<T>>` can tell
@@ -219,6 +224,9 @@ impl Settings {
         }
         if let Some(v) = patch.wtlive_enabled {
             self.wtlive_enabled = v;
+        }
+        if let Some(v) = patch.atelier_enabled {
+            self.atelier_enabled = v;
         }
     }
 }
@@ -794,4 +802,102 @@ pub struct ForYouSkin {
 pub struct ForYouNew {
     pub items: Vec<ForYouSkin>,
     pub checked: u32,
+}
+
+// ── Atelier (skin editor) ───────────────────────────────────────────────────
+
+/// A project as the Atelier home lists it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtelierProjectSummary {
+    pub id: String,
+    pub name: String,
+    /// Vehicle code, e.g. `us_m4a3e2_sherman_jumbo`.
+    pub vehicle: String,
+    /// RFC 3339 UTC timestamp.
+    pub updated_at: String,
+    pub has_thumb: bool,
+}
+
+/// One paintable texture of the vehicle (`<base>_c`) and whether the user paints it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtelierSlotChoice {
+    pub texture: String,
+    pub enabled: bool,
+}
+
+/// Export options of a project.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AtelierOutput {
+    /// The body slot goes to 4096 when its template is smaller.
+    pub high_quality: bool,
+}
+
+/// `project.json` of an Atelier project. Rust checks the envelope; `layers` belongs to the
+/// frontend (bottom to top, `layers[0]` the Base) and is stored as it comes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtelierProject {
+    /// Schema version, 1.
+    pub version: u32,
+    pub id: String,
+    pub name: String,
+    pub vehicle: String,
+    /// RFC 3339 UTC timestamps.
+    pub created_at: String,
+    pub updated_at: String,
+    pub slots: Vec<AtelierSlotChoice>,
+    #[serde(default)]
+    pub output: AtelierOutput,
+    /// The library id of the skin the last apply installed (never a path).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installed_skin_id: Option<String>,
+    pub layers: serde_json::Value,
+}
+
+/// Rust's steps of an apply (`atelier://apply-progress`); the bake before them is the frontend's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ApplyStep {
+    Encode,
+    Write,
+    Install,
+    Done,
+    Error,
+}
+
+/// Payload of `atelier://apply-progress`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyProgress {
+    pub apply_id: String,
+    pub step: ApplyStep,
+    /// 0–100 within Rust's part of the apply (encode, write, install).
+    pub pct: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// done: the installed skin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skin_id: Option<String>,
+    /// done after a replace: the backup of the previous version (drives Undo).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backup_id: Option<String>,
+}
+
+/// `atelier_apply_begin`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyStarted {
+    pub apply_id: String,
+}
+
+/// `atelier_apply_commit`: the installed skin and, after a replace, the backup Undo restores.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyResult {
+    pub skin: HangarSkin,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backup_id: Option<String>,
 }
