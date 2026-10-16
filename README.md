@@ -17,6 +17,8 @@ them with one click, and keep your `UserSkins` folder tidy.
 
 ![Explore: WT Live skins with filters, one-click install](docs/screenshots/explore.jpg)
 
+![For you: skins for the vehicles in your War Thunder lineups, active lineup first](docs/screenshots/foryou.jpg)
+
 ![My Hangar: installed skins with their pictures, grouped by vehicle](docs/screenshots/hangar.jpg)
 
 > **Unofficial tool, not affiliated with Gaijin Entertainment.** War Thunder and WT Live are
