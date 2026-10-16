@@ -9,11 +9,14 @@
 //! [`catalog`] reads the game's vehicle list from the install's data archives ([`vromfs`],
 //! [`binblk`]), read-only; `game_vehicles` hands it to the UI.
 //!
+//! [`gameres`] reads the game's model and texture packs for Atelier, read-only.
+//!
 //! [`profile`] reads the player's lineups from their War Thunder profile (`global.blk`),
 //! read-only and only those two blocks; `game_lineups` hands them to the For you tab.
 
 pub mod binblk;
 pub mod catalog;
+pub mod gameres;
 pub mod profile;
 pub mod root;
 pub mod steam;
