@@ -40,6 +40,7 @@
       "hangar": "My Hangar",
       "collections": "Collections",
       "queue": "Install queue",
+      "atelier": "Atelier",
       "settings": "Settings",
       "queueBadge_one": "{{count}} archive waiting",
       "queueBadge_other": "{{count}} archives waiting",
@@ -78,6 +79,7 @@
         "hangar": "Go to My Hangar",
         "collections": "Go to Collections",
         "queue": "Open Install queue",
+        "atelier": "Open Atelier",
         "settings": "Open Settings",
         "feedback": "Send feedback"
       },
@@ -364,6 +366,7 @@
       "hangar": "Back to My Hangar",
       "collections": "Back to Collections",
       "queue": "Back to Install queue",
+      "atelier": "Back to Atelier",
       "settings": "Back to Settings"
     },
     "loading": "Loading the skin",
@@ -998,6 +1001,7 @@
       "wtlive": "WT Live",
       "language": "Language",
       "updates": "Updates",
+      "experimental": "Experimental",
       "about": "About"
     },
     "general": {
@@ -1114,6 +1118,13 @@
       "readyToast": "Livery {{version}} is ready. It installs when you close Livery.",
       "auto": "Install updates automatically",
       "autoHelper": "Downloads new versions in the background and installs them when you close Livery."
+    },
+    "experimental": {
+      "title": "Experimental features",
+      "atelier": "Atelier",
+      "atelierHelper": "Create skins on a 3D model of your vehicle. Experimental: things may change or break.",
+      "needsGameData": "Atelier reads your vehicles’ models from the game: turn on Read data from the game to use it.",
+      "openGame": "Open Game settings"
     },
     "about": {
       "build": "{{version}} · Windows x64",

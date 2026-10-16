@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { useUi } from '@/store/ui';
 
-/** Left-nav order (WT Live sits after Backups). */
-export const SECTIONS = ['general', 'game', 'conflicts', 'backups', 'wtlive', 'language', 'updates', 'about'] as const;
+/** Left-nav order (WT Live sits after Backups, Experimental before About). */
+export const SECTIONS = ['general', 'game', 'conflicts', 'backups', 'wtlive', 'language', 'updates', 'experimental', 'about'] as const;
 export type SettingsSection = (typeof SECTIONS)[number];
 
 interface SettingsUiState {

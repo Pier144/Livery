@@ -1,15 +1,21 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { SETTINGS_KEY } from '@/queries/settings';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
-import type { Section } from '@/types';
+import type { Section, Settings } from '@/types';
 
-/** Digit (and ",") → section. "," mirrors the Settings hint shown in the sidebar. */
+/**
+ * Digit (and ",") → section. "," mirrors the Settings hint shown in the sidebar; "6" (Atelier)
+ * works only while Settings → Experimental → Atelier is on.
+ */
 export const SECTION_KEYS: Record<string, Section> = {
   '1': 'explore',
   '2': 'hangar',
   '3': 'collections',
   '4': 'queue',
   '5': 'settings',
+  '6': 'atelier',
   ',': 'settings',
 };
 
@@ -25,13 +31,14 @@ function modalDialogOpen(): boolean {
 }
 
 /**
- * Window-level shortcuts: Ctrl/Cmd+K palette, Esc close, Ctrl/Cmd+Z undo last toast, 1–5 sections, [ / ] sidebar.
+ * Window-level shortcuts: Ctrl/Cmd+K palette, Esc close, Ctrl/Cmd+Z undo last toast, 1–6 sections, [ / ] sidebar.
  * Section and sidebar keys are ignored while typing, with modifiers held, and during First run
  * (no sidebar there; leaving it takes the screen's own actions, as in the prototype). A section
  * key moves focus to the new screen's heading (`useScreenFocus`, mounted in App).
  * Ctrl/Cmd+K doesn't open the palette over a modal dialog: its actions would navigate under it.
  */
 export function useKeyboardShortcuts() {
+  const queryClient = useQueryClient();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ui = useUi.getState();
@@ -58,7 +65,9 @@ export function useKeyboardShortcuts() {
         return;
       }
       const section = SECTION_KEYS[e.key];
-      if (section) {
+      // Read at key time: the switch may have changed since the hook mounted.
+      const atelierOff = !queryClient.getQueryData<Settings>(SETTINGS_KEY)?.atelierEnabled;
+      if (section && !(section === 'atelier' && atelierOff)) {
         e.preventDefault();
         if (section === ui.screen) return;
         ui.go(section);
@@ -67,5 +76,5 @@ export function useKeyboardShortcuts() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [queryClient]);
 }

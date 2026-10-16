@@ -131,6 +131,24 @@ describe('buildPaletteItems', () => {
   });
 });
 
+describe('the Atelier action', () => {
+  it('is listed only with Atelier on, keeping the empty list at 9 (3 vehicles)', () => {
+    expect(buildPaletteItems('atelier', ctx())).toEqual([]);
+    const items = buildPaletteItems('', ctx({ atelierEnabled: true }));
+    expect(items).toHaveLength(PALETTE_MAX_RESULTS);
+    expect(items.map((i) => i.kind)).toEqual([...Array(6).fill('action'), ...Array(3).fill('vehicle')]);
+    expect(items[4]).toMatchObject({ id: 'action:atelier', label: 'Open Atelier', hint: '6' });
+  });
+
+  it('is found by typing and goes to Atelier', () => {
+    const go = vi.fn();
+    const [item] = buildPaletteItems('atel', ctx({ atelierEnabled: true, go }));
+    expect(item).toMatchObject({ kind: 'action', label: 'Open Atelier' });
+    item?.run();
+    expect(go).toHaveBeenCalledWith('atelier');
+  });
+});
+
 describe('the feedback action', () => {
   it('is found by typing, not listed for an empty query', () => {
     const openFeedback = vi.fn();

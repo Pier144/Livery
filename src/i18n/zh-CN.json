@@ -40,6 +40,7 @@
       "hangar": "我的基地",
       "collections": "合集",
       "queue": "安装队列",
+      "atelier": "涂装工坊",
       "settings": "设置",
       "queueBadge_other": "{{count}} 个压缩包待安装",
       "collapse": "收起侧边栏",
@@ -77,6 +78,7 @@
         "hangar": "前往我的基地",
         "collections": "前往合集",
         "queue": "打开安装队列",
+        "atelier": "打开涂装工坊",
         "settings": "打开设置",
         "feedback": "发送反馈"
       },
@@ -358,6 +360,7 @@
       "hangar": "返回我的基地",
       "collections": "返回合集",
       "queue": "返回安装队列",
+      "atelier": "返回涂装工坊",
       "settings": "返回设置"
     },
     "loading": "正在加载涂装",
@@ -956,6 +959,7 @@
       "wtlive": "WT Live",
       "language": "语言",
       "updates": "更新",
+      "experimental": "实验性功能",
       "about": "关于"
     },
     "general": {
@@ -1068,6 +1072,13 @@
       "readyToast": "Livery {{version}} 已准备就绪，将在您关闭 Livery 时安装。",
       "auto": "自动安装更新",
       "autoHelper": "在后台下载新版本，并在您关闭 Livery 时安装。"
+    },
+    "experimental": {
+      "title": "实验性功能",
+      "atelier": "涂装工坊",
+      "atelierHelper": "在载具的 3D 模型上制作涂装。实验性功能：部分内容可能会变动或出错。",
+      "needsGameData": "涂装工坊从游戏中读取载具模型：请开启“从游戏读取数据”后使用。",
+      "openGame": "打开游戏设置"
     },
     "about": {
       "build": "{{version}} · Windows x64",

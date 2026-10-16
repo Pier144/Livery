@@ -196,7 +196,7 @@ describe('Settings · navigation', () => {
     const tablist = screen.getByRole('tablist', { name: 'Settings sections' });
     expect(tablist).toHaveAttribute('aria-orientation', 'vertical');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['General', 'Game', 'Conflicts', 'Backups', 'WT Live', 'Language', 'Updates', 'About']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['General', 'Game', 'Conflicts', 'Backups', 'WT Live', 'Language', 'Updates', 'Experimental', 'About']);
     expect(screen.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'General' })).toHaveClass('bg-bg-hover', 'text-ink-1');
     expect(screen.getByRole('tab', { name: 'Game' })).toHaveClass('text-ink-3');
@@ -686,6 +686,37 @@ describe('Settings · WT Live', () => {
     expect(screen.getByRole('switch', { name: 'Browse WT Live' })).not.toBeChecked();
     expect(await screen.findByText('3 skins')).toBeInTheDocument();
     expect(calls('wtlive_storage')).toHaveLength(1);
+  });
+});
+
+// ── Experimental ────────────────────────────────────────────────────────────
+
+describe('Settings · Experimental', () => {
+  it('the Atelier switch patches atelierEnabled', async () => {
+    const { user, container } = renderSettings('experimental');
+    expect(within(panel()).getByRole('heading', { level: 2, name: 'Experimental features' })).toBeInTheDocument();
+    const toggle = screen.getByRole('switch', { name: 'Atelier' });
+    expect(toggle).toHaveAccessibleDescription('Create skins on a 3D model of your vehicle. Experimental: things may change or break.');
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByRole('button', { name: 'Open Game settings' })).not.toBeInTheDocument();
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+    await waitFor(() => expect(settings.atelierEnabled).toBe(true));
+    expect(calls('set_settings')).toEqual([['set_settings', { patch: { atelierEnabled: true } }]]);
+    expect(await seriousViolations(container)).toEqual([]);
+  });
+
+  it('with Read data from the game off, explains why and links to Game', async () => {
+    const { user } = renderSettings('experimental', { readGameData: false, atelierEnabled: true });
+    const toggle = screen.getByRole('switch', { name: 'Atelier' });
+    expect(toggle).toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(
+      'Create skins on a 3D model of your vehicle. Experimental: things may change or break. Atelier reads your vehicles’ models from the game: turn on Read data from the game to use it.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Open Game settings' }));
+    expect(useSettingsUi.getState().section).toBe('game');
+    expect(useUi.getState().screen).toBe('settings');
+    expect(screen.getByRole('tab', { name: 'Game' })).toHaveAttribute('aria-selected', 'true');
   });
 });
 

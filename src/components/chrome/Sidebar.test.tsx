@@ -46,6 +46,23 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'My Hangar' })).toHaveClass('border-transparent', 'text-ink-3');
   });
 
+  it('shows Atelier (shortcut 6) only with Settings → Experimental → Atelier on', async () => {
+    const user = userEvent.setup();
+    const { client } = await renderSidebar();
+    expect(within(nav()).queryByRole('button', { name: 'Atelier' })).not.toBeInTheDocument();
+    act(() => client.setQueryData(['settings'], { ...DEFAULT_SETTINGS, atelierEnabled: true }));
+    const atelier = await within(nav()).findByRole('button', { name: 'Atelier' });
+    expect(atelier).toHaveAttribute('aria-keyshortcuts', '6');
+    // Between the Install queue and Settings.
+    const names = within(nav())
+      .getAllByRole('button')
+      .map((b) => b.getAttribute('aria-keyshortcuts'));
+    expect(names.slice(0, 6)).toEqual(['1', '2', '3', '4', '6', ',']);
+    await user.click(atelier);
+    expect(useUi.getState().screen).toBe('atelier');
+    expect(atelier).toHaveAttribute('aria-current', 'page');
+  });
+
   it('navigates with the keyboard', async () => {
     const user = userEvent.setup();
     await renderSidebar();

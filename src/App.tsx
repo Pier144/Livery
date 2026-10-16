@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CommandPalette } from '@/components/chrome/CommandPalette';
 import { ConfirmDialog } from '@/components/chrome/ConfirmDialog';
@@ -21,6 +21,7 @@ import { reportReadyAfterPaint } from '@/lib/startup';
 import { useWtLiveInstallEvents } from '@/store/installs';
 import { SETTINGS_KEY, useSettings, useUpdateSettings } from '@/queries/settings';
 import { useNetStatusEvents } from '@/queries/wtlive';
+import { Atelier } from '@/screens/Atelier';
 import { Collections } from '@/screens/Collections';
 import { Explore } from '@/screens/Explore';
 import { FirstRun } from '@/screens/FirstRun/FirstRun';
@@ -36,6 +37,7 @@ const SCREENS: Record<Screen, () => JSX.Element> = {
   hangar: Hangar,
   collections: Collections,
   queue: Queue,
+  atelier: Atelier,
   settings: Settings,
   firstRun: FirstRun,
   detail: SkinDetail,
@@ -78,6 +80,15 @@ function useBootScreen(): boolean {
   return booted;
 }
 
+/** Atelier is reachable only while Settings → Experimental → Atelier is on: turned off while open, it leaves for Explore. */
+function useAtelierGate() {
+  const enabled = useSettings().data?.atelierEnabled;
+  const screen = useUi((s) => s.screen);
+  useEffect(() => {
+    if (screen === 'atelier' && enabled === false) useUi.getState().go('explore');
+  }, [enabled, screen]);
+}
+
 export function App() {
   useKeyboardShortcuts();
   useFileDrop();
@@ -88,6 +99,7 @@ export function App() {
   useLaunchUpdateCheck();
   useLanguageSync();
   useReduceMotion();
+  useAtelierGate();
   // After the screens' own effects: focus the new screen's heading, or the card the detail came from.
   useScreenFocus();
   const booted = useBootScreen();

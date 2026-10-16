@@ -39,22 +39,25 @@ export interface PaletteContext {
   applyVehicle?: (code: string) => void;
   /** Opens the Send feedback dialog; without it the action isn't listed. */
   openFeedback?: () => void;
+  /** Settings → Experimental → Atelier: its action is listed only while it is on. */
+  atelierEnabled?: boolean;
 }
 
 export const PALETTE_MAX_RESULTS = 9;
 /** Vehicles listed under the actions when the query is empty. */
 const EMPTY_QUERY_VEHICLES = 4;
 
-const ACTION_SECTIONS: readonly Section[] = ['explore', 'hangar', 'collections', 'queue', 'settings'];
+const ACTION_SECTIONS: readonly Section[] = ['explore', 'hangar', 'collections', 'queue', 'atelier', 'settings'];
 
-/** First key bound to a section by the global shortcuts ("1"–"5"). */
+/** First key bound to a section by the global shortcuts ("1"–"6"). */
 function shortcutFor(section: Section): string {
   return Object.keys(SECTION_KEYS).find((key) => SECTION_KEYS[key] === section) ?? '';
 }
 
 /** The section actions; with `extras`, Send feedback too (only found by typing: the empty list stays 5 + 4). */
 function actionItems(ctx: PaletteContext, extras = false): PaletteItem[] {
-  const sections: PaletteItem[] = ACTION_SECTIONS.map((section) => ({
+  const shown = ctx.atelierEnabled ? ACTION_SECTIONS : ACTION_SECTIONS.filter((s) => s !== 'atelier');
+  const sections: PaletteItem[] = shown.map((section) => ({
     id: `action:${section}`,
     kind: 'action',
     label: ctx.t(`common.palette.actions.${section}`),
@@ -96,14 +99,19 @@ function skinItem(s: PaletteSkin, ctx: PaletteContext): PaletteItem {
 const RESERVED_FOR_OTHERS = 3;
 
 /**
- * Palette results. Empty query: the 5 actions, then the first 4 vehicles.
+ * Palette results. Empty query: the section actions (5, or 6 with Atelier on), then the first
+ * vehicles, 9 items in all at most (4 vehicles, 3 with Atelier on).
  * Otherwise skins → vehicles → actions whose label, hint or alias contains the query
  * (case-insensitive), capped at 9. Up to 3 places go to matching vehicles and actions, so
  * thousands of cached WT Live skins never hide the vehicle you typed.
  */
 export function buildPaletteItems(query: string, ctx: PaletteContext): PaletteItem[] {
   const q = query.trim().toLowerCase();
-  if (!q) return [...actionItems(ctx), ...ctx.vehicles.slice(0, EMPTY_QUERY_VEHICLES).map((v) => vehicleItem(v, ctx))];
+  if (!q) {
+    const actions = actionItems(ctx);
+    const room = Math.max(0, Math.min(EMPTY_QUERY_VEHICLES, PALETTE_MAX_RESULTS - actions.length));
+    return [...actions, ...ctx.vehicles.slice(0, room).map((v) => vehicleItem(v, ctx))];
+  }
 
   const matches = (item: PaletteItem) =>
     item.label.toLowerCase().includes(q) || item.hint.toLowerCase().includes(q) || Boolean(item.alias?.toLowerCase().includes(q));

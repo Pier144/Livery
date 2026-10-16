@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetStores } from '@/test/render';
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
+import { renderWithProviders as render, resetStores } from '@/test/render';
 import { toast, useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
@@ -29,6 +30,15 @@ describe('useKeyboardShortcuts', () => {
     key('1');
     key(',');
     expect(useUi.getState().screen).toBe('settings');
+  });
+
+  it('6 opens Atelier only while Settings → Experimental → Atelier is on', () => {
+    const { client } = render(<Harness />);
+    key('6');
+    expect(useUi.getState().screen).toBe('explore');
+    client.setQueryData(SETTINGS_KEY, { ...DEFAULT_SETTINGS, atelierEnabled: true });
+    key('6');
+    expect(useUi.getState().screen).toBe('atelier');
   });
 
   it('[ and ] toggle the sidebar', () => {

@@ -74,6 +74,17 @@ describe('App shell (M1 chrome)', () => {
     expect(useUi.getState().screen).toBe('queue');
   });
 
+  it('shows Atelier while its switch is on, and leaves it for Explore when the switch goes off', async () => {
+    const { client } = renderWithProviders(<App />, { settings: { onboarded: true, atelierEnabled: true } });
+    fireEvent.keyDown(window, { key: '6' });
+    expect(useUi.getState().screen).toBe('atelier');
+    expect(screen.getByRole('main')).toHaveAccessibleName('Atelier');
+    expect(screen.getByRole('heading', { level: 1, name: 'Atelier' })).toBeInTheDocument();
+    act(() => client.setQueryData(SETTINGS_KEY, { ...DEFAULT_SETTINGS, onboarded: true, atelierEnabled: false }));
+    await waitFor(() => expect(useUi.getState().screen).toBe('explore'));
+    expect(within(screen.getByRole('navigation')).queryByRole('button', { name: 'Atelier' })).not.toBeInTheDocument();
+  });
+
   it('opens the palette from the title bar search and jumps to a section', () => {
     renderWithProviders(<App />, { settings: { onboarded: true } });
     fireEvent.click(screen.getByRole('button', { name: /Search skins, vehicles, authors/ }));

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Compass, Download, Layers, Settings, Warehouse, type LucideIcon } from 'lucide-react';
+import { Compass, Download, Layers, Paintbrush, Settings, Warehouse, type LucideIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/Kbd';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useActiveBox } from '@/components/ui/TabIndicator';
@@ -25,6 +25,8 @@ const NAV: NavDef[] = [
   { id: 'hangar', icon: Warehouse, hint: '2' },
   { id: 'collections', icon: Layers, hint: '3' },
   { id: 'queue', icon: Download, hint: '4' },
+  // Only with Settings → Experimental → Atelier on.
+  { id: 'atelier', icon: Paintbrush, hint: '6' },
   { id: 'settings', icon: Settings, hint: ',' },
 ];
 
@@ -39,10 +41,12 @@ export function Sidebar() {
   const detailFrom = useUi((s) => s.detailReturnTo);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
   const pending = useQueue(selectPendingCount);
+  const atelierEnabled = useSettings().data?.atelierEnabled === true;
+  const items = atelierEnabled ? NAV : NAV.filter((item) => item.id !== 'atelier');
   const badgeId = useId();
   // The active section's background slides from item to item (drawn under the buttons).
   const navRef = useRef<HTMLElement>(null);
-  const activeId = NAV.find((item) => screen === item.id || (screen === 'detail' && item.id === detailFrom))?.id ?? '';
+  const activeId = items.find((item) => screen === item.id || (screen === 'detail' && item.id === detailFrom))?.id ?? '';
   const highlight = useActiveBox(navRef, '[aria-current="page"]', `${activeId}|${open}`);
 
   return (
@@ -64,7 +68,7 @@ export function Sidebar() {
           style={{ width: highlight.width, height: highlight.height, transform: `translate(${highlight.left}px, ${highlight.top}px)` }}
         />
       )}
-      {NAV.map((item) => (
+      {items.map((item) => (
         <NavItem
           key={item.id}
           {...item}

@@ -232,8 +232,8 @@ export interface AppError {
   detail?: string;
 }
 
-/** Top-level sections reachable from the sidebar (keys 1–5). */
-export type Section = 'explore' | 'hangar' | 'collections' | 'queue' | 'settings';
+/** Top-level sections reachable from the sidebar (keys 1–6; Atelier only with Settings → Experimental → Atelier on). */
+export type Section = 'explore' | 'hangar' | 'collections' | 'queue' | 'atelier' | 'settings';
 /** Everything the main area can show. First run hides the sidebar and disables section keys. */
 export type Screen = Section | 'firstRun' | 'detail';
 

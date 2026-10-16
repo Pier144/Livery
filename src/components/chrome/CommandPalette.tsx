@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Kbd } from '@/components/ui/Kbd';
+import { useSettings } from '@/queries/settings';
 import { useVehicleNames, useVehicles } from '@/queries/vehicles';
 import { focusScreenHeading } from '@/hooks/useScreenFocus';
 import { cn } from '@/lib/cn';
@@ -52,9 +53,11 @@ function PalettePanel() {
   const [skins] = useState(() => cachedWtLiveSkins(qc));
   const vehicles = useVehicles();
   const vehicleNames = useVehicleNames();
+  const atelierEnabled = useSettings().data?.atelierEnabled === true;
   const items = useMemo(
-    () => buildPaletteItems(query, { t: translate, vehicles, vehicleNames, skins, go, openSkin, applyVehicle, openFeedback }),
-    [query, translate, vehicles, vehicleNames, skins, go, openSkin, applyVehicle],
+    () =>
+      buildPaletteItems(query, { t: translate, vehicles, vehicleNames, skins, go, openSkin, applyVehicle, openFeedback, atelierEnabled }),
+    [query, translate, vehicles, vehicleNames, skins, go, openSkin, applyVehicle, atelierEnabled],
   );
   const active = Math.min(index, Math.max(0, items.length - 1));
   const activeItem = items[active];

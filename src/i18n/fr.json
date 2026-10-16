@@ -40,6 +40,7 @@
       "hangar": "Mon hangar",
       "collections": "Collections",
       "queue": "À installer",
+      "atelier": "Atelier",
       "settings": "Paramètres",
       "queueBadge_one": "{{count}} archive en attente",
       "queueBadge_many": "{{count}} archives en attente",
@@ -79,6 +80,7 @@
         "hangar": "Aller à Mon hangar",
         "collections": "Aller à Collections",
         "queue": "Ouvrir la file d’attente",
+        "atelier": "Ouvrir l’Atelier",
         "settings": "Ouvrir les Paramètres",
         "feedback": "Envoyer un retour"
       },
@@ -370,6 +372,7 @@
       "hangar": "Retour à Mon hangar",
       "collections": "Retour aux Collections",
       "queue": "Retour à la file d’attente",
+      "atelier": "Retour à l’Atelier",
       "settings": "Retour aux Paramètres"
     },
     "loading": "Chargement du skin",
@@ -1040,6 +1043,7 @@
       "wtlive": "WT Live",
       "language": "Langue",
       "updates": "Mises à jour",
+      "experimental": "Expérimental",
       "about": "À propos"
     },
     "general": {
@@ -1160,6 +1164,13 @@
       "readyToast": "Livery {{version}} est prêt. La mise à jour s’installe à la fermeture de Livery.",
       "auto": "Installer les mises à jour automatiquement",
       "autoHelper": "Télécharge les nouvelles versions en arrière-plan et les installe à la fermeture de Livery."
+    },
+    "experimental": {
+      "title": "Fonctions expérimentales",
+      "atelier": "Atelier",
+      "atelierHelper": "Créez des skins sur un modèle 3D de votre véhicule. Expérimental : certaines choses peuvent changer ou ne pas fonctionner.",
+      "needsGameData": "L’Atelier lit les modèles des véhicules dans le jeu : activez Lire les données du jeu pour l’utiliser.",
+      "openGame": "Ouvrir les paramètres du jeu"
     },
     "about": {
       "build": "{{version}} · Windows x64",
