@@ -19,6 +19,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Cursor, Read};
 use std::path::{Path, PathBuf};
+use std::sync::{Condvar, Mutex};
 
 pub use crate::model::AssetRef;
 
@@ -48,6 +49,8 @@ pub const MAX_ASSET_SIDE: u32 = 4096;
 pub const MAX_DECODE_ALLOC: u64 = 1024 * 1024 * 1024;
 /// Extensions an import accepts (any case).
 pub const IMPORT_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "webp", "bmp", "tga"];
+/// Imports decoding at the same time (each can take about 1 GiB at its peak).
+pub const MAX_CONCURRENT_IMPORTS: usize = 2;
 /// Stored PNGs larger than this aren't read (a 4096² RGBA picture stored raw is 64 MiB).
 const MAX_STORED_BYTES: u64 = 128 * 1024 * 1024;
 
@@ -116,6 +119,43 @@ fn checked_source(source: &Path) -> AppResult<ImageFormat> {
     ImageFormat::from_extension(&ext).ok_or_else(|| unreadable(ErrorCode::InvalidInput, format!("extension {ext:?}")))
 }
 
+/// `path` with a `\\?\C:\` (verbatim drive) prefix written as `C:\`; other paths as they are.
+#[cfg(windows)]
+fn without_verbatim_drive(path: &Path) -> PathBuf {
+    use std::path::{Component, Prefix};
+    let mut components = path.components();
+    match components.next() {
+        Some(Component::Prefix(p)) => match p.kind() {
+            Prefix::VerbatimDisk(letter) => {
+                let mut plain = PathBuf::from(format!("{}:\\", char::from(letter)));
+                plain.extend(components.filter(|c| matches!(c, Component::Normal(_))));
+                plain
+            }
+            _ => path.to_path_buf(),
+        },
+        _ => path.to_path_buf(),
+    }
+}
+
+#[cfg(not(windows))]
+fn without_verbatim_drive(path: &Path) -> PathBuf {
+    path.to_path_buf()
+}
+
+/// The file `source` really is (links and junctions followed), which must still be on a local
+/// drive ([`is_local_absolute`]): a link can't lead an import to a share.
+pub fn canonical_source(source: &Path) -> AppResult<PathBuf> {
+    let canonical = fs::canonicalize(source).map_err(|e| match e.kind() {
+        io::ErrorKind::NotFound => unreadable(ErrorCode::NotFound, e.to_string()),
+        _ => unreadable(ErrorCode::Io, e.to_string()),
+    })?;
+    let plain = without_verbatim_drive(&canonical);
+    if !is_local_absolute(&plain) {
+        return Err(unreadable(ErrorCode::InvalidInput, "leads outside a local drive"));
+    }
+    Ok(plain)
+}
+
 /// The file's bytes, at most [`MAX_IMPORT_BYTES`].
 fn read_source(source: &Path) -> AppResult<Vec<u8>> {
     let meta = fs::metadata(source).map_err(|e| match e.kind() {
@@ -148,8 +188,8 @@ fn fit(w: u32, h: u32, max: u32) -> (u32, u32) {
 }
 
 /// Decodes a picture file's bytes (`format` from its extension, unless the content says
-/// otherwise) to upright RGBA8 with straight alpha, at most [`MAX_ASSET_SIDE`] on a side.
-fn decode_picture(bytes: &[u8], format: ImageFormat) -> AppResult<image::RgbaImage> {
+/// otherwise), with its EXIF orientation.
+fn decode_picture(bytes: &[u8], format: ImageFormat) -> AppResult<(DynamicImage, Orientation)> {
     let reader = || {
         ImageReader::with_format(Cursor::new(bytes), format)
             .with_guessed_format()
@@ -171,7 +211,12 @@ fn decode_picture(bytes: &[u8], format: ImageFormat) -> AppResult<image::RgbaIma
     let mut decoder = reader.into_decoder().map_err(decode_error)?;
     // A damaged EXIF block leaves the picture as stored.
     let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
-    let mut picture = DynamicImage::from_decoder(decoder).map_err(decode_error)?;
+    let picture = DynamicImage::from_decoder(decoder).map_err(decode_error)?;
+    Ok((picture, orientation))
+}
+
+/// A decoded picture upright, RGBA8 with straight alpha, at most [`MAX_ASSET_SIDE`] on a side.
+fn upright_rgba(mut picture: DynamicImage, orientation: Orientation) -> image::RgbaImage {
     // Integer averaging first, so Lanczos3's f32 intermediate stays small for huge pictures.
     let (tw, th) = fit(picture.width(), picture.height(), 2 * MAX_ASSET_SIDE);
     if (tw, th) != (picture.width(), picture.height()) {
@@ -183,15 +228,52 @@ fn decode_picture(bytes: &[u8], format: ImageFormat) -> AppResult<image::RgbaIma
     if (tw, th) != (rgba.width(), rgba.height()) {
         rgba = imageops::resize(&rgba, tw, th, FilterType::Lanczos3);
     }
-    Ok(rgba)
+    rgba
 }
 
 /// Reads and decodes a picture the user picked (see [`import`] for the checks), without storing
 /// it. Commands call this outside the project lock, then [`write_rgba`].
 pub fn load_picture(source: &Path) -> AppResult<image::RgbaImage> {
     let format = checked_source(source)?;
-    let bytes = read_source(source)?;
-    decode_picture(&bytes, format)
+    let bytes = read_source(&canonical_source(source)?)?;
+    let (picture, orientation) = decode_picture(&bytes, format)?;
+    // The file's bytes go before the scaling needs its memory.
+    drop(bytes);
+    Ok(upright_rgba(picture, orientation))
+}
+
+/// A counting semaphore: at most `max` holders at once, the others wait.
+pub struct Slots {
+    max: usize,
+    used: Mutex<usize>,
+    freed: Condvar,
+}
+
+/// One slot of [`Slots`], given back on drop.
+pub struct Slot<'a>(&'a Slots);
+
+impl Slots {
+    pub fn new(max: usize) -> Self {
+        Self { max: max.max(1), used: Mutex::new(0), freed: Condvar::new() }
+    }
+
+    /// Waits for a free slot.
+    pub fn acquire(&self) -> Slot<'_> {
+        let mut used = self.used.lock().unwrap_or_else(|e| e.into_inner());
+        while *used >= self.max {
+            used = self.freed.wait(used).unwrap_or_else(|e| e.into_inner());
+        }
+        *used += 1;
+        Slot(self)
+    }
+}
+
+impl Drop for Slot<'_> {
+    fn drop(&mut self) {
+        let mut used = self.0.used.lock().unwrap_or_else(|e| e.into_inner());
+        *used -= 1;
+        self.0.freed.notify_one();
+    }
 }
 
 /// `w`×`h` RGBA8 in `rgba`, sides 1 to [`MAX_ASSET_SIDE`], else `invalidInput` ([`ASSET_INVALID`]).
@@ -204,19 +286,30 @@ pub fn check_rgba(w: u32, h: u32, rgba: &[u8]) -> AppResult<()> {
     Ok(())
 }
 
-/// Stores raw RGBA8 pixels (`w`×`h`, see [`check_rgba`]) as a new asset of the project in
-/// `project_dir`.
-pub fn write_rgba(project_dir: &Path, w: u32, h: u32, rgba: &[u8]) -> AppResult<AssetRef> {
+/// RGBA8 pixels (`w`×`h`, see [`check_rgba`]) as a PNG.
+pub fn encode_png(w: u32, h: u32, rgba: &[u8]) -> AppResult<Vec<u8>> {
     check_rgba(w, h, rgba)?;
     let mut png = Vec::new();
     PngEncoder::new_with_quality(&mut png, CompressionType::Fast, PngFilter::Adaptive)
         .write_image(rgba, w, h, ExtendedColorType::Rgba8)
         .map_err(|e| AppError::new(ErrorCode::Internal, ASSET_INVALID).with_detail(e.to_string()))?;
+    Ok(png)
+}
+
+/// Stores raw RGBA8 pixels (`w`×`h`, see [`check_rgba`]) as a new asset of the project in
+/// `project_dir`.
+pub fn write_rgba(project_dir: &Path, w: u32, h: u32, rgba: &[u8]) -> AppResult<AssetRef> {
+    let png = encode_png(w, h, rgba)?;
+    store_png(project_dir, w, h, &png)
+}
+
+/// Stores a PNG made by [`encode_png`] (`w`×`h`) as a new asset of the project in `project_dir`.
+pub fn store_png(project_dir: &Path, w: u32, h: u32, png: &[u8]) -> AppResult<AssetRef> {
     let save_failed = |e: io::Error| AppError::new(ErrorCode::Io, PROJECT_SAVE_FAILED).with_detail(e.to_string());
     let dir = project_dir.join(ASSETS_DIR);
     fs::create_dir_all(&dir).map_err(save_failed)?;
     let id = new_id_with(ASSET_ID_PREFIX);
-    write_atomic(&asset_path(project_dir, &id), &png).map_err(save_failed)?;
+    write_atomic(&asset_path(project_dir, &id), png).map_err(save_failed)?;
     Ok(AssetRef { id, width: w, height: h })
 }
 

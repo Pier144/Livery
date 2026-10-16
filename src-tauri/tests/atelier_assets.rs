@@ -260,6 +260,58 @@ fn relative_unc_and_device_paths_are_refused() {
     }
 }
 
+/// Links are followed before reading: through a junction to a local folder is fine; a symbolic
+/// link to a share is refused (skipped when this account can't make symbolic links).
+#[cfg(windows)]
+#[test]
+fn links_are_resolved_and_must_stay_on_a_local_drive() {
+    let dir = TempDir::new("links");
+    let project = dir.path().join("project");
+    let real = dir.path().join("real");
+    fs::create_dir_all(&real).unwrap();
+    RgbaImage::from_pixel(3, 2, Rgba([9, 8, 7, 255])).save(real.join("pic.png")).unwrap();
+
+    let junction = dir.path().join("junction");
+    let made =
+        std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(&junction).arg(&real).output().unwrap();
+    assert!(made.status.success(), "{made:?}");
+    let asset = import(&project, &junction.join("pic.png")).unwrap();
+    assert_eq!((asset.width, asset.height), (3, 2));
+
+    // The same file through the administrative share of this PC.
+    let text = real.join("pic.png").to_string_lossy().into_owned();
+    let share = format!(r"\\localhost\{}${}", &text[..1], &text[2..]);
+    let link = dir.path().join("share-link.png");
+    match std::os::windows::fs::symlink_file(&share, &link) {
+        Ok(()) => {
+            let e = err(import(&project, &link));
+            assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, IMAGE_UNREADABLE));
+        }
+        Err(e) => println!("symbolic link to a share not checked: {e}"),
+    }
+    let _ = fs::remove_dir(&junction);
+}
+
+#[test]
+fn imports_wait_for_a_free_slot() {
+    use livery_lib::atelier::assets::Slots;
+    use std::sync::atomic::AtomicUsize;
+    let slots = Slots::new(2);
+    let (now, most) = (AtomicUsize::new(0), AtomicUsize::new(0));
+    std::thread::scope(|scope| {
+        for _ in 0..6 {
+            scope.spawn(|| {
+                let _slot = slots.acquire();
+                let inside = now.fetch_add(1, Ordering::SeqCst) + 1;
+                most.fetch_max(inside, Ordering::SeqCst);
+                std::thread::sleep(std::time::Duration::from_millis(30));
+                now.fetch_sub(1, Ordering::SeqCst);
+            });
+        }
+    });
+    assert_eq!(most.load(Ordering::SeqCst), 2);
+}
+
 #[test]
 fn raw_rgba_round_trip_keeps_colour_under_alpha_zero() {
     let dir = TempDir::new("raw");

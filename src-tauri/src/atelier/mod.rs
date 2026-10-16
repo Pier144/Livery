@@ -83,6 +83,8 @@ pub struct AtelierState {
     /// Asset ids made in this process: the editor's history may still use them, so the asset GC
     /// keeps them even when no saved layer does.
     created_assets: Mutex<HashSet<String>>,
+    /// Imports decoding at once (see `assets::MAX_CONCURRENT_IMPORTS`).
+    imports: assets::Slots,
 }
 
 fn desc_key(game_root: &Path, version: &str) -> String {
@@ -104,6 +106,7 @@ impl AtelierState {
             projects: ProjectStore::new(atelier_dir),
             applies: apply::Applies::default(),
             created_assets: Mutex::new(HashSet::new()),
+            imports: assets::Slots::new(assets::MAX_CONCURRENT_IMPORTS),
         }
     }
 
@@ -111,20 +114,24 @@ impl AtelierState {
         &self.projects
     }
 
-    /// Stores RGBA8 pixels as a new asset of project `project_id` (under the project store's lock)
-    /// and remembers its id for [`Self::collect_assets`].
+    /// Stores RGBA8 pixels as a new asset of project `project_id` and remembers its id for
+    /// [`Self::collect_assets`]. The PNG is encoded first; only the write holds the project
+    /// store's lock.
     pub fn put_asset(&self, project_id: &str, w: u32, h: u32, rgba: &[u8]) -> AppResult<AssetRef> {
+        self.projects.project_dir(project_id)?;
+        let png = assets::encode_png(w, h, rgba)?;
         self.projects.with_project_dir(project_id, |dir| {
-            let asset = assets::write_rgba(dir, w, h, rgba)?;
+            let asset = assets::store_png(dir, w, h, &png)?;
             self.created_assets.lock().unwrap_or_else(|e| e.into_inner()).insert(asset.id.clone());
             Ok(asset)
         })
     }
 
-    /// Imports a picture into project `project_id`: decoded outside the project store's lock,
-    /// stored under it ([`Self::put_asset`]).
+    /// Imports a picture into project `project_id`: decoded outside the project store's lock (at
+    /// most `assets::MAX_CONCURRENT_IMPORTS` at once), stored with [`Self::put_asset`].
     pub fn import_asset(&self, project_id: &str, source: &Path) -> AppResult<AssetRef> {
         self.projects.project_dir(project_id)?;
+        let _slot = self.imports.acquire();
         let picture = assets::load_picture(source)?;
         self.put_asset(project_id, picture.width(), picture.height(), picture.as_raw())
     }
