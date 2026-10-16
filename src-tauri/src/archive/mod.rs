@@ -9,7 +9,9 @@
 //! - `analyze`: skin roots, vehicle, target folder, name clashes → a [`QueueItem`];
 //! - `install`: copy or unpack into `UserSkins/.livery/partial/<installId>/<folder>` (with the
 //!   `.livery-partial` marker), verify, then one atomic rename into place inside a library
-//!   transaction (Replace backs the old version up first); Undo of a Replace.
+//!   transaction (Replace backs the old version up first); Undo of a Replace;
+//! - `generated`: the same into-place step for a skin Livery made itself (Atelier), keeping the
+//!   id of the skin it replaces.
 //!
 //! The queue lives in memory for the session ([`QueueStore`], newest first). The work is in plain
 //! functions taking paths and stores, so tests run it without Tauri; the commands only gather
@@ -17,6 +19,7 @@
 //! own.
 
 pub mod analyze;
+pub mod generated;
 pub mod install;
 pub mod rar_headers;
 pub mod rar_source;
