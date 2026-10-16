@@ -6,6 +6,8 @@
 
 use livery_lib::game::vromfs::deobfuscate;
 
+pub mod gameres;
+
 pub fn uleb(mut v: u64, out: &mut Vec<u8>) {
     loop {
         let byte = (v & 0x7F) as u8;
