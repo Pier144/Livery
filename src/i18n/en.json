@@ -985,8 +985,48 @@
     }
   },
   "atelier": {
+    "gate": {
+      "gameDataTitle": "Atelier needs the game’s files",
+      "gameDataBody": "Atelier reads each vehicle’s 3D model and textures from War Thunder. Turn on Read data from the game in Settings to use it.",
+      "openGame": "Open Game settings",
+      "webglTitle": "Atelier needs WebGL 2",
+      "webglBody": "Atelier draws your vehicle with WebGL 2, which this computer’s graphics driver doesn’t offer. Updating the graphics driver usually fixes it."
+    },
+    "home": {
+      "newProject": "New project",
+      "count_one": "{{count, number}} project",
+      "count_other": "{{count, number}} projects",
+      "projects": "Your projects",
+      "emptyTitle": "Start your first skin",
+      "emptyBody": "Pick a ground vehicle, paint it on its 3D model and apply the result to the game as a skin.",
+      "loadErrorTitle": "Couldn’t read your projects"
+    },
+    "card": {
+      "open": "Open",
+      "rename": "Rename",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "actions": "Project actions",
+      "renameLabel": "New name for {{name}}",
+      "edited": "Edited {{date}}",
+      "hint": "Press Enter to open the project. F2 renames it, Delete deletes it."
+    },
+    "newProject": {
+      "title": "New project",
+      "close": "Close",
+      "vehicle": "Vehicle",
+      "vehiclePlaceholder": "Search ground vehicles…",
+      "vehicleHelper": "Atelier paints ground vehicles for now.",
+      "name": "Name",
+      "create": "Create",
+      "reading": "Reading the model…"
+    },
+    "editor": {
+      "back": "Back to projects"
+    },
     "toast": {
-      "deleted": "Deleted project “{{name}}”"
+      "deleted": "Deleted project “{{name}}”",
+      "renamed": "Renamed to “{{name}}”"
     }
   },
   "settings": {

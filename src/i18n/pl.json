@@ -1069,8 +1069,50 @@
     }
   },
   "atelier": {
+    "gate": {
+      "gameDataTitle": "Atelier potrzebuje plików gry",
+      "gameDataBody": "Atelier wczytuje z War Thunder model 3D i tekstury każdego pojazdu. Aby z niego korzystać, włącz w ustawieniach Wczytuj dane z gry.",
+      "openGame": "Otwórz ustawienia gry",
+      "webglTitle": "Atelier potrzebuje WebGL 2",
+      "webglBody": "Atelier rysuje pojazd za pomocą WebGL 2, którego sterownik grafiki tego komputera nie obsługuje. Zwykle pomaga aktualizacja sterownika grafiki."
+    },
+    "home": {
+      "newProject": "Nowy projekt",
+      "count_one": "{{count, number}} projekt",
+      "count_few": "{{count, number}} projekty",
+      "count_many": "{{count, number}} projektów",
+      "count_other": "{{count, number}} projektu",
+      "projects": "Twoje projekty",
+      "emptyTitle": "Stwórz swój pierwszy kamuflaż",
+      "emptyBody": "Wybierz pojazd naziemny, pomaluj go na modelu 3D i zastosuj wynik w grze jako kamuflaż.",
+      "loadErrorTitle": "Nie udało się wczytać projektów"
+    },
+    "card": {
+      "open": "Otwórz",
+      "rename": "Zmień nazwę",
+      "duplicate": "Duplikuj",
+      "delete": "Usuń",
+      "actions": "Działania projektu",
+      "renameLabel": "Nowa nazwa dla {{name}}",
+      "edited": "Edytowano {{date}}",
+      "hint": "Naciśnij Enter, aby otworzyć projekt. F2 zmienia jego nazwę, Delete go usuwa."
+    },
+    "newProject": {
+      "title": "Nowy projekt",
+      "close": "Zamknij",
+      "vehicle": "Pojazd",
+      "vehiclePlaceholder": "Szukaj pojazdów naziemnych…",
+      "vehicleHelper": "Na razie Atelier maluje tylko pojazdy naziemne.",
+      "name": "Nazwa",
+      "create": "Utwórz",
+      "reading": "Wczytywanie modelu…"
+    },
+    "editor": {
+      "back": "Wróć do projektów"
+    },
     "toast": {
-      "deleted": "Usunięto projekt „{{name}}”"
+      "deleted": "Usunięto projekt „{{name}}”",
+      "renamed": "Zmieniono nazwę na „{{name}}”"
     }
   },
   "settings": {

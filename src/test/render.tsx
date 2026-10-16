@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import { resetAtelierEditor } from '@/atelier/editorStore';
 import { createQueryClient } from '@/queries/client';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
+import { resetAtelierUi } from '@/store/atelier';
 import { resetCollectionsUi } from '@/store/collections';
 import { resetDetail } from '@/store/detail';
 import { exploreDefaults, useExplore } from '@/store/explore';
@@ -38,6 +39,7 @@ export function resetStores() {
   useExplore.setState(exploreDefaults());
   resetDetail();
   resetAtelierEditor();
+  resetAtelierUi();
   useUpdate.getState().reset();
   useConfirm.getState().settle(false);
   useHangarMotion.setState({ leaving: new Set(), arriving: new Set() });

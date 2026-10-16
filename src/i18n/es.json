@@ -1027,8 +1027,49 @@
     }
   },
   "atelier": {
+    "gate": {
+      "gameDataTitle": "El Atelier necesita los archivos del juego",
+      "gameDataBody": "El Atelier lee de War Thunder el modelo 3D y las texturas de cada vehículo. Para usarlo, activa Leer datos del juego en los ajustes.",
+      "openGame": "Abrir los ajustes del juego",
+      "webglTitle": "El Atelier necesita WebGL 2",
+      "webglBody": "El Atelier dibuja tu vehículo con WebGL 2, que el controlador gráfico de este equipo no ofrece. Actualizar el controlador gráfico suele solucionarlo."
+    },
+    "home": {
+      "newProject": "Nuevo proyecto",
+      "count_one": "{{count, number}} proyecto",
+      "count_many": "{{count, number}} proyectos",
+      "count_other": "{{count, number}} proyectos",
+      "projects": "Tus proyectos",
+      "emptyTitle": "Crea tu primera skin",
+      "emptyBody": "Elige un vehículo terrestre, píntalo sobre su modelo 3D y aplica el resultado al juego como skin.",
+      "loadErrorTitle": "No se han podido leer tus proyectos"
+    },
+    "card": {
+      "open": "Abrir",
+      "rename": "Renombrar",
+      "duplicate": "Duplicar",
+      "delete": "Eliminar",
+      "actions": "Acciones del proyecto",
+      "renameLabel": "Nuevo nombre para {{name}}",
+      "edited": "Editado {{date}}",
+      "hint": "Pulsa Intro para abrir el proyecto. F2 le cambia el nombre, Supr lo elimina."
+    },
+    "newProject": {
+      "title": "Nuevo proyecto",
+      "close": "Cerrar",
+      "vehicle": "Vehículo",
+      "vehiclePlaceholder": "Buscar vehículos terrestres…",
+      "vehicleHelper": "Por ahora el Atelier solo pinta vehículos terrestres.",
+      "name": "Nombre",
+      "create": "Crear",
+      "reading": "Leyendo el modelo…"
+    },
+    "editor": {
+      "back": "Volver a los proyectos"
+    },
     "toast": {
-      "deleted": "Proyecto «{{name}}» eliminado"
+      "deleted": "Proyecto «{{name}}» eliminado",
+      "renamed": "Renombrado como «{{name}}»"
     }
   },
   "settings": {

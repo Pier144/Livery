@@ -1027,8 +1027,49 @@
     }
   },
   "atelier": {
+    "gate": {
+      "gameDataTitle": "L’Atelier a besoin des fichiers du jeu",
+      "gameDataBody": "L’Atelier lit dans War Thunder le modèle 3D et les textures de chaque véhicule. Pour l’utiliser, activez Lire les données du jeu dans les paramètres.",
+      "openGame": "Ouvrir les paramètres du jeu",
+      "webglTitle": "L’Atelier a besoin de WebGL 2",
+      "webglBody": "L’Atelier dessine votre véhicule avec WebGL 2, que le pilote graphique de cet ordinateur ne propose pas. Mettre à jour le pilote graphique règle généralement le problème."
+    },
+    "home": {
+      "newProject": "Nouveau projet",
+      "count_one": "{{count, number}} projet",
+      "count_many": "{{count, number}} projets",
+      "count_other": "{{count, number}} projets",
+      "projects": "Vos projets",
+      "emptyTitle": "Créez votre premier skin",
+      "emptyBody": "Choisissez un véhicule terrestre, peignez-le sur son modèle 3D et appliquez le résultat au jeu comme skin.",
+      "loadErrorTitle": "Impossible de lire vos projets"
+    },
+    "card": {
+      "open": "Ouvrir",
+      "rename": "Renommer",
+      "duplicate": "Dupliquer",
+      "delete": "Supprimer",
+      "actions": "Actions du projet",
+      "renameLabel": "Nouveau nom pour {{name}}",
+      "edited": "Modifié : {{date}}",
+      "hint": "Appuyez sur Entrée pour ouvrir le projet. F2 le renomme, Suppr le supprime."
+    },
+    "newProject": {
+      "title": "Nouveau projet",
+      "close": "Fermer",
+      "vehicle": "Véhicule",
+      "vehiclePlaceholder": "Rechercher un véhicule terrestre…",
+      "vehicleHelper": "Pour l’instant, l’Atelier ne peint que les véhicules terrestres.",
+      "name": "Nom",
+      "create": "Créer",
+      "reading": "Lecture du modèle…"
+    },
+    "editor": {
+      "back": "Retour aux projets"
+    },
     "toast": {
-      "deleted": "Projet « {{name}} » supprimé"
+      "deleted": "Projet « {{name}} » supprimé",
+      "renamed": "Renommé en « {{name}} »"
     }
   },
   "settings": {

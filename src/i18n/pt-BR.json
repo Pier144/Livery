@@ -1027,8 +1027,49 @@
     }
   },
   "atelier": {
+    "gate": {
+      "gameDataTitle": "O Ateliê precisa dos arquivos do jogo",
+      "gameDataBody": "O Ateliê lê do War Thunder o modelo 3D e as texturas de cada veículo. Para usá-lo, ative Ler dados do jogo nas configurações.",
+      "openGame": "Abrir as configurações do jogo",
+      "webglTitle": "O Ateliê precisa de WebGL 2",
+      "webglBody": "O Ateliê desenha seu veículo com WebGL 2, que o driver de vídeo deste computador não oferece. Atualizar o driver de vídeo costuma resolver."
+    },
+    "home": {
+      "newProject": "Novo projeto",
+      "count_one": "{{count, number}} projeto",
+      "count_many": "{{count, number}} projetos",
+      "count_other": "{{count, number}} projetos",
+      "projects": "Seus projetos",
+      "emptyTitle": "Crie sua primeira skin",
+      "emptyBody": "Escolha um veículo terrestre, pinte-o no modelo 3D e aplique o resultado ao jogo como skin.",
+      "loadErrorTitle": "Não foi possível ler seus projetos"
+    },
+    "card": {
+      "open": "Abrir",
+      "rename": "Renomear",
+      "duplicate": "Duplicar",
+      "delete": "Excluir",
+      "actions": "Ações do projeto",
+      "renameLabel": "Novo nome para {{name}}",
+      "edited": "Editado {{date}}",
+      "hint": "Pressione Enter para abrir o projeto. F2 o renomeia, Delete o exclui."
+    },
+    "newProject": {
+      "title": "Novo projeto",
+      "close": "Fechar",
+      "vehicle": "Veículo",
+      "vehiclePlaceholder": "Buscar veículos terrestres…",
+      "vehicleHelper": "Por enquanto o Ateliê pinta só veículos terrestres.",
+      "name": "Nome",
+      "create": "Criar",
+      "reading": "Lendo o modelo…"
+    },
+    "editor": {
+      "back": "Voltar aos projetos"
+    },
     "toast": {
-      "deleted": "Projeto “{{name}}” excluído"
+      "deleted": "Projeto “{{name}}” excluído",
+      "renamed": "Renomeado para “{{name}}”"
     }
   },
   "settings": {

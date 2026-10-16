@@ -943,8 +943,47 @@
     }
   },
   "atelier": {
+    "gate": {
+      "gameDataTitle": "涂装工坊需要读取游戏文件",
+      "gameDataBody": "涂装工坊从 War Thunder 读取每辆载具的 3D 模型和纹理。请在设置中开启“从游戏读取数据”后使用。",
+      "openGame": "打开游戏设置",
+      "webglTitle": "涂装工坊需要 WebGL 2",
+      "webglBody": "涂装工坊使用 WebGL 2 绘制载具，但这台电脑的显卡驱动不支持。更新显卡驱动通常可以解决。"
+    },
+    "home": {
+      "newProject": "新建项目",
+      "count_other": "{{count, number}} 个项目",
+      "projects": "项目",
+      "emptyTitle": "创建第一个涂装",
+      "emptyBody": "选择一辆地面载具，在它的 3D 模型上绘制涂装，然后将结果作为涂装应用到游戏中。",
+      "loadErrorTitle": "无法读取项目"
+    },
+    "card": {
+      "open": "打开",
+      "rename": "重命名",
+      "duplicate": "创建副本",
+      "delete": "删除",
+      "actions": "项目操作",
+      "renameLabel": "{{name}} 的新名称",
+      "edited": "编辑于 {{date}}",
+      "hint": "按 Enter 打开项目。按 F2 重命名，按 Delete 删除。"
+    },
+    "newProject": {
+      "title": "新建项目",
+      "close": "关闭",
+      "vehicle": "载具",
+      "vehiclePlaceholder": "搜索地面载具…",
+      "vehicleHelper": "涂装工坊目前仅支持地面载具。",
+      "name": "名称",
+      "create": "创建",
+      "reading": "正在读取模型…"
+    },
+    "editor": {
+      "back": "返回项目列表"
+    },
     "toast": {
-      "deleted": "已删除项目“{{name}}”"
+      "deleted": "已删除项目“{{name}}”",
+      "renamed": "已重命名为“{{name}}”"
     }
   },
   "settings": {
