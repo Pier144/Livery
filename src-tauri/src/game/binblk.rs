@@ -188,12 +188,14 @@ impl std::fmt::Debug for Blk {
 
 impl Blk {
     /// Parses a binary BLK; slim files (kinds 3 to 5) need the archive's name map (`shared`),
-    /// and kind 5 the archive's zstd dictionary.
+    /// and kind 5 the archive's zstd dictionary (`dict`).
     pub fn parse(file: &[u8], shared: Option<&NameMap>, dict: Option<&[u8]>) -> AppResult<Self> {
         let (&kind, rest) = file.split_first().ok_or_else(|| bad("empty"))?;
         let body: Vec<u8> = match kind {
             1 | 3 => rest.to_vec(),
-            4 | 5 => unzstd(rest, if kind == 5 { dict } else { None }, MAX_BLK)?,
+            // Kind 5 always uses the archive's dictionary; a kind 4 frame doesn't, but passing it
+            // is harmless and covers a frame that does.
+            4 | 5 => unzstd(rest, dict, MAX_BLK)?,
             2 => {
                 // u24 packed size, then one zstd frame holding a kind 1 file.
                 let size = rest

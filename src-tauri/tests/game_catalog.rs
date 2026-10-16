@@ -2,176 +2,19 @@
 //! repository): the `.vromfs.bin` reader, the binary BLK reader, the mapping to vehicles, the
 //! cache, and damaged files that must fail cleanly. `game_catalog_real.rs` reads a real install.
 
+mod common;
+
+use common::{b, blk_body, fat_blk, fat_body, name_map, slim_blk, vromfs, with_kind, B, V};
 use livery_lib::error::ErrorCode;
 use livery_lib::game::binblk::{Blk, NameMap, Value};
 use livery_lib::game::catalog::{
     kind_of, names_by_language, nation_of, read_catalog, unit_names, CatalogStore, CATALOG_FILE,
 };
-use livery_lib::game::vromfs::{deobfuscate, Vromfs, NAME_MAP_FILE};
+use livery_lib::game::vromfs::{Vromfs, NAME_MAP_FILE};
 use livery_lib::library::vehicles;
 use livery_lib::model::{Language, Nation, VehicleType};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-// ── Encoders (the inverse of what Livery reads) ─────────────────────────────
-
-fn uleb(mut v: u64, out: &mut Vec<u8>) {
-    loop {
-        let byte = (v & 0x7F) as u8;
-        v >>= 7;
-        if v == 0 {
-            out.push(byte);
-            return;
-        }
-        out.push(byte | 0x80);
-    }
-}
-
-/// A `.vromfs.bin`: `VRFx` packed with zstd and obfuscated, or `VRFs` stored as is.
-fn vromfs(files: &[(&str, &[u8])], packed: bool) -> Vec<u8> {
-    let count = files.len();
-    let names_at = 0x20;
-    let info_at = names_at + 8 * count;
-    let mut strings_at = info_at + 16 * count;
-    let mut payload = vec![0u8; strings_at];
-    payload[0..4].copy_from_slice(&(names_at as u32).to_le_bytes());
-    payload[4..8].copy_from_slice(&(count as u32).to_le_bytes());
-    payload[16..20].copy_from_slice(&(info_at as u32).to_le_bytes());
-    payload[20..24].copy_from_slice(&(count as u32).to_le_bytes());
-    for (i, (name, _)) in files.iter().enumerate() {
-        payload[names_at + 8 * i..names_at + 8 * i + 8].copy_from_slice(&(strings_at as u64).to_le_bytes());
-        // `\u{ff}` is stored as the single byte 0xFF.
-        let raw: Vec<u8> = name.chars().map(|c| c as u32 as u8).collect();
-        payload.extend_from_slice(&raw);
-        payload.push(0);
-        strings_at = payload.len();
-    }
-    for (i, (_, data)) in files.iter().enumerate() {
-        while payload.len() % 16 != 0 {
-            payload.push(0);
-        }
-        let at = payload.len();
-        payload[info_at + 16 * i..info_at + 16 * i + 4].copy_from_slice(&(at as u32).to_le_bytes());
-        payload[info_at + 16 * i + 4..info_at + 16 * i + 8].copy_from_slice(&(data.len() as u32).to_le_bytes());
-        payload.extend_from_slice(data);
-    }
-    let mut out = Vec::new();
-    if packed {
-        let mut body = zstd::bulk::compress(&payload, 3).unwrap();
-        deobfuscate(&mut body);
-        out.extend_from_slice(b"VRFx\0\0PC");
-        out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
-        out.extend_from_slice(&((body.len() as u32) | (0x30 << 26)).to_le_bytes());
-        out.extend_from_slice(&8u16.to_le_bytes());
-        out.extend_from_slice(&0u16.to_le_bytes());
-        out.extend_from_slice(&[65, 0, 59, 2]); // 2.59.0.65
-        out.extend_from_slice(&body);
-    } else {
-        out.extend_from_slice(b"VRFs\0\0PC");
-        out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
-        out.extend_from_slice(&0u32.to_le_bytes());
-        out.extend_from_slice(&payload);
-    }
-    out.extend_from_slice(&[0u8; 16]); // digest
-    out
-}
-
-/// A name map file: digests (zero: no dictionary), then zstd of count, size and names.
-fn name_map(names: &[&str]) -> Vec<u8> {
-    let mut raw = Vec::new();
-    let joined: Vec<u8> = names.iter().flat_map(|n| n.bytes().chain(std::iter::once(0))).collect();
-    uleb(names.len() as u64, &mut raw);
-    uleb(joined.len() as u64, &mut raw);
-    raw.extend_from_slice(&joined);
-    let mut file = vec![0u8; 40];
-    file.extend_from_slice(&zstd::bulk::compress(&raw, 3).unwrap());
-    file
-}
-
-enum V {
-    Str(&'static str),
-    Int(i32),
-    Bool(bool),
-}
-
-struct B {
-    name: &'static str,
-    params: Vec<(&'static str, V)>,
-    children: Vec<B>,
-}
-
-fn b(name: &'static str, params: Vec<(&'static str, V)>, children: Vec<B>) -> B {
-    B { name, params, children }
-}
-
-/// A slim BLK (kind 4, zstd, no dictionary) over the shared `names`.
-fn slim_blk(root: &B, names: &[&str]) -> Vec<u8> {
-    let mut file = vec![4u8];
-    file.extend_from_slice(&zstd::bulk::compress(&blk_body(root, names, false), 3).unwrap());
-    file
-}
-
-/// A fat BLK body (the file's own names first), without the kind byte.
-fn fat_body(root: &B, names: &[&str]) -> Vec<u8> {
-    blk_body(root, names, true)
-}
-
-/// The body of a BLK: names (`fat`: the file's own, else none: they are shared), then blocks,
-/// params and data. Blocks are breadth-first so each block's children are contiguous.
-fn blk_body(root: &B, names: &[&str], fat: bool) -> Vec<u8> {
-    let id = |n: &str| names.iter().position(|x| *x == n).unwrap_or_else(|| panic!("{n} not in the name map"));
-    let mut order: Vec<&B> = vec![root];
-    let mut first_child: Vec<usize> = Vec::new();
-    let mut i = 0;
-    while i < order.len() {
-        let block = order[i];
-        first_child.push(order.len());
-        order.extend(block.children.iter());
-        i += 1;
-    }
-    let mut data = Vec::new();
-    let mut infos = Vec::new();
-    for block in &order {
-        for (name, value) in &block.params {
-            let (ty, raw) = match value {
-                V::Str(s) => {
-                    let at = data.len() as u32;
-                    data.extend_from_slice(s.as_bytes());
-                    data.push(0);
-                    (1u32, at)
-                }
-                V::Int(v) => (2, *v as u32),
-                V::Bool(v) => (9, u32::from(*v)),
-            };
-            infos.extend_from_slice(&((id(name) as u32) | (ty << 24)).to_le_bytes());
-            infos.extend_from_slice(&raw.to_le_bytes());
-        }
-    }
-    let params: usize = order.iter().map(|b| b.params.len()).sum();
-    let mut body = Vec::new();
-    if fat {
-        let joined: Vec<u8> = names.iter().flat_map(|n| n.bytes().chain(std::iter::once(0))).collect();
-        uleb(names.len() as u64, &mut body);
-        uleb(joined.len() as u64, &mut body);
-        body.extend_from_slice(&joined);
-    } else {
-        uleb(0, &mut body);
-    }
-    uleb(order.len() as u64, &mut body);
-    uleb(params as u64, &mut body);
-    uleb(data.len() as u64, &mut body);
-    body.extend_from_slice(&data);
-    body.extend_from_slice(&infos);
-    for (index, block) in order.iter().enumerate() {
-        uleb(if index == 0 { 0 } else { id(block.name) as u64 + 1 }, &mut body);
-        uleb(block.params.len() as u64, &mut body);
-        uleb(block.children.len() as u64, &mut body);
-        if !block.children.is_empty() {
-            uleb(first_child[index] as u64, &mut body);
-        }
-    }
-    body
-}
 
 const NAMES: &[&str] = &[
     "root",
@@ -398,12 +241,6 @@ fn assert_sample(blk: &Blk) {
     );
 }
 
-fn with_kind(kind: u8, body: &[u8]) -> Vec<u8> {
-    let mut file = vec![kind];
-    file.extend_from_slice(body);
-    file
-}
-
 fn parse_error_detail(file: &[u8], shared: Option<&NameMap>, dict: Option<&[u8]>) -> String {
     let e = Blk::parse(file, shared, dict).unwrap_err();
     assert_eq!(e.code, ErrorCode::Parse);
@@ -419,12 +256,16 @@ fn kind_3_is_slim_and_not_compressed() {
 }
 
 #[test]
-fn kind_4_is_slim_zstd_and_ignores_a_dictionary() {
+fn kind_4_is_slim_zstd_with_or_without_a_dictionary() {
     let names = NameMap::parse(&name_map(NAMES), None).unwrap();
     let file = slim_blk(&sample_tree(), NAMES);
     assert_eq!(file[0], 4);
     assert_sample(&Blk::parse(&file, Some(&names), None).unwrap());
     assert_sample(&Blk::parse(&file, Some(&names), Some(b"an unrelated dictionary")).unwrap());
+    // A kind 4 frame that does lean on the dictionary reads too once it is passed.
+    let body = blk_body(&sample_tree(), NAMES, false);
+    let packed = zstd::bulk::Compressor::with_dictionary(3, &body).unwrap().compress(&body).unwrap();
+    assert_sample(&Blk::parse(&with_kind(4, &packed), Some(&names), Some(&body)).unwrap());
 }
 
 #[test]
@@ -448,7 +289,7 @@ fn kind_5_needs_its_zstd_dictionary() {
 
 #[test]
 fn kind_1_is_fat_with_its_own_names() {
-    let file = with_kind(1, &fat_body(&sample_tree(), NAMES));
+    let file = fat_blk(&sample_tree(), NAMES);
     assert_sample(&Blk::parse(&file, None, None).unwrap());
     // Shared names are not needed (and not used) by a fat file.
     let names = NameMap::parse(&name_map(&["root"]), None).unwrap();
@@ -458,7 +299,7 @@ fn kind_1_is_fat_with_its_own_names() {
 #[test]
 fn kind_2_is_fat_inside_a_sized_zstd_frame() {
     let tree = sample_tree();
-    let inner = with_kind(1, &fat_body(&tree, NAMES));
+    let inner = fat_blk(&tree, NAMES);
     let frame = zstd::bulk::compress(&inner, 3).unwrap();
     let mut file = vec![2u8];
     file.extend_from_slice(&(frame.len() as u32).to_le_bytes()[..3]);
@@ -489,7 +330,7 @@ fn packed_fat_files_that_are_damaged_or_nested_fail_cleanly() {
     assert!(parse_error_detail(&[2, 1, 0], None, None).contains("truncated"));
     assert!(parse_error_detail(&[2, 0xFF, 0xFF, 0xFF, 1, 2, 3], None, None).contains("truncated"));
     assert!(parse_error_detail(&[2, 4, 0, 0, 9, 9, 9, 9], None, None).contains("zstd"));
-    let good = packed(&with_kind(1, &fat_body(&tree, NAMES)));
+    let good = packed(&fat_blk(&tree, NAMES));
     assert_eq!(Blk::parse(&good[..good.len() - 3], None, None).unwrap_err().code, ErrorCode::Parse);
 }
 
