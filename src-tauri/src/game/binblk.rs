@@ -1,10 +1,12 @@
 //! War Thunder's binary BLK files (inside the `.vromfs.bin` archives), read-only.
 //!
-//! Not published either; this follows the community tools and the 2.59 files:
+//! Not published either; this follows the Dagor Engine sources (`blk_shared.h`, BSD-3), the
+//! community tools and the 2.59 files:
 //!
 //! ```text
-//! kind        u8: 0 fat, 1 fat+zstd, 2 slim, 3 slim+zstd, 4 slim+zstd with a dictionary
-//! [zstd]      the rest is one zstd frame (kinds 3 and 4)
+//! kind        u8: 1 fat, 2 fat+zstd, 3 slim, 4 slim+zstd, 5 slim+zstd with the archive's dictionary
+//! [kind 2]    u24 packed size, then one zstd frame holding a whole kind 1 file
+//! [zstd]      the rest is one zstd frame (kinds 4 and 5)
 //! names       uleb count; fat: uleb size + NUL-terminated names; slim: the archive's shared
 //!             name map ([`NameMap`], file `\xff?nm`)
 //! blocks      uleb count        params  uleb count        data  uleb size + bytes
@@ -185,17 +187,29 @@ impl std::fmt::Debug for Blk {
 }
 
 impl Blk {
-    /// Parses a binary BLK; slim files need the archive's name map (`shared`), and kind 4 may
-    /// need the archive's zstd dictionary.
+    /// Parses a binary BLK; slim files (kinds 3 to 5) need the archive's name map (`shared`),
+    /// and kind 5 the archive's zstd dictionary.
     pub fn parse(file: &[u8], shared: Option<&NameMap>, dict: Option<&[u8]>) -> AppResult<Self> {
         let (&kind, rest) = file.split_first().ok_or_else(|| bad("empty"))?;
         let body: Vec<u8> = match kind {
-            0 | 2 => rest.to_vec(),
-            3 | 4 => unzstd(rest, if kind == 4 { dict } else { None }, MAX_BLK)?,
-            1 => return Err(bad("packed fat BLK files aren't supported")),
+            1 | 3 => rest.to_vec(),
+            4 | 5 => unzstd(rest, if kind == 5 { dict } else { None }, MAX_BLK)?,
+            2 => {
+                // u24 packed size, then one zstd frame holding a kind 1 file.
+                let size = rest
+                    .get(..3)
+                    .map(|b| u32::from_le_bytes([b[0], b[1], b[2], 0]) as usize)
+                    .ok_or_else(|| bad("truncated"))?;
+                let frame = rest.get(3..3 + size).ok_or_else(|| bad("truncated"))?;
+                let inner = unzstd(frame, None, MAX_BLK)?;
+                if inner.first() != Some(&1) {
+                    return Err(bad("nested packed BLK"));
+                }
+                return Self::parse(&inner, shared, dict);
+            }
             other => return Err(bad(format!("not a binary BLK (kind {other})"))),
         };
-        let slim = kind >= 2;
+        let slim = kind >= 3;
         let mut cursor = Cursor { bytes: &body, at: 0 };
         let local = cursor.usize(10_000_000, "local names")?;
         let names = if slim {

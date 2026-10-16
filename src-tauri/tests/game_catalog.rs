@@ -104,9 +104,21 @@ fn b(name: &'static str, params: Vec<(&'static str, V)>, children: Vec<B>) -> B 
     B { name, params, children }
 }
 
-/// A slim BLK (kind 4, zstd, no dictionary) over the shared `names`; blocks breadth-first so
-/// each block's children are contiguous.
+/// A slim BLK (kind 4, zstd, no dictionary) over the shared `names`.
 fn slim_blk(root: &B, names: &[&str]) -> Vec<u8> {
+    let mut file = vec![4u8];
+    file.extend_from_slice(&zstd::bulk::compress(&blk_body(root, names, false), 3).unwrap());
+    file
+}
+
+/// A fat BLK body (the file's own names first), without the kind byte.
+fn fat_body(root: &B, names: &[&str]) -> Vec<u8> {
+    blk_body(root, names, true)
+}
+
+/// The body of a BLK: names (`fat`: the file's own, else none: they are shared), then blocks,
+/// params and data. Blocks are breadth-first so each block's children are contiguous.
+fn blk_body(root: &B, names: &[&str], fat: bool) -> Vec<u8> {
     let id = |n: &str| names.iter().position(|x| *x == n).unwrap_or_else(|| panic!("{n} not in the name map"));
     let mut order: Vec<&B> = vec![root];
     let mut first_child: Vec<usize> = Vec::new();
@@ -137,7 +149,14 @@ fn slim_blk(root: &B, names: &[&str]) -> Vec<u8> {
     }
     let params: usize = order.iter().map(|b| b.params.len()).sum();
     let mut body = Vec::new();
-    uleb(0, &mut body);
+    if fat {
+        let joined: Vec<u8> = names.iter().flat_map(|n| n.bytes().chain(std::iter::once(0))).collect();
+        uleb(names.len() as u64, &mut body);
+        uleb(joined.len() as u64, &mut body);
+        body.extend_from_slice(&joined);
+    } else {
+        uleb(0, &mut body);
+    }
     uleb(order.len() as u64, &mut body);
     uleb(params as u64, &mut body);
     uleb(data.len() as u64, &mut body);
@@ -151,9 +170,7 @@ fn slim_blk(root: &B, names: &[&str]) -> Vec<u8> {
             uleb(first_child[index] as u64, &mut body);
         }
     }
-    let mut file = vec![4u8];
-    file.extend_from_slice(&zstd::bulk::compress(&body, 3).unwrap());
-    file
+    body
 }
 
 const NAMES: &[&str] = &[
@@ -355,6 +372,133 @@ fn damaged_blk_files_are_parse_errors() {
     assert_eq!(Blk::parse(&good, Some(&small), None).unwrap_err().code, ErrorCode::Parse);
     assert_eq!(NameMap::parse(&[0; 10], None).unwrap_err().code, ErrorCode::Parse);
     assert!(!NameMap::needs_dictionary(&name_map(NAMES)));
+}
+
+// ── Binary BLK kinds (Dagor's numbering: 1 fat, 2 fat+zstd, 3 slim, 4 slim+zstd, 5 + dictionary) ──
+
+fn sample_tree() -> B {
+    b(
+        "root",
+        vec![],
+        vec![
+            unit("germ_pz_ii", "country_germany", 1, "exp_tank"),
+            unit("germ_leopard_2a6", "country_germany", 8, "exp_tank"),
+        ],
+    )
+}
+
+fn assert_sample(blk: &Blk) {
+    let codes: Vec<&str> = blk.root().children().filter_map(|c| c.name()).collect();
+    assert_eq!(codes, ["germ_pz_ii", "germ_leopard_2a6"]);
+    let leopard = blk.root().child("germ_leopard_2a6").unwrap();
+    assert_eq!(leopard.param("rank"), Some(Value::Int(8)));
+    assert_eq!(
+        leopard.param("country").and_then(|v| v.as_str().map(str::to_owned)).as_deref(),
+        Some("country_germany")
+    );
+}
+
+fn with_kind(kind: u8, body: &[u8]) -> Vec<u8> {
+    let mut file = vec![kind];
+    file.extend_from_slice(body);
+    file
+}
+
+fn parse_error_detail(file: &[u8], shared: Option<&NameMap>, dict: Option<&[u8]>) -> String {
+    let e = Blk::parse(file, shared, dict).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Parse);
+    e.detail.unwrap_or_default()
+}
+
+#[test]
+fn kind_3_is_slim_and_not_compressed() {
+    let names = NameMap::parse(&name_map(NAMES), None).unwrap();
+    let file = with_kind(3, &blk_body(&sample_tree(), NAMES, false));
+    assert_sample(&Blk::parse(&file, Some(&names), None).unwrap());
+    assert!(parse_error_detail(&file, None, None).contains("name map"));
+}
+
+#[test]
+fn kind_4_is_slim_zstd_and_ignores_a_dictionary() {
+    let names = NameMap::parse(&name_map(NAMES), None).unwrap();
+    let file = slim_blk(&sample_tree(), NAMES);
+    assert_eq!(file[0], 4);
+    assert_sample(&Blk::parse(&file, Some(&names), None).unwrap());
+    assert_sample(&Blk::parse(&file, Some(&names), Some(b"an unrelated dictionary")).unwrap());
+}
+
+#[test]
+fn kind_5_needs_its_zstd_dictionary() {
+    let names = NameMap::parse(&name_map(NAMES), None).unwrap();
+    let body = blk_body(&sample_tree(), NAMES, false);
+    // A raw-content dictionary holding the body: the frame is then mostly one match into it, so
+    // it can't be unpacked without the dictionary (zstd's trainer isn't compiled into the crate).
+    let dict = body.clone();
+    let packed = zstd::bulk::Compressor::with_dictionary(3, &dict).unwrap().compress(&body).unwrap();
+    assert!(
+        packed.len() < body.len() / 2,
+        "the frame should lean on the dictionary ({} of {})",
+        packed.len(),
+        body.len()
+    );
+    let file = with_kind(5, &packed);
+    assert_sample(&Blk::parse(&file, Some(&names), Some(&dict)).unwrap());
+    assert!(parse_error_detail(&file, Some(&names), None).contains("zstd"));
+}
+
+#[test]
+fn kind_1_is_fat_with_its_own_names() {
+    let file = with_kind(1, &fat_body(&sample_tree(), NAMES));
+    assert_sample(&Blk::parse(&file, None, None).unwrap());
+    // Shared names are not needed (and not used) by a fat file.
+    let names = NameMap::parse(&name_map(&["root"]), None).unwrap();
+    assert_sample(&Blk::parse(&file, Some(&names), None).unwrap());
+}
+
+#[test]
+fn kind_2_is_fat_inside_a_sized_zstd_frame() {
+    let tree = sample_tree();
+    let inner = with_kind(1, &fat_body(&tree, NAMES));
+    let frame = zstd::bulk::compress(&inner, 3).unwrap();
+    let mut file = vec![2u8];
+    file.extend_from_slice(&(frame.len() as u32).to_le_bytes()[..3]);
+    file.extend_from_slice(&frame);
+    assert_sample(&Blk::parse(&file, None, None).unwrap());
+    // Bytes after the frame (a padded file) are ignored.
+    file.extend_from_slice(&[0, 0, 0, 0]);
+    assert_sample(&Blk::parse(&file, None, None).unwrap());
+}
+
+#[test]
+fn packed_fat_files_that_are_damaged_or_nested_fail_cleanly() {
+    let tree = sample_tree();
+    let packed = |inner: &[u8]| {
+        let frame = zstd::bulk::compress(inner, 3).unwrap();
+        let mut file = vec![2u8];
+        file.extend_from_slice(&(frame.len() as u32).to_le_bytes()[..3]);
+        file.extend_from_slice(&frame);
+        file
+    };
+    // The inner file must be a plain fat one, never another packed kind.
+    for kind in [2u8, 3, 4, 5] {
+        let nested = packed(&with_kind(kind, &fat_body(&tree, NAMES)));
+        assert!(parse_error_detail(&nested, None, None).contains("nested packed BLK"), "kind {kind}");
+    }
+    assert!(parse_error_detail(&packed(&[]), None, None).contains("nested packed BLK"));
+    // Truncated size, a size past the end of the file, a frame that isn't zstd.
+    assert!(parse_error_detail(&[2, 1, 0], None, None).contains("truncated"));
+    assert!(parse_error_detail(&[2, 0xFF, 0xFF, 0xFF, 1, 2, 3], None, None).contains("truncated"));
+    assert!(parse_error_detail(&[2, 4, 0, 0, 9, 9, 9, 9], None, None).contains("zstd"));
+    let good = packed(&with_kind(1, &fat_body(&tree, NAMES)));
+    assert_eq!(Blk::parse(&good[..good.len() - 3], None, None).unwrap_err().code, ErrorCode::Parse);
+}
+
+#[test]
+fn kinds_outside_1_to_5_are_not_binary_blk_files() {
+    for kind in [0u8, 6, 7, 255] {
+        let detail = parse_error_detail(&with_kind(kind, &fat_body(&sample_tree(), NAMES)), None, None);
+        assert!(detail.contains(&format!("not a binary BLK (kind {kind})")), "{detail}");
+    }
 }
 
 // ── The vehicle list ────────────────────────────────────────────────────────
