@@ -719,9 +719,25 @@ fn the_jumbo_is_assembled_from_the_index() {
             m.slots.iter().map(|s| (s.texture.as_str(), s.width, s.height, s.paintable_by_default)).collect::<Vec<_>>()
         );
         assert!(m.slots.iter().all(|s| s.width > 0 && s.height > 0));
-        // `paintable_by_default` is "the texture's name starts with the model's": the 76W reuses
-        // the Jumbo's body and turret textures, so only its own gun texture qualifies.
-        let paintable = m.slots.iter().filter(|s| s.paintable_by_default).count();
-        assert!(paintable >= if vehicle.starts_with("germ") { 3 } else { 1 }, "{paintable}");
+        // Body, turret and gun are painted by default (the 76W's body and turret are the
+        // Jumbo's textures); shared ones (machine guns, nets, tracks, barrels, glass) aren't.
+        let paintable: Vec<&str> =
+            m.slots.iter().filter(|s| s.paintable_by_default).map(|s| s.texture.as_str()).collect();
+        for part in ["_body_c", "_turret_c", "_gun_c"] {
+            assert!(paintable.iter().any(|t| t.ends_with(part)), "{vehicle}: no {part} in {paintable:?}");
+        }
+        for s in m.slots.iter().filter(|s| {
+            ["mg_", "us_net", "net_", "_track_c", "rifled_barrel", "headlight"].iter().any(|k| s.texture.contains(k))
+        }) {
+            assert!(!s.paintable_by_default, "{vehicle}: {} is shared", s.texture);
+        }
+        if vehicle == "us_m4a3e2_76w_sherman_jumbo" {
+            let mut own = paintable.clone();
+            own.sort_unstable();
+            assert_eq!(
+                own,
+                ["m4a3e2_76w_sherman_jumbo_gun_c", "m4a3e2_sherman_jumbo_body_c", "m4a3e2_sherman_jumbo_turret_c"]
+            );
+        }
     }
 }

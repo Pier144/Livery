@@ -52,7 +52,7 @@ pub struct GameResIndex {
     pub version: String,
     /// Vehicle code (lowercase) -> model (tankmodels only).
     pub model_of: HashMap<String, String>,
-    /// Model -> its `.grp` pack relative to the game root
+    /// Model (only those in `model_of`) -> its `.grp` pack relative to the game root
     /// (`content/base/res/tanks/usa_m4a3e2_sherman_jumbo.grp`).
     pub grp_of: HashMap<String, String>,
     /// Base texture name (lowercase) -> every pack entry holding it (thumbnails left out).
@@ -189,6 +189,9 @@ pub fn build(game_root: &Path) -> AppResult<GameResIndex> {
             }
         }
     }
+    // Only the models a vehicle uses (of 26,000 in the packs, about 1,300 are vehicles').
+    let used: BTreeSet<&str> = index.model_of.values().map(String::as_str).collect();
+    index.grp_of.retain(|model, _| used.contains(model.as_str()));
     tracing::info!(
         ms = started.elapsed().as_millis() as u64,
         vehicles = index.model_of.len(),

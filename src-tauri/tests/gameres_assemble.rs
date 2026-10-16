@@ -155,7 +155,13 @@ fn grp() -> Vec<u8> {
         ],
         false,
     );
-    grp_bytes(&[(DYN_MODEL, "tank_a", &dynmodel_bytes(&model)), (GEOM_NODE_TREE, "tank_a_skeleton", &skeleton)])
+    let dm = dynmodel_bytes(&model);
+    // `tank_a_dmg`: a model no vehicle names (left out of the index).
+    grp_bytes(&[
+        (DYN_MODEL, "tank_a", &dm),
+        (GEOM_NODE_TREE, "tank_a_skeleton", &skeleton),
+        (DYN_MODEL, "tank_a_dmg", &dm),
+    ])
 }
 
 fn desc_file() -> Vec<u8> {
@@ -260,6 +266,7 @@ fn the_index_maps_vehicles_models_packs_and_textures() {
     assert_eq!(index.overrides_of.iter().collect::<Vec<_>>(), ["tank_king"]);
     assert!(index.overrides("Tank_King"));
     assert_eq!(index.grp_of["tank_a"], "content/base/res/tanks/tank_a.grp");
+    assert_eq!(index.grp_of.len(), 1, "only models a vehicle uses: {:?}", index.grp_of);
 
     let body = &index.tex_of["tank_a_body_c"];
     assert_eq!(body.len(), 3, "thumbnails are left out: {body:?}");
@@ -442,6 +449,25 @@ fn the_store_caches_by_version() {
     // An unreadable cache is rebuilt, not an error.
     fs::write(&cache, b"{not json").unwrap();
     assert_eq!(*IndexStore::new(cache).get(root(&dir)).unwrap(), *rebuilt);
+}
+
+#[test]
+fn body_turret_gun_and_the_models_own_textures_are_paintable_by_default() {
+    let model = "m4a3e2_76w_sherman_jumbo";
+    for texture in [
+        "m4a3e2_sherman_jumbo_body_c",
+        "M4A3E2_Sherman_Jumbo_TURRET_C",
+        "m4a3e2_76w_sherman_jumbo_gun_c",
+        "m4a3e2_76w_sherman_jumbo_armor_c",
+    ] {
+        assert!(assemble::paintable_by_default(texture, model), "{texture}");
+    }
+    for texture in
+        ["mg_browning_m2hb_mount_c", "us_net_tile_c", "us_sherman_vvss_t_74_phys_track_c", "rifled_barrel_a_c"]
+    {
+        assert!(!assemble::paintable_by_default(texture, model), "{texture}");
+    }
+    assert!(assemble::paintable_by_default("pzkpfw_vi_ausf_b_tiger_h_armor_c", "pzkpfw_VI_ausf_B_tiger_h"));
 }
 
 #[test]

@@ -134,8 +134,7 @@ pub fn load(game_root: &Path, index: &GameResIndex, desc: &Blk, vehicle: &str) -
                     width: u32::from(tex.w),
                     height: u32::from(tex.h),
                     hq: tex.hq,
-                    // Case differs at times (`pzkpfw_VI_ausf_B_tiger_h` / `pzkpfw_vi_…_body_c`).
-                    paintable_by_default: texture.to_lowercase().starts_with(&model.to_lowercase()),
+                    paintable_by_default: paintable_by_default(texture, model),
                 });
                 slots.len() - 1
             });
@@ -175,6 +174,16 @@ pub fn load(game_root: &Path, index: &GameResIndex, desc: &Blk, vehicle: &str) -
         out.parts.push(part);
     }
     Ok(out)
+}
+
+/// A slot painted unless the user unticks it: the vehicle's own body, turret and gun textures
+/// (the 76W Jumbo reuses `m4a3e2_sherman_jumbo_body_c`), or any texture named after the model.
+/// Shared ones (machine guns, nets, tracks, barrels) aren't. Case-insensitive: the Tiger II's
+/// model is `pzkpfw_VI_ausf_B_tiger_h`, its textures `pzkpfw_vi_ausf_b_tiger_h_*_c`.
+pub fn paintable_by_default(texture: &str, model: &str) -> bool {
+    let texture = texture.to_lowercase();
+    ["_body_c", "_turret_c", "_gun_c"].iter().any(|s| texture.ends_with(s))
+        || texture.starts_with(&model.to_lowercase())
 }
 
 /// Gun when the node or an ancestor starts with `bone_gun` or `gun_barrel`, else turret when
