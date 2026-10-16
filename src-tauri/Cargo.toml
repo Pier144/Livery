@@ -43,5 +43,7 @@ winreg = "0.56"
 codegen-units = 1
 lto = true
 opt-level = "s"
-panic = "abort"
+# Unwind, not abort: Atelier catches the panics oozextract raises on damaged game files (see
+# game::gameres::codec::oodle). Costs a little size for the unwind tables.
+panic = "unwind"
 strip = true

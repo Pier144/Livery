@@ -65,7 +65,7 @@ fn oodle_decodes_the_jumbo_vertex_block() {
 /// the headers are). `whole_first_block` keeps the first 256 KiB block complete so the damage
 /// gets past the header walk into the decoder; otherwise the copy is cut short (4096 to 40000
 /// bytes), which the header walk refuses. Each copy must be Ok or Err, never a panic (release
-/// builds abort on one). Returns (decoded, rejected).
+/// builds abort on an escaped one). Returns (decoded, rejected).
 fn mutate(rounds: usize, whole_first_block: bool) -> (usize, usize) {
     let (_, stream, raw_len) = jumbo_vertex_stream();
     let quantum = u32::from_be_bytes([0, stream[2], stream[3], stream[4]]) & 0x3FFFF;
@@ -105,13 +105,11 @@ fn damaged_headers_and_cut_streams_never_panic() {
     println!("cut copies: {ok} decoded, {err} rejected");
 }
 
-/// KNOWN FAILURE. Damage inside a complete block reaches the Kraken/Leviathan decoders of
-/// `oozextract` 0.5.5, which `assert!` on bad data (tANS tables in `decoder/tans.rs`, Huffman
-/// ranges in `decoder/huffman.rs`, `decoder/bit_reader.rs`, `decoder/mod.rs`, plus an unchecked
-/// subtraction in `algorithm/leviathan.rs`): about 12 percent of damaged blocks panic, which
-/// aborts a release build. Run it by hand to see the count: `-- --ignored damaged_blocks`.
+/// Damage inside a complete block reaches the Kraken/Leviathan decoders of `oozextract` 0.5.5,
+/// which `assert!` on bad data (about one block in eight). `oodle` catches that (the release
+/// profile unwinds), so every copy comes back Ok or Err and none escapes as a panic.
 #[test]
-#[ignore = "known failure: oozextract's Kraken/Leviathan decoders panic on damaged blocks"]
+#[ignore = "reads the real War Thunder install"]
 fn damaged_blocks_never_panic_in_the_decoder() {
     let (ok, err) = mutate(20_000, true);
     println!("damaged blocks: {ok} decoded, {err} rejected");

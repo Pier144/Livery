@@ -58,14 +58,31 @@ pub fn read_block(cur: &mut Reader, max: usize) -> AppResult<Vec<u8>> {
 
 /// A bare Oodle stream of known unpacked length (DxP2 textures). Fails unless the stream
 /// unpacks to exactly `raw_len` bytes; `raw_len > max` is rejected before allocating.
+///
+/// Only Kraken-family streams get to the decoder ([`check_kraken_family`]), and the decoder runs
+/// inside `catch_unwind`: `oozextract` `assert!`s on damaged data (its tANS and Huffman tables,
+/// its bit reader) instead of returning an error, and about one damaged block in eight trips one.
+/// A panic is reported as a `parse` error ("oodle stream damaged"). That is sound here because
+/// the decoder only writes into the buffer this function owns and drops with the panic, and the
+/// crate's only `unsafe` is SIMD on fixed-size buffers, so unwinding can't leave memory corrupt.
+/// It relies on the release profile unwinding (`panic = "unwind"` in `Cargo.toml`); no global
+/// panic hook is installed, so the default message may reach stderr, and one `warn` is logged.
 pub fn oodle(src: &[u8], raw_len: usize, max: usize) -> AppResult<Vec<u8>> {
     if raw_len > max {
         return Err(bad(format!("Oodle stream unpacks to {raw_len} bytes, over the {max} limit")));
     }
     check_kraken_family(src, raw_len)?;
     let mut out = vec![0u8; raw_len];
-    let written =
-        oozextract::Extractor::new().read_from_slice(src, &mut out).map_err(|e| bad(format!("oodle: {e}")))?;
+    let decoded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        oozextract::Extractor::new().read_from_slice(src, &mut out)
+    }));
+    let written = match decoded {
+        Ok(result) => result.map_err(|e| bad(format!("oodle: {e}")))?,
+        Err(_) => {
+            tracing::warn!("oozextract panicked on a damaged Oodle stream ({} bytes in, {raw_len} out)", src.len());
+            return Err(bad("oodle stream damaged"));
+        }
+    };
     if written != raw_len {
         return Err(bad(format!("Oodle stream unpacked {written} of {raw_len} bytes")));
     }

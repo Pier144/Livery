@@ -207,6 +207,34 @@ fn the_blocks_must_cover_the_unpacked_length() {
 }
 
 #[test]
+fn a_full_block_of_garbage_behind_a_good_header_is_an_error_not_a_crash() {
+    // A Leviathan header and a whole block of nonsense gets past the header walk into the decoder.
+    let mut seed = 4242;
+    for payload in [noise(&mut seed, BLOCK - 1), noise(&mut seed, BLOCK - 1), vec![0xFF; BLOCK - 1], vec![0; BLOCK - 1]]
+    {
+        let stream = compressed_block(0x0C, &payload);
+        check_kraken_family(&stream, BLOCK).unwrap();
+        assert_parse(oodle(&stream, BLOCK, 1 << 20));
+    }
+}
+
+#[test]
+fn a_panic_inside_the_decoder_is_an_error_not_a_crash() {
+    // Synthetic bytes (found by fuzzing, not taken from the game) that pass the header walk
+    // and make oozextract's tANS/Huffman code `assert!`. The release profile unwinds
+    // (`panic = "unwind"`), so `oodle` catches that; with `abort` this test would kill the run.
+    #[rustfmt::skip]
+    let stream = [
+        0x8C, 0x0C, 0x00, 0x00, 0x1B, 0x10, 0x24, 0x6C, 0x00, 0x08, 0x4C, 0x58, 0x9C, 0x19, 0xBD, 0x6E, 0x4A,
+        0xB0, 0xDD, 0x2E, 0x02, 0x64, 0x4E, 0xEC, 0x3F, 0xE7, 0xCE, 0x69, 0x2F, 0xA3, 0x3C, 0xE6, 0xBD,
+    ];
+    check_kraken_family(&stream, 2553).unwrap();
+    let e = oodle(&stream, 2553, 1 << 20).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Parse);
+    assert_eq!(e.detail.as_deref(), Some("oodle stream damaged"));
+}
+
+#[test]
 fn a_mutated_decoder_type_is_accepted_only_when_it_is_kraken_family() {
     let base = [compressed_block(0x0C, &[0; 24]), compressed_block(0x06, &[0; 24])].concat();
     let second = base.len() - 24 - 5;
