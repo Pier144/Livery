@@ -9,6 +9,7 @@
 //!   inactive), for a queue item, or for a WT Live post that isn't installed (`wtliveId`, see
 //!   `crate::wtlive::post_textures`; `unsupported` until WT Live downloads are possible).
 
+pub mod bc;
 pub mod header;
 pub mod inspect;
 

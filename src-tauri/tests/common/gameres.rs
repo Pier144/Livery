@@ -391,6 +391,126 @@ pub fn skeleton_bytes(nodes: &[TNode], zstd: bool) -> Vec<u8> {
     out
 }
 
+// ── DxP2 ────────────────────────────────────────────────────────────────────
+
+/// One texture of a DxP2 pack. `data` is the unpacked payload (all stored mip levels); the
+/// builder sets the compression bits of `flags`, `memSz` and `packedSz`.
+pub struct TTex {
+    pub name: &'static str,
+    pub fourcc: [u8; 4],
+    pub flags: u32,
+    pub w: u16,
+    pub h: u16,
+    pub levels: u8,
+    pub dxt_shift: u8,
+    pub data: Vec<u8>,
+    pub pack: TexPack,
+}
+
+/// How a texture's data is stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TexPack {
+    Raw,
+    Zstd,
+    /// Oodle, as uncompressed Oodle blocks (`0xCC 0x0C` + up to 256 KiB each): the format has no
+    /// open encoder, but every decoder reads these.
+    Oodle,
+}
+
+/// `data` as an Oodle stream of uncompressed blocks.
+pub fn oodle_stored(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for chunk in data.chunks(0x40000) {
+        out.extend_from_slice(&[0xCC, 0x0C]);
+        out.extend_from_slice(chunk);
+    }
+    out
+}
+
+/// Bytes of the DxP2 directory before the dump's arrays: the 16-byte file header, then the
+/// three tabs (names, headers, records).
+pub const DXP_ARRAYS_AT: usize = 0x10 + 0x30;
+
+/// A DxP2 pack (formats doc section 3): header, dump (tabs, name pointers, DDSx headers,
+/// records of `version` 2 or 3, names), then each texture's data at its absolute offset.
+pub fn dxp_bytes(version: u32, texs: &[TTex]) -> Vec<u8> {
+    let n = texs.len();
+    let record = if version == 2 { 24 } else { 12 };
+    let names_at = 0x30;
+    let headers_at = names_at + 8 * n;
+    let records_at = headers_at + 32 * n;
+    let strings_at = records_at + record * n;
+    let mut dump = Vec::new();
+    tab(&mut dump, names_at, n);
+    tab(&mut dump, headers_at, n);
+    tab(&mut dump, records_at, n);
+    let mut at = strings_at;
+    for t in texs {
+        dump.extend_from_slice(&(at as u64).to_le_bytes());
+        at += t.name.len() + 1;
+    }
+    let dump_len = at;
+    let payloads: Vec<Vec<u8>> = texs
+        .iter()
+        .map(|t| match t.pack {
+            TexPack::Raw => t.data.clone(),
+            TexPack::Zstd => zstd::bulk::compress(&t.data, 3).unwrap(),
+            TexPack::Oodle => oodle_stored(&t.data),
+        })
+        .collect();
+    for (t, payload) in texs.iter().zip(&payloads) {
+        dump.extend_from_slice(b"DDSx");
+        dump.extend_from_slice(&t.fourcc);
+        let compression = match t.pack {
+            TexPack::Raw => 0,
+            TexPack::Zstd => 0x2000_0000,
+            TexPack::Oodle => 0x6000_0000,
+        };
+        dump.extend_from_slice(&((t.flags & 0x1FFF_FFFF) | compression).to_le_bytes());
+        dump.extend_from_slice(&t.w.to_le_bytes());
+        dump.extend_from_slice(&t.h.to_le_bytes());
+        dump.extend_from_slice(&[t.levels, 0, 1, 0, 0, 0, 0, t.dxt_shift]);
+        dump.extend_from_slice(&(t.data.len() as u32).to_le_bytes());
+        let packed = if t.pack == TexPack::Raw { 0 } else { payload.len() as u32 };
+        dump.extend_from_slice(&packed.to_le_bytes());
+    }
+    let mut data_at = (0x10 + dump_len).next_multiple_of(16);
+    for (i, payload) in payloads.iter().enumerate() {
+        if version == 2 {
+            dump.extend_from_slice(&0u64.to_le_bytes());
+        }
+        dump.extend_from_slice(&(i as i32).to_le_bytes());
+        dump.extend_from_slice(&(data_at as i32).to_le_bytes());
+        dump.extend_from_slice(&(payload.len() as i32).to_le_bytes());
+        if version == 2 {
+            dump.extend_from_slice(&0u32.to_le_bytes());
+        }
+        data_at = (data_at + payload.len()).next_multiple_of(16);
+    }
+    for t in texs {
+        dump.extend_from_slice(t.name.as_bytes());
+        dump.push(0);
+    }
+    assert_eq!(dump.len(), dump_len);
+    let mut out = Vec::new();
+    out.extend_from_slice(b"DxP2");
+    out.extend_from_slice(&version.to_le_bytes());
+    out.extend_from_slice(&(n as u32).to_le_bytes());
+    out.extend_from_slice(&(dump_len as u32).to_le_bytes());
+    out.extend_from_slice(&dump);
+    for payload in &payloads {
+        out.resize(out.len().next_multiple_of(16), 0);
+        out.extend_from_slice(payload);
+    }
+    out
+}
+
+/// What `grp_hdr.vromfs.bin` stores for a pack (`.dxp.bincache.bin`): its first `16 + dumpSize` bytes.
+pub fn dxp_cache(file: &[u8]) -> Vec<u8> {
+    let dump = u32::from_le_bytes(file[12..16].try_into().unwrap()) as usize;
+    file[..16 + dump].to_vec()
+}
+
 /// Overwrites the `u32` at `at` (for damaging a built resource).
 pub fn patch_u32(bytes: &mut [u8], at: usize, v: u32) {
     bytes[at..at + 4].copy_from_slice(&v.to_le_bytes());

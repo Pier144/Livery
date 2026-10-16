@@ -5,13 +5,17 @@
 //! process, which is the `livery` executable of this test build unless `LIVERY_WORKER_EXE`
 //! names another one (for example `target/release/livery.exe`).
 
+use livery_lib::game::binblk::Blk;
 use livery_lib::game::gameres::bytes::Reader;
 use livery_lib::game::gameres::codec::{
     check_kraken_family, decode_in_process, oodle, read_block, set_worker_exe, OodleWorker, MAX_VERTEX_DATA,
 };
+use livery_lib::game::gameres::desc::materials;
+use livery_lib::game::gameres::dxp::{base_name, is_hq, top_level, DxpDir};
 use livery_lib::game::gameres::dynmodel;
 use livery_lib::game::gameres::grp::{Grp, DYN_MODEL, GEOM_NODE_TREE};
 use livery_lib::game::gameres::skeleton::Skeleton;
+use livery_lib::textures::bc;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -471,4 +475,141 @@ fn every_tank_skeleton_parses() {
     }
     println!("{count} skeletons, {} failed {:?}", failed.len(), failed.iter().take(10).collect::<Vec<_>>());
     assert!(count > 3000 && failed.is_empty());
+}
+
+/// dynModelDesc.bin binds the Jumbo's rigid materials 0, 1 and 3 to its body, turret and gun.
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn the_jumbo_materials_name_its_diffuse_textures() {
+    let path = game_root().join("content/base/res/dynModelDesc.bin");
+    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    assert_eq!(bytes[0], 2, "a kind 2 BLK");
+    let desc = Blk::parse(&bytes, None, None).unwrap();
+    let m = materials(&desc, "m4a3e2_sherman_jumbo").unwrap();
+    println!("{} textures, {} rigid materials", m.textures.len(), m.diffuse_of_mat.len());
+    for (i, d) in m.diffuse_of_mat.iter().enumerate() {
+        println!("  mat {i}: {d:?}");
+    }
+    assert_eq!(m.textures.len(), 39);
+    assert_eq!(m.diffuse_of_mat.len(), 17);
+    let d = |i: usize| m.diffuse_of_mat[i].as_deref();
+    assert_eq!(d(0), Some("m4a3e2_sherman_jumbo_body_c"));
+    assert_eq!(d(1), Some("m4a3e2_sherman_jumbo_turret_c"));
+    assert_eq!(d(3), Some("m4a3e2_sherman_jumbo_gun_c"));
+    assert_eq!(d(14), Some("m4a3e2_sherman_jumbo_body_c"));
+    assert!(m.textures.iter().any(|t| t == "us_camo_olive"));
+}
+
+/// A pack's first `16 + dumpSize` bytes and the file's length.
+fn dxp_head(path: &std::path::Path) -> (Vec<u8>, u64) {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let len = file.metadata().unwrap().len();
+    let mut head = vec![0u8; 16];
+    file.read_exact(&mut head).unwrap();
+    let dump = u32::from_le_bytes(head[12..16].try_into().unwrap()) as usize;
+    head.resize(16 + dump, 0);
+    file.read_exact(&mut head[16..]).unwrap();
+    (head, len)
+}
+
+/// An uncompressed 24/32-bit TGA as RGBA8 (top row first).
+fn read_tga(bytes: &[u8]) -> (usize, usize, Vec<u8>) {
+    let id_len = bytes[0] as usize;
+    assert_eq!(bytes[1], 0, "no colour map");
+    assert_eq!(bytes[2], 2, "uncompressed true colour");
+    let w = u16::from_le_bytes([bytes[12], bytes[13]]) as usize;
+    let h = u16::from_le_bytes([bytes[14], bytes[15]]) as usize;
+    let bpp = bytes[16] as usize / 8;
+    assert!(bpp == 3 || bpp == 4, "{bpp} bytes per pixel");
+    let top_first = bytes[17] & 0x20 != 0;
+    let pixels = &bytes[18 + id_len..];
+    let mut out = vec![0u8; w * h * 4];
+    for row in 0..h {
+        let y = if top_first { row } else { h - 1 - row };
+        for x in 0..w {
+            let p = &pixels[(row * w + x) * bpp..];
+            let at = 4 * (y * w + x);
+            out[at..at + 4].copy_from_slice(&[p[2], p[1], p[0], if bpp == 4 { p[3] } else { 255 }]);
+        }
+    }
+    (w, h, out)
+}
+
+/// The Jumbo's HQ pack: body, turret and gun `_c` are DXT5 at template size and decode; the body
+/// doubled matches the template the game installs for skin makers.
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn the_jumbo_hq_textures_decode_and_match_the_template() {
+    set_worker_exe(worker_exe());
+    let path = game_root().join("content.hq/hq_tex/res/hq_tex_tanks/usa_m4a3e2_sherman_jumbo.dxp.bin");
+    let dir = DxpDir::parse(&dxp_head(&path).0).unwrap();
+    let mut file = std::fs::File::open(&path).unwrap();
+    println!("{} entries", dir.entries.len());
+
+    let mut body = None;
+    for (texture, w, h) in [("body_c", 2048, 2048), ("turret_c", 2048, 1024), ("gun_c", 1024, 512)] {
+        let base = format!("m4a3e2_sherman_jumbo_{texture}");
+        let e = dir
+            .entries
+            .iter()
+            .find(|e| base_name(&e.name) == base && is_hq(&e.name))
+            .unwrap_or_else(|| panic!("{base}$hq"));
+        println!(
+            "  {} {:?} {}x{} levels {} flags {:#X}",
+            e.name, e.header.fourcc, e.header.w, e.header.h, e.header.levels, e.header.flags
+        );
+        assert_eq!((&e.header.fourcc, e.header.w, e.header.h), (b"DXT5", w, h));
+        let started = Instant::now();
+        let blocks = top_level(&mut file, e).unwrap();
+        let rgba = bc::decode(&e.header.fourcc, &blocks, w as usize, h as usize).unwrap();
+        println!("    decoded in {} ms", started.elapsed().as_millis());
+        if texture == "body_c" {
+            body = Some(rgba);
+        }
+    }
+
+    let template = game_root().join("UserSkins/template_us_m4a3e2_sherman_jumbo/m4a3e2_sherman_jumbo_body.tga");
+    let Ok(tga) = std::fs::read(&template) else {
+        println!("no template at {}: comparison skipped", template.display());
+        return;
+    };
+    let (tw, th, tpx) = read_tga(&tga);
+    assert_eq!((tw, th), (2048, 2048));
+    let body = body.unwrap();
+    let mut sum = 0u64;
+    for (game, tmpl) in body.chunks_exact(4).zip(tpx.chunks_exact(4)) {
+        for c in 0..3 {
+            sum += u64::from((u16::from(game[c]) * 2).min(255).abs_diff(u16::from(tmpl[c])));
+        }
+    }
+    let mae = sum as f64 / (tw * th * 3) as f64;
+    println!("body x2 vs template: mean abs error {mae:.2}");
+    assert!(mae < 10.0, "{mae}");
+}
+
+/// Every texture pack directory of the tank folders parses (header part only).
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn every_tank_texture_pack_directory_parses() {
+    let mut packs = 0;
+    let mut entries = 0;
+    for dir in ["content/base/res/tanks", "content.hq/hq_tex/res/hq_tex_tanks"] {
+        let Ok(list) = std::fs::read_dir(game_root().join(dir)) else { continue };
+        for entry in list.flatten() {
+            let path = entry.path();
+            if !path.to_string_lossy().ends_with(".dxp.bin") {
+                continue;
+            }
+            let (head, len) = dxp_head(&path);
+            let parsed = DxpDir::parse(&head).unwrap_or_else(|e| panic!("{}: {e:?}", path.display()));
+            for e in &parsed.entries {
+                assert!(e.ofs + u64::from(e.data_size) <= len, "{} in {}", e.name, path.display());
+            }
+            packs += 1;
+            entries += parsed.entries.len();
+        }
+    }
+    println!("{packs} packs, {entries} textures");
+    assert!(packs > 100);
 }
