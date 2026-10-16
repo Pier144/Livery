@@ -173,10 +173,11 @@ pub struct ForYouNew { pub items: Vec<ForYouSkin>, pub checked: u32 } // checked
   includes one ignored real-site check in `wtlive_real` with a two-vehicle chunk.
 
 **Seen state.** New store `<appData>/for_you.json`: `{ "version": 1, "lastSeenAt": "<RFC 3339>" }`,
-written atomically and loaded tolerantly exactly like `following.json` (missing → now, corrupt →
-set aside as `.bad`, unreadable → read-only for the session). Commands `for_you_seen()` and
-`for_you_mark_seen()`; the UI marks it when the user leaves the tab, with the same delayed mark
-Following uses (StrictMode-safe).
+written atomically and loaded tolerantly like `following.json` (corrupt → set aside as `.bad`,
+unreadable → read-only for the session). A missing file reads as 7 days ago (not written), so the
+first visit already shows the past week as new. Commands `for_you_seen()` and
+`for_you_mark_seen()`; the UI marks it whenever the user leaves the tab after a visit, with the
+same delayed mark Following uses (StrictMode-safe).
 
 ## 3. Interface
 
