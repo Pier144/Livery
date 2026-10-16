@@ -203,7 +203,8 @@
         "renameFailed": "No se ha podido renombrar la carpeta de la skin",
         "lineupsUnreadable": "Livery no ha podido leer tu perfil de War Thunder",
         "lineupsUnparsable": "No se pueden leer las alineaciones de tu perfil de War Thunder",
-        "modelUnreadable": "No se puede leer el modelo 3D de este vehículo"
+        "modelUnreadable": "No se puede leer el modelo 3D de este vehículo",
+        "applyBadTexture": "Una textura pintada tiene un tamaño incorrecto"
       }
     },
     "vehicleClass": {

@@ -201,7 +201,8 @@
         "renameFailed": "Der Skin-Ordner konnte nicht umbenannt werden",
         "lineupsUnreadable": "Livery konnte dein War-Thunder-Profil nicht lesen",
         "lineupsUnparsable": "Die Aufstellungen in deinem War-Thunder-Profil können nicht gelesen werden",
-        "modelUnreadable": "Das 3D-Modell dieses Fahrzeugs kann nicht gelesen werden"
+        "modelUnreadable": "Das 3D-Modell dieses Fahrzeugs kann nicht gelesen werden",
+        "applyBadTexture": "Eine bemalte Textur hat die falsche Größe"
       }
     },
     "vehicleClass": {

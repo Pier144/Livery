@@ -8,11 +8,19 @@
 //!   `a0 > a1`: 8 values interpolated in sevenths, else 6 in fifths plus 0 and 255), then a BC1
 //!   colour block always read in 4-colour mode.
 
-use crate::error::AppResult;
-use crate::game::gameres::bad;
+use crate::error::{AppError, AppResult, ErrorCode};
+use crate::game::gameres::MODEL_UNREADABLE;
 
-/// Widest or tallest texture decoded or encoded.
-pub const MAX_SIDE: usize = 16384;
+/// Widest or tallest texture decoded or encoded (the game's own `_c` textures are at most 4096).
+pub const MAX_DECODE_SIDE: usize = 8192;
+
+/// `invalidInput` when a painted texture handed to [`encode_dxt5`] doesn't match its size.
+pub const APPLY_BAD_TEXTURE: &str = "A painted texture has the wrong size";
+
+/// Decoding reads the game's textures: a failure is a `parse` error of the vehicle's model.
+fn bad(detail: String) -> AppError {
+    AppError::new(ErrorCode::Parse, MODEL_UNREADABLE).with_detail(detail)
+}
 
 /// Decodes DXT1 (8-byte blocks) or DXT5 (16-byte blocks) to RGBA8, `w` x `h` (blocks cover
 /// 4 x 4 pixels; a level smaller than a block, or not a multiple of 4, is cropped from padded
@@ -23,7 +31,9 @@ pub fn decode(fourcc: &[u8; 4], blocks: &[u8], w: usize, h: usize) -> AppResult<
         b"DXT5" => true,
         other => return Err(bad(format!("texture format {:?}", String::from_utf8_lossy(other)))),
     };
-    check_size(w, h)?;
+    if !size_ok(w, h) {
+        return Err(bad(format!("texture of {w}x{h}")));
+    }
     let block_size = if dxt5 { 16 } else { 8 };
     let (bw, bh) = (w.div_ceil(4), h.div_ceil(4));
     let need = bw * bh * block_size;
@@ -54,11 +64,13 @@ pub fn decode(fourcc: &[u8; 4], blocks: &[u8], w: usize, h: usize) -> AppResult<
     Ok(out)
 }
 
-/// Encodes RGBA8 (`w * h * 4` bytes) to DXT5 blocks with texpresso (quality: ClusterFit).
+/// Encodes RGBA8 (`w * h * 4` bytes) to DXT5 blocks with texpresso (quality: ClusterFit). A
+/// size of 0 or over [`MAX_DECODE_SIDE`], or a buffer that isn't `w * h * 4` bytes, is
+/// `invalidInput` ([`APPLY_BAD_TEXTURE`]): the image comes from the frontend's bake.
 pub fn encode_dxt5(rgba: &[u8], w: usize, h: usize) -> AppResult<Vec<u8>> {
-    check_size(w, h)?;
-    if rgba.len() != w * h * 4 {
-        return Err(bad(format!("{}x{} image in {} bytes", w, h, rgba.len())));
+    if !size_ok(w, h) || rgba.len() != w * h * 4 {
+        return Err(AppError::new(ErrorCode::InvalidInput, APPLY_BAD_TEXTURE)
+            .with_detail(format!("{w}x{h} image in {} bytes", rgba.len())));
     }
     let format = texpresso::Format::Bc3;
     let mut out = vec![0u8; format.compressed_size(w, h)];
@@ -67,11 +79,8 @@ pub fn encode_dxt5(rgba: &[u8], w: usize, h: usize) -> AppResult<Vec<u8>> {
     Ok(out)
 }
 
-fn check_size(w: usize, h: usize) -> AppResult<()> {
-    if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE {
-        return Err(bad(format!("texture of {w}x{h}")));
-    }
-    Ok(())
+fn size_ok(w: usize, h: usize) -> bool {
+    (1..=MAX_DECODE_SIDE).contains(&w) && (1..=MAX_DECODE_SIDE).contains(&h)
 }
 
 fn rgb565(c: u16) -> [u8; 3] {

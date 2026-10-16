@@ -199,7 +199,8 @@
         "renameFailed": "无法重命名涂装文件夹",
         "lineupsUnreadable": "Livery 无法读取您的 War Thunder 档案",
         "lineupsUnparsable": "无法读取您的 War Thunder 档案中的阵容",
-        "modelUnreadable": "无法读取此载具的 3D 模型"
+        "modelUnreadable": "无法读取此载具的 3D 模型",
+        "applyBadTexture": "一张绘制的纹理尺寸不正确"
       }
     },
     "vehicleClass": {

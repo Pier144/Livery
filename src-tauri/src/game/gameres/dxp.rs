@@ -66,13 +66,14 @@ impl DxpDir {
             3 => 12,
             other => return Err(bad(format!("DxP2 version {other}"))),
         };
+        let tex_count = h.u32_at(8)?;
         let dump_size = h.u32_at(12)? as usize;
         let r = Reader::new(h.slice(DUMP_AT, dump_size)?);
         let (names_ofs, count) = r.tab(0)?;
         let (headers_ofs, headers) = r.tab(0x10)?;
         let (records_ofs, records) = r.tab(0x20)?;
-        if headers != count || records != count {
-            return Err(bad(format!("{count} names, {headers} headers, {records} records")));
+        if headers != count || records != count || tex_count != count {
+            return Err(bad(format!("{tex_count} textures: {count} names, {headers} headers, {records} records")));
         }
         let (names_ofs, headers_ofs, records_ofs, count) =
             (names_ofs as usize, headers_ofs as usize, records_ofs as usize, count as usize);
@@ -85,6 +86,9 @@ impl DxpDir {
         for i in 0..count {
             let name = r.cstr(r.u32_at(names_ofs + 8 * i)? as usize)?;
             let o = headers_ofs + HEADER * i;
+            if r.slice(o, 4)? != b"DDSx" {
+                return Err(bad(format!("texture {name}: header {:02X?}", r.slice(o, 4)?)));
+            }
             let header = DdsxHeader {
                 fourcc: r.u32_at(o + 4)?.to_le_bytes(),
                 flags: r.u32_at(o + 8)?,
@@ -118,6 +122,10 @@ pub fn is_hq(entry: &str) -> bool {
 }
 
 /// Bytes of the top mip level of a `w` x `h` texture with 4x4 blocks of `1 << dxt_shift` bytes.
+/// Rounds down like the engine (`ddsx::Header::calcSurfaceSz`: `max(w >> 2, 1)`), where
+/// `bc::decode` rounds up (`w.div_ceil(4)`): the two agree on every size the game uses (powers of
+/// two, and anything under 4), and a texture they'd disagree on (say 6 wide) is refused by
+/// `bc::decode` for having too few blocks, never misread.
 pub fn top_level_size(header: &DdsxHeader) -> usize {
     (usize::from(header.w >> 2).max(1) * usize::from(header.h >> 2).max(1)) << header.dxt_shift
 }
@@ -145,7 +153,8 @@ pub fn top_level(file: &mut (impl Read + Seek), e: &DxpEntry) -> AppResult<Vec<u
         AppError::new(ErrorCode::Io, super::MODEL_UNREADABLE).with_detail(format!("texture {}: {err}", e.name))
     };
     file.seek(SeekFrom::Start(e.ofs)).map_err(io)?;
-    let mut blob = Vec::with_capacity(size);
+    // Grows with what the file really holds: a size past the end allocates nothing up front.
+    let mut blob = Vec::new();
     file.take(size as u64).read_to_end(&mut blob).map_err(io)?;
     if blob.len() != size {
         return Err(bad(format!("texture {}: {} of {size} bytes", e.name, blob.len())));

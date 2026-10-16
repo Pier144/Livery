@@ -283,6 +283,13 @@ fn damaged_directories_are_errors() {
     patch_u32(&mut h, 4, 4);
     cases.push(("version", h));
     let mut h = head.clone();
+    patch_u32(&mut h, 8, 4);
+    cases.push(("texCount differs from the tabs", h));
+    // The first DDSx header follows the 5 name pointers.
+    let mut h = head.clone();
+    h[DXP_ARRAYS_AT + 5 * 8] = b'X';
+    cases.push(("DDSx label", h));
+    let mut h = head.clone();
     // The tabs' counts sit at dump +0x04, +0x14, +0x24 (file +0x10).
     patch_u32(&mut h, 0x10 + 0x14, 4);
     cases.push(("fewer headers than names", h));

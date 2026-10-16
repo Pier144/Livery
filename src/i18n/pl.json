@@ -205,7 +205,8 @@
         "renameFailed": "Nie udało się zmienić nazwy folderu kamuflażu",
         "lineupsUnreadable": "Nie udało się odczytać Twojego profilu War Thunder",
         "lineupsUnparsable": "Nie można odczytać składów w Twoim profilu War Thunder",
-        "modelUnreadable": "Nie można odczytać modelu 3D tego pojazdu"
+        "modelUnreadable": "Nie można odczytać modelu 3D tego pojazdu",
+        "applyBadTexture": "Pomalowana tekstura ma nieprawidłowy rozmiar"
       }
     },
     "vehicleClass": {

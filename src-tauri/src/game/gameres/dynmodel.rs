@@ -80,7 +80,8 @@ pub struct Vdata {
     pub normals: Vec<[f32; 3]>,
     pub uvs: Vec<[f32; 2]>,
     pub indices: Vec<u32>,
-    /// The index buffer was meshoptimizer-packed in the file.
+    /// The index buffer was meshoptimizer-packed in the file (informational: `indices` is
+    /// unpacked either way).
     pub packed_indices: bool,
 }
 
@@ -163,11 +164,15 @@ pub fn parse(res: &[u8]) -> AppResult<DynModel> {
         let mut elems = Vec::with_capacity(elems_count as usize);
         for e in 0..elems_count as usize {
             let at = elems_ofs as usize + e * ELEM;
-            // u64 shaderElem, u64 matIndex, u64 vdataIndex (indices, read as their low u32),
+            // u64 shaderElem, u64 matIndex, u64 vdataIndex (indices: the high halves are zero),
             // i32 vdOrderIndex, sv, numv, si, numf, baseVertex.
+            let index = |at: usize, what: &str| -> AppResult<u32> {
+                let v = mesh.u64_at(at)?;
+                u32::try_from(v).map_err(|_| bad(format!("rigid {k}: element {e} {what} {v:#X}")))
+            };
             let elem = Elem {
-                mat: mesh.u32_at(at + 8)?,
-                vdata: mesh.u32_at(at + 16)?,
+                mat: index(at + 8, "material")?,
+                vdata: index(at + 16, "vdata")?,
                 si: non_negative(mesh.i32_at(at + 36)?, "element start index")? as u32,
                 numf: non_negative(mesh.i32_at(at + 40)?, "element triangle count")? as u32,
                 base_vertex: mesh.i32_at(at + 44)?,
@@ -184,12 +189,12 @@ pub fn parse(res: &[u8]) -> AppResult<DynModel> {
     let used: BTreeSet<usize> = rigids.iter().flat_map(|r| r.elems.iter().map(|e| e.vdata as usize)).collect();
     let mut vdata = vec![Vdata::default(); vdata_count];
     for &i in &used {
-        vdata[i] = decode_vdata(&raw, &layouts[i], offset, scale).map_err(|e| prefix(e, i))?;
+        vdata[i] = decode_vdata(&raw, &layouts[i], offset, scale).map_err(|e| prefix(e, "vdata", i))?;
     }
     for (k, rigid) in rigids.iter().enumerate() {
         for elem in &rigid.elems {
             check_elem(elem, &vdata[elem.vdata as usize], layouts[elem.vdata as usize].vert_num)
-                .map_err(|e| prefix(e, k))?;
+                .map_err(|e| prefix(e, "rigid", k))?;
         }
     }
     Ok(DynModel { node_names, rigids, vdata })
@@ -199,8 +204,9 @@ fn non_negative(v: i32, what: &str) -> AppResult<usize> {
     usize::try_from(v).map_err(|_| bad(format!("{what} {v}")))
 }
 
-fn prefix(mut e: crate::error::AppError, i: usize) -> crate::error::AppError {
-    e.detail = e.detail.map(|d| format!("#{i}: {d}"));
+/// `vdata 6: …` / `rigid 12: …` in front of an error's detail.
+fn prefix(mut e: crate::error::AppError, what: &str, i: usize) -> crate::error::AppError {
+    e.detail = e.detail.map(|d| format!("{what} {i}: {d}"));
     e
 }
 

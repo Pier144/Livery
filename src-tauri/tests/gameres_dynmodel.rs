@@ -247,6 +247,29 @@ fn elements_outside_their_buffers_are_errors() {
 }
 
 #[test]
+fn element_indices_with_a_high_half_are_errors() {
+    let bytes = dynmodel_bytes(&model(Ib::U16));
+    // LOD 0's only mesh (48-byte header, one 48-byte element) sits before LOD 1 (160 bytes).
+    let elem = bytes.len() - 160 - 96 + 48;
+    for (high, what) in [(elem + 12, "material"), (elem + 20, "vdata")] {
+        let mut b = bytes.clone();
+        patch_u32(&mut b, high, 1);
+        let detail = assert_parse(dynmodel::parse(&b));
+        assert!(detail.starts_with("rigid 0: element 0") && detail.contains(what), "{detail}");
+    }
+}
+
+#[test]
+fn errors_name_the_vdata_or_rigid() {
+    let mut m = model(Ib::U16);
+    m.vdata[0].decl = Some(vec![(2, 0, 0), (4, 1, 0), (6, 3, 0)]);
+    assert!(assert_parse(dynmodel::parse(&dynmodel_bytes(&m))).starts_with("vdata 0: "));
+    let mut m = model(Ib::U16);
+    m.lods[0][0].elems = vec![elem(0, 0, 0, 3, 0)];
+    assert!(assert_parse(dynmodel::parse(&dynmodel_bytes(&m))).starts_with("rigid 0: "));
+}
+
+#[test]
 fn a_model_without_lods_is_an_error() {
     let mut m = model(Ib::U16);
     m.lods.clear();

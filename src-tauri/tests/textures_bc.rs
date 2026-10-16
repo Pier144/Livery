@@ -1,7 +1,7 @@
 //! DXT1/DXT5 decoding on hand-made blocks of known colours, and a DXT5 encode/decode round trip.
 
 use livery_lib::error::ErrorCode;
-use livery_lib::textures::bc::{decode, encode_dxt5};
+use livery_lib::textures::bc::{decode, encode_dxt5, APPLY_BAD_TEXTURE};
 
 /// A DXT1 block: endpoints `c0`, `c1` (RGB565) and the 2-bit index of each pixel.
 fn bc1(c0: u16, c1: u16, idx: [u32; 16]) -> Vec<u8> {
@@ -124,8 +124,17 @@ fn bad_input_is_an_error() {
         let r = decode(fourcc, data, w, h);
         assert!(r.is_err_and(|e| e.code == ErrorCode::Parse), "{fourcc:?} {w}x{h}");
     }
-    assert!(encode_dxt5(&[0; 63], 4, 4).is_err());
-    assert!(encode_dxt5(&[], 0, 0).is_err());
+    assert!(decode(b"DXT1", &block[..], 8193, 4).is_err(), "over MAX_DECODE_SIDE");
+}
+
+#[test]
+fn a_painted_image_of_the_wrong_size_is_invalid_input() {
+    for (len, w, h) in [(63, 4, 4), (65, 4, 4), (0, 0, 0), (4 * 8193 * 4, 8193, 4)] {
+        let e = encode_dxt5(&vec![0; len], w, h).unwrap_err();
+        assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, APPLY_BAD_TEXTURE), "{w}x{h}");
+    }
+    // 6x5 pads to 2x2 blocks.
+    assert_eq!(encode_dxt5(&[7; 6 * 5 * 4], 6, 5).unwrap().len(), 4 * 16);
 }
 
 #[test]
