@@ -132,6 +132,10 @@ function stubEngine() {
         downscaled: slot.endsWith('_gun_c') && downscaleGun,
       })),
       upgrade: vi.fn(),
+      whenReady: vi.fn(async () => {}),
+      prepareExport: vi.fn(async () => {}),
+      endExport: vi.fn(),
+      decalTouchesSharedTexels: vi.fn(async () => false),
     },
     dispose: vi.fn(),
   };
@@ -283,6 +287,10 @@ describe('Atelier editor', () => {
       SLOTS.map((slot) => ({ 'x-apply-id': 'a1', 'x-slot': slot, 'x-width': '256', 'x-height': '256' })),
     );
     expect(engine.baker.bakeForExport.mock.calls).toEqual(SLOTS.map((s) => [s, false]));
+    // Full-size decal pictures around the bakes.
+    expect(engine.baker.prepareExport).toHaveBeenCalledTimes(1);
+    expect(engine.baker.prepareExport.mock.invocationCallOrder[0]!).toBeLessThan(engine.baker.bakeForExport.mock.invocationCallOrder[0]!);
+    expect(engine.baker.endExport).toHaveBeenCalledTimes(1);
     expect(useAtelierEditor.getState().project?.installedSkinId).toBe('h_new');
     expect(engine.baker.upgrade).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Apply to game' })).toBeEnabled();

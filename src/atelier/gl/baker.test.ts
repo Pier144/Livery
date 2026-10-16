@@ -2,10 +2,28 @@ import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModelHeader } from '@/types';
 import type { VehicleModelData } from '../modelBuffer';
-import { newBaseLayer, newMaskLayer, type BaseLayer, type Layer, type MaskLayer, type Stroke, type Vec3 } from '../project';
+import {
+  newBaseLayer,
+  newImageLayer,
+  newMaskLayer,
+  newTextLayer,
+  type BaseLayer,
+  type Decal,
+  type Layer,
+  type MaskLayer,
+  type Stroke,
+  type Vec3,
+} from '../project';
+import type { DecalImage } from './decalTextures';
 import {
   applyStamp,
   Baker,
+  compositeTexel,
+  decalCopies,
+  decalSampleUv,
+  decalSphere,
+  quantiseRasterHeight,
+  textKey,
   baseUniforms,
   batchRanges,
   buildUnwrapped,
@@ -34,7 +52,11 @@ import {
   camoNoise,
   latticeValue,
   MASK_FRAGMENT,
-  PAINT_FRAGMENT,
+  BASE_FRAGMENT,
+  COUNT_FRAGMENT,
+  DECAL_FRAGMENT,
+  FINAL_FRAGMENT,
+  FOOTPRINT_FRAGMENT,
   valueNoise,
 } from './shaders';
 
@@ -379,8 +401,18 @@ describe('planMaskUpdate', () => {
 
 // ---------------------------------------------------------------- the Baker, WebGL stubbed
 
+const KINDS = new Map<string, Draw['kind']>([
+  [BASE_FRAGMENT, 'base'],
+  [DECAL_FRAGMENT, 'decal'],
+  [FINAL_FRAGMENT, 'paint'],
+  [MASK_FRAGMENT, 'mask'],
+  [COUNT_FRAGMENT, 'count'],
+  [FOOTPRINT_FRAGMENT, 'footprint'],
+]);
+
 interface Draw {
-  kind: 'paint' | 'mask' | 'coverage';
+  /** `paint` is the final pass (into the slot's target). */
+  kind: 'base' | 'decal' | 'paint' | 'mask' | 'coverage' | 'count' | 'footprint';
   target: THREE.WebGLRenderTarget | null;
   equation: number;
   count: number;
@@ -388,6 +420,13 @@ interface Draw {
   alpha: number;
   premultiply: number;
   detail: THREE.DataTexture | null;
+  /** Decal pass: the picture drawn, opacity, flip, blend factors (src, dst, src alpha, dst alpha). */
+  decalTex: THREE.Texture | null;
+  opacity: number;
+  flipX: number;
+  blend: [number, number, number | null, number | null];
+  blending: number;
+  sphere: [number, number, number, number] | null;
 }
 
 /** A WebGLRenderer stand-in that records draws and clears; read-back fills from `fill`. */
@@ -398,6 +437,8 @@ function fakeRenderer(maxTextureSize = 16384) {
   let lastKind: Draw['kind'] | null = null;
   const canvas = document.createElement('canvas');
   const context = { lost: false };
+  /** What the footprint read-back answers: some shared texel or none. */
+  const footprint = { shared: false };
   const renderer = {
     capabilities: { maxTextureSize },
     domElement: canvas,
@@ -414,7 +455,7 @@ function fakeRenderer(maxTextureSize = 16384) {
     render: (scene: THREE.Scene) => {
       const mesh = scene.children[0] as THREE.Mesh;
       const material = mesh.material as THREE.ShaderMaterial;
-      const kind = material.fragmentShader === PAINT_FRAGMENT ? 'paint' : material.fragmentShader === MASK_FRAGMENT ? 'mask' : 'coverage';
+      const kind = KINDS.get(material.fragmentShader) ?? 'coverage';
       lastKind = kind;
       const params = material.uniforms.uParams?.value as THREE.Vector4 | undefined;
       draws.push({
@@ -425,10 +466,21 @@ function fakeRenderer(maxTextureSize = 16384) {
         alpha: (material.uniforms.uBaseAlpha?.value as number | undefined) ?? -1,
         premultiply: (material.uniforms.uPremultiply?.value as number | undefined) ?? -1,
         detail: (material.uniforms.uDetail?.value as THREE.DataTexture | null | undefined) ?? null,
+        decalTex: (material.uniforms.uDecalTex?.value as THREE.Texture | null | undefined) ?? null,
+        opacity: (material.uniforms.uOpacity?.value as number | undefined) ?? -1,
+        flipX: (material.uniforms.uFlipX?.value as number | undefined) ?? -1,
+        blend: [material.blendSrc, material.blendDst, material.blendSrcAlpha, material.blendDstAlpha],
+        blending: material.blending,
+        sphere: material.uniforms.uSphere ? ((material.uniforms.uSphere.value as THREE.Vector4).toArray() as [number, number, number, number]) : null,
       });
     },
     // Triangles cover the left half of every row: the paint is (10, 20, 30, 255) there, 0 elsewhere.
     readRenderTargetPixels: (_t: THREE.WebGLRenderTarget, _x: number, _y: number, w: number, rows: number, buf: Uint8Array) => {
+      if (lastKind === 'footprint') {
+        buf.fill(0);
+        if (footprint.shared) buf[(5 * w + 7) * 4] = 255;
+        return;
+      }
       for (let r = 0; r < rows; r++)
         for (let x = 0; x < w; x++) {
           const covered = x < w / 2;
@@ -436,7 +488,7 @@ function fakeRenderer(maxTextureSize = 16384) {
         }
     },
   };
-  return { renderer: renderer as unknown as THREE.WebGLRenderer, draws, clears, canvas, context };
+  return { renderer: renderer as unknown as THREE.WebGLRenderer, draws, clears, canvas, context, footprint };
 }
 
 function layersWith(strokes: Stroke[], base: Partial<BaseLayer> = {}): Layer[] {
@@ -569,7 +621,7 @@ describe('Baker (WebGL stubbed)', () => {
   it('renders nothing opaque before the first setLayers', () => {
     const { baker, draws } = setup();
     baker.bakeForExport(BODY, false);
-    expect(draws.find((d) => d.kind === 'paint')?.alpha).toBe(0);
+    expect(draws.find((d) => d.kind === 'base')?.alpha).toBe(0);
     baker.dispose();
   });
 
@@ -657,3 +709,215 @@ function previewMix(baker: Baker, slot: string): number {
   expect(shader.fragmentShader).toContain('uPaintMix');
   return shader.uniforms.uPaintMix!.value as number;
 }
+
+// ---------------------------------------------------------------- decals
+
+const DECAL: Decal = { center: [0.5, 0.5, 0], normal: [0, 0, 1], up: [0, 1, 0], width: 0.4, height: 0.2, depth: 0.1, part: 'all', mirror: false };
+
+describe('decal maths (mirror of the decal shader)', () => {
+  const texel = (pos: Vec3, over: Partial<{ normal: Vec3; group: number }> = {}) => ({ pos, normal: [0, 0, 1] as Vec3, group: 0, ...over });
+
+  it('samples the picture top-left first, +u to the right, +v up', () => {
+    expect(decalSampleUv(texel([0.5, 0.5, 0]), DECAL, false)).toEqual([0.5, 0.5]);
+    // right = cross(up, normal) = +x; up = +y (the picture's top, t = 0).
+    const [s0, t0] = decalSampleUv(texel([0.6, 0.55, 0]), DECAL, false)!;
+    expect(s0).toBeCloseTo(0.75);
+    expect(t0).toBeCloseTo(0.25);
+    expect(decalSampleUv(texel([0.6, 0.55, 0]), DECAL, true)![0]).toBeCloseTo(0.25);
+  });
+
+  it('skips texels outside the box, not facing it or of another part', () => {
+    expect(decalSampleUv(texel([0.75, 0.5, 0]), DECAL, false)).toBeNull();
+    expect(decalSampleUv(texel([0.5, 0.5, 0.06]), DECAL, false)).toBeNull();
+    expect(decalSampleUv(texel([0.5, 0.5, 0], { normal: [0, 0, -1] }), DECAL, false)).toBeNull();
+    expect(decalSampleUv(texel([0.5, 0.5, 0], { normal: [0, 0, 0] }), DECAL, false)).toBeNull();
+    expect(decalSampleUv(texel([0.5, 0.5, 0]), { ...DECAL, part: 'turret' }, false)).toBeNull();
+    expect(decalSampleUv(texel([0.5, 0.5, 0], { group: 1 }), { ...DECAL, part: 'turret' }, false)).toEqual([0.5, 0.5]);
+  });
+
+  it('adds the mirrored copy across the model plane', () => {
+    expect(decalCopies(DECAL, 2)).toHaveLength(1);
+    const [own, copy] = decalCopies({ ...DECAL, center: [0.5, 0.5, 0.3], mirror: true }, 2);
+    expect(own!.center).toEqual([0.5, 0.5, 0.3]);
+    expect(copy!.center).toEqual([0.5, 0.5, -0.3]);
+    expect(copy!.normal).toEqual([0, 0, -1]);
+    expect(decalSphere(DECAL)[3]).toBeCloseTo(0.5 * Math.hypot(0.4, 0.2, 0.1));
+  });
+
+  it('composites premultiplied: hidden base + decal keeps alpha only where the decal covers', () => {
+    const hidden = { rgb: [0.2, 0.4, 0.6] as Vec3, alpha: 0 };
+    expect(compositeTexel(hidden, [], 1, 0, false)).toEqual([0, 0, 0, 0]);
+    expect(compositeTexel(hidden, [[0.5, 0, 0, 0.5]], 1, 0, false)).toEqual([1, 0, 0, 0.5]);
+    // Over a visible base, un-premultiplied for export and premultiplied for the preview.
+    const base = { rgb: [0, 0, 1] as Vec3, alpha: 1 };
+    expect(compositeTexel(base, [[0.5, 0, 0, 0.5]], 1, 0, false)).toEqual([0.5, 0, 0.5, 1]);
+    expect(compositeTexel(base, [[0.5, 0, 0, 0.5]], 1, 0.5, true)).toEqual([0.25, 0, 0.25, 0.5]);
+    expect(compositeTexel(base, [[0.5, 0, 0, 0.5]], 1, 0.5, false)).toEqual([0.5, 0, 0.5, 0.5]);
+    // Detail darkens decals too; never past 1.
+    expect(compositeTexel(base, [], 1.3, 0, false)).toEqual([0, 0, 1, 1]);
+    expect(compositeTexel(base, [], 0.5, 0, false)).toEqual([0, 0, 0.5, 1]);
+  });
+
+  it('snaps text raster heights to quarter octaves within the raster limits', () => {
+    expect(quantiseRasterHeight(10)).toBe(64);
+    expect(quantiseRasterHeight(64)).toBe(64);
+    expect(quantiseRasterHeight(65)).toBe(76);
+    expect(quantiseRasterHeight(1000)).toBe(1024);
+    expect(quantiseRasterHeight(99999)).toBe(4096);
+    for (let px = 64; px < 4000; px += 37) expect(quantiseRasterHeight(px)).toBeGreaterThanOrEqual(px);
+  });
+
+  it('keys text rasters by what changes their pixels', () => {
+    const t = newTextLayer('Hello', DECAL);
+    expect(textKey(t, 128)).toBe(textKey({ ...t, name: 'other' } as typeof t, 128));
+    expect(textKey(t, 128)).not.toBe(textKey({ ...t, text: 'Hallo' }, 128));
+    expect(textKey(t, 128)).not.toBe(textKey(t, 256));
+  });
+});
+
+describe('Baker decals (WebGL stubbed)', () => {
+  /** A loader whose pictures arrive when the test says. */
+  function assets() {
+    const pending = new Map<string, (img: DecalImage) => void>();
+    const loadAsset = vi.fn(
+      (id: string) =>
+        new Promise<DecalImage>((resolve) => {
+          pending.set(id, resolve);
+        }),
+    );
+    const resolve = async (id: string, w = 4, h = 2) => {
+      pending.get(id)!({ rgba: new Uint8Array(w * h * 4).fill(255), w, h });
+      pending.delete(id);
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    return { loadAsset, resolve, pending };
+  }
+
+  function setupDecals() {
+    const fake = fakeRenderer();
+    const a = assets();
+    const onUpdate = vi.fn();
+    const rasteriseText = vi.fn(async (_layer: unknown, px: number): Promise<DecalImage | null> => ({ rgba: new Uint8Array(4 * px * 4).fill(255), w: 4 * px, h: px }));
+    const baker = new Baker(fake.renderer, model(), new Map([[BODY, template(64, 64)], [TURRET, template(32, 32)]]), {
+      onUpdate,
+      loadAsset: a.loadAsset,
+      rasteriseText,
+    });
+    return { ...fake, ...a, baker, onUpdate, rasteriseText };
+  }
+
+  const imageLayer = (assetId: string, over: Partial<Decal> = {}) => ({ ...newImageLayer(assetId, { ...DECAL, ...over }), id: `img-${assetId}` });
+  const kinds = (draws: Draw[]) => draws.map((d) => d.kind);
+
+  it('composites base, decals in layer order, then the final pass, with premultiplied over blending', async () => {
+    const { baker, draws, resolve } = setupDecals();
+    const layers: Layer[] = [newBaseLayer(), imageLayer('a'), imageLayer('b', { mirror: true }), newMaskLayer()];
+    baker.setLayers(layers, [BODY]);
+    // Pictures not loaded yet: no decal draw.
+    expect(kinds(draws)).toEqual(['base', 'paint']);
+    await resolve('a');
+    await resolve('b');
+    await baker.whenReady();
+    const last = draws.slice(draws.lastIndexOf(draws.filter((d) => d.kind === 'base').at(-1)!));
+    // a once, b twice (its mirrored copy), in layer order, then the final pass.
+    expect(kinds(last)).toEqual(['base', 'decal', 'decal', 'decal', 'paint']);
+    const decal = last[1]!;
+    expect(decal.blending).toBe(THREE.CustomBlending);
+    expect(decal.blend).toEqual([THREE.OneFactor, THREE.OneMinusSrcAlphaFactor, THREE.OneFactor, THREE.OneMinusSrcAlphaFactor]);
+    expect(decal.sphere).toEqual(decalSphere(DECAL));
+    expect(last[2]!.decalTex).not.toBe(decal.decalTex);
+    expect(last[3]!.sphere![2]).toBeCloseTo(-last[2]!.sphere![2]);
+    // Base, decals and their blends go to the scratch intermediate, the final pass to the slot's target.
+    expect(new Set(last.slice(0, 4).map((d) => d.target))).toHaveLength(1);
+    expect(last[4]!.target).not.toBe(last[0]!.target);
+    baker.dispose();
+  });
+
+  it('whenReady waits for the pictures and the re-bake', async () => {
+    const { baker, draws, resolve, onUpdate } = setupDecals();
+    baker.setLayers([newBaseLayer(), imageLayer('a')], [BODY]);
+    let ready = false;
+    const waiting = baker.whenReady().then(() => (ready = true));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(ready).toBe(false);
+    onUpdate.mockClear();
+    await resolve('a');
+    await waiting;
+    expect(ready).toBe(true);
+    expect(onUpdate).toHaveBeenCalled();
+    expect(draws.at(-2)!.kind).toBe('decal');
+    baker.dispose();
+  });
+
+  it('keeps showing the previous picture until the new one arrives, and releases what layers drop', async () => {
+    const { baker, draws, resolve, loadAsset } = setupDecals();
+    const layer = imageLayer('a');
+    baker.setLayers([newBaseLayer(), layer], [BODY]);
+    await resolve('a');
+    const shown = draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex;
+    baker.setLayers([newBaseLayer(), { ...layer, assetId: 'b' }], [BODY]);
+    expect(draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex).toBe(shown);
+    await resolve('b');
+    expect(draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex).not.toBe(shown);
+    expect(loadAsset.mock.calls.map(([id]) => id)).toEqual(['a', 'b']);
+    // Hidden: no decal draws.
+    const before = draws.length;
+    baker.setLayers([newBaseLayer(), { ...layer, assetId: 'b', visible: false }], [BODY]);
+    expect(kinds(draws.slice(before))).toEqual(['base', 'paint']);
+    baker.dispose();
+  });
+
+  it('draws full-size pictures between prepareExport and endExport', async () => {
+    const { baker, draws, resolve, loadAsset } = setupDecals();
+    const layer = imageLayer('a');
+    baker.setLayers([newBaseLayer(), layer], [BODY]);
+    await resolve('a');
+    const preview = draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex;
+    const prepared = baker.prepareExport();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(loadAsset).toHaveBeenCalledTimes(2);
+    await resolve('a', 8, 4);
+    await prepared;
+    baker.bakeForExport(BODY, false);
+    const exported = draws.filter((d) => d.kind === 'decal').at(-1)!;
+    expect(exported.decalTex).not.toBe(preview);
+    expect(exported.decalTex?.image).toMatchObject({ width: 8, height: 4 });
+    expect(draws.filter((d) => d.kind === 'paint').at(-1)!.premultiply).toBe(0);
+    baker.endExport();
+    baker.bakeForExport(BODY, false);
+    expect(draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex).toBe(preview);
+    baker.dispose();
+  });
+
+  it('rasterises text at twice the texel density, snapped', async () => {
+    const { baker, rasteriseText, draws } = setupDecals();
+    const text = { ...newTextLayer('Hi', { ...DECAL, width: 0.2, height: 0.1 }), id: 'txt' };
+    baker.setLayers([newBaseLayer(), text], [BODY]);
+    await baker.whenReady();
+    expect(rasteriseText).toHaveBeenCalledTimes(1);
+    const px = rasteriseText.mock.calls[0]![1];
+    expect(px).toBe(quantiseRasterHeight(px));
+    expect(px).toBeGreaterThanOrEqual(64);
+    expect(draws.at(-2)!.kind).toBe('decal');
+    // Same text, other opacity: no new raster.
+    baker.setLayers([newBaseLayer(), { ...text, opacity: 0.5 }], [BODY]);
+    expect(rasteriseText).toHaveBeenCalledTimes(1);
+    expect(draws.at(-2)!.opacity).toBe(0.5);
+    baker.dispose();
+  });
+
+  it('checks shared texels from the overlap map built once per slot', async () => {
+    const { baker, draws, footprint } = setupDecals();
+    baker.setLayers([newBaseLayer()], [BODY, TURRET]);
+    expect(await baker.decalTouchesSharedTexels(DECAL)).toBe(false);
+    expect(draws.filter((d) => d.kind === 'count')).toHaveLength(2);
+    expect(draws.filter((d) => d.kind === 'footprint')).toHaveLength(2);
+    footprint.shared = true;
+    expect(await baker.decalTouchesSharedTexels(DECAL)).toBe(true);
+    // Overlap maps are kept; the first slot already answers.
+    expect(draws.filter((d) => d.kind === 'count')).toHaveLength(2);
+    expect(draws.filter((d) => d.kind === 'footprint')).toHaveLength(3);
+    baker.dispose();
+    expect(await baker.decalTouchesSharedTexels(DECAL)).toBe(false);
+  });
+});

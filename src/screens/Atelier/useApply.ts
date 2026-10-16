@@ -80,6 +80,8 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
     let rustPct = 0;
     let step: ApplyStepShown = 'save';
     let part: string | undefined;
+    /** The engine whose Baker holds full-size pictures (`prepareExport`), for `endExport`. */
+    let exporting: Engine | null = null;
     const progress = () => show({ running: true, step, pct: applyPercent(baked, slots.length || 1, rustPct), part });
     show({ running: true, step: 'save', pct: 0 });
     try {
@@ -111,6 +113,17 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
         // Left while the apply was starting: the leave couldn't name it yet.
         void call('atelier_apply_cancel', { applyId }).catch(() => {});
         return;
+      }
+
+      // Every picture the layers need, at full size for the export (released in `finally`).
+      {
+        const engine = latest.current.engine();
+        if (!engine) throw new ViewLostError('Atelier: the 3D view is gone');
+        engine.baker.setLayers(layers, slots);
+        await engine.baker.whenReady();
+        exporting = engine;
+        await engine.baker.prepareExport(highQuality);
+        if (current.aborted) return;
       }
 
       let downscaled = false;
@@ -173,6 +186,7 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
       }
     } finally {
       unlisten?.();
+      exporting?.baker.endExport();
       // The Baker back on the editor's layers (the same ones, unless something slipped past the lock).
       const engine = latest.current.engine();
       const { project, layers } = useAtelierEditor.getState();

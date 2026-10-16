@@ -129,7 +129,17 @@ export function Editor({ id }: { id: string }) {
     [qc, id, sendThumb],
   );
 
-  const apply = useApply({ projectId: id, model: model.data, engine: () => engineRef.current, flush, onApplied: sendThumb });
+  // The thumbnail waits for the decal pictures (an engine disposed meanwhile reports a lost context).
+  const onApplied = useCallback(
+    (e: Engine) => {
+      e.baker
+        .whenReady()
+        .then(() => sendThumb(e))
+        .catch((err: unknown) => console.warn('Atelier: thumbnail not saved', err));
+    },
+    [sendThumb],
+  );
+  const apply = useApply({ projectId: id, model: model.data, engine: () => engineRef.current, flush, onApplied });
 
   // Closing the project (not visiting another screen) empties the store. Declared after
   // `useAutosave`, so its leave-save has taken its copy first.

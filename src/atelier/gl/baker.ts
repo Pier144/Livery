@@ -2,19 +2,40 @@ import * as THREE from 'three';
 import type { ModelSlot } from '@/types';
 import { detailMap } from '../detailMap';
 import { dilate, DILATE_PX } from '../dilate';
+import { decalMatrix, facing as decalFacing, mirrorDecal, texelsPerUnit, toDecalSpace } from '../decal';
 import type { VehicleModelData } from '../modelBuffer';
-import { baseOf, maskOf, partGroupOf, type BaseLayer, type Layer, type Stroke, type Vec3 } from '../project';
+import {
+  baseOf,
+  decalLayers,
+  maskOf,
+  partGroupOf,
+  type BaseLayer,
+  type Decal,
+  type DecalLayer,
+  type Layer,
+  type Stroke,
+  type TextLayer,
+  type Vec3,
+} from '../project';
+import { loadFont, MAX_RASTER_SIDE, MIN_RASTER_HEIGHT, rasterHeightFor, rasterise } from '../text';
+import { DecalTextureCache, PREVIEW_DECAL_MAX, type DecalImage } from './decalTextures';
 import {
   BAKE_MAX_POINTS,
   BAKE_VERTEX,
+  BASE_FRAGMENT,
   brushWeight,
   CAMO_CELL,
   CAMO_THRESHOLDS,
+  COUNT_FRAGMENT,
   COVERAGE_FRAGMENT,
+  DECAL_FRAGMENT,
   FACING_MIN,
+  FINAL_FRAGMENT,
+  FOOTPRINT_FRAGMENT,
+  FOOTPRINT_SIZE,
   GROUP_INDEX,
   MASK_FRAGMENT,
-  PAINT_FRAGMENT,
+  OVERLAP_SIZE,
   PREVIEW_MAP_FRAGMENT,
   PREVIEW_UNIFORMS,
 } from './shaders';
@@ -29,10 +50,13 @@ import {
  *   model-space spheres, paint with `MaxEquation`, erase with `MinEquation` (`1 − w`), so
  *   incremental stamping while painting equals a full replay; replays happen only when the
  *   stroke list changes in a way that isn't an append (undo, clear, edit);
- * - a **paint** target (RGBA8, sRGB numbers, `NoColorSpace`): Base (solid or 3D-noise camo) ×
- *   template detail factor, alpha = 1 − mask. At most 1024 px while editing; the focused slot
- *   (the body by default) also gets a full-size target, rendered `UPGRADE_DELAY_MS` after the
- *   last change;
+ * - a **paint** target (RGBA8, sRGB numbers, `NoColorSpace`), composited in three steps through
+ *   a scratch **intermediate** (RGBA8, premultiplied, one per exact size, shared by the slots):
+ *   the Base (solid or 3D-noise camo; alpha 0 when hidden), then every visible image and text
+ *   layer (and its mirrored copy) in layer order, projected through its decal box and blended
+ *   `ONE, ONE_MINUS_SRC_ALPHA`, then a final pass: × template detail factor, alpha × (1 − mask).
+ *   At most 1024 px while editing; the focused slot (the body by default) also gets a full-size
+ *   target, rendered `UPGRADE_DELAY_MS` after the last change;
  * - a **preview** material (`MeshStandardMaterial` + `onBeforeCompile`) showing
  *   `mix(template, paint, paint.a)` with the raw UVs of the model, so protected areas show the
  *   game's texture; disabled slots and the Template toggle show the template alone. Preview
@@ -43,6 +67,15 @@ import {
  *
  * `upgrade()` brings the focused slot's full-size target up to date right away (instead of
  * `UPGRADE_DELAY_MS` after the last change): call it before rendering a thumbnail.
+ *
+ * Decal pictures (`decalTextures.ts`) load asynchronously: image assets through
+ * `options.loadAsset`, text through `options.rasteriseText` (font + raster); a layer keeps
+ * showing its previous picture until the new one is ready, and the slots re-bake when one
+ * arrives. `whenReady()` resolves once the pictures the current layers need are loaded;
+ * `prepareExport()` loads full-size copies (pictures, text at export resolution) that
+ * `bakeForExport` uses until `endExport()`. `decalTouchesSharedTexels(decal)` tells whether a
+ * decal lands on texels more than one triangle draws (mirrored or repeated UVs), from a
+ * per-slot overlap map built once.
  *
  * WebGL context loss: the Baker listens to `webglcontextrestored` on `renderer.domElement`
  * (after three's own listener, registered when the renderer was created, has rebuilt its
@@ -76,6 +109,20 @@ export interface BakeResult {
 export interface BakerOptions {
   /** Called after a preview texture or uniform changed (the viewport should render a frame). */
   onUpdate?: () => void;
+  /** A project picture (image layers) as straight-alpha RGBA; without it image layers draw nothing. */
+  loadAsset?: (assetId: string) => Promise<DecalImage>;
+  /**
+   * A text layer drawn `pxHeight` tall (straight alpha), null when there's nothing to draw.
+   * Defaults to loading its font (`loadFont`) and `rasterise`.
+   */
+  rasteriseText?: (layer: TextLayer, pxHeight: number) => Promise<DecalImage | null>;
+}
+
+/** The default text rasteriser: the layer's font (or the fallback), then the canvas raster. */
+async function defaultRasteriseText(layer: TextLayer, pxHeight: number): Promise<DecalImage | null> {
+  await loadFont(layer.font);
+  const raster = rasterise(layer, pxHeight);
+  return raster ? { rgba: raster.rgba, w: raster.width, h: raster.height } : null;
 }
 
 /** Largest side of the paint targets while editing (and of every non-focused slot). */
@@ -456,7 +503,119 @@ export function visibleStrokes(layers: readonly Layer[]): Stroke[] {
   return mask && mask.visible ? mask.strokes : [];
 }
 
+// ---------------------------------------------------------------- decals (pure)
+
+/** A decal's `uPart`: the group index it's limited to, −1 for every part. */
+export function decalGroupIndex(decal: Decal): number {
+  const group = partGroupOf(decal.part);
+  return group === null ? -1 : GROUP_INDEX[group];
+}
+
+/** The bounding sphere of a decal's box (centre xyz, radius), the `uSphere` that culls its draw. */
+export function decalSphere(decal: Decal): [number, number, number, number] {
+  return [decal.center[0], decal.center[1], decal.center[2], 0.5 * Math.hypot(decal.width, decal.height, decal.depth)];
+}
+
+/** The decal box itself and, with Mirror on, its copy across the model's mirror plane (none for an invalid axis). */
+export function decalCopies(decal: Decal, mirrorAxis: number): Decal[] {
+  const copy = decal.mirror ? mirrorDecal(decal, mirrorAxis) : null;
+  return copy ? [decal, copy] : [decal];
+}
+
+/** A texel as the decal shader sees it. */
+export interface DecalTexel {
+  pos: Vec3;
+  normal: Vec3;
+  /** `GROUP_INDEX` of its part. */
+  group: number;
+}
+
+/**
+ * Mirror of `DECAL_FRAGMENT`'s tests: where the decal's picture is sampled for a texel (texture
+ * coordinates, top-left origin), or null when the texel is of another part, doesn't face the
+ * decal or lies outside its box.
+ */
+export function decalSampleUv(texel: DecalTexel, decal: Decal, flipX: boolean): [number, number] | null {
+  const group = decalGroupIndex(decal);
+  if (group >= 0 && group !== texel.group) return null;
+  if (!decalFacing(texel.normal, decal)) return null;
+  const [u, v, w] = toDecalSpace(texel.pos, decal);
+  if (Math.abs(u) > 0.5 || Math.abs(v) > 0.5 || Math.abs(w) > 0.5) return null;
+  return [(flipX ? -u : u) + 0.5, 0.5 - v];
+}
+
+/** Premultiplied RGBA, 0..1. */
+export type Rgba = [number, number, number, number];
+
+/**
+ * Mirror of the three paint steps for one texel, in 0..1: the Base (`rgb`, alpha 0 or 1), the
+ * decal samples in layer order (premultiplied, already × opacity) blended `ONE,
+ * ONE_MINUS_SRC_ALPHA`, then × detail and × (1 − mask). Premultiplied output for the preview,
+ * straight for export. `quantise` rounds the intermediate to 8 bits after each step like the
+ * RGBA8 target does.
+ */
+export function compositeTexel(
+  base: { rgb: Vec3; alpha: number },
+  decals: readonly Rgba[],
+  detail: number,
+  mask: number,
+  premultiplied: boolean,
+  quantise = false,
+): Rgba {
+  const q = (v: number) => (quantise ? Math.round(Math.min(1, Math.max(0, v)) * 255) / 255 : v);
+  let p: Rgba = [q(base.rgb[0] * base.alpha), q(base.rgb[1] * base.alpha), q(base.rgb[2] * base.alpha), q(base.alpha)];
+  for (const d of decals) {
+    const k = 1 - d[3];
+    p = [q(d[0] + p[0] * k), q(d[1] + p[1] * k), q(d[2] + p[2] * k), q(d[3] + p[3] * k)];
+  }
+  const straight: Vec3 = p[3] > 0 ? [0, 1, 2].map((i) => Math.min(1, Math.max(0, (p[i]! * detail) / p[3]))) as Vec3 : [0, 0, 0];
+  const alpha = p[3] * (1 - mask);
+  return premultiplied ? [straight[0] * alpha, straight[1] * alpha, straight[2] * alpha, alpha] : [straight[0], straight[1], straight[2], alpha];
+}
+
+/** Text raster heights snap to quarter octaves, so resizing a text decal doesn't re-rasterise on every step. */
+export function quantiseRasterHeight(px: number): number {
+  const clamped = Math.min(MAX_RASTER_SIDE, Math.max(MIN_RASTER_HEIGHT, px));
+  const snapped = Math.pow(2, Math.ceil(Math.log2(clamped) * 4 - 1e-9) / 4);
+  return Math.round(Math.min(MAX_RASTER_SIDE, Math.max(MIN_RASTER_HEIGHT, snapped)));
+}
+
+/** Cache key of an image layer's picture (preview copy or full size). */
+export function imageKey(assetId: string, full: boolean): string {
+  return `img:${assetId}:${full ? 'f' : 'p'}`;
+}
+
+/** Cache key of a text layer's raster: everything that changes its pixels, and its height. */
+export function textKey(layer: Pick<TextLayer, 'text' | 'font' | 'color' | 'outlineColor' | 'outlineWidth' | 'skew'>, px: number): string {
+  return `txt:${JSON.stringify([layer.text, layer.font.family, layer.font.style, layer.color, layer.outlineColor, layer.outlineWidth, layer.skew])}:${px}`;
+}
+
+/** A decal layer the bake draws: visible, placed, not fully transparent. */
+export function drawnDecalLayers(layers: readonly Layer[]): DecalLayer[] {
+  return decalLayers(layers).filter((l) => l.visible && l.decal !== null && l.opacity > 0);
+}
+
 // ================================================================ the Baker
+
+/** One draw of a decal box (the layer's own, or its mirrored copy): uniforms ready to set. */
+interface DecalDraw {
+  matrix: THREE.Matrix4;
+  normal: THREE.Vector3;
+  sphere: THREE.Vector4;
+  part: number;
+}
+
+/** What the Baker holds for a drawn decal layer. */
+interface LayerBinding {
+  layer: DecalLayer;
+  /** The picture it needs now (a reference is held). */
+  key: string;
+  /** The picture drawn now: `key` once settled, the previous one until then (a reference is held). */
+  shown: string | null;
+  /** The decal the draws were computed from. */
+  decal: Decal;
+  draws: DecalDraw[];
+}
 
 interface SlotState {
   index: number;
@@ -484,6 +643,8 @@ interface SlotState {
   fullVersion: number;
   preview: THREE.MeshStandardMaterial;
   previewUniforms: { uPaint: THREE.IUniform<THREE.Texture>; uPaintMix: THREE.IUniform<number> };
+  /** Triangles per texel at OVERLAP_SIZE² (R8, k/255), built on the first shared-texel check. */
+  overlap: THREE.WebGLRenderTarget | null;
 }
 
 /** `onUpdate` of textures whose CPU copy isn't needed once on the GPU. */
@@ -506,9 +667,26 @@ export class Baker {
   private readonly slots: SlotState[];
   private readonly byTexture = new Map<string, SlotState>();
   private readonly camera = new THREE.Camera();
-  private readonly paintMaterial: THREE.ShaderMaterial;
+  private readonly baseMaterial: THREE.ShaderMaterial;
+  private readonly decalMaterial: THREE.ShaderMaterial;
+  private readonly finalMaterial: THREE.ShaderMaterial;
   private readonly maskMaterial: THREE.ShaderMaterial;
   private readonly coverageMaterial: THREE.ShaderMaterial;
+  private readonly countMaterial: THREE.ShaderMaterial;
+  private readonly footprintMaterial: THREE.ShaderMaterial;
+  private readonly decalTextures: DecalTextureCache;
+  /** Drawn decal layers, bottom to top. */
+  private decalOrder: LayerBinding[] = [];
+  private readonly bindings = new Map<string, LayerBinding>();
+  /** Full-size pictures per layer id between `prepareExport` and `endExport`. */
+  private exportKeys: Map<string, string> | null = null;
+  /** Scratch intermediates by exact size (`w×h`). */
+  private readonly scratches = new Map<string, THREE.WebGLRenderTarget>();
+  private footprintTarget: THREE.WebGLRenderTarget | null = null;
+  /** Texel density around a decal (max over the slots), by decal object and output (`p`, `f`, `fhq`). */
+  private readonly densities = new WeakMap<Decal, Map<string, number | null>>();
+  /** High quality of the export `prepareExport` prepares (the body's output size). */
+  private exportHighQuality = false;
   private readonly emptyPaint: THREE.DataTexture;
   /** Reused per stamping draw (no allocations while painting). */
   private readonly pointsBuffer = new Float32Array(BAKE_MAX_POINTS * 4);
@@ -554,19 +732,51 @@ export class Baker {
         blending: THREE.NoBlending,
       });
 
-    this.paintMaterial = bakeMaterial(PAINT_FRAGMENT, {
+    this.baseMaterial = bakeMaterial(BASE_FRAGMENT, {
       uMode: { value: 0 },
       uColors: { value: new Float32Array(12) },
       uThresholds: { value: new THREE.Vector3(2, 2, 2) },
       uFrequency: { value: 1 },
       uSeed: { value: 1 },
+      uBaseAlpha: { value: 0 },
+    });
+    const decalUniforms = () => ({
+      uDecal: { value: new THREE.Matrix4() },
+      uDecalNormal: { value: new THREE.Vector3(0, 0, 1) },
+      uPart: { value: -1 },
+    });
+    this.decalMaterial = bakeMaterial(
+      DECAL_FRAGMENT,
+      { ...decalUniforms(), uDecalTex: { value: null }, uOpacity: { value: 1 }, uFlipX: { value: 0 } },
+      { LV_BATCH_CULL: '' },
+    );
+    // Premultiplied "over" on colour and alpha.
+    this.decalMaterial.blending = THREE.CustomBlending;
+    this.decalMaterial.blendEquation = THREE.AddEquation;
+    this.decalMaterial.blendSrc = THREE.OneFactor;
+    this.decalMaterial.blendDst = THREE.OneMinusSrcAlphaFactor;
+    this.decalMaterial.blendEquationAlpha = THREE.AddEquation;
+    this.decalMaterial.blendSrcAlpha = THREE.OneFactor;
+    this.decalMaterial.blendDstAlpha = THREE.OneMinusSrcAlphaFactor;
+    this.finalMaterial = bakeMaterial(FINAL_FRAGMENT, {
+      uIntermediate: { value: null },
       uDetail: { value: null },
       uHasDetail: { value: 0 },
       uMask: { value: null },
       uHasMask: { value: 0 },
-      uBaseAlpha: { value: 0 },
       uPremultiply: { value: 0 },
     });
+    this.countMaterial = bakeMaterial(COUNT_FRAGMENT, {});
+    this.countMaterial.blending = THREE.CustomBlending;
+    this.countMaterial.blendEquation = THREE.AddEquation;
+    this.countMaterial.blendSrc = THREE.OneFactor;
+    this.countMaterial.blendDst = THREE.OneFactor;
+    this.footprintMaterial = bakeMaterial(
+      FOOTPRINT_FRAGMENT,
+      { ...decalUniforms(), uOverlap: { value: null }, uOverlapRatio: { value: OVERLAP_SIZE / FOOTPRINT_SIZE } },
+      { LV_BATCH_CULL: '' },
+    );
+    this.decalTextures = new DecalTextureCache({ onSettled: (key) => this.decalPictureSettled(key) });
     this.maskMaterial = bakeMaterial(
       MASK_FRAGMENT,
       {
@@ -624,6 +834,7 @@ export class Baker {
         fullVersion: -1,
         preview,
         previewUniforms,
+        overlap: null,
       };
       this.byTexture.set(slot.texture, state);
       return state;
@@ -657,6 +868,7 @@ export class Baker {
     }
     const strokesChanged = strokes !== this.strokes;
     this.strokes = strokes;
+    const decalsChanged = this.updateDecals(layers);
     const want = new Set(enabled);
     const changed: SlotState[] = [];
     for (const state of this.slots) {
@@ -671,9 +883,72 @@ export class Baker {
         dirty = true;
       }
       if (strokesChanged || !state.maskValid) dirty = this.syncMask(state) || dirty;
-      if (dirty || baseChanged) changed.push(state);
+      if (dirty || baseChanged || decalsChanged) changed.push(state);
     }
     this.refresh(changed);
+  }
+
+  /**
+   * Resolves when the pictures the current layers need (decal images, text rasters with their
+   * fonts) have loaded, or failed, and the slots were re-baked with them.
+   */
+  async whenReady(): Promise<void> {
+    for (;;) {
+      if (this.disposed) return;
+      const keys = this.decalOrder.map((b) => b.key);
+      if (keys.every((k) => this.decalTextures.settled(k))) return;
+      await this.decalTextures.whenSettled(keys);
+    }
+  }
+
+  /**
+   * Loads full-size copies of the current layers' pictures (images at their own size, text at
+   * its export resolution, which `highQuality` raises with the body's output) for
+   * `bakeForExport`, until `endExport()`. Resolves when loaded.
+   */
+  async prepareExport(highQuality = false): Promise<void> {
+    if (this.disposed) return;
+    await this.whenReady();
+    this.endExport();
+    this.exportHighQuality = highQuality;
+    const keys = new Map<string, string>();
+    for (const b of this.decalOrder) {
+      const key = this.pictureKey(b.layer, true);
+      this.acquirePicture(b.layer, key, true);
+      keys.set(b.layer.id, key);
+    }
+    this.exportKeys = keys;
+    await this.decalTextures.whenSettled(keys.values());
+  }
+
+  /** Releases the full-size pictures `prepareExport` loaded. */
+  endExport(): void {
+    const keys = this.exportKeys;
+    this.exportKeys = null;
+    if (keys) for (const key of keys.values()) this.decalTextures.release(key);
+  }
+
+  /**
+   * Whether `decal` lands on texels that more than one triangle draws (mirrored sides, repeated
+   * road wheels) in an enabled slot: the decal would show twice, one copy reading backwards.
+   * Uses the slot's overlap map (built once) and a small footprint render; call it when a
+   * gesture ends, not on every move. False when the context is lost.
+   */
+  async decalTouchesSharedTexels(decal: Decal): Promise<boolean> {
+    if (this.disposed || this.contextLost()) return false;
+    const target = (this.footprintTarget ??= this.createReadableTarget(FOOTPRINT_SIZE, FOOTPRINT_SIZE));
+    const pixels = new Uint8Array(FOOTPRINT_SIZE * FOOTPRINT_SIZE * 4);
+    const u = this.footprintMaterial.uniforms;
+    this.setDecalUniforms(u, this.decalDraw(decal));
+    for (const state of this.slots) {
+      if (!state.enabled) continue;
+      this.ensureGeometry(state);
+      u.uOverlap!.value = this.ensureOverlap(state).texture;
+      this.draw(state, this.footprintMaterial, target, true);
+      this.renderer.readRenderTargetPixels(target, 0, 0, FOOTPRINT_SIZE, FOOTPRINT_SIZE, pixels);
+      for (let i = 0; i < pixels.length; i += 4) if (pixels[i]! > 127) return true;
+    }
+    return false;
   }
 
   /** The slot kept at full size between bakes (the one the user works on); null = none. */
@@ -786,7 +1061,7 @@ export class Baker {
     const rgba = new Uint8Array(w * h * 4);
     const covered = new Uint8Array(w * h);
     try {
-      this.drawPaint(state, target, mask, false);
+      this.drawPaint(state, target, mask, false, true);
       this.renderer.readRenderTargetPixels(target, 0, 0, w, h, rgba);
       this.draw(state, this.coverageMaterial, target, true);
       const strip = new Uint8Array(w * Math.min(COVERAGE_STRIP_ROWS, h) * 4);
@@ -799,6 +1074,7 @@ export class Baker {
     } finally {
       target.dispose();
       tempMask?.dispose();
+      this.releaseScratchUnlessPreview(w, h);
     }
     dilate(rgba, covered, w, h, DILATE_PX);
     return { rgba, w, h, downscaled: size.downscaled };
@@ -813,10 +1089,16 @@ export class Baker {
     canvas?.removeEventListener?.('webglcontextrestored', this.onContextRestored);
     if (this.upgradeTimer !== null) clearTimeout(this.upgradeTimer);
     this.upgradeTimer = null;
+    this.exportKeys = null;
+    this.decalTextures.dispose();
+    this.bindings.clear();
+    this.decalOrder = [];
+    this.disposeScratches();
     for (const state of this.slots) {
       this.disposeTarget(state, 'mask');
       this.disposeTarget(state, 'paintSmall');
       this.disposeTarget(state, 'paintFull');
+      this.disposeTarget(state, 'overlap');
       state.geometry?.dispose();
       state.detail?.dispose();
       state.template.dispose();
@@ -826,9 +1108,13 @@ export class Baker {
       state.mesh = null;
       state.scene = null;
     }
-    this.paintMaterial.dispose();
+    this.baseMaterial.dispose();
+    this.decalMaterial.dispose();
+    this.finalMaterial.dispose();
     this.maskMaterial.dispose();
     this.coverageMaterial.dispose();
+    this.countMaterial.dispose();
+    this.footprintMaterial.dispose();
     this.emptyPaint.dispose();
   }
 
@@ -866,7 +1152,7 @@ export class Baker {
     this.notify();
   }
 
-  private disposeTarget(state: SlotState, key: 'mask' | 'paintSmall' | 'paintFull'): void {
+  private disposeTarget(state: SlotState, key: 'mask' | 'paintSmall' | 'paintFull' | 'overlap'): void {
     state[key]?.dispose();
     state[key] = null;
   }
@@ -880,7 +1166,7 @@ export class Baker {
     geometry.setAttribute('uv', new THREE.BufferAttribute(g.uvs, 2));
     geometry.setAttribute('partGroup', new THREE.BufferAttribute(g.groups, 1));
     geometry.setAttribute('triSphere', new THREE.BufferAttribute(g.spheres, 4));
-    const mesh = new THREE.Mesh(geometry, this.paintMaterial);
+    const mesh = new THREE.Mesh(geometry, this.baseMaterial);
     mesh.frustumCulled = false;
     const scene = new THREE.Scene();
     scene.add(mesh);
@@ -991,7 +1277,7 @@ export class Baker {
 
   private applyBaseUniforms(): void {
     const b = baseUniforms(this.base);
-    const u = this.paintMaterial.uniforms;
+    const u = this.baseMaterial.uniforms;
     u.uMode!.value = b.mode;
     (u.uColors!.value as Float32Array).set(b.colors);
     (u.uThresholds!.value as THREE.Vector3).set(b.thresholds[0], b.thresholds[1], b.thresholds[2]);
@@ -1000,14 +1286,236 @@ export class Baker {
     u.uBaseAlpha!.value = b.alpha;
   }
 
-  private drawPaint(state: SlotState, target: THREE.WebGLRenderTarget, mask: THREE.WebGLRenderTarget | null, premultiply: boolean): void {
-    const u = this.paintMaterial.uniforms;
+  /**
+   * The three paint steps into `target`: Base and decals into the scratch intermediate of the
+   * same size, then the final pass (detail, mask; premultiplied for preview targets). Export
+   * draws the full-size pictures `prepareExport` loaded, where there are.
+   */
+  private drawPaint(
+    state: SlotState,
+    target: THREE.WebGLRenderTarget,
+    mask: THREE.WebGLRenderTarget | null,
+    premultiply: boolean,
+    exporting = false,
+  ): void {
+    const scratch = this.scratch(target.width, target.height);
+    this.draw(state, this.baseMaterial, scratch, true);
+    const du = this.decalMaterial.uniforms;
+    for (const b of this.decalOrder) {
+      const exportKey = exporting ? this.exportKeys?.get(b.layer.id) : undefined;
+      const texture = (exportKey ? this.decalTextures.get(exportKey) : null) ?? (b.shown ? this.decalTextures.get(b.shown) : null);
+      if (!texture) continue;
+      du.uDecalTex!.value = texture;
+      du.uOpacity!.value = Math.min(1, Math.max(0, b.layer.opacity));
+      du.uFlipX!.value = b.layer.kind === 'image' && b.layer.flipX ? 1 : 0;
+      for (const d of b.draws) {
+        this.setDecalUniforms(du, d);
+        this.draw(state, this.decalMaterial, scratch, false);
+      }
+    }
+    const u = this.finalMaterial.uniforms;
+    u.uIntermediate!.value = scratch.texture;
     u.uPremultiply!.value = premultiply ? 1 : 0;
     u.uDetail!.value = state.detail;
     u.uHasDetail!.value = state.detail ? 1 : 0;
     u.uMask!.value = mask ? mask.texture : null;
     u.uHasMask!.value = mask && this.strokes.length > 0 ? 1 : 0;
-    this.draw(state, this.paintMaterial, target, true);
+    this.draw(state, this.finalMaterial, target, true);
+  }
+
+  /** The shared intermediate of exactly `w × h` (premultiplied RGBA8, read texel for texel). */
+  private scratch(w: number, h: number): THREE.WebGLRenderTarget {
+    const key = `${w}x${h}`;
+    let target = this.scratches.get(key);
+    if (!target) {
+      target = new THREE.WebGLRenderTarget(w, h, {
+        format: THREE.RGBAFormat,
+        type: THREE.UnsignedByteType,
+        depthBuffer: false,
+        stencilBuffer: false,
+        generateMipmaps: false,
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+        colorSpace: THREE.NoColorSpace,
+      });
+      this.scratches.set(key, target);
+    }
+    return target;
+  }
+
+  /** After an export: its scratch goes unless a preview target uses the same size. */
+  private releaseScratchUnlessPreview(w: number, h: number): void {
+    const used = this.slots.some(
+      (s) => (s.paintSmall && s.paintSmall.width === w && s.paintSmall.height === h) || (s.paintFull && s.paintFull.width === w && s.paintFull.height === h),
+    );
+    if (used) return;
+    const key = `${w}x${h}`;
+    this.scratches.get(key)?.dispose();
+    this.scratches.delete(key);
+  }
+
+  private disposeScratches(): void {
+    for (const t of this.scratches.values()) t.dispose();
+    this.scratches.clear();
+    this.footprintTarget?.dispose();
+    this.footprintTarget = null;
+  }
+
+  // ---------------------------------------------------------------- decals
+
+  /** The draw uniforms of one decal box. */
+  private decalDraw(decal: Decal): DecalDraw {
+    const [x, y, z, r] = decalSphere(decal);
+    return {
+      matrix: new THREE.Matrix4().fromArray(decalMatrix(decal)),
+      normal: new THREE.Vector3(decal.normal[0], decal.normal[1], decal.normal[2]),
+      sphere: new THREE.Vector4(x, y, z, r),
+      part: decalGroupIndex(decal),
+    };
+  }
+
+  private setDecalUniforms(u: Record<string, THREE.IUniform>, d: DecalDraw): void {
+    (u.uDecal!.value as THREE.Matrix4).copy(d.matrix);
+    (u.uDecalNormal!.value as THREE.Vector3).copy(d.normal);
+    (u.uSphere!.value as THREE.Vector4).copy(d.sphere);
+    u.uPart!.value = d.part;
+  }
+
+  /**
+   * The size a slot is rendered at, for text texel densities: the export size (4096 for a High
+   * quality body) for export rasters, its largest preview target (full size) for preview ones.
+   */
+  private outputSize(state: SlotState, full: boolean): { width: number; height: number } {
+    if (!full) return { width: state.full.w, height: state.full.h };
+    const size = exportSize(slotFullSize(state.slot, state.templateImage), state.slot.texture, this.exportHighQuality, this.maxTextureSize);
+    return { width: size.w, height: size.h };
+  }
+
+  /** The text raster height for a decal: 2 × the texel density around it (max over slots), snapped. */
+  private textHeight(decal: Decal, full: boolean): number {
+    const cacheKey = full ? (this.exportHighQuality ? 'fhq' : 'f') : 'p';
+    let byOutput = this.densities.get(decal);
+    if (!byOutput) {
+      byOutput = new Map();
+      this.densities.set(decal, byOutput);
+    }
+    let density = byOutput.get(cacheKey);
+    if (density === undefined) {
+      density = null;
+      for (const state of this.slots) {
+        const d = texelsPerUnit(this.model, state.index, this.outputSize(state, full), decal);
+        if (d !== null && (density === null || d > density)) density = d;
+      }
+      byOutput.set(cacheKey, density);
+    }
+    const px = quantiseRasterHeight(rasterHeightFor(density, decal.height));
+    return full ? Math.min(px, this.maxTextureSize) : Math.min(px, PREVIEW_DECAL_MAX);
+  }
+
+  private pictureKey(layer: DecalLayer, full: boolean): string {
+    return layer.kind === 'image' ? imageKey(layer.assetId, full) : textKey(layer, this.textHeight(layer.decal!, full));
+  }
+
+  /** One more reference to a layer's picture, loading it on first use. */
+  private acquirePicture(layer: DecalLayer, key: string, full: boolean): void {
+    const maxSide = full ? this.maxTextureSize : PREVIEW_DECAL_MAX;
+    if (layer.kind === 'image') {
+      const { loadAsset } = this.options;
+      const assetId = layer.assetId;
+      this.decalTextures.acquire(key, async () => (loadAsset ? loadAsset(assetId) : null), maxSide);
+    } else {
+      const rasteriseText = this.options.rasteriseText ?? defaultRasteriseText;
+      const px = this.textHeight(layer.decal!, full);
+      this.decalTextures.acquire(key, () => rasteriseText(layer, px), maxSide);
+    }
+  }
+
+  /** The drawn layer now shows its current picture (the previous one is released). */
+  private promote(b: LayerBinding): void {
+    if (b.shown === b.key) return;
+    if (b.shown !== null) this.decalTextures.release(b.shown);
+    b.shown = b.key;
+  }
+
+  /** Brings the decal bindings to `layers`; true when what the paint shows changed. */
+  private updateDecals(layers: readonly Layer[]): boolean {
+    const drawn = drawnDecalLayers(layers);
+    const previous = this.decalOrder;
+    let changed = drawn.length !== previous.length || drawn.some((l, i) => previous[i]!.layer !== l);
+    const order: LayerBinding[] = [];
+    const seen = new Set<string>();
+    for (const layer of drawn) {
+      if (seen.has(layer.id)) continue;
+      seen.add(layer.id);
+      const decal = layer.decal!;
+      const key = this.pictureKey(layer, false);
+      let b = this.bindings.get(layer.id);
+      if (!b) {
+        this.acquirePicture(layer, key, false);
+        b = { layer, key, shown: null, decal, draws: [] };
+        this.bindings.set(layer.id, b);
+      } else if (b.key !== key) {
+        // Keep drawing the picture shown until the new one is ready; a pending one is dropped.
+        if (b.key !== b.shown) this.decalTextures.release(b.key);
+        this.acquirePicture(layer, key, false);
+        b.key = key;
+      }
+      b.layer = layer;
+      if (b.draws.length === 0 || b.decal !== decal) {
+        b.decal = decal;
+        b.draws = decalCopies(decal, this.model.header.mirrorAxis).map((d) => this.decalDraw(d));
+      }
+      if (this.decalTextures.settled(b.key)) this.promote(b);
+      order.push(b);
+    }
+    for (const [id, b] of this.bindings) {
+      if (seen.has(id)) continue;
+      this.decalTextures.release(b.key);
+      if (b.shown !== null && b.shown !== b.key) this.decalTextures.release(b.shown);
+      this.bindings.delete(id);
+      changed = true;
+    }
+    this.decalOrder = order;
+    return changed;
+  }
+
+  /** A picture finished loading: layers waiting for it show it and the enabled slots re-bake. */
+  private decalPictureSettled(key: string): void {
+    if (this.disposed) return;
+    let shown = false;
+    for (const b of this.decalOrder) {
+      if (b.key === key) {
+        this.promote(b);
+        shown = true;
+      }
+    }
+    if (!shown || this.contextLost()) return;
+    this.refresh(this.slots.filter((s) => s.enabled));
+  }
+
+  /** The slot's overlap map: every triangle adds 1/255 to the texels it covers (sample-based). */
+  private ensureOverlap(state: SlotState): THREE.WebGLRenderTarget {
+    if (state.overlap) return state.overlap;
+    const target = this.createMaskTarget(OVERLAP_SIZE, OVERLAP_SIZE);
+    target.texture.minFilter = THREE.NearestFilter;
+    target.texture.magFilter = THREE.NearestFilter;
+    this.draw(state, this.countMaterial, target, true);
+    state.overlap = target;
+    return target;
+  }
+
+  /** An RGBA8 target read back with `readRenderTargetPixels`. */
+  private createReadableTarget(w: number, h: number): THREE.WebGLRenderTarget {
+    return new THREE.WebGLRenderTarget(w, h, {
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      depthBuffer: false,
+      stencilBuffer: false,
+      generateMipmaps: false,
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      colorSpace: THREE.NoColorSpace,
+    });
   }
 
   /** Renders one of the slot's preview targets (allocated at its size on first use). */
@@ -1121,14 +1629,18 @@ export class Baker {
   }
 
   /**
-   * Everything the GPU held is gone: targets (masks, paints) and the detail maps (their CPU data
-   * was released after upload) are dropped and every slot is baked again from the last
+   * Everything the GPU held is gone: targets (masks, paints, intermediates, overlap maps), the
+   * detail maps and the decal pictures (their CPU data was released after upload) are dropped and every slot is baked again from the last
    * `setLayers`. Geometries, materials and the templates (their data is kept) are re-uploaded
    * by three on their next use.
    */
   private handleContextRestored(): void {
     if (this.disposed) return;
+    this.disposeScratches();
+    // Their CPU copies were dropped after upload: load them again (the slots re-bake as they arrive).
+    this.decalTextures.reloadAll();
     for (const state of this.slots) {
+      this.disposeTarget(state, 'overlap');
       this.disposeTarget(state, 'mask');
       this.disposeTarget(state, 'paintSmall');
       this.disposeTarget(state, 'paintFull');

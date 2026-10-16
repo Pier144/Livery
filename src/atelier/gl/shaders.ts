@@ -215,31 +215,20 @@ void main() {
 `;
 
 /**
- * Paint pass: the Base (solid `uColors[0]`, or camo: `lvCamoNoise(vPos · uFrequency, seed)`
- * split by `uThresholds` into `uColors[0..3]`), times the template's detail factor (R16F,
- * sampled at the texel's UV), alpha = 1 − mask (the protected areas show the game's texture).
- * `uBaseAlpha` is 0 when the Base is hidden (nothing painted).
- *
- * `uPremultiply` 1 (preview targets) writes `rgb · a`: the cleared background (0, 0, 0, 0) is
- * then a valid transparent texel, so bilinear filtering and mipmaps at UV island edges don't
- * darken the paint (`PREVIEW_MAP_FRAGMENT` composites premultiplied). Export writes straight
- * alpha (`uPremultiply` 0) and dilates the islands instead.
+ * Paint, step 1 (base pass, into the scratch intermediate, premultiplied): the Base (solid
+ * `uColors[0]`, or camo: `lvCamoNoise(vPos · uFrequency, seed)` split by `uThresholds` into
+ * `uColors[0..3]`) as `(rgb · a, a)` with `a = uBaseAlpha` (0 when the Base is hidden: the game's
+ * texture shows wherever no decal covers).
  */
-export const PAINT_FRAGMENT = /* glsl */ `
+export const BASE_FRAGMENT = /* glsl */ `
 ${NOISE_GLSL}
 uniform int uMode;
 uniform vec3 uColors[4];
 uniform vec3 uThresholds;
 uniform float uFrequency;
 uniform int uSeed;
-uniform sampler2D uDetail;
-uniform float uHasDetail;
-uniform sampler2D uMask;
-uniform float uHasMask;
 uniform float uBaseAlpha;
-uniform float uPremultiply;
 varying vec3 vPos;
-varying vec2 vUv;
 
 void main() {
   vec3 color = uColors[0];
@@ -248,11 +237,119 @@ void main() {
     int index = int(step(uThresholds.x, n) + step(uThresholds.y, n) + step(uThresholds.z, n));
     color = uColors[index];
   }
+  gl_FragColor = vec4(color * uBaseAlpha, uBaseAlpha);
+}
+`;
+
+/**
+ * The decal tests shared by the decal and footprint passes: the texel's part group must match
+ * `uPart` (−1 = every part), its normal must face the decal (`dot(n, decal normal) >
+ * FACING_MIN · |n|`, zero-length normals never do) and its position, in normalised decal space
+ * (`uDecal`, column-major, see `decalMatrix`), must lie in the box `|u|, |v|, |w| <= 0.5`.
+ */
+const DECAL_TEST_GLSL = /* glsl */ `
+uniform mat4 uDecal;
+uniform vec3 uDecalNormal;
+uniform float uPart;
+varying vec3 vPos;
+varying vec3 vNormal;
+varying float vGroup;
+
+bool lvDecalHit(out vec3 d) {
+  d = vec3(0.0);
+  if (uPart >= 0.0 && abs(vGroup - uPart) > 0.5) return false;
+  float normalLength = length(vNormal);
+  if (normalLength <= 0.0 || dot(vNormal, uDecalNormal) <= ${FACING_MIN.toFixed(2)} * normalLength) return false;
+  d = (uDecal * vec4(vPos, 1.0)).xyz;
+  return all(lessThanEqual(abs(d), vec3(0.5)));
+}
+`;
+
+/**
+ * Paint, step 2 (one draw per decal and per mirrored copy, in layer order, into the
+ * intermediate with blend `ONE, ONE_MINUS_SRC_ALPHA` on colour and alpha): the decal's picture,
+ * premultiplied on upload (so mipmaps and filtering never pull the colour kept under alpha 0
+ * into the edges), sampled at `(u + 0.5, 0.5 − v)` (top-left origin; `uFlipX` mirrors u) and
+ * scaled by `uOpacity`.
+ */
+export const DECAL_FRAGMENT = /* glsl */ `
+${DECAL_TEST_GLSL}
+uniform sampler2D uDecalTex;
+uniform float uOpacity;
+uniform float uFlipX;
+
+void main() {
+  vec3 d;
+  if (!lvDecalHit(d)) discard;
+  float u = uFlipX > 0.5 ? -d.x : d.x;
+  gl_FragColor = texture2D(uDecalTex, vec2(u + 0.5, 0.5 - d.y)) * uOpacity;
+}
+`;
+
+/**
+ * Paint, step 3 (final pass into the slot's target, same size as the intermediate, read texel
+ * for texel): the composite times the template's detail factor (R16F, sampled at the texel's
+ * UV), alpha times `1 − mask` (protected areas show the game's texture).
+ *
+ * `uPremultiply` 1 (preview targets) writes premultiplied colour: the cleared background
+ * (0, 0, 0, 0) is then a valid transparent texel, so filtering and mipmaps at UV island edges
+ * don't darken the paint (`PREVIEW_MAP_FRAGMENT` composites premultiplied). Export writes
+ * straight alpha (`uPremultiply` 0, colour un-premultiplied where alpha > 0) and is dilated.
+ */
+export const FINAL_FRAGMENT = /* glsl */ `
+uniform sampler2D uIntermediate;
+uniform sampler2D uDetail;
+uniform float uHasDetail;
+uniform sampler2D uMask;
+uniform float uHasMask;
+uniform float uPremultiply;
+varying vec2 vUv;
+
+void main() {
+  vec4 p = texelFetch(uIntermediate, ivec2(gl_FragCoord.xy), 0);
   float detail = uHasDetail > 0.5 ? texture2D(uDetail, vUv).r : 1.0;
   float mask = uHasMask > 0.5 ? texture2D(uMask, vUv).r : 0.0;
-  float alpha = uBaseAlpha * (1.0 - mask);
-  color = clamp(color * detail, 0.0, 1.0);
-  gl_FragColor = vec4(uPremultiply > 0.5 ? color * alpha : color, alpha);
+  vec3 straight = p.a > 0.0 ? clamp(p.rgb * detail / p.a, 0.0, 1.0) : vec3(0.0);
+  float alpha = p.a * (1.0 - mask);
+  gl_FragColor = vec4(uPremultiply > 0.5 ? straight * alpha : straight, alpha);
+}
+`;
+
+/** Overlap map (once per slot, R8, additive blending): every triangle adds 1/255 to its texels. */
+export const COUNT_FRAGMENT = /* glsl */ `
+void main() {
+  gl_FragColor = vec4(1.0 / 255.0);
+}
+`;
+
+/** Overlap map side and footprint side (each footprint texel checks `ratio²` overlap texels). */
+export const OVERLAP_SIZE = 512;
+export const FOOTPRINT_SIZE = 128;
+
+/**
+ * Shared-texel check: 1 where the decal's footprint lands on texels drawn by more than one
+ * triangle (mirrored or repeated UVs), read from the overlap map at `uOverlapRatio²` texels per
+ * footprint texel; discarded elsewhere.
+ */
+export const FOOTPRINT_FRAGMENT = /* glsl */ `
+${DECAL_TEST_GLSL}
+uniform sampler2D uOverlap;
+uniform int uOverlapRatio;
+
+void main() {
+  vec3 d;
+  if (!lvDecalHit(d)) discard;
+  ivec2 base = ivec2(gl_FragCoord.xy) * uOverlapRatio;
+  float most = 0.0;
+  for (int y = 0; y < 8; y++) {
+    if (y >= uOverlapRatio) break;
+    for (int x = 0; x < 8; x++) {
+      if (x >= uOverlapRatio) break;
+      most = max(most, texelFetch(uOverlap, base + ivec2(x, y), 0).r);
+    }
+  }
+  if (most < 1.5 / 255.0) discard;
+  gl_FragColor = vec4(1.0);
 }
 `;
 
