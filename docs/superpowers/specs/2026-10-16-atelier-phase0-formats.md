@@ -3,7 +3,7 @@
 Date: 2026-10-16. Game build on disk: War Thunder (Steam), `D:\SteamLibrary\steamapps\common\War Thunder`, packs dated 2026-09-17.
 Reference: Dagor Engine sources (BSD-3), sparse checkout in the session scratchpad `dagor/src`.
 Scripts (throwaway Python, read-only on the game): `<scratchpad>\spike\scripts\`. Outputs: `<scratchpad>\spike\out\`.
-`<scratchpad>` = `C:\Users\piera\AppData\Local\Temp\claude\D--Dev-Progetti-Livery\f0929977-7776-4221-ba0c-79874e5498b5\scratchpad`.
+`<scratchpad>` = `<session scratchpad>`.
 
 ## Verdict
 

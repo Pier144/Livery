@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust (Tauri 2, `oozextract`, `texpresso`, existing `zstd`), React 18 + TypeScript, three.js, Zustand, TanStack Query, react-i18next, Vitest + RTL, cargo test.
 
-**Spec:** [docs/superpowers/specs/2026-10-16-atelier-skin-creator-design.md](../specs/2026-10-16-atelier-skin-creator-design.md). Format notes: [2026-10-16-atelier-phase0-formats.md](../specs/2026-10-16-atelier-phase0-formats.md). Read both first. Phase 0 spike scripts (Python, reference only): `C:\Users\piera\AppData\Local\Temp\claude\D--Dev-Progetti-Livery\f0929977-7776-4221-ba0c-79874e5498b5\scratchpad\spike\scripts\` (`dynmodel.py`, `export_obj.py`, `dxp.py`, `blk.py`, `map_vehicle.py`).
+**Spec:** [docs/superpowers/specs/2026-10-16-atelier-skin-creator-design.md](../specs/2026-10-16-atelier-skin-creator-design.md). Format notes: [2026-10-16-atelier-phase0-formats.md](../specs/2026-10-16-atelier-phase0-formats.md). Read both first. Phase 0 spike scripts (Python, reference only): `<session scratchpad>\spike\scripts\` (`dynmodel.py`, `export_obj.py`, `dxp.py`, `blk.py`, `map_vehicle.py`).
 
 **Not in this plan (Phase 2/3):** image and text layers, Mirror, Refine edge, background removal (`ort`, `image`, model download, in-house SHA-256), fonts. Their dependencies are NOT added now.
 

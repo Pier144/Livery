@@ -1,5 +1,11 @@
 # Atelier: create War Thunder skins in Livery
 
+> **Implementation status (2026-10-17):** Phase 1 (MVP) and Phase 2 are implemented on branch
+> `feat/atelier`, reviewed task by task and checked in the real app on the M4A3E2 Jumbo. Plans:
+> [MVP](../plans/2026-10-16-atelier-mvp.md), [Phase 2](../plans/2026-10-16-atelier-phase2.md).
+> Where the code differs from this document (Oodle in a worker process, `ort` rc.13, compositing
+> scheme, folders), the plans and their review fixes are the reference.
+
 Status: design approved by the author on 2026-10-16, section by section; revised the same day
 after a spec review (install entry point, staging lifecycle, project schema, masks, mirrored UVs,
 no new hashing crate). The author gave free hand on additions ("Hai piena liberta nelle
@@ -179,7 +185,7 @@ request bodies (in), never JSON arrays.
 | `atelier_import_image(projectId, path)` | Asset ref (id, width, height) |
 | `atelier_asset(projectId, assetId)` | PNG bytes |
 | `atelier_asset_put(projectId, png bytes)` | Asset ref (used by the cutout eraser's result) |
-| `atelier_cutout_ready()` / `atelier_cutout_download()` / `atelier_cutout_cancel()` / `atelier_cutout_remove()` | Readiness / unit |
+| `atelier_cutout_status()` / `atelier_cutout_download()` / `atelier_cutout_cancel()` / `atelier_cutout_remove()` | Readiness / unit |
 | `atelier_cutout(projectId, assetId)` | New asset ref |
 | `atelier_apply_begin(projectId)` → `applyId`; `atelier_apply_texture(applyId, slot, rgba bytes)`; `atelier_apply_commit(applyId)` → installed skin; `atelier_apply_cancel(applyId)` | See section 3 |
 | `atelier_fonts()` / `atelier_font_file(name)` | Windows fonts from the registry (via `winreg`) / font bytes for `FontFace` |

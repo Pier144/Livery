@@ -73,6 +73,10 @@ No account, no ads, no telemetry. Livery connects only to:
   browse, open or install skins. It asks politely: one request a second at most, cached for a day,
   and never anything from Gaijin's Marketplace. You can turn WT Live off in Settings → WT Live.
 - **GitHub**, to check for and download Livery updates.
+- **GitHub, only if you use Remove background in Atelier** (experimental, off by default): ONNX
+  Runtime (Microsoft) and the isnet-anime model are downloaded once, when you ask and after you
+  agree, and kept on your PC. Your pictures never leave it. Settings → Experimental shows their
+  size and removes them.
 
 **Send feedback** (Settings → About, or the command palette) doesn't send anything by itself: it
 opens a pre-filled page on GitHub in your browser, which you submit there with your GitHub account.
@@ -117,8 +121,9 @@ Entertainment). Ti permette di:
 Scarica l'installer con il pulsante in alto (o dall'[ultima release](https://github.com/Pier144/Livery/releases/latest)). Se
 Windows mostra "Windows ha protetto il PC", scegli **Ulteriori informazioni → Esegui comunque**:
 l'installer non è ancora firmato. Livery si aggiorna da solo. Per segnalare un problema o proporre
-un'idea usa **Invia un feedback** in Impostazioni → Informazioni. Si collega solo a WT Live e a GitHub,
-non raccoglie dati e non ha account.
+un'idea usa **Invia un feedback** in Impostazioni → Informazioni. Si collega solo a WT Live e a GitHub
+(per gli aggiornamenti e, solo se usi "Rimuovi sfondo" nell'Atelier sperimentale, per scaricare una
+volta i file necessari: le tue immagini restano sul PC), non raccoglie dati e non ha account.
 
 ## Code signing policy
 
@@ -135,7 +140,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io/), certifi
   is signed.
 - **Privacy:** Livery's privacy policy is the [Privacy](#privacy) section above. In short, no
   account and no telemetry: it connects only to WT Live, when you browse or install skins, and to
-  GitHub, to check for updates.
+  GitHub, to check for updates and, only on request, to download the background-removal files.
 
 ## License
 
