@@ -215,7 +215,11 @@
         "projectInvalid": "Не удаётся прочитать этот проект Atelier",
         "projectNameInvalid": "Название проекта должно содержать от 1 до 80 символов",
         "projectThumbInvalid": "Не удаётся сохранить изображение проекта",
-        "projectSaveFailed": "Не удалось сохранить проект Atelier"
+        "projectSaveFailed": "Не удалось сохранить проект Atelier",
+        "applyNotFound": "Это применение уже не выполняется",
+        "applyNothing": "Включите хотя бы одну часть для применения",
+        "applyBadSlot": "Эта часть не включена для этого применения",
+        "applyFailed": "Не удалось применить камуфляж в игре"
       }
     },
     "vehicleClass": {

@@ -10,6 +10,7 @@
 //!   `crate::wtlive::post_textures`; `unsupported` until WT Live downloads are possible).
 
 pub mod bc;
+pub mod dds;
 pub mod header;
 pub mod inspect;
 

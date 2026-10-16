@@ -166,6 +166,10 @@ pub fn run() {
             atelier::atelier_project_forget_deleted,
             atelier::atelier_project_thumb,
             atelier::atelier_project_thumb_get,
+            atelier::atelier_apply_begin,
+            atelier::atelier_apply_texture,
+            atelier::atelier_apply_commit,
+            atelier::atelier_apply_cancel,
         ])
         .build(tauri::generate_context!())
         .expect("error while running Livery")

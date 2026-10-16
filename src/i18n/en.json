@@ -211,7 +211,11 @@
         "projectInvalid": "This Atelier project can't be read",
         "projectNameInvalid": "A project name must be 1 to 80 characters long",
         "projectThumbInvalid": "The project's picture can't be saved",
-        "projectSaveFailed": "Could not save the Atelier project"
+        "projectSaveFailed": "Could not save the Atelier project",
+        "applyNotFound": "This apply is no longer running",
+        "applyNothing": "Turn on at least one part to apply",
+        "applyBadSlot": "This part isn't turned on for this apply",
+        "applyFailed": "The skin couldn't be applied to the game"
       }
     },
     "vehicleClass": {

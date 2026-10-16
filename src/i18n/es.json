@@ -213,7 +213,11 @@
         "projectInvalid": "No se puede leer este proyecto de Atelier",
         "projectNameInvalid": "El nombre de un proyecto debe tener entre 1 y 80 caracteres",
         "projectThumbInvalid": "No se puede guardar la imagen del proyecto",
-        "projectSaveFailed": "No se pudo guardar el proyecto de Atelier"
+        "projectSaveFailed": "No se pudo guardar el proyecto de Atelier",
+        "applyNotFound": "Esta aplicación ya no está en curso",
+        "applyNothing": "Activa al menos una parte para aplicar",
+        "applyBadSlot": "Esta parte no está activada para esta aplicación",
+        "applyFailed": "No se pudo aplicar la skin al juego"
       }
     },
     "vehicleClass": {

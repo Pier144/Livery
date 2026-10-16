@@ -17,6 +17,7 @@
 
 use super::analyze::{sanitize_folder_name, Clash};
 use super::install::{free_name, install_error, rename_retrying, replace};
+use super::partial_dir;
 use crate::backup;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::index::{folder_key, new_id, Library, LibraryStore};
@@ -29,9 +30,12 @@ use std::time::SystemTime;
 /// Where a generated skin goes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
-    /// Over the skin with this id (it keeps id, folder and active state).
+    /// Over the skin with this id (it keeps id, folder and active state). An id that is no longer
+    /// in the library installs as a new skin named like the staged folder: the staged folder's
+    /// own name is the folder name wanted for it.
     Replace(String),
     /// As a new skin with this folder name (unsanitised: [`sanitize_folder_name`] runs on it).
+    /// Callers stage the skin in a folder of this name too, so both targets agree.
     New(String),
 }
 
@@ -52,9 +56,12 @@ struct Fresh {
     folder: String,
 }
 
-/// Installs the skin folder at `staged` (inside `partial_dir`, on the same volume as `UserSkins`)
-/// into the library; see the module doc. Expired backups are purged first, as every library
-/// command does (`backup_days` is Settings → Backups). `keep_backup` is Settings → Backups too.
+/// Installs the skin folder at `staged` (inside `partial_dir`, on the same volume as `UserSkins`;
+/// anything else is refused) into the library; see the module doc. The staged folder's name is
+/// the folder name wanted when the skin installs as a new one after a `Replace` whose id is gone
+/// (Atelier stages at `partial/<applyId>/<sanitised folder>`). Expired backups are purged first,
+/// as every library command does (`backup_days` is Settings → Backups). `keep_backup` is
+/// Settings → Backups too.
 ///
 /// This is `library::purge_in`'s purge without a `GameLibrary`: the caller has no more than the
 /// `UserSkins` folder, the store and the two settings.
@@ -71,6 +78,19 @@ pub fn install_generated(
         tracing::warn!(error = %e, "expired backups could not be purged");
     }
     let staged_name = staged.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    // Only Livery's own staging may be moved into the library (a stray path would be moved away
+    // from where it was). A missing folder fails the scan below.
+    let inside = match (staged.canonicalize(), partial_dir(user_skins).canonicalize()) {
+        (Ok(staged), Ok(partial)) => staged.starts_with(&partial) && staged != partial,
+        (Err(e), _) if e.kind() == std::io::ErrorKind::NotFound => true,
+        _ => false,
+    };
+    if !inside {
+        return Err(AppError::new(ErrorCode::InvalidInput, "Could not install the skin")
+            .with_detail(format!("{staged_name} is not in the install staging folder")));
+    }
+    // Scanned once, here: moving the folder changes none of what the scan reads but its name,
+    // which the install sets anyway.
     let scanned = scan::scan_skin(staged).ok_or_else(|| {
         AppError::new(ErrorCode::Io, "The copied skin can't be read").with_detail(staged_name.clone())
     })?;
@@ -93,7 +113,7 @@ pub fn install_generated(
                                 name: skin.name,
                                 folder: skin.folder,
                                 active,
-                                ..finished(&dir, now)?
+                                ..finished(scanned, now)
                             };
                             library.skins.push(installed.clone());
                             return Ok(Generated { skin: installed, backup_id: Some(backup_id) });
@@ -107,7 +127,7 @@ pub fn install_generated(
                 }
             },
         };
-        let installed = install_new(user_skins, library, journal, staged, &scanned.vehicle.code, fresh, now)?;
+        let installed = install_new(user_skins, library, journal, staged, scanned, fresh, now)?;
         library.skins.push(installed.clone());
         Ok(Generated { skin: installed, backup_id: None })
     })
@@ -119,11 +139,11 @@ fn install_new(
     library: &mut Library,
     journal: &mut Journal,
     staged: &Path,
-    vehicle_code: &str,
+    scanned: HangarSkin,
     fresh: Fresh,
     now: SystemTime,
 ) -> AppResult<HangarSkin> {
-    let wanted = sanitize_folder_name(&fresh.folder, vehicle_code);
+    let wanted = sanitize_folder_name(&fresh.folder, &scanned.vehicle.code);
     // Index entries for this name whose folder is gone would otherwise take it (install does the same).
     let key = folder_key(&wanted);
     let before = library.skins.len();
@@ -140,22 +160,18 @@ fn install_new(
         name: fresh.name.unwrap_or_else(|| folder.clone()),
         folder,
         active: true,
-        ..finished(&dest, now)?
+        ..finished(scanned, now)
     })
 }
 
-/// The skin folder now at `dir`, scanned and marked as made by the user.
-fn finished(dir: &Path, now: SystemTime) -> AppResult<HangarSkin> {
-    let scanned = scan::scan_skin(dir).ok_or_else(|| {
-        AppError::new(ErrorCode::Io, "The copied skin can't be read")
-            .with_detail(dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())
-    })?;
-    Ok(HangarSkin {
+/// The staged skin as scanned, marked as made by the user and installed `now`.
+fn finished(scanned: HangarSkin, now: SystemTime) -> HangarSkin {
+    HangarSkin {
         origin: Origin::Mine,
         author: None,
         installed_at: time::rfc3339_utc(now),
         source_id: None,
         temporary: false,
         ..scanned
-    })
+    }
 }

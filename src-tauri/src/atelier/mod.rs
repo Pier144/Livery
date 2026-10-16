@@ -5,8 +5,11 @@
 //! Reading the packs may wait on the Oodle worker process, so every command works in
 //! `crate::blocking`.
 
+pub mod apply;
 pub mod project;
 
+use crate::archive::generated::Target;
+use crate::archive::QueueStore;
 use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::binblk::Blk;
@@ -14,17 +17,26 @@ use crate::game::gameres::assemble::{self, VehicleModel};
 use crate::game::gameres::index::IndexStore;
 use crate::game::gameres::{desc, TEXTURE_NOT_FOUND};
 use crate::game::root;
-use crate::model::{AtelierProject, AtelierProjectSummary, AtelierSlotChoice, Settings};
+use crate::library::GameLibrary;
+use crate::model::{
+    ApplyProgress, ApplyResult, ApplyStarted, ApplyStep, AtelierProject, AtelierProjectSummary, AtelierSlotChoice,
+    Settings,
+};
 use crate::settings::SettingsStore;
+use crate::textures::bc::APPLY_BAD_TEXTURE;
+use apply::{APPLY_BAD_SLOT, APPLY_NOT_FOUND, TEXTURES_PCT};
 use project::{is_slot_name, ProjectStore, PROJECT_NOT_FOUND, PROJECT_THUMB_INVALID};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tauri::ipc::{InvokeBody, Request, Response};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// `invalidInput` while Settings → Game → Read data from the game is off: Atelier opens no pack.
 pub const ATELIER_NEEDS_GAME_DATA: &str = "Atelier needs Read data from the game turned on";
+
+/// Progress of Rust's steps of an apply (payload `ApplyProgress`).
+pub const APPLY_PROGRESS_EVENT: &str = "atelier://apply-progress";
 
 /// Sub-folder of the app data folder that holds Atelier's files.
 pub const ATELIER_DIR: &str = "atelier";
@@ -45,6 +57,7 @@ pub struct AtelierState {
     /// Held while a model is read, so two calls for the same vehicle read it once.
     loading: Mutex<()>,
     projects: ProjectStore,
+    applies: apply::Applies,
 }
 
 fn desc_key(game_root: &Path, version: &str) -> String {
@@ -64,6 +77,7 @@ impl AtelierState {
             desc: Mutex::new(None),
             loading: Mutex::new(()),
             projects: ProjectStore::new(atelier_dir),
+            applies: apply::Applies::default(),
         }
     }
 
@@ -273,4 +287,125 @@ pub async fn atelier_project_thumb(app: AppHandle, request: Request<'_>) -> AppR
 #[tauri::command]
 pub async fn atelier_project_thumb_get(app: AppHandle, id: String) -> AppResult<Response> {
     blocking(move || app.state::<AtelierState>().projects().thumb(&id).map(Response::new)).await
+}
+
+// ── Apply to game ───────────────────────────────────────────────────────────
+
+fn emit_progress(app: &AppHandle, progress: ApplyProgress) {
+    if let Err(e) = app.emit(APPLY_PROGRESS_EVENT, progress) {
+        tracing::warn!(error = %e, "could not emit {APPLY_PROGRESS_EVENT}");
+    }
+}
+
+fn progress(apply_id: &str, step: ApplyStep, pct: u8) -> ApplyProgress {
+    ApplyProgress { apply_id: apply_id.to_owned(), step, pct, message: None, skin_id: None, backup_id: None }
+}
+
+/// Starts applying a project: `enabled` is the frontend's current slot choice (it may not be
+/// saved yet). The textures follow with `atelier_apply_texture`, then `atelier_apply_commit`.
+#[tauri::command]
+pub async fn atelier_apply_begin(app: AppHandle, project_id: String, enabled: Vec<String>) -> AppResult<ApplyStarted> {
+    blocking(move || {
+        let library = GameLibrary::current(&app)?;
+        let state = app.state::<AtelierState>();
+        let project = state.projects().get(&project_id)?;
+        let (apply_id, job) = apply::begin(&library.user_skins, &app.state::<QueueStore>(), &project, enabled)?;
+        state.applies.insert(apply_id.clone(), job);
+        tracing::info!(%apply_id, "Atelier apply started");
+        Ok(ApplyStarted { apply_id })
+    })
+    .await
+}
+
+/// One painted slot: the RGBA8 pixels as the raw request body; headers `x-apply-id`, `x-slot`
+/// (the `_c` texture), `x-width`, `x-height`. Encoded to DXT5 and written at once; progress as
+/// `atelier://apply-progress` (encode, write).
+#[tauri::command]
+pub async fn atelier_apply_texture(app: AppHandle, request: Request<'_>) -> AppResult<()> {
+    let apply_id = header(&request, "x-apply-id")
+        .map(str::to_owned)
+        .ok_or_else(|| AppError::new(ErrorCode::NotFound, APPLY_NOT_FOUND).with_detail("no x-apply-id header"))?;
+    let slot = header(&request, "x-slot")
+        .map(str::to_owned)
+        .ok_or_else(|| AppError::new(ErrorCode::InvalidInput, APPLY_BAD_SLOT).with_detail("no x-slot header"))?;
+    let side = |name: &str| {
+        header(&request, name).and_then(|v| v.trim().parse::<u32>().ok()).ok_or_else(|| {
+            AppError::new(ErrorCode::InvalidInput, APPLY_BAD_TEXTURE).with_detail(format!("no number in {name}"))
+        })
+    };
+    let (w, h) = (side("x-width")?, side("x-height")?);
+    let rgba = raw_body(&request).ok_or_else(|| {
+        AppError::new(ErrorCode::InvalidInput, APPLY_BAD_TEXTURE).with_detail("not a raw request body")
+    })?;
+    blocking(move || {
+        let state = app.state::<AtelierState>();
+        let mut job = state.applies.checkout(&apply_id)?;
+        let written = apply::texture(&mut job, &slot, w, h, &rgba, &mut |step, pct| {
+            emit_progress(&app, progress(&apply_id, step, pct));
+        });
+        drop(rgba);
+        state.applies.checkin(&apply_id, job)?;
+        written
+    })
+    .await
+}
+
+/// Writes the `.blk` and installs the skin: over the project's skin (keeping its id) when it has
+/// one, else as a new skin. The project then records the installed skin. Progress: install, then
+/// done (with the skin and backup ids) or error; the staging goes either way.
+#[tauri::command]
+pub async fn atelier_apply_commit(app: AppHandle, apply_id: String) -> AppResult<ApplyResult> {
+    blocking(move || {
+        let state = app.state::<AtelierState>();
+        let library = GameLibrary::current(&app)?;
+        let job = state.applies.remove(&apply_id)?;
+        let project_id = job.project_id.clone();
+        let project = state.projects().get(&project_id);
+        let target = match project.as_ref().ok().and_then(|p| p.installed_skin_id.clone()) {
+            Some(skin_id) => Target::Replace(skin_id),
+            // The staged folder's name is the one wanted (see `apply::begin`).
+            None => Target::New(job.dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()),
+        };
+        emit_progress(&app, progress(&apply_id, ApplyStep::Install, TEXTURES_PCT));
+        let GameLibrary { settings, user_skins, store } = library;
+        let now = SystemTime::now();
+        match apply::commit(job, &user_skins, &store, target, settings.backups, settings.backup_days, now) {
+            Ok(generated) => {
+                if let Err(e) = state.projects().set_installed_skin(&project_id, &generated.skin.id, now) {
+                    tracing::warn!(error = %e, "the project doesn't record its installed skin");
+                }
+                crate::archive::recheck_queue(&app);
+                emit_progress(
+                    &app,
+                    ApplyProgress {
+                        skin_id: Some(generated.skin.id.clone()),
+                        backup_id: generated.backup_id.clone(),
+                        ..progress(&apply_id, ApplyStep::Done, 100)
+                    },
+                );
+                tracing::info!(%apply_id, skin = %generated.skin.id, "Atelier apply installed");
+                Ok(ApplyResult { skin: generated.skin, backup_id: generated.backup_id })
+            }
+            Err(e) => {
+                emit_progress(
+                    &app,
+                    ApplyProgress { message: Some(e.message.clone()), ..progress(&apply_id, ApplyStep::Error, 100) },
+                );
+                tracing::warn!(%apply_id, error = %e, "Atelier apply failed");
+                Err(e)
+            }
+        }
+    })
+    .await
+}
+
+/// Cancels an apply (user cancel, leaving the editor, an error): its staging goes; the installed
+/// skin stays as it was. Unknown ids are fine.
+#[tauri::command]
+pub async fn atelier_apply_cancel(app: AppHandle, apply_id: String) -> AppResult<()> {
+    blocking(move || {
+        app.state::<AtelierState>().applies.cancel(&apply_id);
+        Ok(())
+    })
+    .await
 }

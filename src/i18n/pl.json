@@ -215,7 +215,11 @@
         "projectInvalid": "Nie można odczytać tego projektu Atelier",
         "projectNameInvalid": "Nazwa projektu musi mieć od 1 do 80 znaków",
         "projectThumbInvalid": "Nie można zapisać obrazu projektu",
-        "projectSaveFailed": "Nie udało się zapisać projektu Atelier"
+        "projectSaveFailed": "Nie udało się zapisać projektu Atelier",
+        "applyNotFound": "To zastosowanie już nie trwa",
+        "applyNothing": "Włącz co najmniej jedną część do zastosowania",
+        "applyBadSlot": "Ta część nie jest włączona dla tego zastosowania",
+        "applyFailed": "Nie udało się zastosować kamuflażu w grze"
       }
     },
     "vehicleClass": {

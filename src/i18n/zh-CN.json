@@ -209,7 +209,11 @@
         "projectInvalid": "无法读取此 Atelier 项目",
         "projectNameInvalid": "项目名称须为 1 到 80 个字符",
         "projectThumbInvalid": "无法保存项目图片",
-        "projectSaveFailed": "无法保存 Atelier 项目"
+        "projectSaveFailed": "无法保存 Atelier 项目",
+        "applyNotFound": "此应用操作已不在进行中",
+        "applyNothing": "请至少开启一个要应用的部件",
+        "applyBadSlot": "此部件未在本次应用中开启",
+        "applyFailed": "无法将涂装应用到游戏"
       }
     },
     "vehicleClass": {

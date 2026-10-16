@@ -329,6 +329,34 @@ fn a_staged_folder_that_isnt_a_skin_changes_nothing() {
     assert_eq!(env.text(&env.user_skins.join("Winter Tiger"), "old.txt").as_deref(), Some("the old version"));
 }
 
+#[test]
+fn only_folders_in_the_install_staging_are_installed() {
+    let mut env = Env::new("outside");
+    let id = env.old_skin("Winter Tiger");
+    let before = env.store.snapshot();
+    // A skin folder elsewhere (here inside UserSkins itself), and the staging folder itself.
+    let elsewhere = env.user_skins.join("Winter Tiger");
+    env.stage("inside", "v1");
+    let partial = partial_dir(&env.user_skins);
+    for staged in [&elsewhere, &partial] {
+        for target in [Target::Replace(id.clone()), Target::New("X".into())] {
+            let e = err(install_generated(
+                &env.user_skins,
+                &env.store,
+                staged,
+                target,
+                true,
+                BACKUP_DAYS,
+                SystemTime::now(),
+            ));
+            assert_eq!(e.code, ErrorCode::InvalidInput, "{}", staged.display());
+        }
+    }
+    assert_eq!(env.store.snapshot(), before);
+    assert_eq!(env.text(&elsewhere, "old.txt").as_deref(), Some("the old version"));
+    assert!(partial.join("a-1").join("inside").is_dir());
+}
+
 /// The move into place fails after the old version was put aside: a file inside the staged folder
 /// is held open without sharing, so Windows refuses to rename the folder. The transaction must
 /// give the old version back, leave the index as it was, and keep the staged folder.

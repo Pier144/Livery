@@ -408,6 +408,14 @@ pub fn follow_game_root(app: &AppHandle) {
     emit_changed(app, &changed);
 }
 
+/// After a skin was installed outside the queue (Atelier's apply): every waiting item's clash
+/// status is checked again, and items whose status changed are re-sent (`queue://added`).
+pub fn recheck_queue(app: &AppHandle) {
+    let (user_skins, store) = clash_target(app);
+    let ((), changed) = app.state::<QueueStore>().update(user_skins.as_deref(), &store.snapshot(), |_| ());
+    emit_changed(app, &changed);
+}
+
 /// Checks and starts an install (see `install::prepare`), then runs it on a background thread
 /// that reports through `install://progress`. Blocking; answers at once with the install id.
 pub fn start_install(
