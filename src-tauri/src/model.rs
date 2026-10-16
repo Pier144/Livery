@@ -722,3 +722,73 @@ pub struct FeedbackDiagnostics {
     /// The last lines of `livery.log`, oldest first.
     pub log_tail: Vec<String>,
 }
+
+// ── For you (lineups from the player's profile) ─────────────────────────────
+
+/// What `game_lineups` found. `Off`: reading the game's data is off. `NoProfile`: no
+/// `global.blk`. `NoLineups`: the profile has no usable preset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LineupsStatus {
+    Ok,
+    Off,
+    NoProfile,
+    NoLineups,
+}
+
+/// The player's lineups (slotbar presets), read from War Thunder's profile file (`game::profile`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Lineups {
+    pub status: LineupsStatus,
+    /// RFC 3339: when the game last wrote the profile file.
+    pub saved_at: Option<String>,
+    /// The vehicle selected in the hangar right now (`selectedAir.current_model`).
+    pub current: Option<String>,
+    pub current_nation: Option<Nation>,
+    /// Game nation order; nations without a usable preset are left out.
+    pub nations: Vec<NationLineups>,
+}
+
+impl Lineups {
+    /// No lineups, with `status` saying why.
+    pub fn empty(status: LineupsStatus) -> Self {
+        Self { status, saved_at: None, current: None, current_nation: None, nations: Vec::new() }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NationLineups {
+    pub nation: Nation,
+    /// File order.
+    pub presets: Vec<Preset>,
+}
+
+/// One lineup (slotbar preset) of a nation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Preset {
+    /// The player's text, trimmed (may be empty: the UI shows "Preset N").
+    pub name: String,
+    pub active: bool,
+    /// Vehicle codes, file order, no empty or duplicate codes.
+    pub vehicles: Vec<String>,
+}
+
+/// A new skin for For you, with the lineup vehicle it was matched to.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForYouSkin {
+    pub vehicle: String,
+    pub skin: WtLiveSkin,
+}
+
+/// `wtlive_for_you_new`: new skins, and how many vehicles from the start of the asked list
+/// were covered (the rest weren't checked: request cap or a failed later request).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForYouNew {
+    pub items: Vec<ForYouSkin>,
+    pub checked: u32,
+}
