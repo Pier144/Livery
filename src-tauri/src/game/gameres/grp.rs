@@ -38,23 +38,25 @@ pub struct Grp {
 
 impl Grp {
     /// Reads the resource table from the header part (a `.grpcache.bin` copy, or the file's
-    /// first `fullDataSize + 16` bytes). A resource ends where the next one starts; `file_len`
-    /// closes the last one and bounds every start. Pass `None` for a cache copy: the last range
-    /// then ends at its own start (the engine's `restFileSize` is only checked when the length
-    /// is known).
+    /// first `fullDataSize + 16` bytes, or the whole file). The tables and names must lie in that
+    /// description part, and with `file_len` every resource must start after it (the data
+    /// follows the description) and inside the file. A resource ends where the next one starts;
+    /// `file_len` closes the last one. Pass `None` for a cache copy: the last range then ends at
+    /// its own start (the engine's `restFileSize` is only checked when the length is known).
     pub fn parse(head: &[u8], file_len: Option<usize>) -> AppResult<Self> {
-        let r = Reader::new(head);
         if head.len() < TABS_END {
             return Err(bad(format!("GRP header of {} bytes", head.len())));
         }
-        let magic = r.slice(0, 4)?;
+        let magic = Reader::new(head).slice(0, 4)?;
         if magic != b"GRP2" && magic != b"GRP3" {
             return Err(bad(format!("not a GRP pack (magic {magic:02X?})")));
         }
-        let full = r.u32_at(8)? as usize;
-        if head.len() < HEADER + full {
-            return Err(bad(format!("GRP header holds {} of {} bytes", head.len(), HEADER + full)));
-        }
+        let full = Reader::new(head).u32_at(8)? as usize;
+        let data_start = HEADER.checked_add(full).ok_or_else(|| bad("GRP description size overflows"))?;
+        let desc = head
+            .get(..data_start)
+            .ok_or_else(|| bad(format!("GRP header holds {} of {data_start} bytes", head.len())))?;
+        let r = Reader::new(desc);
         if let Some(len) = file_len {
             let rest = r.u32_at(12)? as usize;
             if rest != len.saturating_sub(HEADER) {
@@ -77,14 +79,15 @@ impl Grp {
 
         let mut resources = Vec::with_capacity(table_count);
         for i in 0..table_count {
-            let at = table_ofs + i * ENTRY;
+            let at = table_ofs.checked_add(i * ENTRY).ok_or_else(|| bad("GRP resource table overflows"))?;
             let class_id = r.u32_at(at)?;
             let start = r.u32_at(at + 4)? as usize;
             let name_idx = r.u16_at(at + 8)? as usize;
             if name_idx >= names_count {
                 return Err(bad(format!("resource {i}: name {name_idx} of {names_count}")));
             }
-            let name_ofs = r.i32_at(names_ofs + name_idx * 4)?;
+            let name_at = names_ofs.checked_add(name_idx * 4).ok_or_else(|| bad("GRP name map overflows"))?;
+            let name_ofs = r.i32_at(name_at)?;
             // -1 = no name.
             let name = match name_ofs {
                 -1 => String::new(),
@@ -93,6 +96,11 @@ impl Grp {
             if let Some(len) = file_len {
                 if start > len {
                     return Err(bad(format!("resource {name:?} at {start} past the end ({len})")));
+                }
+                if start != 0 && start < data_start {
+                    return Err(bad(format!(
+                        "resource {name:?} at {start} inside the description (ends at {data_start})"
+                    )));
                 }
             }
             resources.push(GrpResource { class_id, name, start, end: start });

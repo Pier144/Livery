@@ -59,6 +59,7 @@ fn a_header_only_copy_reads_the_same_resources() {
     let cache = grp_cache(&file);
     assert!(cache.len() < file.len());
     let grp = Grp::parse(&cache, None).unwrap();
+    assert_eq!(grp.resources.len(), full.resources.len());
     for (a, b) in grp.resources.iter().zip(&full.resources) {
         assert_eq!((&a.name, a.class_id, a.start), (&b.name, b.class_id, b.start));
     }
@@ -126,6 +127,16 @@ fn damaged_tables_and_names_are_parse_errors() {
     put_u32(&mut past, table_at + 4, len as u32 + 1);
     is_parse(Grp::parse(&past, Some(len)));
     assert!(Grp::parse(&past, None).is_ok(), "no file length, nothing to compare with");
+    // Resource data that starts inside the description part (before the data region).
+    let mut inside = file.clone();
+    put_u32(&mut inside, table_at + 4, 0x20);
+    is_parse(Grp::parse(&inside, Some(len)));
+    // A name that lies in the data region rather than the description part.
+    let data_at = u32::from_le_bytes(file[table_at + 4..table_at + 8].try_into().unwrap());
+    let mut data_name = file.clone();
+    put_u32(&mut data_name, names_at, data_at);
+    is_parse(Grp::parse(&data_name, Some(len)));
+    is_parse(Grp::parse(&data_name, None));
     // A name pointing past the header part / without a terminator.
     let mut name = file.clone();
     put_u32(&mut name, names_at, len as u32);

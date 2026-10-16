@@ -65,6 +65,36 @@ fn jumbo_vertex_stream() -> (Vec<u8>, Vec<u8>, usize) {
     (model, stream, raw_len)
 }
 
+/// Every `.grp` pack of `content/base/res/tanks` parses (header part only, the file's length from
+/// its metadata), with the resource table bounds the reader enforces.
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn every_tank_pack_parses() {
+    use std::io::Read;
+    let dir = game_root().join("content/base/res/tanks");
+    let (mut packs, mut resources, mut models) = (0, 0, 0);
+    for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())).flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("grp") {
+            continue;
+        }
+        let len = entry.metadata().unwrap().len() as usize;
+        let mut head = [0u8; 16];
+        let mut file = std::fs::File::open(&path).unwrap();
+        file.read_exact(&mut head).unwrap();
+        let full = u32::from_le_bytes([head[8], head[9], head[10], head[11]]) as usize;
+        let mut desc = vec![0u8; 16 + full];
+        std::io::Seek::rewind(&mut file).unwrap();
+        file.read_exact(&mut desc).unwrap();
+        let grp = Grp::parse(&desc, Some(len)).unwrap_or_else(|e| panic!("{}: {e:?}", path.display()));
+        packs += 1;
+        resources += grp.resources.len();
+        models += grp.resources.iter().filter(|r| r.class_id == DYN_MODEL).count();
+    }
+    println!("{packs} packs, {resources} resources, {models} DynModels");
+    assert!(packs > 900 && models > 3000, "{packs} packs, {models} DynModels");
+}
+
 #[test]
 #[ignore = "reads the real War Thunder install"]
 fn the_worker_decodes_the_jumbo_vertex_block() {

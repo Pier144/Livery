@@ -21,6 +21,7 @@ pub mod profile;
 pub mod root;
 pub mod steam;
 pub mod vromfs;
+mod zstd_frame;
 
 use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};

@@ -256,16 +256,21 @@ fn kind_3_is_slim_and_not_compressed() {
 }
 
 #[test]
-fn kind_4_is_slim_zstd_with_or_without_a_dictionary() {
+fn kind_4_is_slim_zstd_and_never_gets_the_dictionary() {
     let names = NameMap::parse(&name_map(NAMES), None).unwrap();
     let file = slim_blk(&sample_tree(), NAMES);
     assert_eq!(file[0], 4);
     assert_sample(&Blk::parse(&file, Some(&names), None).unwrap());
+    // A dictionary passed with a kind 4 file is not applied: zstd would use it even for a frame
+    // that doesn't name one, and mis-decode. Here the frame leans on a dictionary and the call
+    // that passes it still fails, because kind 4 reads without.
     assert_sample(&Blk::parse(&file, Some(&names), Some(b"an unrelated dictionary")).unwrap());
-    // A kind 4 frame that does lean on the dictionary reads too once it is passed.
     let body = blk_body(&sample_tree(), NAMES, false);
     let packed = zstd::bulk::Compressor::with_dictionary(3, &body).unwrap().compress(&body).unwrap();
-    assert_sample(&Blk::parse(&with_kind(4, &packed), Some(&names), Some(&body)).unwrap());
+    let leaning = with_kind(4, &packed);
+    assert_eq!(Blk::parse(&leaning, Some(&names), Some(&body)).unwrap_err().code, ErrorCode::Parse);
+    // The same frame is a valid kind 5.
+    assert_sample(&Blk::parse(&with_kind(5, &packed), Some(&names), Some(&body)).unwrap());
 }
 
 #[test]

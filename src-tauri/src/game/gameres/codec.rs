@@ -13,6 +13,7 @@
 use super::bad;
 use super::bytes::Reader;
 use crate::error::{AppError, AppResult, ErrorCode};
+use crate::game::zstd_frame::read_frame;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -108,6 +109,9 @@ pub fn decode_in_process(src: &[u8], raw_len: usize, max: usize) -> AppResult<Ve
 /// ```
 ///
 /// Checksummed streams are refused too: `oozextract` doesn't read their checksum bytes.
+///
+/// Public only so the integration tests can call it; the app goes through [`oodle`].
+#[doc(hidden)]
 pub fn check_kraken_family(src: &[u8], raw_len: usize) -> AppResult<()> {
     let mut cur = Reader::new(src);
     let mut written = 0;
@@ -434,16 +438,9 @@ pub fn oodle(src: &[u8], raw_len: usize, max: usize) -> AppResult<Vec<u8>> {
 
 // ── zstd ────────────────────────────────────────────────────────────────────
 
-/// One zstd frame, at most `max` bytes.
+/// The first zstd frame of `src` (bytes after it are ignored), at most `max` bytes.
 pub fn zstd(src: &[u8], max: usize) -> AppResult<Vec<u8>> {
-    let mut out = Vec::new();
-    zstd::stream::read::Decoder::new(src)
-        .and_then(|d| d.take((max as u64).saturating_add(1)).read_to_end(&mut out))
-        .map_err(|e| bad(format!("zstd: {e}")))?;
-    if out.len() > max {
-        return Err(bad(format!("zstd frame unpacks to more than {max} bytes")));
-    }
-    Ok(out)
+    read_frame(src, None, max as u64).map_err(|e| bad(format!("zstd: {e}")))
 }
 
 #[cfg(test)]

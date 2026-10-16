@@ -19,8 +19,8 @@
 //! or a name id when the top bit is set. Only what Livery reads is decoded (strings, ints,
 //! floats, bools); other types come back as [`Value::Other`].
 
+use super::zstd_frame::read_frame;
 use crate::error::{AppError, AppResult, ErrorCode};
-use std::io::Read;
 use std::sync::Arc;
 
 /// `parse` message for a BLK file that can't be read.
@@ -35,18 +35,7 @@ fn bad(detail: impl Into<String>) -> AppError {
 
 /// One zstd frame, at most `max` bytes out, with an optional dictionary.
 fn unzstd(data: &[u8], dict: Option<&[u8]>, max: u64) -> AppResult<Vec<u8>> {
-    let mut out = Vec::new();
-    let read = match dict {
-        Some(dict) => {
-            zstd::stream::read::Decoder::with_dictionary(data, dict).and_then(|d| d.take(max + 1).read_to_end(&mut out))
-        }
-        None => zstd::stream::read::Decoder::new(data).and_then(|d| d.take(max + 1).read_to_end(&mut out)),
-    };
-    read.map_err(|e| bad(format!("zstd: {e}")))?;
-    if out.len() as u64 > max {
-        return Err(bad("unpacks to too much data"));
-    }
-    Ok(out)
+    read_frame(data, dict, max).map_err(|e| bad(format!("zstd: {e}")))
 }
 
 struct Cursor<'a> {
@@ -193,9 +182,11 @@ impl Blk {
         let (&kind, rest) = file.split_first().ok_or_else(|| bad("empty"))?;
         let body: Vec<u8> = match kind {
             1 | 3 => rest.to_vec(),
-            // Kind 5 always uses the archive's dictionary; a kind 4 frame doesn't, but passing it
-            // is harmless and covers a frame that does.
-            4 | 5 => unzstd(rest, dict, MAX_BLK)?,
+            // Only kind 5 gets the archive's dictionary: zstd applies a dictionary it is given even
+            // to a frame that doesn't name one, seeding its repeat offsets and entropy tables
+            // from it, so passing it to a kind 4 frame can silently mis-decode.
+            4 => unzstd(rest, None, MAX_BLK)?,
+            5 => unzstd(rest, dict, MAX_BLK)?,
             2 => {
                 // u24 packed size, then one zstd frame holding a kind 1 file.
                 let size = rest
