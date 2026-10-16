@@ -2,11 +2,12 @@ import * as THREE from 'three';
 import type { ModelSlot } from '@/types';
 import { detailMap } from '../detailMap';
 import { dilate, DILATE_PX } from '../dilate';
-import { decalMatrix, facing as decalFacing, mirrorDecal, texelsPerUnit, toDecalSpace } from '../decal';
+import { decalMatrix, facing as decalFacing, mirrorDecal, toDecalSpace } from '../decal';
 import type { VehicleModelData } from '../modelBuffer';
 import {
   baseOf,
   decalLayers,
+  decalRight,
   maskOf,
   partGroupOf,
   type BaseLayer,
@@ -124,6 +125,9 @@ async function defaultRasteriseText(layer: TextLayer, pxHeight: number): Promise
   const raster = rasterise(layer, pxHeight);
   return raster ? { rgba: raster.rgba, w: raster.width, h: raster.height } : null;
 }
+
+/** `bakeForExport` with a visible decal whose full-size picture `prepareExport` didn't load. */
+export const EXPORT_PICTURE_NOT_READY = 'Baker: a decal picture for the export is not ready (call prepareExport first)';
 
 /** Largest side of the paint targets while editing (and of every non-focused slot). */
 export const PREVIEW_MAX = 1024;
@@ -585,9 +589,113 @@ export function imageKey(assetId: string, full: boolean): string {
   return `img:${assetId}:${full ? 'f' : 'p'}`;
 }
 
-/** Cache key of a text layer's raster: everything that changes its pixels, and its height. */
-export function textKey(layer: Pick<TextLayer, 'text' | 'font' | 'color' | 'outlineColor' | 'outlineWidth' | 'skew'>, px: number): string {
-  return `txt:${JSON.stringify([layer.text, layer.font.family, layer.font.style, layer.color, layer.outlineColor, layer.outlineWidth, layer.skew])}:${px}`;
+/**
+ * Cache key of a text layer's raster: everything that changes its pixels, its height, and
+ * whether it is the preview copy (capped at PREVIEW_DECAL_MAX) or the export one.
+ */
+export function textKey(
+  layer: Pick<TextLayer, 'text' | 'font' | 'color' | 'outlineColor' | 'outlineWidth' | 'skew'>,
+  px: number,
+  full: boolean,
+): string {
+  return `txt:${JSON.stringify([layer.text, layer.font.family, layer.font.style, layer.color, layer.outlineColor, layer.outlineWidth, layer.skew])}:${px}:${full ? 'f' : 'p'}`;
+}
+
+// ---------------------------------------------------------------- texel density (pure)
+
+/** Floats per triangle in a `DensityTable`: centre xyz, bounding radius, world area, UV area, group. */
+const DENSITY_STRIDE = 7;
+
+/** Per-triangle data of one slot for texel densities, computed once per model. */
+export interface DensityTable {
+  data: Float32Array;
+  count: number;
+}
+
+/** The density table of slot `slot` (raw UVs: shifting islands doesn't change UV areas). */
+export function densityTable(model: Pick<VehicleModelData, 'header' | 'positions' | 'uvs' | 'indices'>, slot: number): DensityTable {
+  const { positions: P, uvs: T, indices } = model;
+  const parts = model.header.parts.filter((p) => p.slot === slot);
+  const count = parts.reduce((n, p) => n + p.indexCount / 3, 0);
+  const data = new Float32Array(count * DENSITY_STRIDE);
+  let o = 0;
+  for (const part of parts) {
+    const group = GROUP_INDEX[part.group];
+    for (let k = part.indexOffset; k < part.indexOffset + part.indexCount; k += 3) {
+      const a = indices[k]!;
+      const b = indices[k + 1]!;
+      const c = indices[k + 2]!;
+      const ax = P[a * 3]!, ay = P[a * 3 + 1]!, az = P[a * 3 + 2]!;
+      const bx = P[b * 3]!, by = P[b * 3 + 1]!, bz = P[b * 3 + 2]!;
+      const cx = P[c * 3]!, cy = P[c * 3 + 1]!, cz = P[c * 3 + 2]!;
+      const mx = (ax + bx + cx) / 3;
+      const my = (ay + by + cy) / 3;
+      const mz = (az + bz + cz) / 3;
+      const r = Math.sqrt(
+        Math.max(
+          (ax - mx) ** 2 + (ay - my) ** 2 + (az - mz) ** 2,
+          (bx - mx) ** 2 + (by - my) ** 2 + (bz - mz) ** 2,
+          (cx - mx) ** 2 + (cy - my) ** 2 + (cz - mz) ** 2,
+        ),
+      );
+      const ux = bx - ax, uy = by - ay, uz = bz - az;
+      const vx = cx - ax, vy = cy - ay, vz = cz - az;
+      const world = Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2;
+      const ua = T[a * 2]!, va = T[a * 2 + 1]!;
+      const uv = Math.abs((T[b * 2]! - ua) * (T[c * 2 + 1]! - va) - (T[c * 2]! - ua) * (T[b * 2 + 1]! - va)) / 2;
+      data[o] = mx;
+      data[o + 1] = my;
+      data[o + 2] = mz;
+      data[o + 3] = r;
+      data[o + 4] = world;
+      data[o + 5] = uv;
+      data[o + 6] = group;
+      o += DENSITY_STRIDE;
+    }
+  }
+  return { data, count };
+}
+
+/**
+ * Texels per model unit around a decal on one slot rendered at `output`: the same as
+ * `texelsPerUnit` in decal.ts (`sqrt(Σ UV area × pixels / Σ world area)` over the triangles whose
+ * bounding sphere touches the decal's box, limited to its part group) from a precomputed table,
+ * with a sphere-to-sphere prefilter and no allocations per triangle. Null when nothing has area.
+ */
+export function slotDensity(table: DensityTable, decal: Decal, output: { width: number; height: number }): number | null {
+  const [rx, ry, rz] = decalRight(decal);
+  const [ux, uy, uz] = decal.up;
+  const [nx, ny, nz] = decal.normal;
+  const [ox, oy, oz] = decal.center;
+  const hw = decal.width / 2;
+  const hh = decal.height / 2;
+  const hd = decal.depth / 2;
+  const boxRadius = Math.sqrt(hw * hw + hh * hh + hd * hd);
+  const group = decalGroupIndex(decal);
+  const d = table.data;
+  let world = 0;
+  let uv = 0;
+  for (let i = 0, o = 0; i < table.count; i++, o += DENSITY_STRIDE) {
+    if (group >= 0 && d[o + 6] !== group) continue;
+    const r = d[o + 3]!;
+    const px = d[o]! - ox;
+    const py = d[o + 1]! - oy;
+    const pz = d[o + 2]! - oz;
+    const reach = r + boxRadius;
+    if (px * px + py * py + pz * pz > reach * reach) continue;
+    let dist2 = 0;
+    let e = Math.abs(px * rx + py * ry + pz * rz) - hw;
+    if (e > 0) dist2 += e * e;
+    e = Math.abs(px * ux + py * uy + pz * uz) - hh;
+    if (e > 0) dist2 += e * e;
+    e = Math.abs(px * nx + py * ny + pz * nz) - hd;
+    if (e > 0) dist2 += e * e;
+    if (dist2 > r * r) continue;
+    world += d[o + 4]!;
+    uv += d[o + 5]!;
+  }
+  if (world <= 0 || uv <= 0) return null;
+  return Math.sqrt((uv * output.width * output.height) / world);
 }
 
 /** A decal layer the bake draws: visible, placed, not fully transparent. */
@@ -687,6 +795,8 @@ export class Baker {
   private readonly densities = new WeakMap<Decal, Map<string, number | null>>();
   /** High quality of the export `prepareExport` prepares (the body's output size). */
   private exportHighQuality = false;
+  /** Texel density tables per slot index (built on the first text layer). */
+  private readonly densityTables = new Map<number, DensityTable>();
   private readonly emptyPaint: THREE.DataTexture;
   /** Reused per stamping draw (no allocations while painting). */
   private readonly pointsBuffer = new Float32Array(BAKE_MAX_POINTS * 4);
@@ -913,12 +1023,26 @@ export class Baker {
     this.exportHighQuality = highQuality;
     const keys = new Map<string, string>();
     for (const b of this.decalOrder) {
-      const key = this.pictureKey(b.layer, true);
-      this.acquirePicture(b.layer, key, true);
-      keys.set(b.layer.id, key);
+      const full = this.pictureKey(b.layer, true);
+      // The preview copy already is the full-size picture when it wasn't reduced (and, for text,
+      // has the export height): share it instead of loading the same pixels twice.
+      const preview = b.layer.kind === 'image' ? imageKey(b.layer.assetId, false) : full.replace(/:f$/, ':p');
+      if (b.shown === preview && this.decalTextures.loadedUnreduced(preview)) {
+        this.decalTextures.acquire(preview, async () => null);
+        keys.set(b.layer.id, preview);
+      } else {
+        this.acquirePicture(b.layer, full, true);
+        keys.set(b.layer.id, full);
+      }
     }
     this.exportKeys = keys;
-    await this.decalTextures.whenSettled(keys.values());
+    // Until every export picture has settled (a context restore may reload them meanwhile).
+    for (;;) {
+      if (this.disposed || this.exportKeys !== keys) return;
+      const pending = [...keys.values()];
+      if (pending.every((k) => this.decalTextures.settled(k))) return;
+      await this.decalTextures.whenSettled(pending);
+    }
   }
 
   /** Releases the full-size pictures `prepareExport` loaded. */
@@ -968,6 +1092,7 @@ export class Baker {
       else if (next.smallVersion !== next.version) this.renderPaintTarget(next, 'small');
       this.bindPreview(next);
     }
+    this.pruneScratches();
     this.notify();
   }
 
@@ -1149,6 +1274,7 @@ export class Baker {
     state.smallVersion = -1;
     state.fullVersion = -1;
     this.bindPreview(state);
+    this.pruneScratches();
     this.notify();
   }
 
@@ -1302,8 +1428,15 @@ export class Baker {
     this.draw(state, this.baseMaterial, scratch, true);
     const du = this.decalMaterial.uniforms;
     for (const b of this.decalOrder) {
-      const exportKey = exporting ? this.exportKeys?.get(b.layer.id) : undefined;
-      const texture = (exportKey ? this.decalTextures.get(exportKey) : null) ?? (b.shown ? this.decalTextures.get(b.shown) : null);
+      let texture: THREE.Texture | null;
+      if (exporting) {
+        // Export draws the full-size pictures only: a missing one is an error, never a fallback.
+        const key = this.exportKeys?.get(b.layer.id);
+        if (key === undefined || !this.decalTextures.settled(key)) throw new Error(EXPORT_PICTURE_NOT_READY);
+        texture = this.decalTextures.get(key);
+      } else {
+        texture = b.shown ? this.decalTextures.get(b.shown) : null;
+      }
       if (!texture) continue;
       du.uDecalTex!.value = texture;
       du.uOpacity!.value = Math.min(1, Math.max(0, b.layer.opacity));
@@ -1343,15 +1476,31 @@ export class Baker {
     return target;
   }
 
+  /** A preview target of an enabled slot has this size (its scratch is worth keeping). */
+  private previewUses(w: number, h: number): boolean {
+    return this.slots.some(
+      (s) =>
+        s.enabled &&
+        ((s.paintSmall !== null && s.paintSmall.width === w && s.paintSmall.height === h) ||
+          (s.paintFull !== null && s.paintFull.width === w && s.paintFull.height === h)),
+    );
+  }
+
   /** After an export: its scratch goes unless a preview target uses the same size. */
   private releaseScratchUnlessPreview(w: number, h: number): void {
-    const used = this.slots.some(
-      (s) => (s.paintSmall && s.paintSmall.width === w && s.paintSmall.height === h) || (s.paintFull && s.paintFull.width === w && s.paintFull.height === h),
-    );
-    if (used) return;
+    if (this.previewUses(w, h)) return;
     const key = `${w}x${h}`;
     this.scratches.get(key)?.dispose();
     this.scratches.delete(key);
+  }
+
+  /** Drops the scratches no preview target uses any more (focus moved, a slot turned off). */
+  private pruneScratches(): void {
+    for (const [key, target] of this.scratches) {
+      if (this.previewUses(target.width, target.height)) continue;
+      target.dispose();
+      this.scratches.delete(key);
+    }
   }
 
   private disposeScratches(): void {
@@ -1403,7 +1552,12 @@ export class Baker {
     if (density === undefined) {
       density = null;
       for (const state of this.slots) {
-        const d = texelsPerUnit(this.model, state.index, this.outputSize(state, full), decal);
+        let table = this.densityTables.get(state.index);
+        if (!table) {
+          table = densityTable(this.model, state.index);
+          this.densityTables.set(state.index, table);
+        }
+        const d = slotDensity(table, decal, this.outputSize(state, full));
         if (d !== null && (density === null || d > density)) density = d;
       }
       byOutput.set(cacheKey, density);
@@ -1413,7 +1567,7 @@ export class Baker {
   }
 
   private pictureKey(layer: DecalLayer, full: boolean): string {
-    return layer.kind === 'image' ? imageKey(layer.assetId, full) : textKey(layer, this.textHeight(layer.decal!, full));
+    return layer.kind === 'image' ? imageKey(layer.assetId, full) : textKey(layer, this.textHeight(layer.decal!, full), full);
   }
 
   /** One more reference to a layer's picture, loading it on first use. */
@@ -1455,9 +1609,14 @@ export class Baker {
         b = { layer, key, shown: null, decal, draws: [] };
         this.bindings.set(layer.id, b);
       } else if (b.key !== key) {
-        // Keep drawing the picture shown until the new one is ready; a pending one is dropped.
-        if (b.key !== b.shown) this.decalTextures.release(b.key);
-        this.acquirePicture(layer, key, false);
+        if (key === b.shown) {
+          // Back to the picture shown (whose reference is held): the pending one is dropped.
+          this.decalTextures.release(b.key);
+        } else {
+          // Keep drawing the picture shown until the new one is ready; a pending one is dropped.
+          if (b.key !== b.shown) this.decalTextures.release(b.key);
+          this.acquirePicture(layer, key, false);
+        }
         b.key = key;
       }
       b.layer = layer;

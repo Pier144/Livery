@@ -98,6 +98,22 @@ describe('DecalTextureCache', () => {
     warn.mockRestore();
   });
 
+  it('settles even when the re-bake it triggers throws', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const c = new DecalTextureCache({
+      onSettled: () => {
+        throw new Error('re-bake failed');
+      },
+      createTexture: () => new THREE.Texture(),
+    });
+    c.acquire('a', async () => img());
+    await expect(c.whenSettled(['a'])).resolves.toBeUndefined();
+    expect(c.settled('a')).toBe(true);
+    expect(c.get('a')).not.toBeNull();
+    expect(c.loadedUnreduced('a')).toBe(true);
+    warn.mockRestore();
+  });
+
   it('caps preview copies and reloads everything after a context loss', async () => {
     const { c, created } = cache();
     const make = vi.fn(async () => img(4100, 10));
@@ -107,6 +123,8 @@ describe('DecalTextureCache', () => {
     // 4100 / ceil(4100 / 2048) = 3 → 1367 × 4.
     expect(c.get('big')!.userData).toEqual({ w: 1367, h: 4 });
     expect(c.get('full')!.userData).toEqual({ w: 4100, h: 10 });
+    expect(c.loadedUnreduced('big')).toBe(false);
+    expect(c.loadedUnreduced('full')).toBe(true);
     c.reloadAll();
     expect(created[0]!.dispose).toHaveBeenCalled();
     await c.whenSettled(['big', 'full']);

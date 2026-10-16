@@ -105,6 +105,8 @@ interface Entry {
   maxSide: number;
   /** Bumped per load, so a load that ended after a reload or the last release is dropped. */
   generation: number;
+  /** The loaded copy was reduced to fit `maxSide` (not the picture's own size). */
+  reduced: boolean;
 }
 
 export interface DecalTextureCacheOptions {
@@ -135,7 +137,7 @@ export class DecalTextureCache {
       known.refs++;
       return;
     }
-    const entry: Entry = { refs: 1, state: 'loading', texture: null, promise: Promise.resolve(), make, maxSide, generation: 0 };
+    const entry: Entry = { refs: 1, state: 'loading', texture: null, promise: Promise.resolve(), make, maxSide, generation: 0, reduced: false };
     this.entries.set(key, entry);
     this.load(key, entry);
   }
@@ -154,6 +156,12 @@ export class DecalTextureCache {
   /** The texture once loaded (null while loading, after a failure or when nothing is drawn). */
   get(key: string): THREE.Texture | null {
     return this.entries.get(key)?.texture ?? null;
+  }
+
+  /** The key loaded fine, at the picture's own size (no reduction): usable as a full-size copy. */
+  loadedUnreduced(key: string): boolean {
+    const entry = this.entries.get(key);
+    return entry !== undefined && entry.state === 'ready' && !entry.reduced;
   }
 
   /** Loaded, failed or unknown (anything that won't change any more). */
@@ -206,10 +214,12 @@ export class DecalTextureCache {
     entry.promise = (async () => {
       let texture: THREE.Texture | null = null;
       let failed = false;
+      let reduced = false;
       try {
         const image = await entry.make();
         if (image && image.w > 0 && image.h > 0) {
           const prepared = prepareDecalImage(image, entry.maxSide);
+          reduced = prepared.w !== image.w || prepared.h !== image.h;
           texture = (this.options.createTexture ?? makeDecalTexture)(prepared);
         }
       } catch (e) {
@@ -221,8 +231,14 @@ export class DecalTextureCache {
         return;
       }
       entry.texture = texture;
+      entry.reduced = reduced;
       entry.state = failed ? 'failed' : 'ready';
-      this.options.onSettled?.(key);
+      // The listener re-bakes: whatever it throws must not reject this load's promise.
+      try {
+        this.options.onSettled?.(key);
+      } catch (e) {
+        console.warn(`Atelier: re-bake after decal picture ${key} failed`, e);
+      }
     })();
   }
 }

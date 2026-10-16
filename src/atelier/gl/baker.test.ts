@@ -14,11 +14,15 @@ import {
   type Stroke,
   type Vec3,
 } from '../project';
+import { texelsPerUnit } from '../decal';
 import type { DecalImage } from './decalTextures';
 import {
   applyStamp,
   Baker,
   compositeTexel,
+  densityTable,
+  EXPORT_PICTURE_NOT_READY,
+  slotDensity,
   decalCopies,
   decalSampleUv,
   decalSphere,
@@ -769,9 +773,11 @@ describe('decal maths (mirror of the decal shader)', () => {
 
   it('keys text rasters by what changes their pixels', () => {
     const t = newTextLayer('Hello', DECAL);
-    expect(textKey(t, 128)).toBe(textKey({ ...t, name: 'other' } as typeof t, 128));
-    expect(textKey(t, 128)).not.toBe(textKey({ ...t, text: 'Hallo' }, 128));
-    expect(textKey(t, 128)).not.toBe(textKey(t, 256));
+    expect(textKey(t, 128, false)).toBe(textKey({ ...t, name: 'other' } as typeof t, 128, false));
+    expect(textKey(t, 128, false)).not.toBe(textKey({ ...t, text: 'Hallo' }, 128, false));
+    expect(textKey(t, 128, false)).not.toBe(textKey(t, 256, false));
+    // The export copy never shares a key with the (possibly reduced) preview one.
+    expect(textKey(t, 128, true)).not.toBe(textKey(t, 128, false));
   });
 });
 
@@ -867,25 +873,97 @@ describe('Baker decals (WebGL stubbed)', () => {
     baker.dispose();
   });
 
-  it('draws full-size pictures between prepareExport and endExport', async () => {
+  it('draws full-size pictures between prepareExport and endExport, and refuses to export without them', async () => {
     const { baker, draws, resolve, loadAsset } = setupDecals();
     const layer = imageLayer('a');
     baker.setLayers([newBaseLayer(), layer], [BODY]);
-    await resolve('a');
+    // Wider than the preview cap: the preview copy is reduced, so the export loads its own.
+    await resolve('a', 4096, 2);
     const preview = draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex;
+    expect(preview?.image).toMatchObject({ width: 2048, height: 1 });
+    expect(() => baker.bakeForExport(BODY, false)).toThrow(EXPORT_PICTURE_NOT_READY);
     const prepared = baker.prepareExport();
     await new Promise((r) => setTimeout(r, 0));
     expect(loadAsset).toHaveBeenCalledTimes(2);
-    await resolve('a', 8, 4);
+    // Not loaded yet: still refused.
+    expect(() => baker.bakeForExport(BODY, false)).toThrow(EXPORT_PICTURE_NOT_READY);
+    await resolve('a', 4096, 2);
     await prepared;
     baker.bakeForExport(BODY, false);
     const exported = draws.filter((d) => d.kind === 'decal').at(-1)!;
     expect(exported.decalTex).not.toBe(preview);
-    expect(exported.decalTex?.image).toMatchObject({ width: 8, height: 4 });
+    expect(exported.decalTex?.image).toMatchObject({ width: 4096, height: 2 });
     expect(draws.filter((d) => d.kind === 'paint').at(-1)!.premultiply).toBe(0);
     baker.endExport();
+    expect(() => baker.bakeForExport(BODY, false)).toThrow(EXPORT_PICTURE_NOT_READY);
+    // The preview keeps its own copy.
+    baker.setLayers([newBaseLayer(), { ...layer, opacity: 0.5 }], [BODY]);
+    expect(draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex).toBe(preview);
+    baker.dispose();
+  });
+
+  it('exports with the preview copy when it is already full size', async () => {
+    const { baker, draws, resolve, loadAsset } = setupDecals();
+    baker.setLayers([newBaseLayer(), imageLayer('a')], [BODY]);
+    await resolve('a', 8, 4);
+    const preview = draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex;
+    await baker.prepareExport();
+    expect(loadAsset).toHaveBeenCalledTimes(1);
     baker.bakeForExport(BODY, false);
     expect(draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex).toBe(preview);
+    baker.endExport();
+    // The shared reference went back: the preview still draws.
+    baker.setLayers([newBaseLayer(), { ...imageLayer('a'), opacity: 0.4 }], [BODY]);
+    expect(draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex).toBe(preview);
+    baker.dispose();
+  });
+
+  it('holds no stray reference when a picture change is undone while the new one loads', async () => {
+    const { baker, resolve, pending } = setupDecals();
+    const layer = imageLayer('a');
+    baker.setLayers([newBaseLayer(), layer], [BODY]);
+    await resolve('a');
+    baker.setLayers([newBaseLayer(), { ...layer, assetId: 'b' }], [BODY]);
+    baker.setLayers([newBaseLayer(), layer], [BODY]);
+    const cache = (baker as unknown as { decalTextures: { refs(k: string): number; keys(): string[] } }).decalTextures;
+    expect(cache.refs('img:a:p')).toBe(1);
+    expect(cache.keys()).toEqual(['img:a:p']);
+    expect(pending.has('b')).toBe(true);
+    await resolve('b');
+    expect(cache.keys()).toEqual(['img:a:p']);
+    baker.setLayers([newBaseLayer()], [BODY]);
+    expect(cache.keys()).toEqual([]);
+    baker.dispose();
+  });
+
+  it('rasterises text for export at the export height, apart from a reduced preview', async () => {
+    const fake = fakeRenderer();
+    // Very wide text: the raster is wider than the preview cap, so the preview copy is reduced.
+    const rasteriseText = vi.fn(async (_l: unknown, px: number): Promise<DecalImage> => ({ rgba: new Uint8Array(3000 * px * 4), w: 3000, h: px }));
+    const baker = new Baker(fake.renderer, model(), new Map([[BODY, template(64, 64)]]), { rasteriseText });
+    const text = { ...newTextLayer('A long line of text', { ...DECAL, width: 0.8, height: 0.05 }), id: 'txt' };
+    baker.setLayers([newBaseLayer(), text], [BODY]);
+    await baker.whenReady();
+    await baker.prepareExport();
+    expect(rasteriseText).toHaveBeenCalledTimes(2);
+    const keys = (baker as unknown as { decalTextures: { keys(): string[] } }).decalTextures.keys();
+    expect(keys.some((k) => k.endsWith(':p'))).toBe(true);
+    expect(keys.some((k) => k.endsWith(':f'))).toBe(true);
+    baker.bakeForExport(BODY, false);
+    expect(fake.draws.filter((d) => d.kind === 'decal').at(-1)!.decalTex?.image).toMatchObject({ width: 3000 });
+    baker.endExport();
+    baker.dispose();
+  });
+
+  it('drops scratch intermediates no preview uses any more', async () => {
+    const { baker } = setupDecals();
+    const scratches = () => (baker as unknown as { scratches: Map<string, unknown> }).scratches;
+    baker.setLayers([newBaseLayer()], [BODY, TURRET]);
+    expect([...scratches().keys()].sort()).toEqual(['32x32', '64x64']);
+    baker.setLayers([newBaseLayer()], [BODY]);
+    expect([...scratches().keys()]).toEqual(['64x64']);
+    baker.bakeForExport(TURRET, false); // 32×32, no preview of that size now: its scratch goes right after
+    expect([...scratches().keys()]).toEqual(['64x64']);
     baker.dispose();
   });
 
@@ -919,5 +997,64 @@ describe('Baker decals (WebGL stubbed)', () => {
     expect(draws.filter((d) => d.kind === 'footprint')).toHaveLength(3);
     baker.dispose();
     expect(await baker.decalTouchesSharedTexels(DECAL)).toBe(false);
+  });
+});
+
+describe('texel density for text rasters', () => {
+  /** A grid of `n × n` quads (2 triangles each) per slot, UVs over the whole texture. */
+  function gridModel(n: number, slots = 3): VehicleModelData {
+    const perSlot = (n + 1) * (n + 1);
+    const positions = new Float32Array(perSlot * slots * 3);
+    const normals = new Float32Array(perSlot * slots * 3);
+    const uvs = new Float32Array(perSlot * slots * 2);
+    const indices = new Uint32Array(n * n * 6 * slots);
+    const parts: ModelHeader['parts'] = [];
+    let k = 0;
+    for (let s = 0; s < slots; s++) {
+      const v0 = s * perSlot;
+      for (let y = 0; y <= n; y++)
+        for (let x = 0; x <= n; x++) {
+          const v = v0 + y * (n + 1) + x;
+          positions.set([(x / n) * 4 - 2, (y / n) * 2 - 1, s * 0.5], v * 3);
+          normals.set([0, 0, 1], v * 3);
+          uvs.set([x / n, 1 - y / n], v * 2);
+        }
+      const indexOffset = k;
+      for (let y = 0; y < n; y++)
+        for (let x = 0; x < n; x++) {
+          const a = v0 + y * (n + 1) + x;
+          indices.set([a, a + 1, a + n + 2, a, a + n + 2, a + n + 1], k);
+          k += 6;
+        }
+      parts.push({ node: `n${s}`, group: s === 0 ? 'hull' : s === 1 ? 'turret' : 'gun', slot: s, vertexOffset: v0, vertexCount: perSlot, indexOffset, indexCount: k - indexOffset });
+    }
+    const header: ModelHeader = {
+      vehicle: 'grid',
+      model: 'grid',
+      mirrorAxis: 2,
+      slots: Array.from({ length: slots }, (_, i) => ({ texture: `grid_${i}_c`, width: 2048, height: 2048, hq: true, paintableByDefault: true })),
+      parts,
+      vertexCount: perSlot * slots,
+      indexCount: indices.length,
+    };
+    return { header, positions, normals, uvs, indices };
+  }
+
+  it('matches texelsPerUnit (decal.ts) from the precomputed table', () => {
+    const m = gridModel(40);
+    const output = { width: 2048, height: 2048 };
+    for (const decal of [
+      DECAL,
+      { ...DECAL, center: [-1.5, 0.7, 0] as Vec3, width: 0.3, height: 0.1 },
+      { ...DECAL, part: 'turret' },
+      { ...DECAL, center: [9, 9, 9] as Vec3 },
+    ]) {
+      for (let slot = 0; slot < 3; slot++) {
+        const ref = texelsPerUnit(m, slot, output, decal);
+        const fast = slotDensity(densityTable(m, slot), decal, output);
+        if (ref === null) expect(fast).toBeNull();
+        else expect(fast!).toBeCloseTo(ref, 3);
+      }
+    }
   });
 });
