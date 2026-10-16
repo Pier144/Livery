@@ -109,6 +109,18 @@ impl Vromfs {
     }
 }
 
+/// The header of the archive at `path`, from its first bytes only (no unpacking).
+pub fn read_header_of(path: &Path) -> AppResult<Header> {
+    use std::io::Read;
+    let io = |e: std::io::Error| {
+        let code = if e.kind() == std::io::ErrorKind::NotFound { ErrorCode::NotFound } else { ErrorCode::Io };
+        AppError::new(code, UNREADABLE_VROMFS).with_detail(format!("{}: {e}", path.display()))
+    };
+    let mut head = Vec::new();
+    std::fs::File::open(path).map_err(io)?.take(64).read_to_end(&mut head).map_err(io)?;
+    read_header(&head).map(|(header, _)| header)
+}
+
 fn slice(bytes: &[u8], start: usize, len: usize) -> AppResult<&[u8]> {
     start
         .checked_add(len)

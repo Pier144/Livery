@@ -206,7 +206,10 @@
         "lineupsUnreadable": "Nie udało się odczytać Twojego profilu War Thunder",
         "lineupsUnparsable": "Nie można odczytać składów w Twoim profilu War Thunder",
         "modelUnreadable": "Nie można odczytać modelu 3D tego pojazdu",
-        "applyBadTexture": "Pomalowana tekstura ma nieprawidłowy rozmiar"
+        "applyBadTexture": "Pomalowana tekstura ma nieprawidłowy rozmiar",
+        "modelNotFound": "Modelu 3D tego pojazdu nie ma w plikach gry",
+        "textureNotFound": "Jednej z tekstur tego pojazdu nie ma w plikach gry",
+        "textureOverrides": "Atelier nie może jeszcze malować tego pojazdu: używa własnych tekstur na wspólnym modelu"
       }
     },
     "vehicleClass": {

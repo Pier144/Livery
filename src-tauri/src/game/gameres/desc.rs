@@ -11,7 +11,27 @@
 //!
 //! `RElem.mat` indexes `matR`; `t0` is the diffuse (`_c`) texture, an index into `tex`.
 
+use super::{bad, MODEL_NOT_FOUND, MODEL_UNREADABLE};
+use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::binblk::{Blk, Block};
+use std::path::Path;
+
+/// Where the description lives, relative to the game root.
+pub const DESC: &str = "content/base/res/dynModelDesc.bin";
+
+/// Reads and parses [`DESC`] (read-only). Missing: `notFound` (no models to find); unreadable:
+/// a `parse` error of the model.
+pub fn read(game_root: &Path) -> AppResult<Blk> {
+    let path = game_root.join(DESC);
+    let bytes = std::fs::read(&path).map_err(|e| {
+        let error = match e.kind() {
+            std::io::ErrorKind::NotFound => AppError::new(ErrorCode::NotFound, MODEL_NOT_FOUND),
+            _ => AppError::new(ErrorCode::Io, MODEL_UNREADABLE),
+        };
+        error.with_detail(format!("{}: {e}", path.display()))
+    })?;
+    Blk::parse(&bytes, None, None).map_err(|e| bad(format!("{DESC}: {}", e.detail.unwrap_or(e.message))))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelMaterials {

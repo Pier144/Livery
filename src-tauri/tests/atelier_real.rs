@@ -6,6 +6,7 @@
 //! names another one (for example `target/release/livery.exe`).
 
 use livery_lib::game::binblk::Blk;
+use livery_lib::game::gameres::assemble::{self, PartGroup};
 use livery_lib::game::gameres::bytes::Reader;
 use livery_lib::game::gameres::codec::{
     check_kraken_family, decode_in_process, oodle, read_block, set_worker_exe, OodleWorker, MAX_VERTEX_DATA,
@@ -14,7 +15,9 @@ use livery_lib::game::gameres::desc::materials;
 use livery_lib::game::gameres::dxp::{base_name, is_hq, top_level, DxpDir};
 use livery_lib::game::gameres::dynmodel;
 use livery_lib::game::gameres::grp::{Grp, DYN_MODEL, GEOM_NODE_TREE};
+use livery_lib::game::gameres::index::IndexStore;
 use livery_lib::game::gameres::skeleton::Skeleton;
+use livery_lib::game::gameres::{desc, TEXTURE_OVERRIDES};
 use livery_lib::textures::bc;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -610,4 +613,115 @@ fn every_tank_texture_pack_directory_parses() {
     }
     println!("{packs} packs, {entries} textures");
     assert!(packs > 100);
+}
+
+// ── Index and assembled model ───────────────────────────────────────────────
+
+/// The index (first build, then a cached load in a new store), the Jumbo assembled, its body
+/// template against the game's skin template, and two more tanks.
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn the_jumbo_is_assembled_from_the_index() {
+    set_worker_exe(worker_exe());
+    let root = game_root();
+    let cache = std::env::temp_dir().join(format!("livery-atelier-real-{}/gameres-index.json", std::process::id()));
+    let started = Instant::now();
+    let index = IndexStore::new(cache.clone()).get(&root).unwrap();
+    println!(
+        "index built in {} ms: {} vehicles, {} models, {} textures, {} overriding; version {}",
+        started.elapsed().as_millis(),
+        index.model_of.len(),
+        index.grp_of.len(),
+        index.tex_of.len(),
+        index.overrides_of.len(),
+        index.version
+    );
+    let started = Instant::now();
+    let cached = IndexStore::new(cache.clone()).get(&root).unwrap();
+    println!(
+        "cached index loaded in {} ms ({} bytes)",
+        started.elapsed().as_millis(),
+        std::fs::metadata(&cache).unwrap().len()
+    );
+    assert_eq!(*cached, *index);
+    let _ = std::fs::remove_dir_all(cache.parent().unwrap());
+
+    assert_eq!(index.model("us_m4a3e2_sherman_jumbo"), Some("m4a3e2_sherman_jumbo"));
+    assert_eq!(index.model("us_m4a3e2_sherman_jumbo_cobra_king"), Some("m4a3e2_sherman_jumbo"));
+    assert!(index.overrides("us_m4a3e2_sherman_jumbo_cobra_king"));
+    assert!(!index.overrides("us_m4a3e2_sherman_jumbo"));
+    println!("overriding vehicles (first 15): {:?}", index.overrides_of.iter().take(15).collect::<Vec<_>>());
+    assert_eq!(index.grp_of["m4a3e2_sherman_jumbo"], "content/base/res/tanks/usa_m4a3e2_sherman_jumbo.grp");
+
+    let desc = desc::read(&root).unwrap();
+    let e = assemble::load(&root, &index, &desc, "us_m4a3e2_sherman_jumbo_cobra_king").unwrap_err();
+    assert_eq!(e.message, TEXTURE_OVERRIDES);
+
+    let started = Instant::now();
+    let m = assemble::load(&root, &index, &desc, "us_m4a3e2_sherman_jumbo").unwrap();
+    println!("Jumbo assembled in {} ms", started.elapsed().as_millis());
+    assert_eq!(m.model, "m4a3e2_sherman_jumbo");
+    for s in &m.slots {
+        println!("  slot {} {}x{} hq {} paintable {}", s.texture, s.width, s.height, s.hq, s.paintable_by_default);
+        assert!(s.width > 0 && s.height > 0, "{s:?}");
+    }
+    let slot = |name: &str| m.slots.iter().find(|s| s.texture == name).unwrap_or_else(|| panic!("{name}"));
+    let body = slot("m4a3e2_sherman_jumbo_body_c");
+    assert_eq!((body.width, body.height, body.hq, body.paintable_by_default), (2048, 2048, true, true));
+    let turret = slot("m4a3e2_sherman_jumbo_turret_c");
+    assert_eq!((turret.width, turret.height), (2048, 1024));
+    let gun = slot("m4a3e2_sherman_jumbo_gun_c");
+    assert_eq!((gun.width, gun.height), (1024, 512));
+    let vertices = m.positions.len() / 3;
+    let count = |g: PartGroup| m.parts.iter().filter(|p| p.group == g).count();
+    println!(
+        "  {vertices} vertices, {} triangles, {} parts: {} hull, {} turret, {} gun",
+        m.indices.len() / 3,
+        m.parts.len(),
+        count(PartGroup::Hull),
+        count(PartGroup::Turret),
+        count(PartGroup::Gun)
+    );
+    assert!(vertices > 100_000, "{vertices}");
+    assert!(count(PartGroup::Hull) > 0 && count(PartGroup::Turret) > 0 && count(PartGroup::Gun) > 0);
+    assert!(m.indices.iter().all(|&i| (i as usize) < vertices));
+    let encoded = assemble::encode(&m);
+    println!("  encoded: {} bytes", encoded.len());
+
+    let started = Instant::now();
+    let rgba = assemble::template_texture(&root, &index, body).unwrap();
+    println!("body template decoded in {} ms", started.elapsed().as_millis());
+    let template = root.join("UserSkins/template_us_m4a3e2_sherman_jumbo/m4a3e2_sherman_jumbo_body.tga");
+    if let Ok(tga) = std::fs::read(&template) {
+        let (tw, th, tpx) = read_tga(&tga);
+        assert_eq!((tw, th), (2048, 2048));
+        let sum: u64 = rgba
+            .chunks_exact(4)
+            .zip(tpx.chunks_exact(4))
+            .map(|(a, b)| (0..3).map(|c| u64::from(a[c].abs_diff(b[c]))).sum::<u64>())
+            .sum();
+        let mae = sum as f64 / (tw * th * 3) as f64;
+        println!("body template vs the game's TGA: mean abs error {mae:.2}");
+        assert!(mae < 10.0, "{mae}");
+    } else {
+        println!("no template at {}: comparison skipped", template.display());
+    }
+
+    for vehicle in ["us_m4a3e2_76w_sherman_jumbo", "germ_pzkpfw_VI_ausf_b_tiger_IIh"] {
+        let started = Instant::now();
+        let m = assemble::load(&root, &index, &desc, vehicle).unwrap_or_else(|e| panic!("{vehicle}: {e:?}"));
+        println!(
+            "{vehicle}: {} in {} ms, {} vertices, {} parts, slots {:?}",
+            m.model,
+            started.elapsed().as_millis(),
+            m.positions.len() / 3,
+            m.parts.len(),
+            m.slots.iter().map(|s| (s.texture.as_str(), s.width, s.height, s.paintable_by_default)).collect::<Vec<_>>()
+        );
+        assert!(m.slots.iter().all(|s| s.width > 0 && s.height > 0));
+        // `paintable_by_default` is "the texture's name starts with the model's": the 76W reuses
+        // the Jumbo's body and turret textures, so only its own gun texture qualifies.
+        let paintable = m.slots.iter().filter(|s| s.paintable_by_default).count();
+        assert!(paintable >= if vehicle.starts_with("germ") { 3 } else { 1 }, "{paintable}");
+    }
 }

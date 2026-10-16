@@ -24,7 +24,7 @@ use std::collections::{BTreeSet, HashMap};
 pub const MAX_VDATA: usize = 64;
 /// Most vertices in one vertex buffer.
 pub const MAX_VERTICES: usize = 4_000_000;
-/// Most indices over all of a model's index buffers.
+/// Most indices over all of a model's index buffers, and over all of LOD 0's elements.
 pub const MAX_INDICES: usize = 16_000_000;
 /// Most rigid objects in LOD 0.
 pub const MAX_RIGIDS: usize = 4096;
@@ -183,6 +183,12 @@ pub fn parse(res: &[u8]) -> AppResult<DynModel> {
             elems.push(elem);
         }
         rigids.push(Rigid { node_id, elems });
+    }
+
+    // Elements may share index ranges: bound what assembling LOD 0 copies out.
+    let lod0_indices: u64 = rigids.iter().flat_map(|r| &r.elems).map(|e| 3 * u64::from(e.numf)).sum();
+    if lod0_indices > MAX_INDICES as u64 {
+        return Err(bad(format!("LOD 0 draws {lod0_indices} indices (at most {MAX_INDICES})")));
     }
 
     // Decode only the vertex buffers LOD 0 draws from.

@@ -270,6 +270,13 @@ fn errors_name_the_vdata_or_rigid() {
 }
 
 #[test]
+fn lod_0_may_not_draw_more_than_16_million_indices() {
+    let mut m = model(Ib::U16);
+    m.lods[0][0].elems = vec![elem(0, 0, 0, 6_000_000, 0)];
+    assert!(assert_parse(dynmodel::parse(&dynmodel_bytes(&m))).contains("LOD 0 draws 18000000"));
+}
+
+#[test]
 fn a_model_without_lods_is_an_error() {
     let mut m = model(Ib::U16);
     m.lods.clear();

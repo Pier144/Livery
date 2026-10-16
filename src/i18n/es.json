@@ -204,7 +204,10 @@
         "lineupsUnreadable": "Livery no ha podido leer tu perfil de War Thunder",
         "lineupsUnparsable": "No se pueden leer las alineaciones de tu perfil de War Thunder",
         "modelUnreadable": "No se puede leer el modelo 3D de este vehículo",
-        "applyBadTexture": "Una textura pintada tiene un tamaño incorrecto"
+        "applyBadTexture": "Una textura pintada tiene un tamaño incorrecto",
+        "modelNotFound": "El modelo 3D de este vehículo no está en los archivos del juego",
+        "textureNotFound": "Una textura de este vehículo no está en los archivos del juego",
+        "textureOverrides": "Atelier aún no puede pintar este vehículo: usa sus propias texturas sobre un modelo compartido"
       }
     },
     "vehicleClass": {

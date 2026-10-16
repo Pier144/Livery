@@ -200,7 +200,10 @@
         "lineupsUnreadable": "Livery 无法读取您的 War Thunder 档案",
         "lineupsUnparsable": "无法读取您的 War Thunder 档案中的阵容",
         "modelUnreadable": "无法读取此载具的 3D 模型",
-        "applyBadTexture": "一张绘制的纹理尺寸不正确"
+        "applyBadTexture": "一张绘制的纹理尺寸不正确",
+        "modelNotFound": "游戏文件中没有此载具的 3D 模型",
+        "textureNotFound": "游戏文件中缺少此载具的一张纹理",
+        "textureOverrides": "Atelier 暂时无法为此载具上色：它在共用模型上使用了自己的纹理"
       }
     },
     "vehicleClass": {

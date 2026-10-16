@@ -22,6 +22,9 @@ pub const MODEL_UNREADABLE: &str = "This vehicle's 3D model can't be read";
 pub const MODEL_NOT_FOUND: &str = "This vehicle's 3D model isn't in the game's files";
 /// A texture named by the model's materials isn't in any texture pack.
 pub const TEXTURE_NOT_FOUND: &str = "A texture of this vehicle isn't in the game's files";
+/// The vehicle puts its own `_c` textures on a model it shares (e.g. the Cobra King's
+/// `default_skin`); painting those is a later phase.
+pub const TEXTURE_OVERRIDES: &str = "Atelier can't paint this vehicle yet: it uses its own textures on a shared model";
 
 pub(crate) fn bad(detail: impl Into<String>) -> AppError {
     AppError::new(ErrorCode::Parse, MODEL_UNREADABLE).with_detail(detail.into())
