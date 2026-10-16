@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderOptions } from '@testing-library/react';
 import type { ReactElement } from 'react';
+import { resetAtelierEditor } from '@/atelier/editorStore';
 import { createQueryClient } from '@/queries/client';
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from '@/queries/settings';
 import { resetCollectionsUi } from '@/store/collections';
@@ -36,6 +37,7 @@ export function resetStores() {
   useInstalls.setState({ bySkin: {}, byInstallId: {} });
   useExplore.setState(exploreDefaults());
   resetDetail();
+  resetAtelierEditor();
   useUpdate.getState().reset();
   useConfirm.getState().settle(false);
   useHangarMotion.setState({ leaving: new Set(), arriving: new Set() });
