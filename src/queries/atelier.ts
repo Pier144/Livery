@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { parseModelBuffer, type VehicleModelData } from '@/atelier/modelBuffer';
 import { errorText } from '@/lib/errors';
@@ -130,6 +130,18 @@ export function useTemplateTexture(vehicle: string | null, slot: string | null) 
     queryFn: async () => new Uint8Array(toArrayBuffer(await call<unknown>('atelier_template_texture', { vehicle, slot }))),
     enabled: vehicle !== null && slot !== null && hasBackend(),
     staleTime: Infinity,
+  });
+}
+
+/** The original textures of several slots at once (one query each, shared with `useTemplateTexture`). */
+export function useTemplateTextures(vehicle: string | null, slots: readonly string[]) {
+  return useQueries({
+    queries: slots.map((slot) => ({
+      queryKey: templateTextureKey(vehicle ?? '', slot),
+      queryFn: async () => new Uint8Array(toArrayBuffer(await call<unknown>('atelier_template_texture', { vehicle, slot }))),
+      enabled: vehicle !== null && hasBackend(),
+      staleTime: Infinity,
+    })),
   });
 }
 

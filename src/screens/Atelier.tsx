@@ -11,9 +11,9 @@ import { ScreenFrame, ScreenHeader } from './ScreenHeader';
 
 /**
  * The editor loads when a project opens, in its own chunk: three.js and the bake stay out of the
- * start-up bundle and out of the Atelier home. (Task 21 points this at `./Atelier/Editor`.)
+ * start-up bundle and out of the Atelier home.
  */
-const Editor = lazy(() => import('./Atelier/EditorPlaceholder').then((m) => ({ default: m.EditorPlaceholder })));
+const Editor = lazy(() => import('./Atelier/Editor').then((m) => ({ default: m.Editor })));
 
 /**
  * Atelier, the skin editor (Settings → Experimental → Atelier): the project grid, or the editor of

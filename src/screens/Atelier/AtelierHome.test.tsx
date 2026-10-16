@@ -24,6 +24,25 @@ vi.mock('@/lib/tauri', async (importOriginal) => ({
 
 vi.mock('./webgl', () => ({ hasWebGL2: () => backend.webgl }));
 
+// The editor (WebGL, the model) has its own tests: here it is the open project's name and the way back.
+vi.mock('./Editor', async () => {
+  const { useAtelierProject } = await import('@/queries/atelier');
+  const { useAtelierUi: ui } = await import('@/store/atelier');
+  return {
+    Editor: ({ id }: { id: string }) => {
+      const project = useAtelierProject(id).data;
+      return (
+        <section>
+          <button type="button" onClick={() => ui.getState().close()}>
+            Back to projects
+          </button>
+          {project && <h1>{project.name}</h1>}
+        </section>
+      );
+    },
+  };
+});
+
 // ── Fake backend: projects in memory, newest save first ─────────────────────
 
 const TIGER = 'germ_pzkpfw_VI_ausf_b_tiger_IIH';

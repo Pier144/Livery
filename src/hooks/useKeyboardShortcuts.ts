@@ -52,9 +52,10 @@ export function useKeyboardShortcuts() {
         return;
       }
       // Ctrl/Cmd+Z undoes the newest undoable toast, so keyboard users needn't reach its button in 6 s.
-      // Inputs keep their native text undo.
+      // Inputs keep their native text undo; a screen with its own history (the Atelier editor) handles
+      // the key first and marks it handled.
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z' && !isTypingTarget(e.target)) {
-        if (useToasts.getState().undoLatest()) e.preventDefault();
+        if (!e.defaultPrevented && useToasts.getState().undoLatest()) e.preventDefault();
         return;
       }
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;

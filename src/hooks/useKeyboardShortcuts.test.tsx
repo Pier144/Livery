@@ -80,6 +80,22 @@ describe('useKeyboardShortcuts', () => {
     expect(useToasts.getState().toasts).toHaveLength(1);
   });
 
+  it('leaves Ctrl+Z to a screen that handled it first (the Atelier editor’s own history)', () => {
+    const undo = vi.fn();
+    render(<Harness />);
+    toast.undoable('Deleted 1 skin', undo);
+    const handled = (e: KeyboardEvent) => e.preventDefault();
+    document.addEventListener('keydown', handled);
+    try {
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+    } finally {
+      document.removeEventListener('keydown', handled);
+    }
+    expect(undo).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+    expect(undo).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores section and sidebar keys during First run; Ctrl+K, Esc and Ctrl+Z still work', () => {
     const undo = vi.fn();
     render(<Harness />);
