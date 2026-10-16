@@ -7,7 +7,7 @@
 use crate::archive::analyze::sanitize_folder_name;
 use crate::archive::generated::{install_generated, Generated, Target};
 use crate::archive::{partial_dir, QueueStore};
-use crate::atelier::project::{is_slot_name, is_vehicle_code, PROJECT_INVALID};
+use crate::atelier::project::{is_slot_name, is_vehicle_code, MAX_THUMB_BYTES, PNG_SIGNATURE, PROJECT_INVALID};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::index::{new_id_with, LibraryStore};
 use crate::model::{ApplyStep, AtelierProject};
@@ -83,30 +83,48 @@ pub(crate) fn check_size(rgba: &[u8], w: u32, h: u32) -> AppResult<()> {
 }
 
 /// DXT5 blocks of a painted texture (`w`×`h` RGBA8, both multiples of 4 up to
-/// [`MAX_APPLY_SIDE`]; else `invalidInput` [`APPLY_BAD_TEXTURE`]): ClusterFit up to
-/// [`CLUSTER_FIT_MAX_SIDE`], RangeFit above, in horizontal strips of whole block rows on every
-/// core. Blocks are stored row by row, so each strip's output is a contiguous part of the whole.
+/// [`MAX_APPLY_SIDE`]; else `invalidInput` [`APPLY_BAD_TEXTURE`]); see [`encode_level`].
 pub fn encode_painted(rgba: &[u8], w: u32, h: u32) -> AppResult<Vec<u8>> {
     check_size(rgba, w, h)?;
-    let algorithm = if w.max(h) <= CLUSTER_FIT_MAX_SIDE {
+    Ok(encode_level(rgba, w as usize, h as usize))
+}
+
+/// Levels with fewer block rows than this are encoded on the calling thread.
+const MIN_PARALLEL_BLOCK_ROWS: usize = 64;
+
+/// DXT5 blocks of `w`×`h` RGBA8 (`rgba` exactly that size; sides that aren't multiples of 4 are
+/// padded inside their last blocks, as texpresso does): ClusterFit up to
+/// [`CLUSTER_FIT_MAX_SIDE`], RangeFit above, in horizontal strips of whole block rows on every
+/// core. Blocks are stored row by row, so each strip's output is a contiguous part of the whole.
+fn encode_level(rgba: &[u8], w: usize, h: usize) -> Vec<u8> {
+    let algorithm = if w.max(h) <= CLUSTER_FIT_MAX_SIDE as usize {
         texpresso::Algorithm::ClusterFit
     } else {
         texpresso::Algorithm::RangeFit
     };
     let params = texpresso::Params { algorithm, ..Default::default() };
-    let (w, h) = (w as usize, h as usize);
-    let block_rows = h / 4;
-    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).clamp(1, block_rows);
+    let format = texpresso::Format::Bc3;
+    let blocks_wide = w.div_ceil(4);
+    let block_rows = h.div_ceil(4);
+    let mut out = vec![0u8; format.compressed_size(w, h)];
+    let threads = if block_rows < MIN_PARALLEL_BLOCK_ROWS {
+        1
+    } else {
+        std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).clamp(1, block_rows)
+    };
+    if threads == 1 {
+        format.compress(rgba, w, h, params, &mut out);
+        return out;
+    }
     // A few strips per thread, so threads that finish early take more.
     let rows_per_strip = (block_rows / (threads * 4)).max(1);
-    // DXT5: 16 bytes per 4×4 block, one byte per pixel.
-    let mut out = vec![0u8; w * h];
-    let strips: Mutex<Vec<(&[u8], &mut [u8])>> =
-        Mutex::new(rgba.chunks(rows_per_strip * 4 * w * 4).zip(out.chunks_mut(rows_per_strip * 4 * w)).collect());
+    let strips: Mutex<Vec<(&[u8], &mut [u8])>> = Mutex::new(
+        rgba.chunks(rows_per_strip * 4 * w * 4).zip(out.chunks_mut(rows_per_strip * blocks_wide * 16)).collect(),
+    );
     let work = || loop {
         let next = strips.lock().unwrap_or_else(|e| e.into_inner()).pop();
         let Some((src, dst)) = next else { break };
-        texpresso::Format::Bc3.compress(src, w, src.len() / (w * 4), params, dst);
+        format.compress(src, w, src.len() / (w * 4), params, dst);
     };
     std::thread::scope(|scope| {
         for _ in 1..threads {
@@ -118,7 +136,44 @@ pub fn encode_painted(rgba: &[u8], w: u32, h: u32) -> AppResult<Vec<u8>> {
         work();
     });
     drop(strips);
-    Ok(out)
+    out
+}
+
+/// The next mip level of `w`×`h` RGBA8: each side halved (never below 1), each pixel the plain
+/// average of the 2×2 pixels under it (one of them repeated at an odd edge), alpha included.
+fn half(rgba: &[u8], w: usize, h: usize) -> (Vec<u8>, usize, usize) {
+    let (nw, nh) = ((w / 2).max(1), (h / 2).max(1));
+    let mut out = Vec::with_capacity(nw * nh * 4);
+    for y in 0..nh {
+        let (y0, y1) = ((2 * y).min(h - 1), (2 * y + 1).min(h - 1));
+        for x in 0..nw {
+            let (x0, x1) = ((2 * x).min(w - 1), (2 * x + 1).min(w - 1));
+            for c in 0..4 {
+                let at = |px: usize, py: usize| u32::from(rgba[4 * (py * w + px) + c]);
+                let sum = at(x0, y0) + at(x1, y0) + at(x0, y1) + at(x1, y1);
+                out.push(((sum + 2) / 4) as u8);
+            }
+        }
+    }
+    (out, nw, nh)
+}
+
+/// The DXT5 blocks of every level of a painted texture's mip chain (sizes from
+/// `dds::mip_sizes`), largest first; level 0 checked like [`encode_painted`]. Each level is
+/// box-filtered from the one before and encoded by [`encode_level`]'s rule for its own size.
+pub fn encode_mips(rgba: &[u8], w: u32, h: u32) -> AppResult<Vec<Vec<u8>>> {
+    let mut levels = vec![encode_painted(rgba, w, h)?];
+    let sizes = dds::mip_sizes(w, h);
+    let mut previous: Option<(Vec<u8>, usize, usize)> = None;
+    for _ in 1..sizes.len() {
+        let (img, lw, lh) = match &previous {
+            None => half(rgba, w as usize, h as usize),
+            Some((img, pw, ph)) => half(img, *pw, *ph),
+        };
+        levels.push(encode_level(&img, lw, lh));
+        previous = Some((img, lw, lh));
+    }
+    Ok(levels)
 }
 
 /// The file base of a slot: its name without the trailing `_c`.
@@ -194,11 +249,11 @@ pub fn texture(
     let pct = |half: usize| (usize::from(TEXTURES_PCT) * half / (2 * n)) as u8;
     job.last_pct = pct(2 * at);
     report(ApplyStep::Encode, job.last_pct);
-    let blocks = encode_painted(rgba, w, h)?;
+    let levels = encode_mips(rgba, w, h)?;
     job.last_pct = pct(2 * at + 1);
     report(ApplyStep::Write, job.last_pct);
-    let file = dds::write_dxt5(w, h, &blocks);
-    drop(blocks);
+    let file = dds::write_dxt5_mips(w, h, &levels);
+    drop(levels);
     fs::write(job.dir.join(format!("{}.dds", base_of(&slot))), file).map_err(failed)?;
     if !job.written.contains(&slot) {
         job.written.push(slot);
@@ -219,10 +274,18 @@ pub fn blk_text(slots: &[String]) -> String {
     text
 }
 
-/// Writes the `.blk` for the slots written (in the apply's order) and installs the skin
-/// (`keep_backup` and `backup_days` are Settings → Backups). The staging goes whatever happens.
+/// Name of the project's picture in the installed skin folder (the Hangar card shows a file whose
+/// name contains "preview" first, see `library::preview`).
+pub const PREVIEW_FILE: &str = "preview.png";
+
+/// Writes the `.blk` for the slots written (in the apply's order), the project's picture
+/// (`preview`, a PNG of at most `project::MAX_THUMB_BYTES`; others are left out) as
+/// [`PREVIEW_FILE`], and installs the skin (`keep_backup` and `backup_days` are
+/// Settings → Backups). The staging goes whatever happens.
+#[allow(clippy::too_many_arguments)]
 pub fn commit(
     job: ApplyJob,
+    preview: Option<&[u8]>,
     user_skins: &Path,
     store: &LibraryStore,
     target: Target,
@@ -236,6 +299,13 @@ pub fn commit(
             return Err(AppError::new(ErrorCode::InvalidInput, APPLY_NOTHING));
         }
         fs::write(job.dir.join(format!("{}.blk", job.vehicle)), blk_text(&slots)).map_err(failed)?;
+        match preview {
+            Some(png) if png.len() <= MAX_THUMB_BYTES && png.starts_with(&PNG_SIGNATURE) => {
+                fs::write(job.dir.join(PREVIEW_FILE), png).map_err(failed)?;
+            }
+            Some(png) => tracing::warn!(bytes = png.len(), "project picture left out of the skin"),
+            None => {}
+        }
         install_generated(user_skins, store, &job.dir, target, keep_backup, backup_days, now)
     })();
     cancel(job);

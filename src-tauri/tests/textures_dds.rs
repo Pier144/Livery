@@ -1,9 +1,9 @@
 //! The DDS files Atelier writes read back as DXT5 of the right size, and (ignored) how long DXT5
 //! encoding of a painted texture takes.
 
-use livery_lib::atelier::apply::encode_painted;
+use livery_lib::atelier::apply::{encode_mips, encode_painted};
 use livery_lib::textures::bc::{decode, encode_dxt5};
-use livery_lib::textures::dds::write_dxt5;
+use livery_lib::textures::dds::{mip_sizes, write_dxt5, write_dxt5_mips};
 use livery_lib::textures::header::parse_dds;
 use std::time::Instant;
 
@@ -73,6 +73,36 @@ fn dxt5_encode_timing() {
         let painted = encode_painted(&rgba, side as u32, side as u32).unwrap();
         let apply = start.elapsed();
         assert!(painted == if side <= 2048 { blocks } else { out }, "strips encode like the whole image");
-        println!("DXT5 {side}x{side}: ClusterFit {cluster:.2?}, RangeFit {range:.2?}, apply {apply:.2?}");
+        let start = Instant::now();
+        let levels = encode_mips(&rgba, side as u32, side as u32).unwrap();
+        let mips = start.elapsed();
+        assert_eq!(levels.len(), mip_sizes(side as u32, side as u32).len());
+        println!("DXT5 {side}x{side}: ClusterFit {cluster:.2?}, RangeFit {range:.2?}");
+        println!("DXT5 {side}x{side}: apply level 0 {apply:.2?}, apply with mipmaps {mips:.2?}");
     }
+}
+
+#[test]
+fn mip_chains_end_at_four_by_four() {
+    assert_eq!(mip_sizes(4, 4), [(4, 4)]);
+    assert_eq!(mip_sizes(16, 16), [(16, 16), (8, 8), (4, 4)]);
+    assert_eq!(mip_sizes(16, 4), [(16, 4), (8, 2), (4, 1)]);
+    assert_eq!(mip_sizes(4096, 4096).len(), 11);
+    assert_eq!(*mip_sizes(2048, 1024).last().unwrap(), (4, 2));
+}
+
+#[test]
+fn a_mipmapped_dds_lists_its_levels() {
+    let levels = [vec![1u8; 64], vec![2u8; 16]];
+    let file = write_dxt5_mips(8, 8, &levels);
+    assert_eq!(file.len(), 128 + 80);
+    let header = parse_dds(&file).unwrap();
+    assert_eq!((header.width, header.height, header.format.as_str()), (8, 8, "BC3"));
+    let le = |at: usize| u32::from_le_bytes(file[at..at + 4].try_into().unwrap());
+    assert_eq!(le(8), 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000, "with the mipmap count");
+    assert_eq!(le(20), 64, "linear size: level 0");
+    assert_eq!(le(28), 2, "mipmap count");
+    assert_eq!(le(108), 0x1000 | 0x8 | 0x40_0000, "caps: texture, complex, mipmap");
+    assert_eq!(&file[128..192], &[1u8; 64][..]);
+    assert_eq!(&file[192..], &[2u8; 16][..]);
 }

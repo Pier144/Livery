@@ -81,7 +81,16 @@ impl Env {
     }
 
     fn commit(&self, job: ApplyJob, target: Target) -> Result<livery_lib::archive::generated::Generated, AppError> {
-        apply::commit(job, &self.user_skins, &self.store, target, true, 30, SystemTime::now())
+        self.commit_with(job, None, target)
+    }
+
+    fn commit_with(
+        &self,
+        job: ApplyJob,
+        preview: Option<&[u8]>,
+        target: Target,
+    ) -> Result<livery_lib::archive::generated::Generated, AppError> {
+        apply::commit(job, preview, &self.user_skins, &self.store, target, true, 30, SystemTime::now())
     }
 }
 
@@ -138,7 +147,9 @@ fn begin_texture_texture_commit_installs_a_new_skin() {
     let body = fs::read(job.dir.join("m4a3e2_sherman_jumbo_body.dds")).unwrap();
     let header = parse_dds(&body).unwrap();
     assert_eq!((header.width, header.height, header.format.as_str()), (8, 8, "BC3"));
-    assert_eq!(body.len(), 128 + 4 * 16);
+    // 8×8 and its 4×4 mip.
+    assert_eq!(body.len(), 128 + 4 * 16 + 16);
+    assert_eq!(u32::from_le_bytes(body[28..32].try_into().unwrap()), 2, "mipmap count");
 
     let root = job.root.clone();
     let done = env.commit(job, Target::New(folder.clone())).unwrap();
@@ -425,4 +436,58 @@ fn the_job_remembers_the_installed_skin_and_the_last_pct() {
     paint(&mut job, TURRET, 4).unwrap();
     assert_eq!(job.last_pct, 67);
     apply::cancel(job);
+}
+
+#[test]
+fn painted_textures_carry_their_mipmaps() {
+    // A 16×8 texture: 16×8, 8×4, 4×2 (the first level with both sides at most 4).
+    let (w, h) = (16usize, 8usize);
+    let left_white: Vec<u8> =
+        (0..w * h).flat_map(|i| if i % w < w / 2 { [255u8; 4] } else { [0, 0, 0, 255] }).collect();
+    let levels = apply::encode_mips(&left_white, w as u32, h as u32).unwrap();
+    assert_eq!(levels.iter().map(Vec::len).collect::<Vec<_>>(), [8 * 16, 2 * 16, 16]);
+    assert_eq!(levels[0], encode_dxt5(&left_white, w, h).unwrap(), "level 0 as before");
+    // Each level is the box-filtered one before: still white on the left, black on the right.
+    let mip = decode(b"DXT5", &levels[1], 8, 4).unwrap();
+    assert_eq!(&mip[..4], &[255, 255, 255, 255]);
+    assert_eq!(&mip[4 * 7..4 * 8], &[0, 0, 0, 255]);
+
+    let env = Env::new("mips");
+    let project = env.project("Mips");
+    let (_, mut job) = env.begin(&project, &[BODY]);
+    let side = 64u32;
+    apply::texture(&mut job, BODY, side, side, &image(side, [90, 90, 90, 255]), &mut |_, _| {}).unwrap();
+    let file = fs::read(job.dir.join("m4a3e2_sherman_jumbo_body.dds")).unwrap();
+    // 64, 32, 16, 8, 4.
+    let blocks: usize = [16 * 16, 8 * 8, 4 * 4, 2 * 2, 1].iter().sum();
+    assert_eq!(file.len(), 128 + 16 * blocks);
+    let header = parse_dds(&file).unwrap();
+    assert_eq!((header.width, header.height, header.format.as_str()), (64, 64, "BC3"));
+    apply::cancel(job);
+}
+
+#[test]
+fn the_projects_picture_becomes_the_skins_preview() {
+    let env = Env::new("preview");
+    let project = env.project("Preview");
+    let png = [&[0x89u8, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A][..], &[1, 2, 3]].concat();
+    let (_, mut job) = env.begin(&project, &[BODY]);
+    paint(&mut job, BODY, 4).unwrap();
+    let with = env.commit_with(job, Some(&png), Target::New(folder_name(&project))).unwrap();
+    let dir = env.user_skins.join(&with.skin.folder);
+    assert_eq!(fs::read(dir.join(apply::PREVIEW_FILE)).unwrap(), png);
+    assert!(with.skin.attention.is_empty(), "{:?}", with.skin.attention);
+
+    let other = env.project("No picture");
+    let (_, mut job) = env.begin(&other, &[BODY]);
+    paint(&mut job, BODY, 4).unwrap();
+    let without = env.commit(job, Target::New(folder_name(&other))).unwrap();
+    assert!(!env.user_skins.join(&without.skin.folder).join(apply::PREVIEW_FILE).exists());
+
+    // Not a PNG: left out, the apply still goes through.
+    let third = env.project("Bad picture");
+    let (_, mut job) = env.begin(&third, &[BODY]);
+    paint(&mut job, BODY, 4).unwrap();
+    let bad = env.commit_with(job, Some(b"GIF89a"), Target::New(folder_name(&third))).unwrap();
+    assert!(!env.user_skins.join(&bad.skin.folder).join(apply::PREVIEW_FILE).exists());
 }

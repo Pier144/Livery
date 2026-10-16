@@ -46,7 +46,7 @@ const MAX_VEHICLE_CHARS: usize = 128;
 const MAX_SKIN_ID_CHARS: usize = 128;
 /// `project.json` files larger than this aren't read.
 const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
-const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+pub const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 const RENAME_ATTEMPTS: u32 = 5;
 
 /// A `_c` texture name safe to use as a file name and inside a `.blk` string: ASCII letters,

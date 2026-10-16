@@ -404,8 +404,19 @@ pub async fn atelier_apply_commit(app: AppHandle, apply_id: String) -> AppResult
         emit_progress(&app, progress(&apply_id, ApplyStep::Install, TEXTURES_PCT));
         let GameLibrary { settings, user_skins, store } = library;
         let now = SystemTime::now();
-        let generated = apply::commit(job, &user_skins, &store, target, settings.backups, settings.backup_days, now)
-            .map_err(|e| fail(e, TEXTURES_PCT))?;
+        // The project's picture becomes the skin's, for the Hangar card.
+        let preview = state.projects().thumb(&project_id).ok().filter(|png| !png.is_empty());
+        let generated = apply::commit(
+            job,
+            preview.as_deref(),
+            &user_skins,
+            &store,
+            target,
+            settings.backups,
+            settings.backup_days,
+            now,
+        )
+        .map_err(|e| fail(e, TEXTURES_PCT))?;
         if let Err(e) = state.projects().set_installed_skin(&project_id, &generated.skin.id, now) {
             tracing::warn!(error = %e, "the project doesn't record its installed skin");
         }
