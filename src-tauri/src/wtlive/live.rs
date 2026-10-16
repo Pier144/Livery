@@ -14,6 +14,13 @@
 //! (`totalExact` only once the end is reached). Name order sorts each page by name, since WT
 //! Live can't sort by name.
 //!
+//! # For you
+//! [`WtLiveClient::vehicle_top`] reads the first downloads page of one vehicle's feed.
+//! [`WtLiveClient::for_you_new`] packs the lineup vehicles' hashtags into requests of at most
+//! [`MAX_TAGS_PER_REQUEST`] ([`pack_tag_chunks`]: a vehicle is never split), reads the first
+//! newest page of each, at most [`MAX_FOR_YOU_REQUESTS`] of them, and matches each post to the
+//! first vehicle of its chunk it is for. Counts are a lower bound, as with Following.
+//!
 //! # Freshness
 //! Listings are cached for [`LISTING_TTL`], posts for [`POST_TTL`], author look-ups and
 //! archives for a day ([`cache::MAX_AGE`]). Nothing is fetched unless a command asks.
@@ -27,8 +34,8 @@ use crate::archive::source::{sniff, ArchiveKind};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::time;
 use crate::model::{
-    Category, FollowEntry, FollowKind, ForYouNew, Nation, SearchParams, SearchResult, SortOrder, VehicleType,
-    WtLiveSkin,
+    Category, FollowEntry, FollowKind, ForYouNew, ForYouSkin, Nation, SearchParams, SearchResult, SortOrder,
+    VehicleType, WtLiveSkin,
 };
 use std::collections::{HashMap, HashSet};
 use std::io::BufWriter;
@@ -55,6 +62,12 @@ pub const MAX_SEARCH_FEED_PAGES: u32 = 40;
 pub const PAGES_IN_ORDER: &str = "Ask for the pages of a search in order";
 /// Followed entries checked per `following_new` (one request each, at most one a second).
 pub const MAX_FOLLOWS_CHECKED: usize = 30;
+/// Hashtags per `for_you_new` request (one `searchString`).
+pub const MAX_TAGS_PER_REQUEST: usize = 40;
+/// Requests per `for_you_new` call (one a second).
+pub const MAX_FOR_YOU_REQUESTS: usize = 10;
+/// Skins `vehicle_top` returns.
+pub const VEHICLE_TOP: usize = 3;
 /// Largest archive Livery downloads.
 pub const MAX_ARCHIVE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
@@ -457,6 +470,41 @@ impl LiveClient {
     }
 }
 
+/// Groups consecutive vehicles (index, tags) into chunks of at most `max` tags without splitting
+/// a vehicle; a vehicle with more than `max` tags gets a chunk of its own, cut to `max`. A tag
+/// two vehicles share is sent once. A vehicle without tags (a blank code) opens no chunk: it
+/// rides along with the chunk of the vehicle before it (the first chunk, for those in front),
+/// so the chunks' members cover the list from its start. No vehicle with tags: no chunk.
+pub fn pack_tag_chunks(tags: &[Vec<String>], max: usize) -> Vec<(Vec<usize>, Vec<String>)> {
+    let mut chunks: Vec<(Vec<usize>, Vec<String>)> = Vec::new();
+    // Blanks in front of the first vehicle with tags, held until its chunk opens.
+    let mut leading: Vec<usize> = Vec::new();
+    for (i, own) in tags.iter().enumerate() {
+        if own.is_empty() {
+            match chunks.last_mut() {
+                Some((members, _)) => members.push(i),
+                None => leading.push(i),
+            }
+            continue;
+        }
+        let fits = chunks.last().is_some_and(|(_, t)| t.len() + own.len() <= max);
+        if !fits {
+            chunks.push((std::mem::take(&mut leading), Vec::new()));
+        }
+        let (members, all) = chunks.last_mut().expect("pushed above");
+        members.push(i);
+        for tag in own {
+            if all.len() >= max {
+                break;
+            }
+            if !all.contains(tag) {
+                all.push(tag.clone());
+            }
+        }
+    }
+    chunks
+}
+
 /// Entries in a feed answer's `data.list` (installable or not).
 fn raw_list_len(bytes: &[u8]) -> usize {
     serde_json::from_slice::<serde_json::Value>(bytes)
@@ -541,12 +589,64 @@ impl WtLiveClient for LiveClient {
         Ok(found.into_iter().map(|p| WtLiveSkin { is_new: Some(true), ..p.skin }).collect())
     }
 
-    fn vehicle_top(&self, _code: &str) -> AppResult<Vec<WtLiveSkin>> {
-        todo!("For you: Task 7")
+    fn vehicle_top(&self, code: &str) -> AppResult<Vec<WtLiveSkin>> {
+        self.check_enabled()?;
+        let code = code.trim();
+        if code.is_empty() {
+            return Ok(Vec::new());
+        }
+        let feed = Feed::Regular { sort: "downloads", tags: api::vehicle_tags(code) };
+        let (posts, _) = self.feed_page(&feed, 0)?;
+        Ok(posts
+            .into_iter()
+            .filter(|p| api::is_for_vehicle(p, code) && !self.hidden.contains(&p.skin.id))
+            .take(VEHICLE_TOP)
+            .map(|p| p.skin)
+            .collect())
     }
 
-    fn for_you_new(&self, _vehicles: &[String], _since: i64) -> AppResult<ForYouNew> {
-        todo!("For you: Task 7")
+    fn for_you_new(&self, vehicles: &[String], since: i64) -> AppResult<ForYouNew> {
+        self.check_enabled()?;
+        let tags: Vec<Vec<String>> =
+            vehicles.iter().map(|v| if v.trim().is_empty() { Vec::new() } else { api::vehicle_tags(v) }).collect();
+        let chunks = pack_tag_chunks(&tags, MAX_TAGS_PER_REQUEST);
+        if chunks.is_empty() {
+            // Nothing that can match anything (an empty list, or blanks only): nothing to ask.
+            return Ok(ForYouNew { items: Vec::new(), checked: count_u32(vehicles.len()) });
+        }
+        let mut found: Vec<(i64, ForYouSkin)> = Vec::new();
+        let mut checked = 0usize;
+        for (n, (members, chunk_tags)) in chunks.into_iter().enumerate() {
+            if n == MAX_FOR_YOU_REQUESTS {
+                break;
+            }
+            let feed = Feed::Regular { sort: "created", tags: chunk_tags };
+            let posts = match self.feed_page(&feed, 0) {
+                Ok((posts, _)) => posts,
+                Err(e) if n == 0 => return Err(e),
+                Err(e) => {
+                    tracing::debug!(code = ?e.code, "For you: a later request failed, keeping what was found");
+                    break;
+                }
+            };
+            for post in posts {
+                if post.created <= since
+                    || self.hidden.contains(&post.skin.id)
+                    || found.iter().any(|(_, f)| f.skin.id == post.skin.id)
+                {
+                    continue;
+                }
+                let matched =
+                    members.iter().find(|&&i| !tags[i].is_empty() && api::is_for_vehicle(&post, &vehicles[i]));
+                if let Some(&i) = matched {
+                    let skin = WtLiveSkin { is_new: Some(true), ..post.skin };
+                    found.push((post.created, ForYouSkin { vehicle: vehicles[i].trim().to_owned(), skin }));
+                }
+            }
+            checked += members.len();
+        }
+        found.sort_by_key(|(created, _)| std::cmp::Reverse(*created));
+        Ok(ForYouNew { items: found.into_iter().map(|(_, s)| s).collect(), checked: count_u32(checked) })
     }
 
     fn archive(&self, id: &str, progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf> {
@@ -598,6 +698,10 @@ impl WtLiveClient for LiveClient {
         tracing::info!(post = %id, "WT Live archive downloaded");
         Ok(path)
     }
+}
+
+fn count_u32(n: usize) -> u32 {
+    u32::try_from(n).unwrap_or(u32::MAX)
 }
 
 fn elapsed_ms(started: Instant) -> u64 {

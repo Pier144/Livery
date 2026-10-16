@@ -1,14 +1,16 @@
 //! The real WT Live client over a fake transport: how searches map onto WT Live's feed, paging,
-//! the filters Livery applies itself, the cache, hidden posts, authors, Following, posts and
-//! downloads.
+//! the filters Livery applies itself, the cache, hidden posts, authors, Following, For you, posts
+//! and downloads.
 
 use livery_lib::error::{AppError, AppResult, ErrorCode};
 use livery_lib::model::{Category, FollowEntry, FollowKind, Nation, SearchParams, VehicleType};
+use livery_lib::wtlive::api;
 use livery_lib::wtlive::cache::DiskCache;
 use livery_lib::wtlive::hidden::HiddenStore;
 use livery_lib::wtlive::live::{
-    Feed, LiveClient, FEED_PATH, MAX_DRY_PAGES, MAX_SEARCH_FEED_PAGES, PAGES_IN_ORDER, POST_GONE, POST_NOT_AN_ARCHIVE,
-    POST_PATH, USERS_PATH, USER_FEED_PATH,
+    pack_tag_chunks, Feed, LiveClient, FEED_PATH, MAX_DRY_PAGES, MAX_FOR_YOU_REQUESTS, MAX_SEARCH_FEED_PAGES,
+    MAX_TAGS_PER_REQUEST, PAGES_IN_ORDER, POST_GONE, POST_NOT_AN_ARCHIVE, POST_PATH, USERS_PATH, USER_FEED_PATH,
+    VEHICLE_TOP,
 };
 use livery_lib::wtlive::net::Transport;
 use livery_lib::wtlive::{DownloadProgress, WtLiveClient, TURNED_OFF_MESSAGE};
@@ -485,6 +487,170 @@ fn following_new_lists_newer_posts_newest_first() {
     assert_eq!(env.transport.requests().len(), before, "nothing followed: nothing asked");
 }
 
+// ── For you ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn vehicle_top_keeps_three_for_the_vehicle() {
+    let transport = FakeTransport::new(|path, _| {
+        assert_eq!(path, FEED_PATH);
+        Ok(feed_json(&[
+            fake(1, (7, "S"), &["t_34_85"], 6),
+            fake(2, (7, "S"), &["tiger"], 5),
+            fake(3, (7, "S"), &["t_34_85"], 4),
+            fake(4, (7, "S"), &["t_34_85"], 3),
+            fake(5, (7, "S"), &["t_34_85"], 2),
+            fake(6, (7, "S"), &["t_34_85"], 1),
+        ]))
+    });
+    let env = Env::new("top", transport);
+    let top = env.client.vehicle_top("ussr_t_34_85").unwrap();
+    assert_eq!(top.len(), VEHICLE_TOP);
+    assert_eq!(top.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), ["1", "3", "4"]);
+    assert!(top.iter().all(|s| s.vehicle.code == "ussr_t_34_85"));
+    let log = env.transport.requests();
+    assert_eq!(log.len(), 1);
+    assert!(log[0].contains("sort=downloads"), "{}", log[0]);
+    assert!(log[0].contains("page=0"), "{}", log[0]);
+    assert!(log[0].contains("searchString=#ussr_t_34_85 #t_34_85"), "{}", log[0]);
+
+    env.hidden.set("3", true).unwrap();
+    let top = env.client.vehicle_top(" ussr_t_34_85 ").unwrap();
+    assert_eq!(top.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), ["1", "4", "5"], "the next one fills in");
+    assert_eq!(env.transport.requests().len(), 1, "the feed page is cached");
+
+    assert!(env.client.vehicle_top("  ").unwrap().is_empty());
+    assert_eq!(env.transport.requests().len(), 1, "a blank code asks nothing");
+}
+
+fn tags(prefix: &str, n: usize) -> Vec<String> {
+    (0..n).map(|i| format!("{prefix}{i}")).collect()
+}
+
+fn members(chunks: &[(Vec<usize>, Vec<String>)]) -> Vec<Vec<usize>> {
+    chunks.iter().map(|(m, _)| m.clone()).collect()
+}
+
+#[test]
+fn pack_tag_chunks_never_splits_a_vehicle() {
+    let chunks = pack_tag_chunks(&[tags("a", 30), tags("b", 15), tags("c", 5)], 40);
+    assert_eq!(members(&chunks), [vec![0], vec![1, 2]]);
+    assert_eq!(chunks[0].1, tags("a", 30));
+    assert_eq!(chunks[1].1, [tags("b", 15), tags("c", 5)].concat());
+
+    // Too many tags for one request: a chunk of its own, cut to the limit.
+    let chunks = pack_tag_chunks(&[tags("a", 10), tags("big", 45), tags("c", 5)], 40);
+    assert_eq!(members(&chunks), [vec![0], vec![1], vec![2]]);
+    assert_eq!(chunks[1].1, tags("big", 40));
+
+    // Tags two vehicles share are sent once.
+    let chunks = pack_tag_chunks(&[vec!["x".into(), "y".into()], vec!["y".into(), "z".into()]], 40);
+    assert_eq!(chunks, [(vec![0, 1], vec!["x".to_owned(), "y".into(), "z".into()])]);
+}
+
+#[test]
+fn pack_tag_chunks_keeps_blanks_with_a_chunk() {
+    // A vehicle without tags opens no chunk and rides along with one, leading ones included.
+    let chunks = pack_tag_chunks(&[vec![], tags("a", 30), vec![], tags("b", 15), vec![]], 40);
+    assert_eq!(members(&chunks), [vec![0, 1, 2], vec![3, 4]]);
+    assert!(pack_tag_chunks(&[vec![], vec![]], 40).is_empty());
+    assert!(pack_tag_chunks(&[], 40).is_empty());
+}
+
+#[test]
+fn for_you_new_matches_each_post_to_a_vehicle() {
+    let transport = FakeTransport::new(|path, form| {
+        assert_eq!(path, FEED_PATH);
+        assert_eq!(form["sort"], "created");
+        assert_eq!(form["page"], "0");
+        assert!(form["searchString"].contains("#t_34_85"), "{}", form["searchString"]);
+        assert!(form["searchString"].contains("#zz_alpha"), "{}", form["searchString"]);
+        Ok(feed_json(&[
+            fake(1, (7, "S"), &["zz_alpha"], 3_000),
+            fake(2, (7, "S"), &["t_34_85"], 2_500),
+            fake(3, (7, "S"), &["t_34_85"], 2_000),
+            fake(1, (7, "S"), &["zz_alpha"], 3_000),
+            fake(4, (7, "S"), &["zz_alpha"], 1_500),
+            fake(5, (7, "S"), &["t_34_85"], 900),
+            fake(6, (7, "S"), &["camo"], 2_800),
+        ]))
+    });
+    let env = Env::new("for-you", transport);
+    env.hidden.set("3", true).unwrap();
+    let vehicles = vec!["ussr_t_34_85".to_owned(), "zz_alpha".to_owned()];
+    let new = env.client.for_you_new(&vehicles, 1_000).unwrap();
+    let found: Vec<(&str, &str)> = new.items.iter().map(|f| (f.vehicle.as_str(), f.skin.id.as_str())).collect();
+    // 3 is hidden, 5 is older than `since`, 6 is for neither vehicle, 1 comes once.
+    assert_eq!(found, [("zz_alpha", "1"), ("ussr_t_34_85", "2"), ("zz_alpha", "4")], "newest first, once each");
+    assert!(new.items.iter().all(|f| f.skin.is_new == Some(true)));
+    assert_eq!(new.checked, 2);
+    assert_eq!(env.transport.requests().len(), 1, "both vehicles in one request");
+}
+
+#[test]
+fn for_you_new_caps_requests() {
+    let env = Env::new("for-you-cap", FakeTransport::new(|_, _| Ok(feed_json(&[]))));
+    let vehicles: Vec<String> = (0..150).map(|n| format!("ussr_zz_a{n}")).collect();
+    for v in &vehicles {
+        assert_eq!(api::vehicle_tags(v).len(), 4, "{v}: {:?}", api::vehicle_tags(v));
+    }
+    let new = env.client.for_you_new(&vehicles, 0).unwrap();
+    assert_eq!(env.transport.requests().len(), MAX_FOR_YOU_REQUESTS);
+    assert_eq!(new.checked as usize, MAX_FOR_YOU_REQUESTS * (MAX_TAGS_PER_REQUEST / 4));
+    assert!((new.checked as usize) < vehicles.len());
+    assert!(env.transport.requests().iter().all(|r| r.contains("searchString=#")));
+}
+
+#[test]
+fn for_you_new_never_asks_the_global_feed_for_blanks() {
+    let transport = FakeTransport::new(|_, form| {
+        assert!(form.contains_key("searchString"), "never the global feed");
+        Ok(feed_json(&[fake(1, (7, "S"), &["t_34_85"], 2_000)]))
+    });
+    let env = Env::new("for-you-blank", transport);
+    let vehicles: Vec<String> = ["", "ussr_t_34_85", "  "].iter().map(|v| (*v).to_owned()).collect();
+    let new = env.client.for_you_new(&vehicles, 1_000).unwrap();
+    assert_eq!(new.checked, 3, "blanks count with the chunk they ride along with");
+    assert_eq!(new.items.iter().map(|f| f.vehicle.as_str()).collect::<Vec<_>>(), ["ussr_t_34_85"]);
+    assert_eq!(env.transport.requests().len(), 1);
+
+    let only_blanks = env.client.for_you_new(&[" ".to_owned(), String::new()], 1_000).unwrap();
+    assert!(only_blanks.items.is_empty());
+    assert_eq!(only_blanks.checked, 2, "nothing to check is all checked");
+    assert_eq!(env.transport.requests().len(), 1, "nothing asked");
+}
+
+#[test]
+fn for_you_new_keeps_what_it_has_when_a_later_chunk_fails() {
+    // The chunk holding the T-34-85 answers; any other chunk fails.
+    let transport = FakeTransport::new(|_, form| {
+        if form["searchString"].contains("#ussr_t_34_85") {
+            Ok(feed_json(&[fake(1, (7, "S"), &["t_34_85"], 2_000)]))
+        } else {
+            Err(AppError::new(ErrorCode::Network, "WT Live can't be reached"))
+        }
+    });
+    let env = Env::new("for-you-fail", transport);
+    let failing: Vec<String> = (0..20).map(|n| format!("ussr_zz_b{n}")).collect();
+    let vehicles = [vec!["ussr_t_34_85".to_owned()], failing.clone()].concat();
+    let new = env.client.for_you_new(&vehicles, 1_000).unwrap();
+    assert_eq!(new.items.iter().map(|f| f.skin.id.as_str()).collect::<Vec<_>>(), ["1"]);
+    let first_chunk = 1 + (MAX_TAGS_PER_REQUEST - api::vehicle_tags("ussr_t_34_85").len()) / 4;
+    assert_eq!(new.checked as usize, first_chunk, "stops before the chunk that failed");
+    assert_eq!(env.transport.requests().len(), 2, "no request after the failure");
+
+    let e = env.client.for_you_new(&failing, 1_000).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Network, "the first request failing is the call's error");
+}
+
+#[test]
+fn for_you_new_of_nothing_asks_nothing() {
+    let env = Env::new("for-you-none", catalogue(1, |_| vec![]));
+    let new = env.client.for_you_new(&[], 0).unwrap();
+    assert!(new.items.is_empty());
+    assert_eq!(new.checked, 0);
+    assert!(env.transport.requests().is_empty());
+}
+
 // ── Browsing off ────────────────────────────────────────────────────────────
 
 #[test]
@@ -496,6 +662,9 @@ fn browsing_off_sends_nothing() {
         env.client.search(&params(serde_json::json!({}))).map(|_| ()).unwrap_err(),
         env.client.post("1").map(|_| ()).unwrap_err(),
         env.client.following_new(&[]).map(|_| ()).unwrap_err(),
+        env.client.vehicle_top("ussr_t_34_85").map(|_| ()).unwrap_err(),
+        env.client.for_you_new(&["ussr_t_34_85".to_owned()], 0).map(|_| ()).unwrap_err(),
+        env.client.for_you_new(&[], 0).map(|_| ()).unwrap_err(),
         env.client.archive("1", &mut |_| {}).map(|_| ()).unwrap_err(),
     ] {
         assert_eq!((e.code, e.message.as_str()), (ErrorCode::Unsupported, TURNED_OFF_MESSAGE));
