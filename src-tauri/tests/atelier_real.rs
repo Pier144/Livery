@@ -1,17 +1,33 @@
 //! Atelier against the real War Thunder install (ignored: reads the machine's game files,
 //! read-only, nothing is written there).
 //! `cargo test --test atelier_real -- --ignored --nocapture`. The game root comes from
-//! `LIVERY_REAL_GAME`, else the default Steam path.
+//! `LIVERY_REAL_GAME`, else the default Steam path. Oodle streams are decoded by the worker
+//! process, which is the `livery` executable of this test build unless `LIVERY_WORKER_EXE`
+//! names another one (for example `target/release/livery.exe`).
 
 use livery_lib::game::gameres::bytes::Reader;
-use livery_lib::game::gameres::codec::{oodle, read_block, MAX_VERTEX_DATA};
+use livery_lib::game::gameres::codec::{
+    check_kraken_family, decode_in_process, oodle, read_block, set_worker_exe, OodleWorker, MAX_VERTEX_DATA,
+};
 use livery_lib::game::gameres::grp::{Grp, DYN_MODEL};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 fn game_root() -> PathBuf {
     std::env::var_os("LIVERY_REAL_GAME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(r"D:\SteamLibrary\steamapps\common\War Thunder"))
+}
+
+fn worker_exe() -> PathBuf {
+    std::env::var_os("LIVERY_WORKER_EXE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_livery")))
+}
+
+fn worker() -> OodleWorker {
+    set_worker_exe(worker_exe());
+    OodleWorker::new(worker_exe())
 }
 
 /// The Jumbo's DynModel resource bytes.
@@ -51,66 +67,232 @@ fn jumbo_vertex_stream() -> (Vec<u8>, Vec<u8>, usize) {
 
 #[test]
 #[ignore = "reads the real War Thunder install"]
-fn oodle_decodes_the_jumbo_vertex_block() {
+fn the_worker_decodes_the_jumbo_vertex_block() {
     let (model, stream, raw_len) = jumbo_vertex_stream();
     assert_eq!(raw_len, 3_820_392);
-    let started = std::time::Instant::now();
-    let direct = oodle(&stream, raw_len, MAX_VERTEX_DATA).unwrap();
-    println!("vertex block: {} -> {} bytes in {} ms", stream.len(), direct.len(), started.elapsed().as_millis());
+    let mut w = worker();
+    let started = Instant::now();
+    let direct = w.decode(&stream, raw_len).unwrap();
+    println!(
+        "vertex block: {} -> {} bytes in {} ms (worker start included)",
+        stream.len(),
+        direct.len(),
+        started.elapsed().as_millis()
+    );
     assert_eq!(direct.len(), 3_820_392);
+    // The same bytes in-process (valid streams don't panic), and through `read_block` + the shared worker.
+    assert_eq!(decode_in_process(&stream, raw_len, MAX_VERTEX_DATA).unwrap(), direct);
     assert_eq!(read_block(&mut Reader::new(&model[20..]), MAX_VERTEX_DATA).unwrap(), direct);
 }
 
-/// Damaged copies of a real stream: 1 to 6 byte flips (half of them in the first 300 bytes, where
-/// the headers are). `whole_first_block` keeps the first 256 KiB block complete so the damage
-/// gets past the header walk into the decoder; otherwise the copy is cut short (4096 to 40000
-/// bytes), which the header walk refuses. Each copy must be Ok or Err, never a panic (release
-/// builds abort on an escaped one). Returns (decoded, rejected).
-fn mutate(rounds: usize, whole_first_block: bool) -> (usize, usize) {
+/// Statistics of a run of damaged copies.
+#[derive(Debug, Default)]
+struct Tally {
+    decoded: usize,
+    /// The header walk said no (and the worker repeated its message).
+    refused: usize,
+    /// Past the walk, the decoder returned an error.
+    rejected_by_decoder: usize,
+    /// Past the walk, the decoder asserted and the worker died; the caller got "oodle stream damaged".
+    crashed: usize,
+    /// Past the walk, the decoder looped (release builds wrap arithmetic where debug builds panic)
+    /// until the deadline killed the worker.
+    timed_out: usize,
+}
+
+/// Which part of a real stream the damage goes to.
+#[derive(Clone, Copy, PartialEq)]
+enum Mode {
+    /// Copies cut to 4096..40000 bytes with flips after the first 5 bytes: the first quantum
+    /// always runs past the end, so the header walk refuses every one.
+    Cut,
+    /// The whole first 256 KiB block with flips in its first 5 bytes (block and quantum header).
+    Headers,
+    /// The whole first block with flips anywhere (half of them in the first 300 bytes).
+    Block,
+}
+
+/// Damaged copies of a real stream, all through ONE worker handle (which starts a new worker
+/// after each crash). Whenever the header walk refuses a copy, the error must be the walk's own;
+/// whatever it lets through may decode, be refused by the decoder, or kill the worker, and the
+/// last is reported as "oodle stream damaged" and nothing else.
+fn mutate(w: &mut OodleWorker, rounds: usize, mode: Mode) -> Tally {
     let (_, stream, raw_len) = jumbo_vertex_stream();
     let quantum = u32::from_be_bytes([0, stream[2], stream[3], stream[4]]) & 0x3FFFF;
     let first_block = 5 + quantum as usize + 1;
     let mut rng = Rng(0x1234_5678_9ABC);
-    let (mut ok, mut err) = (0, 0);
+    let mut tally = Tally::default();
     for _ in 0..rounds {
-        let take = if whole_first_block { first_block } else { 4096 + rng.next() as usize % 36_000 };
+        let take = if mode == Mode::Cut { 4096 + rng.next() as usize % 36_000 } else { first_block };
         let mut copy = stream[..take].to_vec();
         for _ in 0..1 + rng.next() % 6 {
-            let span = if rng.next() % 2 == 0 { copy.len().min(300) } else { copy.len() };
-            let at = rng.next() as usize % span;
+            let at = match mode {
+                Mode::Cut => 5 + rng.next() as usize % (take - 5),
+                Mode::Headers => rng.next() as usize % 5,
+                Mode::Block => rng.next() as usize % if rng.next() % 2 == 0 { 300 } else { take },
+            };
             copy[at] ^= rng.next() as u8 | 1;
         }
-        let len = match (whole_first_block, rng.next() % 4) {
-            (true, 0 | 1) => 0x40000,
-            (true, _) => 1 + rng.next() as usize % 0x40000,
-            (false, 0) => raw_len,
-            (false, 1) => 1 + rng.next() as usize % 200_000,
-            (false, 2) => take * 4,
-            (false, _) => 3_820_392,
+        let len = match (mode == Mode::Cut, rng.next() % 4) {
+            (false, 0 | 1) => 0x40000,
+            (false, _) => 1 + rng.next() as usize % 0x40000,
+            (true, 0) => raw_len,
+            (true, 1) => 1 + rng.next() as usize % 200_000,
+            (true, 2) => take * 4,
+            (true, _) => 3_820_392,
         };
-        match oodle(&copy, len, MAX_VERTEX_DATA) {
-            Ok(_) => ok += 1,
-            Err(_) => err += 1,
+        let walk = check_kraken_family(&copy, len);
+        if mode == Mode::Cut {
+            assert!(walk.is_err(), "a cut copy of {take} bytes should fail the header walk");
+        }
+        match w.decode(&copy, len) {
+            Ok(_) => {
+                assert!(walk.is_ok());
+                tally.decoded += 1;
+            }
+            Err(e) => {
+                let detail = e.detail.unwrap_or_default();
+                match walk {
+                    Err(refused) => {
+                        assert_eq!(
+                            Some(detail.as_str()),
+                            refused.detail.as_deref(),
+                            "the worker repeats the walk's error"
+                        );
+                        tally.refused += 1;
+                    }
+                    Ok(()) if detail == "oodle stream damaged" => tally.crashed += 1,
+                    Ok(()) if detail == "oodle stream timed out" => tally.timed_out += 1,
+                    Ok(()) => {
+                        assert!(
+                            detail.starts_with("oodle: ") || detail.starts_with("Oodle stream unpacked"),
+                            "unexpected error: {detail}"
+                        );
+                        tally.rejected_by_decoder += 1;
+                    }
+                }
+            }
         }
     }
-    (ok, err)
+    tally
 }
 
 /// What the reviewer's fuzzer did to `oozextract` 0.5.5 (59 panics in BitKnit and LZNA): the
-/// header walk refuses those decoders, and anything cut short.
+/// header walk refuses anything cut short, so no copy reaches the decoder.
 #[test]
 #[ignore = "reads the real War Thunder install"]
-fn damaged_headers_and_cut_streams_never_panic() {
-    let (ok, err) = mutate(20_000, false);
-    println!("cut copies: {ok} decoded, {err} rejected");
+fn cut_streams_are_refused_by_the_header_walk() {
+    let mut w = worker();
+    let tally = mutate(&mut w, 20_000, Mode::Cut);
+    println!("cut copies: {tally:?}");
+    assert_eq!(tally.refused, 20_000);
 }
 
-/// Damage inside a complete block reaches the Kraken/Leviathan decoders of `oozextract` 0.5.5,
-/// which `assert!` on bad data (about one block in eight). `oodle` catches that (the release
-/// profile unwinds), so every copy comes back Ok or Err and none escapes as a panic.
+/// Damage to the block and quantum headers: some of it still passes the walk (a smaller quantum
+/// size, say) and then the decoder judges it.
 #[test]
 #[ignore = "reads the real War Thunder install"]
-fn damaged_blocks_never_panic_in_the_decoder() {
-    let (ok, err) = mutate(20_000, true);
-    println!("damaged blocks: {ok} decoded, {err} rejected");
+fn damaged_headers_are_refused_or_judged_by_the_decoder() {
+    let mut w = worker();
+    let tally = mutate(&mut w, 5_000, Mode::Headers);
+    println!("damaged headers: {tally:?}");
+    assert_eq!(tally.decoded + tally.refused + tally.rejected_by_decoder + tally.crashed + tally.timed_out, 5_000);
+    assert!(tally.refused > 0);
+}
+
+/// Damage inside a complete block reaches the Kraken/Leviathan decoders of `oozextract` 0.5.5.
+/// They `assert!` on bad data (about one block in eight), which ends the worker process, and in
+/// release builds (arithmetic wraps instead of panicking) some copies loop until the deadline
+/// kills the worker. The handle starts a new worker after each crash or timeout, and the test
+/// process never notices anything but the "damaged" and "timed out" errors. 2,000 rounds (not
+/// 20,000): every crash costs a process start and every hang the 2 s deadline set here.
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn damaged_blocks_crash_the_worker_never_the_caller() {
+    let (_, stream, _) = jumbo_vertex_stream();
+    let mut w = worker();
+    w.set_timeout(Duration::from_secs(2));
+    let started = Instant::now();
+    let tally = mutate(&mut w, 2_000, Mode::Block);
+    println!("damaged blocks: {tally:?} in {} s", started.elapsed().as_secs());
+    assert_eq!(tally.decoded + tally.refused + tally.rejected_by_decoder + tally.crashed + tally.timed_out, 2_000);
+    assert!(tally.crashed > 50, "about one block in eight should kill the worker: {tally:?}");
+    assert!(tally.decoded > 0 && tally.rejected_by_decoder + tally.refused > 0);
+    w.set_timeout(Duration::from_secs(10));
+    // After all those crashes the handle still decodes the real thing.
+    let quantum = u32::from_be_bytes([0, stream[2], stream[3], stream[4]]) & 0x3FFFF;
+    let first_block = &stream[..5 + quantum as usize + 1];
+    let good = w.decode(first_block, 0x40000).unwrap();
+    assert_eq!(good, decode_in_process(first_block, 0x40000, MAX_VERTEX_DATA).unwrap());
+}
+
+/// Finds the Jumbo HQ texture streams (body 2048x2048, turret 2048x1024, gun 1024x512 are the
+/// three largest `_c` entries of that pack) without the DxP2 reader: tries every Oodle block
+/// start after the pack's directory with the unpacked sizes those textures have.
+fn jumbo_texture_streams() -> Vec<(usize, Vec<u8>)> {
+    let path = game_root().join("content.hq/hq_tex/res/hq_tex_tanks/usa_m4a3e2_sherman_jumbo.dxp.bin");
+    let file = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let dump = u32::from_le_bytes(file[12..16].try_into().unwrap()) as usize;
+    let mut w = worker();
+    let mut found: Vec<(usize, Vec<u8>)> = Vec::new();
+    let wanted = [4_194_316usize, 4_194_304, 2_097_164, 2_097_152, 524_300, 524_288];
+    let mut at = 16 + dump;
+    while at + 2 < file.len() && found.len() < 3 {
+        if file[at] == 0x8C && file[at + 1] == 0x0C {
+            for raw in wanted {
+                if found.iter().any(|(r, _)| r.abs_diff(raw) < 16) {
+                    continue;
+                }
+                if w.decode(&file[at..], raw).is_ok() {
+                    found.push((raw, file[at..].to_vec()));
+                    break;
+                }
+            }
+            at += 1000;
+        } else {
+            at += 1;
+        }
+    }
+    found
+}
+
+/// The four Jumbo streams (vertex block and three textures), one worker against in-process.
+#[test]
+#[ignore = "reads the real War Thunder install; timing"]
+fn worker_against_in_process_on_the_jumbo_streams() {
+    let (_, vertex, vertex_raw) = jumbo_vertex_stream();
+    let mut streams = vec![(vertex_raw, vertex)];
+    streams.extend(jumbo_texture_streams());
+    println!("{} streams: raw sizes {:?}", streams.len(), streams.iter().map(|(r, _)| *r).collect::<Vec<_>>());
+
+    let started = Instant::now();
+    let mut in_process = Vec::new();
+    for (raw, src) in &streams {
+        let t = Instant::now();
+        let out = decode_in_process(src, *raw, MAX_VERTEX_DATA).unwrap();
+        println!("  in-process {raw:>8}: {:>4} ms", t.elapsed().as_millis());
+        in_process.push(out);
+    }
+    println!("in-process total: {} ms", started.elapsed().as_millis());
+
+    let mut w = worker();
+    let started = Instant::now();
+    for (i, (raw, src)) in streams.iter().enumerate() {
+        let t = Instant::now();
+        let out = w.decode(src, *raw).unwrap();
+        println!(
+            "  worker     {raw:>8}: {:>4} ms{}",
+            t.elapsed().as_millis(),
+            if i == 0 { " (includes the worker's start)" } else { "" }
+        );
+        assert_eq!(out, in_process[i]);
+    }
+    println!("worker total (one handle): {} ms", started.elapsed().as_millis());
+
+    // Through the process-wide convenience too.
+    let started = Instant::now();
+    for (raw, src) in &streams {
+        oodle(src, *raw, MAX_VERTEX_DATA).unwrap();
+    }
+    println!("oodle() total (shared worker, already warm after the first): {} ms", started.elapsed().as_millis());
 }

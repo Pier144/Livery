@@ -1,10 +1,18 @@
 //! The pack block codec: zstd and raw blocks round trip, damaged or oversized input is a parse
 //! error. Oodle has no open encoder (and Livery never loads game code), so its correctness is
 //! checked against the real install by `atelier_real.rs`; here it only has to fail cleanly.
+//! Oodle streams are decoded by the worker process (`gameres_worker.rs` covers the process
+//! handling); `oodle` below is the process-wide worker started from the `livery` executable.
 
-use livery_lib::error::ErrorCode;
+use livery_lib::error::{AppResult, ErrorCode};
 use livery_lib::game::gameres::bytes::Reader;
-use livery_lib::game::gameres::codec::{check_kraken_family, oodle, read_block, zstd, MAX_TEXTURE_LEVEL};
+use livery_lib::game::gameres::codec::{self, check_kraken_family, read_block, zstd, MAX_TEXTURE_LEVEL};
+
+/// `codec::oodle` with the Livery executable as the worker (the test binary can't be one).
+fn oodle(src: &[u8], raw_len: usize, max: usize) -> AppResult<Vec<u8>> {
+    codec::set_worker_exe(env!("CARGO_BIN_EXE_livery"));
+    codec::oodle(src, raw_len, max)
+}
 
 /// An IGenLoad block: `u32 L` (tag in the top two bits, payload size below), then the payload.
 fn block(tag: u32, payload: &[u8]) -> Vec<u8> {
@@ -221,8 +229,8 @@ fn a_full_block_of_garbage_behind_a_good_header_is_an_error_not_a_crash() {
 #[test]
 fn a_panic_inside_the_decoder_is_an_error_not_a_crash() {
     // Synthetic bytes (found by fuzzing, not taken from the game) that pass the header walk
-    // and make oozextract's tANS/Huffman code `assert!`. The release profile unwinds
-    // (`panic = "unwind"`), so `oodle` catches that; with `abort` this test would kill the run.
+    // and make oozextract's tANS/Huffman code `assert!`. That kills the worker process, not this
+    // one: the caller gets an error, and the next request (below) starts a new worker.
     #[rustfmt::skip]
     let stream = [
         0x8C, 0x0C, 0x00, 0x00, 0x1B, 0x10, 0x24, 0x6C, 0x00, 0x08, 0x4C, 0x58, 0x9C, 0x19, 0xBD, 0x6E, 0x4A,
@@ -232,6 +240,8 @@ fn a_panic_inside_the_decoder_is_an_error_not_a_crash() {
     let e = oodle(&stream, 2553, 1 << 20).unwrap_err();
     assert_eq!(e.code, ErrorCode::Parse);
     assert_eq!(e.detail.as_deref(), Some("oodle stream damaged"));
+    let again = oodle(&[0xCC, 0x0C, 1, 2, 3], 3, 1 << 20).unwrap();
+    assert_eq!(again, [1, 2, 3], "a new worker answers after the crash");
 }
 
 #[test]
@@ -254,9 +264,9 @@ fn a_mutated_decoder_type_is_accepted_only_when_it_is_kraken_family() {
 }
 
 #[test]
-fn mutated_headers_never_panic() {
-    // Flip bytes in the headers of a two-block stream (the payload is zeros, so a stream that
-    // passes the precheck is also run through the decoder). Release builds abort on panic.
+fn mutated_headers_are_judged_without_panicking() {
+    // Flip bytes in the headers of a two-block stream: the walk itself must never panic (it runs
+    // in the app's own process in tests), and whatever it accepts starts with a good block.
     let base = [compressed_block(0x0C, &[0; 24]), compressed_block(0x06, &[0; 24])].concat();
     let second = base.len() - 24 - 5;
     let mut seed = 31;
@@ -272,7 +282,6 @@ fn mutated_headers_never_panic() {
             // Whatever passed has a first block a Kraken-family decoder would accept.
             assert_eq!(stream[0] & 0x3F, 0x0C, "{stream:02X?}");
             assert!([0x06, 0x0A, 0x0C].contains(&stream[1]), "{stream:02X?}");
-            let _ = oodle(&stream, raw_len, 1 << 20);
         }
     }
 }
