@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { vehicles } from '@/data/vehicles';
@@ -193,6 +193,53 @@ describe('For you', () => {
     act(() => useExplore.getState().setTab('forYou'));
     await user.click(await findThumb('Russian Knights Blue'));
     expect(useUi.getState()).toMatchObject({ screen: 'detail', detailSkinId: 's9' });
+  });
+
+  it('back from a skin opened here returns to the same place in the list; any other way back starts at the top', async () => {
+    const user = userEvent.setup();
+    restoreLayout();
+    restoreLayout = mockLayout({ viewport: 120, row: 60 });
+    const scrollTo = vi.fn();
+    const original = Element.prototype.scrollTo;
+    Element.prototype.scrollTo = scrollTo;
+    // One query cache for every render, as in the app: the rows come back from it.
+    const client = createQueryClient();
+    const render = () => {
+      useExplore.setState({ tab: 'forYou' });
+      return renderWithProviders(<Explore />, { client });
+    };
+    installBackend();
+    try {
+      const first = render();
+      const scroller = await screen.findByRole('region', { name: LIST });
+      Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 240 });
+      fireEvent.scroll(scroller);
+      await user.click(await findThumb('Russian Knights Blue'));
+      expect(useUi.getState().screen).toBe('detail');
+      first.unmount();
+
+      act(() => useUi.getState().leaveDetail());
+      scrollTo.mockClear();
+      const back = render();
+      await screen.findByRole('region', { name: LIST });
+      await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 240 })));
+      // The skin's thumbnail takes focus again.
+      await waitFor(() => expect(document.activeElement).toHaveAttribute('data-skin-id', 's9'));
+      back.unmount();
+
+      // Leaving for another screen (not a Skin detail) forgets the place.
+      act(() => {
+        useUi.getState().go('hangar');
+        useUi.getState().go('explore');
+      });
+      scrollTo.mockClear();
+      render();
+      await screen.findByRole('region', { name: LIST });
+      await act(() => new Promise((r) => setTimeout(r, 10)));
+      expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ top: 240 }));
+    } finally {
+      Element.prototype.scrollTo = original;
+    }
   });
 
   it('a top skin shows its install state like the Explore card', async () => {

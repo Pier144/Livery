@@ -1,10 +1,11 @@
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { ArrowRight } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { focusScreenHeading } from '@/hooks/useScreenFocus';
 import { cn } from '@/lib/cn';
 import { errorText } from '@/lib/errors';
 import { formatSavedAt } from '@/lib/format';
@@ -38,13 +39,20 @@ export const FOR_YOU_NEW_DELAY_MS = 15_000;
 let pendingMark: ReturnType<typeof setTimeout> | null = null;
 
 /**
+ * Where the list was when a Skin detail opened from it: the scroll offset and the rows measured so
+ * far, so Back lands on the same rows instead of the top. Set when the list unmounts for a Skin
+ * detail, dropped when it unmounts for anything else; read only on the way back from the detail.
+ */
+let returnScroll: { offset: number; measurements: VirtualItem[] } | null = null;
+
+/**
  * For you tab (spec 2026-10-16 §3): the vehicles of the player's lineups, read from the War
  * Thunder profile (local data, listed with WT Live off or offline too), each with its 3 most
  * downloaded WT Live skins and how many skins are new since the last visit. The list is virtual
  * and each mounted row asks for its own top skins, so requests follow the scroll; the new skins
  * are asked for once the visible rows have loaded, or 15 s after the tab opened. Leaving the tab
  * counts as having seen it (`for_you_mark_seen`) once WT Live's answer was on screen, not opening a
- * skin from it.
+ * skin from it. Back from a skin opened here returns to the same place in the list.
  */
 export function ForYou() {
   const { t } = useTranslation();
@@ -175,6 +183,10 @@ function Lineups({ sections, vehicles, fresh, onRowsLoaded, savedAt, current }: 
   const enabled = useWtLiveEnabled();
   const rows = useMemo(() => forYouRows(sections), [sections]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Back from a Skin detail opened here (`leaveDetail` sets `returnFocusSkin`): where the list was.
+  const [restore] = useState(() => (useUi.getState().returnFocusSkin !== null ? returnScroll : null));
+  // The list's own scroll position (the virtualizer's can lag behind it on the first visit).
+  const offset = useRef(restore?.offset ?? 0);
 
   const getItemKey = useCallback((index: number) => rows[index]?.key ?? index, [rows]);
   const estimateSize = useCallback((index: number) => (rows[index]?.kind === 'header' ? 44 : 104), [rows]);
@@ -186,8 +198,35 @@ function Lineups({ sections, vehicles, fresh, onRowsLoaded, savedAt, current }: 
     overscan: OVERSCAN,
     paddingStart: FOCUS_ROOM,
     paddingEnd: 24,
+    initialOffset: restore?.offset ?? 0,
+    initialMeasurementsCache: restore?.measurements,
   });
   const items = virtualizer.getVirtualItems();
+
+  // Back from the detail, the skin's thumbnail takes focus once its row is rendered: the list
+  // claims it (the screen-level focus runs before the first rows exist), else the heading does.
+  const [focusSkin, setFocusSkin] = useState<string | null>(null);
+  useEffect(() => {
+    if (!restore) return;
+    const id = useUi.getState().takeReturnFocus();
+    if (id !== null) setFocusSkin(id);
+  }, [restore]);
+  useEffect(() => {
+    if (focusSkin === null || items.length === 0) return;
+    setFocusSkin(null);
+    const thumb = scrollRef.current?.querySelector<HTMLElement>(`[data-skin-id="${CSS.escape(focusSkin)}"]`);
+    if (thumb) thumb.focus({ preventScroll: true });
+    else focusScreenHeading();
+  }, [focusSkin, items]);
+
+  // Leaving for a Skin detail keeps the place; leaving for anything else starts over next time.
+  useEffect(
+    () => () => {
+      returnScroll =
+        useUi.getState().screen === 'detail' ? { offset: offset.current, measurements: virtualizer.takeSnapshot() } : null;
+    },
+    [virtualizer],
+  );
 
   // ── Tell ForYou when no mounted row's top skins are loading (it then asks for the new skins) ──
   // The mounted rows' codes as a string: `items` is a new array on every render.
@@ -217,6 +256,9 @@ function Lineups({ sections, vehicles, fresh, onRowsLoaded, savedAt, current }: 
       <div className="relative min-h-0 flex-1">
         <div
           ref={scrollRef}
+          onScroll={(e) => {
+            offset.current = e.currentTarget.scrollTop;
+          }}
           role="region"
           aria-label={t('explore.forYou.label')}
           className="absolute -left-1 -right-1 -top-1 bottom-0 overflow-y-auto px-1"
