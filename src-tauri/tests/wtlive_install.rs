@@ -7,8 +7,8 @@ use livery_lib::archive::install::{ALREADY_INSTALLED, SKIPPED, USER_SKINS_GONE};
 use livery_lib::error::{AppError, AppResult, ErrorCode};
 use livery_lib::library::index::LibraryStore;
 use livery_lib::model::{
-    Author, Category, ConflictPolicy, FollowEntry, HangarSkin, InstallMode, InstallProgress, InstallStep, Origin,
-    SearchParams, SearchResult, Settings, WtLiveSkin,
+    Author, Category, ConflictPolicy, FollowEntry, ForYouNew, HangarSkin, InstallMode, InstallProgress, InstallStep,
+    Origin, SearchParams, SearchResult, Settings, WtLiveSkin,
 };
 use livery_lib::wtlive::install::{self, Ctx, Installing, ALREADY_INSTALLING, DOWNLOAD_END, NOT_TRIED};
 use livery_lib::wtlive::{DownloadProgress, WtLiveClient};
@@ -62,6 +62,12 @@ impl WtLiveClient for FakeClient {
         Ok(self.post_skin(id))
     }
     fn following_new(&self, _: &[FollowEntry]) -> AppResult<Vec<WtLiveSkin>> {
+        unreachable!()
+    }
+    fn vehicle_top(&self, _: &str) -> AppResult<Vec<WtLiveSkin>> {
+        unreachable!()
+    }
+    fn for_you_new(&self, _: &[String], _: i64) -> AppResult<ForYouNew> {
         unreachable!()
     }
     fn archive(&self, id: &str, progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf> {
@@ -436,6 +442,12 @@ fn errors_say_what_failed() {
         }
         fn following_new(&self, f: &[FollowEntry]) -> AppResult<Vec<WtLiveSkin>> {
             self.0.following_new(f)
+        }
+        fn vehicle_top(&self, code: &str) -> AppResult<Vec<WtLiveSkin>> {
+            self.0.vehicle_top(code)
+        }
+        fn for_you_new(&self, v: &[String], since: i64) -> AppResult<ForYouNew> {
+            self.0.for_you_new(v, since)
         }
         fn archive(&self, _: &str, _: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf> {
             Err(AppError::new(ErrorCode::Network, "WT Live can't be reached"))

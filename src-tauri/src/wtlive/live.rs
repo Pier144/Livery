@@ -27,7 +27,8 @@ use crate::archive::source::{sniff, ArchiveKind};
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::library::time;
 use crate::model::{
-    Category, FollowEntry, FollowKind, Nation, SearchParams, SearchResult, SortOrder, VehicleType, WtLiveSkin,
+    Category, FollowEntry, FollowKind, ForYouNew, Nation, SearchParams, SearchResult, SortOrder, VehicleType,
+    WtLiveSkin,
 };
 use std::collections::{HashMap, HashSet};
 use std::io::BufWriter;
@@ -538,6 +539,14 @@ impl WtLiveClient for LiveClient {
         }
         found.sort_by_key(|p| std::cmp::Reverse(p.created));
         Ok(found.into_iter().map(|p| WtLiveSkin { is_new: Some(true), ..p.skin }).collect())
+    }
+
+    fn vehicle_top(&self, _code: &str) -> AppResult<Vec<WtLiveSkin>> {
+        todo!("For you: Task 7")
+    }
+
+    fn for_you_new(&self, _vehicles: &[String], _since: i64) -> AppResult<ForYouNew> {
+        todo!("For you: Task 7")
     }
 
     fn archive(&self, id: &str, progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf> {

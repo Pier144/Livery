@@ -8,7 +8,7 @@
 //! sleep for its rate limit, read its disk cache or wait on a socket without holding up the UI.
 
 use crate::error::{AppError, AppResult, ErrorCode};
-use crate::model::{FollowEntry, SearchParams, SearchResult, WtLiveSkin};
+use crate::model::{FollowEntry, ForYouNew, SearchParams, SearchResult, WtLiveSkin};
 use std::path::PathBuf;
 
 /// `unsupported` message for every WT Live call of the [`DisabledClient`].
@@ -59,6 +59,14 @@ pub trait WtLiveClient: Send + Sync {
     /// request ([`DisabledClient`] still answers `unsupported`, so the UI stays offline).
     fn following_new(&self, follows: &[FollowEntry]) -> AppResult<Vec<WtLiveSkin>>;
 
+    /// The 3 most downloaded skins for vehicle `code` (first feed page only, hidden posts left out).
+    fn vehicle_top(&self, code: &str) -> AppResult<Vec<WtLiveSkin>>;
+
+    /// Skins posted after `since` (unix seconds) for `vehicles`, each matched to one of them.
+    /// `vehicles` is in display order; see `live::LiveClient` for chunking and the request cap.
+    /// A working client answers an empty result to an empty list without a request.
+    fn for_you_new(&self, vehicles: &[String], since: i64) -> AppResult<ForYouNew>;
+
     /// The post's archive on disk (downloaded now, or kept from a download less than a day
     /// old), as a `.zip`, `.7z` or `.rar` file. `progress` is called as bytes arrive. The file
     /// belongs to the client's cache: read it, don't move or delete it.
@@ -91,6 +99,14 @@ impl WtLiveClient for DisabledClient {
 
     fn following_new(&self, _follows: &[FollowEntry]) -> AppResult<Vec<WtLiveSkin>> {
         Self::refuse("following_new")
+    }
+
+    fn vehicle_top(&self, _code: &str) -> AppResult<Vec<WtLiveSkin>> {
+        Self::refuse("vehicle_top")
+    }
+
+    fn for_you_new(&self, _vehicles: &[String], _since: i64) -> AppResult<ForYouNew> {
+        Self::refuse("for_you_new")
     }
 
     fn archive(&self, _id: &str, _progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf> {

@@ -6,7 +6,8 @@
 use livery_lib::error::{AppError, AppResult, ErrorCode};
 use livery_lib::library::index::LibraryStore;
 use livery_lib::model::{
-    Author, Category, FollowEntry, FollowKind, Nation, SearchParams, SearchResult, Vehicle, VehicleType, WtLiveSkin,
+    Author, Category, FollowEntry, FollowKind, ForYouNew, Nation, SearchParams, SearchResult, Vehicle, VehicleType,
+    WtLiveSkin,
 };
 use livery_lib::textures::{texture_target, TextureTarget, ONE_TEXTURE_TARGET};
 use livery_lib::wtlive::{
@@ -66,6 +67,17 @@ fn disabled_client_refuses_everything() {
     let mut ticks = 0;
     assert_unsupported(client.archive("1", &mut |_: DownloadProgress| ticks += 1), UNSUPPORTED_MESSAGE);
     assert_eq!(ticks, 0, "nothing was downloaded");
+}
+
+#[test]
+fn disabled_client_refuses_for_you() {
+    let client = DisabledClient;
+    let e = assert_unsupported(client.vehicle_top("ussr_t_34_85"), UNSUPPORTED_MESSAGE);
+    assert!(e.detail.as_deref().is_some_and(|d| d.starts_with("vehicle_top")), "{e:?}");
+    let e = assert_unsupported(client.for_you_new(&["ussr_t_34_85".into()], 0), UNSUPPORTED_MESSAGE);
+    assert!(e.detail.as_deref().is_some_and(|d| d.starts_with("for_you_new")), "{e:?}");
+    // Even an empty list: the UI stays offline.
+    assert_unsupported(client.for_you_new(&[], 0), UNSUPPORTED_MESSAGE);
 }
 
 #[test]
@@ -159,6 +171,8 @@ fn blank_ids_are_invalid_input_before_any_call() {
 struct Recorder {
     posts: Mutex<Vec<String>>,
     follows: Mutex<Vec<Vec<FollowEntry>>>,
+    tops: Mutex<Vec<String>>,
+    for_you: Mutex<Vec<(Vec<String>, i64)>>,
 }
 
 fn skin(id: &str) -> WtLiveSkin {
@@ -202,6 +216,14 @@ impl WtLiveClient for Recorder {
     fn following_new(&self, follows: &[FollowEntry]) -> AppResult<Vec<WtLiveSkin>> {
         self.follows.lock().unwrap().push(follows.to_vec());
         Ok(vec![])
+    }
+    fn vehicle_top(&self, code: &str) -> AppResult<Vec<WtLiveSkin>> {
+        self.tops.lock().unwrap().push(code.to_owned());
+        Ok(vec![])
+    }
+    fn for_you_new(&self, vehicles: &[String], since: i64) -> AppResult<ForYouNew> {
+        self.for_you.lock().unwrap().push((vehicles.to_vec(), since));
+        Ok(ForYouNew { items: vec![], checked: vehicles.len() as u32 })
     }
     fn archive(&self, _id: &str, _progress: &mut dyn FnMut(DownloadProgress)) -> AppResult<PathBuf> {
         Err(AppError::new(ErrorCode::Network, "not in this test"))
