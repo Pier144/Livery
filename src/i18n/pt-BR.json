@@ -199,7 +199,9 @@
         "updateUpToDate": "O Livery já está atualizado",
         "updateBusy": "A atualização já está sendo baixada",
         "skinNeedsName": "Uma skin precisa de um nome",
-        "renameFailed": "Não foi possível renomear a pasta da skin"
+        "renameFailed": "Não foi possível renomear a pasta da skin",
+        "lineupsUnreadable": "O Livery não conseguiu ler seu perfil do War Thunder",
+        "lineupsUnparsable": "Não é possível ler as formações do seu perfil do War Thunder"
       }
     },
     "vehicleClass": {

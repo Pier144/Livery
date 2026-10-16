@@ -197,7 +197,9 @@
         "updateUpToDate": "Livery ist bereits auf dem neuesten Stand",
         "updateBusy": "Das Update wird bereits heruntergeladen",
         "skinNeedsName": "Ein Skin braucht einen Namen",
-        "renameFailed": "Der Skin-Ordner konnte nicht umbenannt werden"
+        "renameFailed": "Der Skin-Ordner konnte nicht umbenannt werden",
+        "lineupsUnreadable": "Livery konnte dein War-Thunder-Profil nicht lesen",
+        "lineupsUnparsable": "Die Aufstellungen in deinem War-Thunder-Profil können nicht gelesen werden"
       }
     },
     "vehicleClass": {

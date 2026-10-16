@@ -195,7 +195,9 @@
         "updateUpToDate": "Livery 已是最新版本",
         "updateBusy": "更新正在下载中",
         "skinNeedsName": "涂装需要名称",
-        "renameFailed": "无法重命名涂装文件夹"
+        "renameFailed": "无法重命名涂装文件夹",
+        "lineupsUnreadable": "Livery 无法读取您的 War Thunder 档案",
+        "lineupsUnparsable": "无法读取您的 War Thunder 档案中的阵容"
       }
     },
     "vehicleClass": {

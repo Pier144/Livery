@@ -197,7 +197,9 @@
         "updateUpToDate": "Livery is already up to date",
         "updateBusy": "The update is already downloading",
         "skinNeedsName": "A skin needs a name",
-        "renameFailed": "Could not rename the skin folder"
+        "renameFailed": "Could not rename the skin folder",
+        "lineupsUnreadable": "Livery couldn't read your War Thunder profile",
+        "lineupsUnparsable": "The lineups in your War Thunder profile can't be read"
       }
     },
     "vehicleClass": {
