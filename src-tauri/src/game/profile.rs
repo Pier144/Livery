@@ -8,6 +8,10 @@
 //! text with BLK's lexical rules and cuts out just those two blocks for `library::blk::parse`.
 //! Logs get counts only, and errors carry the file's path, never its content.
 
+use crate::game::catalog::nation_of;
+use crate::library::blk;
+use crate::model::{Nation, NationLineups, Preset};
+
 /// Largest block [`find_block`] cuts out (the author's `slotbar_presets` is about 4 KB).
 pub const MAX_BLOCK_BYTES: usize = 64 * 1024;
 
@@ -124,4 +128,101 @@ pub fn find_block<'a>(text: &'a str, name: &str) -> Result<Option<&'a str>, Scan
         }
     }
     Ok(None)
+}
+
+// ── Lineups ─────────────────────────────────────────────────────────────────
+
+/// Nations in the game's order (the same as the UI's `NATION_ORDER`).
+const NATION_ORDER: [Nation; 10] = [
+    Nation::Usa,
+    Nation::Ger,
+    Nation::Ussr,
+    Nation::Gbr,
+    Nation::Jpn,
+    Nation::Chn,
+    Nation::Ita,
+    Nation::Fra,
+    Nation::Swe,
+    Nation::Isr,
+];
+
+fn order_of(nation: Nation) -> usize {
+    NATION_ORDER.iter().position(|&n| n == nation).unwrap_or(usize::MAX)
+}
+
+/// One `preset:t` string: `crew|crew ids|units|name…|mode|more crew ids` (the name may itself
+/// contain `|`). The name, trimmed, and the unit codes, trimmed, without empty or duplicate
+/// ones. `None` when it has fewer than 6 fields.
+fn parse_preset(raw: &str) -> Option<(String, Vec<String>)> {
+    let fields: Vec<&str> = raw.split('|').collect();
+    if fields.len() < 6 {
+        return None;
+    }
+    let name = fields[3..fields.len() - 2].join("|").trim().to_owned();
+    let mut vehicles: Vec<String> = Vec::new();
+    for code in fields[2].split(',').map(str::trim).filter(|c| !c.is_empty()) {
+        if !vehicles.iter().any(|v| v == code) {
+            vehicles.push(code.to_owned());
+        }
+    }
+    Some((name, vehicles))
+}
+
+/// The lineups in `presets` (the `slotbar_presets` block itself), with the current vehicle and
+/// its nation from `selected_air` (the `selectedAir` block, when there is one): `(current,
+/// current_nation, nations)`.
+///
+/// Nations come in game order and only with a usable preset (one with a vehicle); unknown
+/// `country_*` blocks are skipped. In each nation the preset at `selected` (missing, malformed or
+/// out of range: 0) is active. The current vehicle's nation is the `selectedAir` key holding the
+/// same code, else the nation of the first preset holding it.
+pub fn parse_lineups(
+    presets: &blk::Block,
+    selected_air: Option<&blk::Block>,
+) -> (Option<String>, Option<Nation>, Vec<NationLineups>) {
+    let mut nations: Vec<NationLineups> = Vec::new();
+    for (country, block) in &presets.blocks {
+        let Some(nation) = nation_of(country) else { continue };
+        // `selected` indexes the file's list, short strings included: number them first.
+        let raw: Vec<Option<(String, Vec<String>)>> =
+            block.params_named("preset").map(|v| v.as_str().and_then(parse_preset)).collect();
+        let skipped = raw.iter().filter(|p| p.is_none()).count();
+        if skipped > 0 {
+            tracing::debug!(skipped, "lineups: presets that don't parse were skipped");
+        }
+        let selected = match block.param("selected") {
+            Some(blk::Value::Int(i)) => usize::try_from(*i).ok().filter(|&i| i < raw.len()).unwrap_or(0),
+            _ => 0,
+        };
+        let presets: Vec<Preset> = raw
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, p)| p.map(|(name, vehicles)| Preset { name, active: i == selected, vehicles }))
+            .filter(|p| !p.vehicles.is_empty())
+            .collect();
+        if !presets.is_empty() {
+            nations.push(NationLineups { nation, presets });
+        }
+    }
+    // Stable: two blocks of the same country (not seen in real files) keep their file order.
+    nations.sort_by_key(|n| order_of(n.nation));
+
+    let current = selected_air
+        .and_then(|b| b.str_param("current_model"))
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(str::to_owned);
+    let current_nation = current.as_deref().and_then(|code| {
+        let by_key = selected_air.and_then(|b| {
+            b.params
+                .iter()
+                .filter(|(k, _)| k != "current_model" && k != "current_skin")
+                .filter(|(_, v)| v.as_str().map(str::trim) == Some(code))
+                .find_map(|(k, _)| nation_of(&format!("country_{k}")))
+        });
+        by_key.or_else(|| {
+            nations.iter().find(|n| n.presets.iter().any(|p| p.vehicles.iter().any(|v| v == code))).map(|n| n.nation)
+        })
+    });
+    (current, current_nation, nations)
 }
