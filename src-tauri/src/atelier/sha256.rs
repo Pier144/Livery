@@ -128,11 +128,15 @@ pub fn hex(digest: &[u8; 32]) -> String {
 
 /// Lowercase hex SHA-256 of a file's contents, read in 1 MiB pieces.
 pub fn file_hex(path: &Path) -> io::Result<String> {
-    let mut file = File::open(path)?;
+    reader_hex(File::open(path)?)
+}
+
+/// Lowercase hex SHA-256 of everything `reader` gives, read in 1 MiB pieces.
+pub fn reader_hex(mut reader: impl Read) -> io::Result<String> {
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1024 * 1024];
     loop {
-        let n = file.read(&mut buf)?;
+        let n = reader.read(&mut buf)?;
         if n == 0 {
             break;
         }

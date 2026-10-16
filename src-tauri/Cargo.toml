@@ -3,6 +3,8 @@ name = "livery"
 version = "0.3.5"
 description = "Unofficial War Thunder user-skin manager. Not affiliated with Gaijin Entertainment."
 edition = "2021"
+# 1.92 although today's dependencies need 1.88 (`image`, `ort` rc.13): it leaves room for
+# `ort` rc.14 (1.92), and clippy's lints for this version are already fixed across the crate.
 rust-version = "1.92"
 license = "MIT"
 publish = false

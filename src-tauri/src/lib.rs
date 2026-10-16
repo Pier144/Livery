@@ -92,6 +92,10 @@ pub fn run() {
             if cutout.files.purge_pending() {
                 tracing::info!("background-removal files removed");
             }
+            let leftovers = cutout.files.clean_leftovers();
+            if leftovers > 0 {
+                tracing::info!(leftovers, "unfinished background-removal downloads removed");
+            }
             app.manage(cutout);
             atelier::start_idle_ticker(app.handle());
             // Expired and ephemeral backups go away at launch, not only on the first library command.

@@ -1,6 +1,11 @@
 //! Background removal with isnet-anime through ONNX Runtime (`ort`, `load-dynamic`), on this PC
 //! only: nothing here touches the network.
 //!
+//! **Integrity.** The model is hashed once per process before its first session (and again when
+//! a session can't be made from it); a model that isn't the pinned one is deleted, so the next
+//! download fetches it again. The runtime's DLL is opened sharing only reads (nobody can replace
+//! it), hashed through that handle, and kept open until `ort` has loaded it.
+//!
 //! **Loading.** The runtime's DLL (downloaded by `models`) is hashed before its first load in a
 //! process, then preloaded with `LoadLibraryExW(…, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
 //! LOAD_LIBRARY_SEARCH_SYSTEM32)`, so its own imports resolve only from its folder and System32
@@ -37,7 +42,9 @@ pub const CUTOUT_FAILED: &str = "The background couldn't be removed";
 /// Visual C++ runtime's `MSVCP140.dll`.
 pub const CUTOUT_RUNTIME_MISSING_DEPS: &str =
     "Background removal needs the Microsoft Visual C++ Redistributable (x64): install it, then try again";
-/// `internal`: the user cancelled the run (the frontend shows no error for it).
+/// `internal`: the user cancelled the run (the frontend shows no error for it). Cancels share
+/// the `internal` code with real failures: the message constant tells them apart (as
+/// `download::MODEL_DOWNLOAD_CANCELLED` does for downloads).
 pub const CUTOUT_CANCELLED: &str = "Background removal cancelled";
 
 /// Side of the model's square input.
@@ -200,6 +207,8 @@ fn intra_threads() -> usize {
 pub struct Cutout {
     /// The DLL this process loaded, once a load succeeded.
     loaded: Mutex<Option<PathBuf>>,
+    /// The model file found to match its pin in this process (hashed once).
+    model_verified: Mutex<Option<PathBuf>>,
     /// The model's session and when it was last used.
     session: Mutex<Option<(Session, Instant)>>,
     /// The running inference's options (for cancel), outside the session's lock.
@@ -259,9 +268,35 @@ impl Cutout {
         }
     }
 
-    /// Drops the session now (before the files are removed).
+    /// Drops the session now (before the files are removed); the model is hashed again next time.
     pub fn unload(&self) {
         *self.session.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        *self.model_verified.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
+    /// Checks the model at `model` against `hash` (once per process unless `again`); a model that
+    /// doesn't match is deleted and reads as `notFound` ([`CUTOUT_NOT_READY`]).
+    fn verify_model(&self, model: &Path, hash: &FileHash, again: bool) -> AppResult<()> {
+        let mut verified = self.model_verified.lock().unwrap_or_else(|e| e.into_inner());
+        if !again && verified.as_deref() == Some(model) {
+            return Ok(());
+        }
+        *verified = None;
+        let not_ready = |detail: String| AppError::new(ErrorCode::NotFound, CUTOUT_NOT_READY).with_detail(detail);
+        let size = std::fs::metadata(model).map_err(|e| not_ready(e.to_string()))?.len();
+        let actual = if size == hash.size {
+            crate::atelier::sha256::file_hex(model).map_err(|e| not_ready(e.to_string()))?
+        } else {
+            format!("{size} bytes")
+        };
+        if !actual.eq_ignore_ascii_case(&hash.sha256) {
+            if let Err(e) = std::fs::remove_file(model) {
+                tracing::warn!(error = %e, "a background-removal model that isn't the pinned one can't be deleted");
+            }
+            return Err(not_ready(format!("model {actual}")));
+        }
+        *verified = Some(model.to_path_buf());
+        Ok(())
     }
 
     /// Loads the runtime at `dll` once per process (see the module doc).
@@ -276,10 +311,15 @@ impl Cutout {
                 path.display()
             )));
         }
-        let actual = crate::atelier::sha256::file_hex(dll)
-            .map_err(|e| AppError::new(ErrorCode::NotFound, CUTOUT_NOT_READY).with_detail(e.to_string()))?;
+        let not_ready =
+            |e: std::io::Error| AppError::new(ErrorCode::NotFound, CUTOUT_NOT_READY).with_detail(e.to_string());
+        // Held open (sharing reads only) from the hash until `ort` has loaded the DLL, so it
+        // can't be swapped in between.
+        let held = open_read_only_shared(dll).map_err(not_ready)?;
+        let actual = crate::atelier::sha256::reader_hex(&held).map_err(not_ready)?;
         if !actual.eq_ignore_ascii_case(&dll_hash.sha256) {
             // Not the pinned DLL: never load it; the next download brings the right one.
+            drop(held);
             let _ = std::fs::remove_file(dll);
             return Err(
                 AppError::new(ErrorCode::NotFound, CUTOUT_NOT_READY).with_detail(format!("runtime sha256 {actual}"))
@@ -291,39 +331,46 @@ impl Cutout {
         if !builder.with_name("livery").with_telemetry(false).commit() {
             tracing::warn!("an ONNX Runtime environment was already configured");
         }
+        drop(held);
         tracing::info!("ONNX Runtime loaded for background removal");
         *loaded = Some(dll.to_path_buf());
         Ok(())
     }
 
     /// The model's session (made now when there is none or it idled out).
-    fn session(&self, model: &Path) -> AppResult<MutexGuard<'_, Option<(Session, Instant)>>> {
+    fn session(&self, model: &Path, hash: &FileHash) -> AppResult<MutexGuard<'_, Option<(Session, Instant)>>> {
         let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
         if session.as_ref().is_some_and(|(_, used)| used.elapsed() >= SESSION_IDLE) {
             *session = None;
         }
         if session.is_none() {
+            self.verify_model(model, hash, false)?;
             let started = Instant::now();
             let built = Session::builder()
                 .map_err(|e| failed(e.to_string()))?
                 .with_intra_threads(intra_threads())
                 .map_err(|e| failed(e.to_string()))?
-                .commit_from_file(model)
-                .map_err(|e| failed(e.to_string()))?;
+                .commit_from_file(model);
+            let built = match built {
+                Ok(built) => built,
+                // Changed since it was checked? Then it goes, and the download fetches it again.
+                Err(e) => {
+                    self.verify_model(model, hash, true)?;
+                    return Err(failed(e.to_string()));
+                }
+            };
             tracing::info!(ms = started.elapsed().as_millis() as u64, "background-removal model loaded");
             *session = Some((built, Instant::now()));
         }
         Ok(session)
     }
 
-    /// Cuts the background out of `source` with the runtime at `dll` (checked against
-    /// `dll_hash` on its first load) and the model at `model`; `progress` hears Load and Run.
-    /// `conflict` ([`crate::atelier::models::CUTOUT_BUSY`]) while another run is going.
+    /// Cuts the background out of `source` with `files` (each checked against its pin, see the
+    /// module doc); `progress` hears Load and Run. `conflict`
+    /// ([`crate::atelier::models::CUTOUT_BUSY`]) while another run is going.
     pub fn run(
         &self,
-        dll: &Path,
-        dll_hash: &FileHash,
-        model: &Path,
+        files: &RuntimeFiles<'_>,
         source: &RgbaImage,
         progress: &mut dyn FnMut(CutoutStep),
     ) -> AppResult<(RgbaImage, PixelRect)> {
@@ -333,8 +380,10 @@ impl Cutout {
         let _running = Running(&self.running);
         self.cancel.store(false, Ordering::SeqCst);
         progress(CutoutStep::Load);
-        self.ensure_runtime(dll, dll_hash)?;
-        let mut guard = self.session(model)?;
+        // The model first: checking it needs no runtime.
+        self.verify_model(files.model, files.model_hash, false)?;
+        self.ensure_runtime(files.dll, files.dll_hash)?;
+        let mut guard = self.session(files.model, files.model_hash)?;
         if self.cancelled() {
             return Err(cancelled());
         }
@@ -375,6 +424,29 @@ impl Cutout {
             return Err(cancelled());
         }
         postprocess(source, &plane).ok_or_else(|| failed("no subject found"))
+    }
+}
+
+/// The files a run uses and the pins they must match.
+pub struct RuntimeFiles<'a> {
+    pub dll: &'a Path,
+    pub dll_hash: &'a FileHash,
+    pub model: &'a Path,
+    pub model_hash: &'a FileHash,
+}
+
+/// `path` opened for reading while others may only read it too (Windows: no writing, renaming
+/// or deleting while the handle is open).
+fn open_read_only_shared(path: &Path) -> std::io::Result<std::fs::File> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_SHARE_READ: u32 = 0x0000_0001;
+        std::fs::OpenOptions::new().read(true).share_mode(FILE_SHARE_READ).open(path)
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::File::open(path)
     }
 }
 

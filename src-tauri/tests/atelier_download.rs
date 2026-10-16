@@ -149,11 +149,17 @@ fn the_real_downloader_wants_https_to_github_only() {
         assert!(downloader.allows(&url(&format!("https://{host}/x"))), "{host}");
         assert!(!downloader.allows(&url(&format!("http://{host}/x"))), "{host}");
     }
-    for bad in
-        ["https://example.com/x", "https://github.com.evil.example/x", "https://127.0.0.1/x", "ftp://github.com/x"]
-    {
+    for bad in [
+        "https://example.com/x",
+        "https://github.com.evil.example/x",
+        "https://127.0.0.1/x",
+        "ftp://github.com/x",
+        "https://github.com:8443/x",
+    ] {
         assert!(!downloader.allows(&url(bad)), "{bad}");
     }
+    // The default port spelled out is the default port.
+    assert!(downloader.allows(&url("https://github.com:443/x")));
     let dir = temp("https");
     let (result, _) = fetch(&downloader, "http://github.com/x", 1, &hex(&digest(b"x")), &dir.join("x"));
     check(result.unwrap_err(), ErrorCode::InvalidInput, MODEL_DOWNLOAD_FAILED);
@@ -201,7 +207,7 @@ fn cancel_stops_between_chunks() {
         &mut |_, _| {},
     );
     handle.join().unwrap();
-    check(result.unwrap_err(), ErrorCode::Network, MODEL_DOWNLOAD_CANCELLED);
+    check(result.unwrap_err(), ErrorCode::Internal, MODEL_DOWNLOAD_CANCELLED);
     assert!(!dest.exists());
     assert!(!part_path(&dest).exists());
     let _ = fs::remove_dir_all(&dir);

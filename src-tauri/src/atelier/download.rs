@@ -18,7 +18,9 @@ use std::time::{Duration, Instant};
 pub const MODEL_DOWNLOAD_FAILED: &str = "The download didn't finish";
 /// `parse`: the file arrived whole but its SHA-256 isn't the pinned one; it was deleted.
 pub const MODEL_DOWNLOAD_CORRUPT: &str = "The downloaded file is damaged";
-/// `network`: the user cancelled; the partial file was deleted.
+/// `internal`: the user cancelled; the partial file was deleted. Download and background-removal
+/// cancels share the `internal` code with real failures: the message constant
+/// (this one, `cutout::CUTOUT_CANCELLED`) is what tells a cancel apart.
 pub const MODEL_DOWNLOAD_CANCELLED: &str = "Download cancelled";
 /// `conflict`: another download is running.
 pub const MODEL_DOWNLOAD_BUSY: &str = "A download is already running";
@@ -70,9 +72,14 @@ impl Drop for Flight<'_> {
     }
 }
 
-/// `https` (or `http` too when `https_only` is off) to one of `allowed` (any case).
+/// `https` on its default port (or, when `https_only` is off, for tests: `http` too and any
+/// port) to one of `allowed` (any case).
 fn url_allowed(url: &reqwest::Url, allowed: &[String], https_only: bool) -> bool {
-    let scheme_ok = url.scheme() == "https" || (!https_only && url.scheme() == "http");
+    let scheme_ok = if https_only {
+        url.scheme() == "https" && url.port().is_none()
+    } else {
+        matches!(url.scheme(), "https" | "http")
+    };
     scheme_ok && url.host_str().is_some_and(|host| allowed.iter().any(|a| a.eq_ignore_ascii_case(host)))
 }
 
@@ -167,11 +174,12 @@ impl Downloader {
     /// and once at the end. The partial file goes on every failure.
     pub fn download(
         &self,
-        _flight: &Flight<'_>,
+        flight: &Flight<'_>,
         expected: Expected<'_>,
         dest: &Path,
         progress: &mut dyn FnMut(u64, u64),
     ) -> AppResult<()> {
+        debug_assert!(std::ptr::eq(flight.downloader, self), "a flight of another downloader");
         let part = part_path(dest);
         let result = self.download_to(expected, &part, progress);
         match result {
@@ -193,7 +201,7 @@ impl Downloader {
             return Err(failed(ErrorCode::InvalidInput, format!("{} isn't allowed", url.host_str().unwrap_or("?"))));
         }
         if self.cancelled() {
-            return Err(AppError::new(ErrorCode::Network, MODEL_DOWNLOAD_CANCELLED));
+            return Err(AppError::new(ErrorCode::Internal, MODEL_DOWNLOAD_CANCELLED));
         }
         let mut response = self.client()?.get(url).send().map_err(|e| failed(ErrorCode::Network, e.to_string()))?;
         if !response.status().is_success() {
@@ -211,7 +219,7 @@ impl Downloader {
         progress(0, total);
         loop {
             if self.cancelled() {
-                return Err(AppError::new(ErrorCode::Network, MODEL_DOWNLOAD_CANCELLED));
+                return Err(AppError::new(ErrorCode::Internal, MODEL_DOWNLOAD_CANCELLED));
             }
             let n = match response.read(&mut buf) {
                 Ok(0) => break,
@@ -231,7 +239,7 @@ impl Downloader {
             }
         }
         if self.cancelled() {
-            return Err(AppError::new(ErrorCode::Network, MODEL_DOWNLOAD_CANCELLED));
+            return Err(AppError::new(ErrorCode::Internal, MODEL_DOWNLOAD_CANCELLED));
         }
         if received != total {
             return Err(failed(ErrorCode::Network, format!("{received} of {total} bytes")));

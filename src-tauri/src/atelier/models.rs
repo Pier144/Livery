@@ -34,7 +34,7 @@ pub const MODEL_FILE: &str = "isnet-anime.onnx";
 // Pinned on 2026-10-16 from the files downloaded then (the author approved the one-off download).
 //
 // ONNX Runtime 1.30.0 (published 2026-09-10): the newest Microsoft release at least two weeks old
-// with an `onnxruntime-win-x64-<ver>.zip`; `ort` 2.0.0-rc.14 needs ORT API 17 (1.17) or newer.
+// with an `onnxruntime-win-x64-<ver>.zip`; `ort` 2.0.0-rc.13 needs ORT API 17 (1.17) or newer.
 // Source: https://github.com/microsoft/onnxruntime/releases/tag/v1.30.0 (MIT). The zip's
 // `lib/onnxruntime_providers_shared.dll` is only for non-CPU execution providers and is not
 // extracted. `onnxruntime.dll` (x64) imports, besides Windows' own DLLs (KERNEL32, ADVAPI32,
@@ -294,8 +294,30 @@ impl ModelFiles {
         self.status()
     }
 
+    /// At launch: unfinished downloads (`*.part`, anywhere in the folder) and a runtime zip left
+    /// by an interrupted install go. Returns how many files went.
+    pub fn clean_leftovers(&self) -> usize {
+        fn clean(dir: &Path) -> usize {
+            let Ok(entries) = fs::read_dir(dir) else { return 0 };
+            entries
+                .filter_map(Result::ok)
+                .map(|e| {
+                    let Ok(kind) = e.file_type() else { return 0 };
+                    if kind.is_dir() {
+                        return clean(&e.path());
+                    }
+                    if kind.is_file() && is_leftover(&e.file_name().to_string_lossy()) {
+                        return usize::from(fs::remove_file(e.path()).is_ok());
+                    }
+                    0
+                })
+                .sum()
+        }
+        clean(&self.dir)
+    }
+
     /// At launch, before anything loads the runtime: a folder marked by [`Self::remove`] goes
-    /// whole. Returns whether it went.
+    /// whole (links inside it are removed, never followed). Returns whether it went.
     pub fn purge_pending(&self) -> bool {
         if !self.pending_removal() {
             return false;
@@ -310,14 +332,21 @@ impl ModelFiles {
     }
 }
 
-/// Bytes of the files under `dir` (0 when it's missing).
+/// A file of the models folder that an unfinished download or install left behind.
+fn is_leftover(name: &str) -> bool {
+    name.ends_with(".part") || name == RUNTIME_ZIP_FILE
+}
+
+/// Bytes of the files under `dir` (0 when it's missing), without download leftovers.
 fn folder_bytes(dir: &Path) -> u64 {
     let Ok(entries) = fs::read_dir(dir) else { return 0 };
     entries
         .filter_map(Result::ok)
         .map(|e| match e.file_type() {
             Ok(t) if t.is_dir() => folder_bytes(&e.path()),
-            Ok(t) if t.is_file() => e.metadata().map(|m| m.len()).unwrap_or(0),
+            Ok(t) if t.is_file() && !is_leftover(&e.file_name().to_string_lossy()) => {
+                e.metadata().map(|m| m.len()).unwrap_or(0)
+            }
             _ => 0,
         })
         .sum()

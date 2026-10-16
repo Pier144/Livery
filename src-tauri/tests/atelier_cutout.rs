@@ -1,13 +1,15 @@
 //! Background removal's pure parts: the model input (size, NCHW order, normalisation), the mask
 //! (min-max), alpha from the mask with the source RGB untouched, the crop with its margin, the
-//! preload error mapping, and the remover's guards (not ready, cancel with nothing running).
+//! preload error mapping, and the remover's guards (a runtime or model that isn't the pinned one,
+//! cancel with nothing running).
 
 use image::{Rgba, RgbaImage};
 use livery_lib::atelier::cutout::{
-    alpha_bbox, apply_mask, normalise_mask, postprocess, preload_error, preprocess, with_margin, Cutout,
+    alpha_bbox, apply_mask, normalise_mask, postprocess, preload_error, preprocess, with_margin, Cutout, RuntimeFiles,
     ALPHA_THRESHOLD, CROP_MARGIN, CUTOUT_FAILED, CUTOUT_NOT_READY, CUTOUT_RUNTIME_MISSING_DEPS, MEAN, SIDE,
 };
 use livery_lib::atelier::models::FileHash;
+use livery_lib::atelier::sha256::{digest, hex};
 use livery_lib::error::ErrorCode;
 use livery_lib::model::PixelRect;
 
@@ -123,22 +125,59 @@ fn a_missing_dependency_reads_as_the_vc_runtime() {
 
 #[test]
 fn a_runtime_that_isnt_the_pinned_one_is_never_loaded() {
-    let dir = std::env::temp_dir().join(format!("livery-cutout-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = temp("runtime");
     let dll = dir.join("onnxruntime.dll");
     std::fs::write(&dll, b"not the runtime").unwrap();
+    let model = dir.join("model.onnx");
+    std::fs::write(&model, b"the pinned model").unwrap();
     let cutout = Cutout::new();
-    let hash = FileHash { size: 15, sha256: "0".repeat(64) };
+    let (dll_hash, model_hash) = (FileHash { size: 15, sha256: "0".repeat(64) }, hash_of(b"the pinned model"));
+    let files = RuntimeFiles { dll: &dll, dll_hash: &dll_hash, model: &model, model_hash: &model_hash };
     let mut steps = Vec::new();
-    let e =
-        cutout.run(&dll, &hash, &dir.join("model.onnx"), &RgbaImage::new(2, 2), &mut |s| steps.push(s)).unwrap_err();
+    let e = cutout.run(&files, &RgbaImage::new(2, 2), &mut |s| steps.push(s)).unwrap_err();
     assert_eq!((e.code, e.message.as_str()), (ErrorCode::NotFound, CUTOUT_NOT_READY));
-    // Deleted, so the next download replaces it; nothing loaded; not left running.
+    // Deleted, so the next download replaces it; nothing loaded; not left running; the model,
+    // which matches, stays.
     assert!(!dll.exists());
+    assert!(model.exists());
     assert!(!cutout.runtime_loaded());
     assert!(!cutout.is_running());
     // A cancel with nothing running does nothing.
     cutout.cancel();
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_model_that_isnt_the_pinned_one_is_deleted_before_anything_loads() {
+    let dir = temp("model");
+    let dll = dir.join("onnxruntime.dll");
+    std::fs::write(&dll, b"some runtime").unwrap();
+    let model = dir.join("model.onnx");
+    // Same size as the pinned bytes, other content.
+    std::fs::write(&model, b"the other model!").unwrap();
+    let cutout = Cutout::new();
+    let (dll_hash, model_hash) = (hash_of(b"some runtime"), hash_of(b"the pinned model"));
+    assert_eq!(model_hash.size, 16);
+    let files = RuntimeFiles { dll: &dll, dll_hash: &dll_hash, model: &model, model_hash: &model_hash };
+    let e = cutout.run(&files, &RgbaImage::new(2, 2), &mut |_| {}).unwrap_err();
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::NotFound, CUTOUT_NOT_READY));
+    assert!(!model.exists());
+    // The runtime wasn't even looked at.
+    assert!(dll.exists());
+    assert!(!cutout.runtime_loaded());
+    // Missing now: still not ready.
+    let e = cutout.run(&files, &RgbaImage::new(2, 2), &mut |_| {}).unwrap_err();
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::NotFound, CUTOUT_NOT_READY));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn temp(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("livery-cutout-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+fn hash_of(bytes: &[u8]) -> FileHash {
+    FileHash { size: bytes.len() as u64, sha256: hex(&digest(bytes)) }
 }

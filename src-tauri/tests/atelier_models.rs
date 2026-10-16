@@ -250,10 +250,46 @@ fn the_launch_purge_only_touches_a_marked_folder() {
     assert!(models.join("ort-1").join(DLL_FILE).exists());
 
     fs::write(models.join(REMOVE_MARKER), b"").unwrap();
+    // Next to the folder, and (Windows) behind a junction inside it: never touched.
+    fs::write(dir.join("sibling.txt"), b"keep").unwrap();
+    let outside = dir.join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("keep.txt"), b"keep").unwrap();
+    if cfg!(windows) {
+        let made = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(models.join("link"))
+            .arg(&outside)
+            .output()
+            .unwrap();
+        assert!(made.status.success(), "{made:?}");
+    }
     assert!(files.status().pending_removal);
     assert!(files.purge_pending());
     assert!(!models.exists());
+    assert!(dir.join("sibling.txt").exists());
+    assert!(outside.join("keep.txt").exists());
     // Nothing there: nothing to do.
     assert!(!ModelFiles::new(&dir.join("none")).purge_pending());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn launch_cleans_unfinished_downloads_and_status_ignores_them() {
+    let dir = temp("leftovers");
+    let models = dir.join("models");
+    let runtime = models.join("ort-1");
+    fs::create_dir_all(&runtime).unwrap();
+    fs::write(models.join(format!("{MODEL_FILE}.part")), vec![0u8; 1000]).unwrap();
+    fs::write(models.join(RUNTIME_ZIP_FILE), vec![0u8; 2000]).unwrap();
+    fs::write(runtime.join(format!("{DLL_FILE}.part")), vec![0u8; 300]).unwrap();
+    fs::write(runtime.join(DLL_FILE), vec![0u8; 40]).unwrap();
+    let files = ModelFiles::new(&models);
+    assert_eq!(files.status().bytes, 40);
+    assert_eq!(files.clean_leftovers(), 3);
+    assert_eq!(files.clean_leftovers(), 0);
+    assert!(runtime.join(DLL_FILE).exists());
+    assert!(!models.join(RUNTIME_ZIP_FILE).exists());
+    assert_eq!(files.status().bytes, 40);
     let _ = fs::remove_dir_all(&dir);
 }

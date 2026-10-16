@@ -151,7 +151,10 @@ pub fn canonical_source(source: &Path) -> AppResult<PathBuf> {
     })?;
     let plain = without_verbatim_drive(&canonical);
     if !is_local_absolute(&plain) {
-        return Err(unreadable(ErrorCode::InvalidInput, "leads outside a local drive"));
+        // On purpose: a mapped network drive (`Z:\` resolves to `\\?\UNC\server\…`), a link to a
+        // share and a UNC path are all refused alike; pictures are imported from local drives
+        // only, so no import reaches out to another machine.
+        return Err(unreadable(ErrorCode::InvalidInput, "network location"));
     }
     Ok(plain)
 }

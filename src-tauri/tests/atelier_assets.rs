@@ -285,7 +285,10 @@ fn links_are_resolved_and_must_stay_on_a_local_drive() {
     match std::os::windows::fs::symlink_file(&share, &link) {
         Ok(()) => {
             let e = err(import(&project, &link));
-            assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, IMAGE_UNREADABLE));
+            assert_eq!(
+                (e.code, e.message.as_str(), e.detail.as_deref()),
+                (ErrorCode::InvalidInput, IMAGE_UNREADABLE, Some("network location"))
+            );
         }
         Err(e) => println!("symbolic link to a share not checked: {e}"),
     }

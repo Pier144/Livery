@@ -487,8 +487,11 @@ impl CutoutState {
         if !status.runtime || !status.model {
             return Err(AppError::new(ErrorCode::NotFound, CUTOUT_NOT_READY));
         }
-        let dll = self.files.runtime_dll();
-        self.cutout.run(&dll, &self.files.pins().dll, &self.files.model_path(), source, progress)
+        let (dll, model) = (self.files.runtime_dll(), self.files.model_path());
+        let pins = self.files.pins();
+        let files =
+            cutout::RuntimeFiles { dll: &dll, dll_hash: &pins.dll, model: &model, model_hash: &pins.model.hash };
+        self.cutout.run(&files, source, progress)
     }
 }
 
