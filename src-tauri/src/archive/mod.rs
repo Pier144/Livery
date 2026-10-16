@@ -4,7 +4,8 @@
 //! - `source`: what a dropped or watched path holds ([`SkinSource`]): a folder, or a ZIP, 7z or
 //!   RAR archive (`zip_source`, `sevenz_source`, `rar_source`, sharing the checks and the staged
 //!   writer in `unpack`: no path outside the destination, no links, no encrypted or split
-//!   archives, capped sizes);
+//!   archives, capped sizes). RAR headers are read by `rar_headers` and the data decoded by the
+//!   7-Zip or WinRAR installed on the PC (`rar_tool`);
 //! - `analyze`: skin roots, vehicle, target folder, name clashes → a [`QueueItem`];
 //! - `install`: copy or unpack into `UserSkins/.livery/partial/<installId>/<folder>` (with the
 //!   `.livery-partial` marker), verify, then one atomic rename into place inside a library
@@ -17,7 +18,9 @@
 
 pub mod analyze;
 pub mod install;
+pub mod rar_headers;
 pub mod rar_source;
+pub mod rar_tool;
 pub mod sevenz_source;
 pub mod source;
 pub mod unpack;
@@ -27,6 +30,7 @@ pub use analyze::{analyze_path, analyze_source, sanitize_folder_name, Analysis, 
 // `install::undo_replace` is the plain function behind the `undo_replace` command below.
 pub use install::{prepare, purge_partials, run, run_with_source, Ctx, InstallJob};
 pub use rar_source::RarSource;
+pub use rar_tool::{RarTool, RarToolKind};
 pub use sevenz_source::SevenZSource;
 pub use source::{open_source, open_source_with, ArchiveKind, ExtractTick, FolderSource, SkinSource, SourceEntry};
 pub use unpack::Limits;

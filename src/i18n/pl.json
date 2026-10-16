@@ -143,6 +143,7 @@
         "archiveEncrypted": "To archiwum jest chronione hasłem, więc Livery nie może go rozpakować",
         "archiveSplit": "To jedna część archiwum wieloczęściowego. Livery rozpakowuje tylko archiwa jednoplikowe",
         "archiveMethod": "To archiwum używa metody kompresji nieobsługiwanej przez Livery",
+        "archiveNeedsRarTool": "Do otwierania archiwów RAR potrzebny jest 7-Zip lub WinRAR. Zainstaluj jeden z nich albo rozpakuj archiwum i dodaj jego folder",
         "archiveDamaged": "To archiwum jest uszkodzone i nie można go rozpakować",
         "notAnArchive": "Ten plik nie jest archiwum ZIP, RAR ani 7z",
         "archiveTooBig": "Po rozpakowaniu to archiwum zajmuje za dużo jak na kamuflaż",

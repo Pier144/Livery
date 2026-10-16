@@ -1,9 +1,12 @@
 //! ZIP, 7z and RAR sources: analysis and installs that end exactly like a skin folder's, and every
 //! guard (unsafe paths, links, encryption, split volumes, size and count caps, sizes that lie,
 //! damaged data). ZIP and 7z fixtures are built here with the crates' writers (some then patched
-//! byte by byte); the RAR ones are committed in `fixtures/archives` (see its README). Also the
-//! ZIP export of My Hangar.
+//! byte by byte); the RAR 5 ones are committed in `fixtures/archives` (see its README) and the
+//! RAR 4 ones are built here. RAR decoding runs with every installed decoder (7-Zip, WinRAR). Also
+//! the ZIP export of My Hangar.
 
+use livery_lib::archive::rar_headers;
+use livery_lib::archive::rar_tool::RAR_NEEDS_TOOL;
 use livery_lib::archive::source::SOURCE_GONE;
 use livery_lib::archive::unpack::{
     entry_path, Limits, ARCHIVE_DAMAGED, ARCHIVE_ENCRYPTED, ARCHIVE_METHOD, ARCHIVE_SPLIT, ARCHIVE_TOO_BIG,
@@ -11,7 +14,7 @@ use livery_lib::archive::unpack::{
 };
 use livery_lib::archive::{
     analyze_path, open_source, open_source_with, partial_dir, prepare, purge_textures_scratch, run, textures_for_queue,
-    Ctx, FolderSource, InstallJob, QueueStore, SkinSource,
+    Ctx, FolderSource, InstallJob, QueueStore, RarSource, RarTool, SkinSource,
 };
 use livery_lib::error::{AppError, AppResult, ErrorCode};
 use livery_lib::library::import_folders;
@@ -219,7 +222,7 @@ fn sevenz_number(value: u64) -> Vec<u8> {
 
 /// `winter_tiger.rar` with the header of its first file (the `.blk`) rewritten by `patch`, which
 /// gets the header from its type field to the end of its extra area. The header CRC and size are
-/// written again, so UnRAR reads the result as a sound archive.
+/// written again, so the result reads as a sound archive.
 fn patched_rar(to: &Path, patch: impl Fn(&mut Vec<u8>)) -> PathBuf {
     let bytes = fs::read(rar_fixture("winter_tiger.rar")).unwrap();
     // Signature (8) + main archive header (4 + 1 + 10): the file header starts at 23.
@@ -863,10 +866,98 @@ fn textures_of_a_queued_7z_read_like_the_folder() {
     assert_eq!(textures_for_queue(&env.queue, &item.id).unwrap(), textures_for_queue(&env.queue, &folder.id).unwrap());
 }
 
-// ── RAR (committed fixtures) ────────────────────────────────────────────────
+// ── RAR (committed RAR 5 fixtures, RAR 4 built here) ────────────────────────
+
+/// Every installed RAR decoder: tests that decode run once with each (GitHub's Windows runners
+/// have 7-Zip, the author's PC has WinRAR). With neither they pass with a note, except in CI.
+fn rar_tools() -> Vec<RarTool> {
+    let tools = RarTool::installed();
+    if tools.is_empty() {
+        assert!(std::env::var_os("CI").is_none(), "CI needs 7-Zip or WinRAR to test RAR decoding");
+        eprintln!("neither 7-Zip nor WinRAR is installed: RAR decoding not tested");
+    }
+    tools
+}
+
+/// One RAR 4 file header's fields that tests change.
+struct Rar4Header {
+    flags: u16,
+    host_os: u8,
+    attributes: u32,
+    name: Vec<u8>,
+}
+
+/// A stored RAR 4 archive of `entries` (RAR 1.5–4 headers, method 0x30, so the data is the files'
+/// bytes), built by hand because WinRAR 7 no longer writes RAR 4. `main_flags` go in the main
+/// header; `tweak` may change each file header.
+fn write_rar4(to: &Path, entries: &[Entry], main_flags: u16, tweak: impl Fn(&mut Rar4Header)) -> PathBuf {
+    fn block(kind: u8, flags: u16, rest: &[u8]) -> Vec<u8> {
+        let mut header = vec![kind];
+        header.extend(flags.to_le_bytes());
+        header.extend((7 + rest.len() as u16).to_le_bytes());
+        header.extend(rest);
+        let mut out = (crc32(&header) as u16).to_le_bytes().to_vec();
+        out.extend(header);
+        out
+    }
+    let mut out = b"Rar!\x1A\x07\x00".to_vec();
+    out.extend(block(0x73, main_flags, &[0; 6]));
+    for (name, bytes) in entries {
+        let data = bytes.clone().unwrap_or_default();
+        let mut header = Rar4Header {
+            flags: if bytes.is_none() { 0x00e0 } else { 0 },
+            host_os: 2,
+            attributes: if bytes.is_none() { 0x10 } else { 0x20 },
+            name: name.replace('/', "\\").into_bytes(),
+        };
+        tweak(&mut header);
+        let mut rest = Vec::new();
+        rest.extend((data.len() as u32).to_le_bytes()); // packed size
+        rest.extend((data.len() as u32).to_le_bytes()); // unpacked size
+        rest.push(header.host_os);
+        rest.extend(crc32(&data).to_le_bytes());
+        rest.extend(0x5A21_0000u32.to_le_bytes()); // 2025-01-01, DOS time
+        rest.push(29); // RAR 2.9 to unpack
+        rest.push(0x30); // stored
+        rest.extend((header.name.len() as u16).to_le_bytes());
+        rest.extend(header.attributes.to_le_bytes());
+        rest.extend(&header.name);
+        out.extend(block(0x74, 0x8000 | header.flags, &rest));
+        out.extend(data);
+    }
+    out.extend(block(0x7b, 0x4000, &[]));
+    fs::write(to, out).unwrap();
+    to.to_path_buf()
+}
+
+/// Two skins in nested folders, an empty file, a repeated name and Livery's own folder (left
+/// out), as archive entries.
+fn rar_pack() -> Vec<Entry> {
+    let mut entries = vec![dir("Pack"), dir("Pack/Winter Tiger")];
+    entries.extend(entries_of(&source_fixture("Winter Tiger"), "Pack/Winter Tiger/"));
+    entries.extend([
+        file("Pack/Su-27 Flanker/su_27.blk", b"replace_tex{}"),
+        file("Pack/Su-27 Flanker/empty.txt", b""),
+        file("Pack/Su-27 Flanker/SU_27.BLK", b"a repeat, left out"),
+        file("Pack/.livery/note.txt", b"Livery's own"),
+    ]);
+    entries
+}
+
+/// Unpacks the whole of `source` into a new folder under `env` and returns its files.
+fn unpack_all(env: &Env, source: &dyn SkinSource, name: &str) -> AppResult<Vec<(String, Vec<u8>)>> {
+    let out = env.tmp.path().join("downloads").join(name);
+    fs::create_dir_all(&out).unwrap();
+    source.extract("", &out, &mut |_| Ok(()))?;
+    Ok(tree(&out))
+}
 
 #[test]
 fn a_ready_rar_installs() {
+    if RarTool::find().is_none() {
+        rar_tools();
+        return;
+    }
     let env = Env::new("rar-ready");
     let rar = rar_fixture("winter_tiger.rar");
     let item = env.analyze(&rar);
@@ -887,6 +978,78 @@ fn a_ready_rar_installs() {
     assert_eq!(sizes, [("germ_pzkpfw_VI_ausf_b_tiger_IIH.blk", 73), ("tiger_c.dds", 9)]);
     assert_eq!(read["Winter Tiger/tiger_c.dds"], installed[1].1[..4]);
     env.assert_clean();
+}
+
+#[test]
+fn every_installed_decoder_unpacks_rar_5_and_rar_4_alike() {
+    let env = Env::new("rar-decoders");
+    let expected = tree(&source_fixture("Winter Tiger"));
+    let pack = write_rar4(&env.download("pack.rar"), &rar_pack(), 0, |_| {});
+    for tool in rar_tools() {
+        let label = format!("{tool:?}");
+        let rar5 = RarSource::open_with(&rar_fixture("winter_tiger.rar"), Limits::DEFAULT, Some(tool.clone())).unwrap();
+        // The committed fixture holds its own small Winter Tiger (see the fixtures README).
+        let got = unpack_all(&env, &rar5, &format!("{:?}-5", tool.kind)).unwrap();
+        let sizes: Vec<(&str, usize)> = got.iter().map(|(p, b)| (p.as_str(), b.len())).collect();
+        assert_eq!(
+            sizes,
+            [("Winter Tiger/germ_pzkpfw_VI_ausf_b_tiger_IIH.blk", 73), ("Winter Tiger/tiger_c.dds", 9)],
+            "{label}"
+        );
+        assert!(got[0].1.starts_with(b"skin{") && got[1].1.starts_with(b"DDS "), "{label}");
+
+        let rar4 = RarSource::open_with(&pack, Limits::DEFAULT, Some(tool.clone())).unwrap();
+        let listed: Vec<String> = rar4.entries().unwrap().into_iter().map(|e| e.path).collect();
+        assert!(listed.contains(&"Pack/Su-27 Flanker/su_27.blk".to_owned()), "{listed:?}");
+        assert!(!listed.iter().any(|p| p.contains(".livery") || p.ends_with("SU_27.BLK")), "{listed:?}");
+        let mut want = expected.iter().map(|(p, b)| (format!("Pack/Winter Tiger/{p}"), b.clone())).collect::<Vec<_>>();
+        want.extend([
+            ("Pack/Su-27 Flanker/empty.txt".to_owned(), Vec::new()),
+            ("Pack/Su-27 Flanker/su_27.blk".to_owned(), b"replace_tex{}".to_vec()),
+        ]);
+        want.sort();
+        assert_eq!(unpack_all(&env, &rar4, &format!("{:?}-4", tool.kind)).unwrap(), want, "{label}");
+
+        // One skin of the pack, and a few bytes of a file that comes after the other skin.
+        let out = env.download(&format!("{:?}-one", tool.kind));
+        fs::create_dir_all(&out).unwrap();
+        let tick = rar4.extract("Pack/Su-27 Flanker", &out, &mut |_| Ok(())).unwrap();
+        assert_eq!((tick.files_done, tick.bytes_done), (2, 13), "{label}");
+        assert_eq!(
+            tree(&out),
+            [("empty.txt".to_owned(), Vec::new()), ("su_27.blk".to_owned(), b"replace_tex{}".to_vec())]
+        );
+        let read = rar4.read_many(&[("Pack/Su-27 Flanker/su_27.blk".into(), 7)]).unwrap();
+        assert_eq!(read["Pack/Su-27 Flanker/su_27.blk"], b"replace", "{label}");
+    }
+}
+
+#[test]
+fn rar_4_unicode_names_are_read() {
+    let env = Env::new("rar-unicode");
+    let entries = [file("Зима/su_27.blk", b"replace_tex{}")];
+    let rar = write_rar4(&env.download("unicode.rar"), &entries, 0, |h| h.flags |= 0x0200);
+    for tool in rar_tools() {
+        let source = RarSource::open_with(&rar, Limits::DEFAULT, Some(tool)).unwrap();
+        let listed: Vec<String> = source.entries().unwrap().into_iter().map(|e| e.path).collect();
+        assert_eq!(listed, ["Зима", "Зима/su_27.blk"]);
+        assert_eq!(unpack_all(&env, &source, "u").unwrap(), [("Зима/su_27.blk".to_owned(), b"replace_tex{}".to_vec())]);
+        fs::remove_dir_all(env.download("u")).unwrap();
+    }
+}
+
+#[test]
+fn without_7zip_or_winrar_a_rar_says_what_it_needs() {
+    let e = err(RarSource::open_with(&rar_fixture("winter_tiger.rar"), Limits::DEFAULT, None));
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::Unsupported, RAR_NEEDS_TOOL));
+    assert!(RAR_NEEDS_TOOL.is_ascii() && RAR_NEEDS_TOOL.len() < 160, "short enough for a queue row");
+    // What Livery can tell from the headers alone still comes first.
+    for (name, message) in
+        [("locked.rar", ARCHIVE_ENCRYPTED), ("split.part1.rar", ARCHIVE_SPLIT), ("link.rar", LINK_ENTRY)]
+    {
+        let e = err(RarSource::open_with(&rar_fixture(name), Limits::DEFAULT, None));
+        assert_eq!(e.message, message, "{name}");
+    }
 }
 
 #[test]
@@ -918,18 +1081,73 @@ fn a_rar_holding_a_symlink_is_refused() {
 }
 
 #[test]
-fn rar_dictionaries_are_capped_before_unrar_decodes() {
+fn rar_4_guards_match_rar_5() {
+    let env = Env::new("rar4-guards");
+    let skin = [dir("Skin"), file("Skin/su_27.blk", b"replace_tex{}")];
+    let only_file = |flags: u16| {
+        move |h: &mut Rar4Header| {
+            if h.attributes == 0x20 {
+                h.flags |= flags;
+            }
+        }
+    };
+    let link = |h: &mut Rar4Header| {
+        if h.attributes == 0x20 {
+            (h.host_os, h.attributes) = (3, 0o120_777);
+        }
+    };
+    let cases = [
+        ("encrypted file", write_rar4(&env.download("locked4.rar"), &skin, 0, only_file(0x0004)), ARCHIVE_ENCRYPTED),
+        ("encrypted headers", write_rar4(&env.download("hp4.rar"), &skin, 0x0080, |_| {}), ARCHIVE_ENCRYPTED),
+        ("volume", write_rar4(&env.download("vol4.rar"), &skin, 0x0001, |_| {}), ARCHIVE_SPLIT),
+        ("split file", write_rar4(&env.download("split4.rar"), &skin, 0, only_file(0x0002)), ARCHIVE_SPLIT),
+        ("Unix symlink", write_rar4(&env.download("link4.rar"), &skin, 0, link), LINK_ENTRY),
+    ];
+    for (what, rar, message) in cases {
+        let e = err(RarSource::open_with(&rar, Limits::DEFAULT, None));
+        assert_eq!(e.message, message, "{what}");
+        assert_refused(&env, &rar, message);
+    }
+    // A header whose CRC doesn't match, and an archive cut inside its data.
+    let fine = write_rar4(&env.download("fine4.rar"), &skin, 0, |_| {});
+    let mut bytes = fs::read(&fine).unwrap();
+    let name_at = bytes.windows(9).position(|w| w == b"su_27.blk").unwrap();
+    bytes[name_at] = b'x';
+    fs::write(env.download("crc4.rar"), &bytes).unwrap();
+    assert_refused(&env, &env.download("crc4.rar"), ARCHIVE_DAMAGED);
+    let bytes = fs::read(&fine).unwrap();
+    fs::write(env.download("cut4.rar"), &bytes[..bytes.len() - 12]).unwrap();
+    assert_refused(&env, &env.download("cut4.rar"), ARCHIVE_DAMAGED);
+}
+
+#[test]
+fn rar_data_that_fails_its_crc_fails_the_install() {
+    let env = Env::new("rar-crc");
+    let mut bytes = fs::read(rar_fixture("winter_tiger.rar")).unwrap();
+    // The fixture is stored: the texture's bytes are in the file as they are.
+    let at = bytes.windows(4).position(|w| w == b"DDS ").unwrap();
+    bytes[at + 5] ^= 0xff;
+    let bad = env.download("bad.rar");
+    fs::write(&bad, &bytes).unwrap();
+    for tool in rar_tools() {
+        let source = RarSource::open_with(&bad, Limits::DEFAULT, Some(tool.clone())).unwrap();
+        let e = err(unpack_all(&env, &source, &format!("{:?}", tool.kind)));
+        assert_eq!(e.message, ARCHIVE_DAMAGED, "{tool:?}: {e:?}");
+    }
+}
+
+#[test]
+fn rar_dictionaries_are_capped_before_a_decoder_runs() {
     let env = Env::new("rar-dictionary");
     // The fixture as is stores a 128 KiB dictionary (compression information 0).
     let fine = patched_rar(&env.download("fine.rar"), |_| {});
-    assert_eq!(env.analyze(&fine).status, QueueStatus::Ready);
-    // RAR 5, 512 MiB (128 KiB << 12): above the cap, UnRAR would allocate it.
+    assert_eq!(rar_headers::read_headers(&fine, Limits::DEFAULT).unwrap().items.len(), 3);
+    // RAR 5, 512 MiB (128 KiB << 12): above the cap, the decoder would allocate it.
     let big = patched_rar(&env.download("big.rar"), |h| {
         h.splice(RAR_COMPRESSION_AT, [0x80, 0x60]);
     });
     assert_refused(&env, &big, ARCHIVE_METHOD);
-    // RAR 7, 8 GiB (128 KiB << 16): above UnRAR's 4 GiB default, it answers ERAR_LARGE_DICT,
-    // which the `unrar` crate `unwrap()`s (a panic, an abort in release builds).
+    // RAR 7, 8 GiB (128 KiB << 16).
     let huge = patched_rar(&env.download("huge.rar"), |h| {
         h.splice(RAR_COMPRESSION_AT, [0x81, 0x80, 0x01]);
     });
@@ -968,11 +1186,11 @@ fn a_rar_named_file_without_a_rar_signature_is_not_an_archive() {
 fn a_damaged_rar_is_refused() {
     let env = Env::new("rar-cut");
     let bytes = fs::read(rar_fixture("winter_tiger.rar")).unwrap();
-    let cut = env.download("cut.rar");
-    fs::write(&cut, &bytes[..40]).unwrap();
-    let item = env.analyze(&cut);
-    assert_eq!(item.status, QueueStatus::Error, "{item:?}");
-    assert!(item.error.is_some());
+    for (name, keep) in [("cut.rar", 40), ("no-end.rar", bytes.len() - 8)] {
+        let cut = env.download(name);
+        fs::write(&cut, &bytes[..keep]).unwrap();
+        assert_refused(&env, &cut, ARCHIVE_DAMAGED);
+    }
 }
 
 // ── Export ──────────────────────────────────────────────────────────────────

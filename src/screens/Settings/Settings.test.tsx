@@ -866,9 +866,8 @@ describe('Settings · About', () => {
 
     const close = within(dialog).getByRole('button', { name: 'Close' });
     const toggles = within(dialog).getAllByRole('button', { name: 'Show license text' });
-    expect(toggles).toHaveLength(7);
-    const [geist, plex, unrar, zstd, awsLc, rust, javascript] = toggles as HTMLElement[] as [
-      HTMLElement,
+    expect(toggles).toHaveLength(6);
+    const [geist, plex, zstd, awsLc, rust, javascript] = toggles as HTMLElement[] as [
       HTMLElement,
       HTMLElement,
       HTMLElement,
@@ -878,20 +877,16 @@ describe('Settings · About', () => {
     ];
     expect(within(dialog).getByText('AWS-LC · Amazon.com, Inc.')).toBeInTheDocument();
     for (const lib of ['reqwest · hyper', 'rustls']) expect(within(dialog).getByText(lib)).toBeInTheDocument();
-    // The notices bundled native code requires: UnRAR's paragraph 2 verbatim, zstd's BSD text.
-    expect(within(dialog).getByText('UnRAR · Alexander Roshal')).toBeInTheDocument();
+    // The notices bundled native code requires: zstd's BSD text. No UnRAR code ships (RAR is
+    // decoded by the user's 7-Zip or WinRAR), so there is no UnRAR licence either.
     expect(within(dialog).getByText('BSD-3-Clause')).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('UnRAR · Alexander Roshal license text').textContent).toContain(
-      'UnRAR source code may be used in any software to handle',
-    );
+    expect(within(dialog).queryByText(/UnRAR/)).toBeNull();
     await user.tab();
     expect(close).toHaveFocus();
     await user.tab();
     expect(geist).toHaveFocus();
     await user.tab();
     expect(plex).toHaveFocus();
-    await user.tab();
-    expect(unrar).toHaveFocus();
     await user.tab();
     expect(zstd).toHaveFocus();
     await user.tab();

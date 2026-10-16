@@ -3,7 +3,6 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent
 import { useTranslation } from 'react-i18next';
 import geistLicense from '@/assets/fonts/Geist-OFL.txt?raw';
 import plexLicense from '@/assets/fonts/IBMPlexMono-OFL.txt?raw';
-import unrarLicense from '@/assets/licenses/UnRAR.txt?raw';
 import zstdLicense from '@/assets/licenses/zstd-BSD-3-Clause.txt?raw';
 import awsLcLicense from '@/assets/licenses/AWS-LC.txt?raw';
 
@@ -14,12 +13,11 @@ const FONTS = [
 ] as const;
 
 /**
- * Bundled native code whose licence asks for its text in the documentation: UnRAR (RAR reading,
- * paragraph 2 must be quoted in full), Zstandard (BSD-3-Clause, inside ZIP support) and AWS-LC
- * (the cryptography behind HTTPS to WT Live; ISC, Apache-2.0, MIT and BSD-3-Clause parts).
+ * Bundled native code whose licence asks for its text in the documentation: Zstandard
+ * (BSD-3-Clause, inside ZIP support) and AWS-LC (the cryptography behind HTTPS to WT Live; ISC,
+ * Apache-2.0, MIT and BSD-3-Clause parts). RAR is decoded by the user's own 7-Zip or WinRAR.
  */
 const NOTICES = [
-  { name: 'UnRAR · Alexander Roshal', license: 'UnRAR license', text: unrarLicense },
   { name: 'Zstandard · Meta Platforms, Inc.', license: 'BSD-3-Clause', text: zstdLicense },
   { name: 'AWS-LC · Amazon.com, Inc.', license: 'ISC · Apache-2.0 · MIT · BSD-3-Clause', text: awsLcLicense },
 ] as const;
@@ -35,7 +33,6 @@ const LIBRARIES = [
   { name: 'Tailwind CSS', license: 'MIT' },
   { name: 'zip', license: 'MIT' },
   { name: 'sevenz-rust2', license: 'Apache-2.0' },
-  { name: 'unrar', license: 'MIT / Apache-2.0' },
   { name: 'reqwest · hyper', license: 'MIT / Apache-2.0' },
   { name: 'rustls', license: 'Apache-2.0 / ISC / MIT' },
   { name: 'minisign-verify', license: 'MIT' },

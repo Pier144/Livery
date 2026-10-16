@@ -108,6 +108,7 @@ scripts/                 i18n-check.mjs / i18n-sync.mjs,
 - Rust commands return `Result<T, AppError>` (serialized as `{ code, message, detail? }`); disk work runs off the UI thread; long operations emit events.
 - **Frontend tests** sit next to the code as `*.test.ts(x)` and run in jsdom. Test store logic and reducers; smoke-test components with the helpers in `src/test/` (`resetStores()` in `beforeEach`).
 - **Rust tests** live in `src-tauri/tests/` (plus unit tests in modules). Every parser (blk, archive layout, DDS/TGA headers, Steam VDF) has fixture-based tests over `src-tauri/tests/fixtures/`; anything that writes uses a temp dir.
+- **RAR needs 7-Zip or WinRAR.** Livery ships no RAR decoder: it reads RAR headers itself (`archive::rar_headers`) and has the installed 7-Zip (`7z.exe`) or WinRAR (`UnRAR.exe`) print the files to a pipe (`archive::rar_tool`). The RAR tests that decode run once per installed program and pass with a note when there is none, except under `CI` (GitHub's Windows runners have 7-Zip).
 - CI ([`ci.yml`](../.github/workflows/ci.yml), windows-latest, on every push and pull request) runs typecheck, Vitest, `i18n:check`, the frontend build with the mock check, `cargo fmt --check`, clippy with `-D warnings` and `cargo test`.
 
 ## Releases

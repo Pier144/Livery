@@ -137,6 +137,7 @@
         "archiveEncrypted": "此压缩包受密码保护，Livery 无法解压",
         "archiveSplit": "这是分卷压缩包的一部分。Livery 仅支持解压单个文件的压缩包",
         "archiveMethod": "此压缩包使用了 Livery 无法解压的压缩方式",
+        "archiveNeedsRarTool": "打开 RAR 压缩包需要 7-Zip 或 WinRAR。请安装其中之一，或先解压压缩包再添加文件夹",
         "archiveDamaged": "此压缩包已损坏，无法解压",
         "notAnArchive": "此文件不是 ZIP、RAR 或 7z 压缩包",
         "archiveTooBig": "此压缩包解压后的数据量过大，不像是涂装",

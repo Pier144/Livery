@@ -139,6 +139,7 @@
         "archiveEncrypted": "Dieses Archiv ist passwortgeschützt, deshalb kann Livery es nicht entpacken",
         "archiveSplit": "Das ist ein Teil eines geteilten Archivs. Livery entpackt nur Archive aus einer einzigen Datei",
         "archiveMethod": "Dieses Archiv nutzt eine Komprimierungsmethode, die Livery nicht entpacken kann",
+        "archiveNeedsRarTool": "Zum Öffnen von RAR-Archiven braucht es 7-Zip oder WinRAR. Installiere eines davon oder entpacke das Archiv und füge seinen Ordner hinzu",
         "archiveDamaged": "Dieses Archiv ist beschädigt und lässt sich nicht entpacken",
         "notAnArchive": "Diese Datei ist kein ZIP-, RAR- oder 7z-Archiv",
         "archiveTooBig": "Entpackt ist dieses Archiv zu groß für einen Skin",

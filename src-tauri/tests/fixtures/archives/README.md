@@ -1,8 +1,9 @@
 # RAR fixtures
 
-RAR can't be written from Rust (the `unrar` crate only reads), so these few archives are committed.
-ZIP and 7z fixtures are built by the tests themselves (`tests/archive_formats.rs`). All are RAR 5,
-stored (`-m0`), made with WinRAR 7 on Windows; keep them tiny.
+RAR 5 can't be written from Rust, so these few archives are committed. ZIP, 7z and RAR 4 fixtures
+are built by the tests themselves (`tests/archive_formats.rs`; RAR 4 by hand, stored, since WinRAR 7
+no longer writes it). All of these are RAR 5, stored (`-m0`), made with WinRAR 7 on Windows; keep
+them tiny. Tests that decode run with every installed decoder (7-Zip, WinRAR's UnRAR).
 
 | File | What it holds | How it was made |
 |---|---|---|

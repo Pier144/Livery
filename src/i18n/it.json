@@ -141,6 +141,7 @@
         "archiveEncrypted": "Questo archivio è protetto da password, quindi Livery non può estrarlo",
         "archiveSplit": "Questa è una parte di un archivio diviso. Livery estrae solo archivi in un unico file",
         "archiveMethod": "Questo archivio usa un metodo di compressione che Livery non supporta",
+        "archiveNeedsRarTool": "Per aprire gli archivi RAR serve 7-Zip o WinRAR. Installane uno, oppure estrai l’archivio e aggiungi la sua cartella",
         "archiveDamaged": "Questo archivio è danneggiato e non si può estrarre",
         "notAnArchive": "Questo file non è un archivio ZIP, RAR o 7z",
         "archiveTooBig": "Una volta estratto, questo archivio è troppo grande per essere una skin",

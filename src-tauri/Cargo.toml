@@ -24,7 +24,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "ansi", "std"] }
 zip = { version = "4", default-features = false, features = ["deflate", "deflate64", "bzip2", "zstd", "lzma", "time"] }
 sevenz-rust2 = "0.23"
-unrar = "0.5"
 # Already in the tree through `zip`; used directly to read the game's own data archives.
 zstd = { version = "0.13", default-features = false }
 tauri-plugin-opener = "2"
