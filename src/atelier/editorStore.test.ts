@@ -302,6 +302,30 @@ describe('editor store · image and text layers', () => {
     expect(ids().slice(1)).toEqual(['a', 'b']);
   });
 
+  it('restores a deleted layer at its place between the Base and the mask, as one undo step', () => {
+    S().addStroke({ ...brush, points: [[0, 0, 0]] });
+    for (const id of ['a', 'b', 'c']) S().addDecalLayer(image(id));
+    const b = layer('b');
+    S().deleteLayer('b');
+    S().setLayerProps('a', { opacity: 0.5 });
+    const past = S().past.length;
+    S().restoreLayer(b, 2);
+    expect(ids().slice(1, 4)).toEqual(['a', 'b', 'c']);
+    expect(S().selectedId).toBe('b');
+    expect(S().past).toHaveLength(past + 1);
+    // Already there, the Base or the mask, or out of range: ignored or clamped.
+    S().restoreLayer(b, 1);
+    expect(S().past).toHaveLength(past + 1);
+    S().restoreLayer(base()!, 1);
+    expect(kinds().filter((k) => k === 'base')).toHaveLength(1);
+    S().deleteLayer('c');
+    S().restoreLayer({ ...image('c') }, 99);
+    expect(kinds().at(-1)).toBe('mask');
+    expect(ids().at(-2)).toBe('c');
+    S().undo();
+    expect(ids()).not.toContain('c');
+  });
+
   it('moves layers between the Base and the mask only', () => {
     S().addStroke({ ...brush, points: [[0, 0, 0]] });
     for (const id of ['a', 'b', 'c']) S().addDecalLayer(image(id));

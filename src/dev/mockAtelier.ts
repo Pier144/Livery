@@ -87,9 +87,10 @@ export const DOWNLOAD_CANCELLED = 'Download cancelled';
 export const DOWNLOAD_BUSY = 'A download is already running';
 export const CUTOUT_BUSY = 'Background removal is busy, try again when it finishes';
 export const CUTOUT_RESTART_NEEDED = 'Restart Livery to finish removing the background-removal files';
-// Not in Rust yet (Task P3, cutout.rs): placeholders until it lands.
-export const CUTOUT_NOT_READY = 'Background removal needs its files first';
+// src-tauri/src/atelier/cutout.rs
+export const CUTOUT_NOT_READY = 'Download the background-removal files first';
 export const CUTOUT_FAILED = "The background couldn't be removed";
+export const CUTOUT_CANCELLED = 'Background removal cancelled';
 
 const MAX_NAME_CHARS = 80;
 const MAX_LAYERS = 500;
@@ -909,19 +910,19 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
       const assetId = str('atelier_cutout', args, 'assetId');
       if (!host.settings().atelierEnabled) fail('invalidInput', ATELIER_DISABLED);
       const c = host.atelier().cutout;
-      if (!c.runtime || !c.model || c.pendingRemoval) fail('unsupported', CUTOUT_NOT_READY);
+      if (!c.runtime || !c.model || c.pendingRemoval) fail('notFound', CUTOUT_NOT_READY);
       if (c.busy) fail('conflict', CUTOUT_BUSY);
       const source = picture(projectId, assetId);
       c.busy = 'cutout';
       c.cancelled = false;
       try {
         for (const step of ['load', 'run', 'write'] as const) {
-          if (c.cancelled) fail('internal', CUTOUT_FAILED, 'cancelled');
+          if (c.cancelled) fail('internal', CUTOUT_CANCELLED);
           host.emit(EVENTS.atelierCutoutProgress, { step } satisfies CutoutProgress);
           if (step === 'load') c.loaded = true;
           await host.wait(CUTOUT_STEP_MS);
         }
-        if (c.cancelled) fail('internal', CUTOUT_FAILED, 'cancelled');
+        if (c.cancelled) fail('internal', CUTOUT_CANCELLED);
         const { picture: cut, crop } = mockCutout(source);
         return { asset: store(projectId, cut), crop };
       } finally {

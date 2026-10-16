@@ -1106,7 +1106,8 @@
       "top": "Dessus",
       "canvas": "Vue 3D de {{vehicle}}",
       "help": "Faites glisser pour tourner, clic droit pour déplacer, molette pour zoomer.",
-      "brushHelp": "Faites glisser sur le véhicule pour protéger une zone. Clic droit ou Alt+glisser le fait tourner."
+      "brushHelp": "Faites glisser sur le véhicule pour protéger une zone. Clic droit ou Alt+glisser le fait tourner.",
+      "decalHelp": "Glissez le cadre pour le déplacer, un coin pour le redimensionner, le point pour le tourner. Flèches pour décaler, Maj+flèches pour tourner, + et − pour redimensionner, Alt+flèches pour tourner la vue."
     },
     "layers": {
       "title": "Calques",
@@ -1116,7 +1117,21 @@
       "show": "Afficher {{name}}",
       "hide": "Masquer {{name}}",
       "renameLabel": "Nouveau nom pour {{name}}",
-      "renameHint": "Double-cliquez pour renommer"
+      "renameHint": "Double-cliquez pour renommer",
+      "image": "Image",
+      "text": "Texte",
+      "addImage": "Ajouter une image",
+      "addText": "Ajouter du texte",
+      "imageFilter": "Images",
+      "notPlaced": "Non placé sur le véhicule",
+      "missingPicture": "L’image manque dans le projet",
+      "missingFont": "{{font}} n’est pas installée sur ce PC : une autre police la remplace",
+      "deleted": "Calque « {{name}} » supprimé",
+      "dragHint": "Glissez pour réordonner",
+      "actions": "Actions de {{name}}",
+      "duplicate": "Dupliquer",
+      "delete": "Supprimer",
+      "reorderHint": "Alt+↑ et Alt+↓ montent et descendent le calque sélectionné."
     },
     "parts": {
       "title": "Pièces",
@@ -1161,7 +1176,33 @@
       "hull": "Caisse",
       "turret": "Tourelle",
       "gun": "Canon",
-      "clear": "Effacer les zones protégées"
+      "clear": "Effacer les zones protégées",
+      "notPlaced": "L’emplacement de ce calque sur le véhicule n’a pas pu être lu. Replacez-le pour l’afficher.",
+      "placeAgain": "Placer sur le véhicule",
+      "opacity": "Opacité",
+      "depth": "Profondeur",
+      "cm": "{{value}} cm",
+      "depthHint": "Jusqu’où il pénètre dans la surface. Alt+molette le change sur la vue.",
+      "mirror": "Copier en miroir de l’autre côté",
+      "mirrorHelp": "Ajoute une copie du côté opposé, lisible dans le bon sens.",
+      "mirrorShared": "Ici, les deux côtés partagent la même texture : il apparaît déjà de l’autre côté (inversé). Le miroir est désactivé à cet endroit.",
+      "missingPicture": "Cette image manque dans le projet : elle n’est ni affichée ni appliquée. Supprimez le calque ou ajoutez de nouveau l’image.",
+      "flip": "Retourner horizontalement",
+      "removeBackground": "Supprimer l’arrière-plan",
+      "removeBackgroundHint": "Garde le sujet et rend l’arrière-plan transparent, sur ce PC",
+      "refineEdge": "Affiner le contour",
+      "refineEdgeHint": "Effacez ou récupérez des parties de l’image au pinceau",
+      "text": "Texte",
+      "textCount": "{{n}}/{{max}}",
+      "font": "Police",
+      "fontStyle": "Style",
+      "fontMissing": "Cette police n’est pas installée sur ce PC : une autre la remplace jusqu’à ce que vous en choisissiez une.",
+      "textColor": "Couleur du texte",
+      "fill": "Remplissage",
+      "outlineColor": "Couleur du contour",
+      "outline": "Contour",
+      "outlineWidth": "Épaisseur du contour",
+      "skew": "Inclinaison"
     },
     "apply": {
       "button": "Appliquer au jeu",
@@ -1183,11 +1224,63 @@
       "reselect": "Sélectionnez-le à nouveau dans le hangar pour voir les changements.",
       "restored": "La version précédente est revenue.",
       "downscaled": "Votre carte graphique ne peut pas peindre à cette taille : la texture a été enregistrée en 2048.",
-      "cancelled": "Application annulée : le skin dans le jeu n’a pas changé."
+      "cancelled": "Application annulée : le skin dans le jeu n’a pas changé.",
+      "pictureNotReady": "Une image sur le véhicule n’a pas fini de se charger. Réessayez d’appliquer."
     },
     "toast": {
       "deleted": "Projet « {{name}} » supprimé",
       "renamed": "Renommé en « {{name}} »"
+    },
+    "place": {
+      "hint": "Cliquez sur le véhicule pour le placer · Entrée : centre de la vue · Échap : annuler",
+      "start": "Cliquez sur le véhicule pour placer le nouveau calque. Entrée le place au centre de la vue, Échap annule.",
+      "missed": "Le véhicule n’est pas là. Cliquez sur le véhicule lui-même.",
+      "done": "Placé. Glissez-le ou utilisez les flèches pour l’ajuster."
+    },
+    "text": {
+      "default": "Texte"
+    },
+    "cutout": {
+      "title": "Supprimer l’arrière-plan",
+      "close": "Fermer",
+      "checking": "Vérification des fichiers de suppression d’arrière-plan…",
+      "consent": "Supprimer les arrière-plans nécessite deux fichiers que Livery télécharge une seule fois depuis GitHub :",
+      "runtime": "ONNX Runtime",
+      "model": "Modèle isnet-anime (projet rembg)",
+      "privacy": "{{size}} à télécharger. Ils restent sur ce PC et s’y exécutent : vos images ne le quittent jamais. Paramètres → Expérimental permet de les supprimer.",
+      "download": "Télécharger ({{size}})",
+      "restart": "Redémarrez d’abord Livery : les fichiers de suppression d’arrière-plan retirés étaient encore utilisés et disparaissent au prochain démarrage. Ensuite, il pourra les télécharger à nouveau.",
+      "downloading": "Téléchargement depuis GitHub…",
+      "received": "{{received}} sur {{total}}",
+      "waiting": "En attente",
+      "progress": "Suppression de l’arrière-plan",
+      "step": {
+        "load": "Chargement du modèle…",
+        "run": "Recherche du sujet…",
+        "write": "Enregistrement de la nouvelle image…"
+      },
+      "local": "Tout se passe sur ce PC : l’image n’est envoyée nulle part. L’original reste dans le projet.",
+      "retry": "Réessayer",
+      "done": "Arrière-plan supprimé. Ctrl+Z le rétablit.",
+      "stale": "Le calque a changé entre-temps : le résultat n’a pas été utilisé."
+    },
+    "refine": {
+      "title": "Affiner le contour",
+      "close": "Fermer",
+      "apply": "Appliquer",
+      "canvas": "L’image à affiner",
+      "zoomOut": "Dézoomer",
+      "zoomIn": "Zoomer",
+      "fit": "Ajuster à la vue",
+      "help": "Peignez sur l’image : Effacer la rend transparente, Restaurer ramène l’original. Ctrl+molette pour zoomer.",
+      "tool": "Pinceau",
+      "erase": "Effacer",
+      "restore": "Restaurer",
+      "size": "Taille du pinceau",
+      "px": "{{value}} px",
+      "hardness": "Dureté",
+      "undo": "Annuler le trait",
+      "stale": "L’image du calque a changé entre-temps : le contour affiné n’a pas été utilisé."
     }
   },
   "settings": {
@@ -1222,7 +1315,8 @@
         "sections": "1–5",
         "sidebar": "[ ]",
         "undo": "Ctrl Z",
-        "close": "Échap"
+        "close": "Échap",
+        "sectionsAtelier": "1–6"
       },
       "actions": {
         "search": "rechercher",
@@ -1329,13 +1423,21 @@
       "atelier": "Atelier",
       "atelierHelper": "Créez des skins sur un modèle 3D de votre véhicule. Expérimental : certaines choses peuvent changer ou ne pas fonctionner.",
       "needsGameData": "L’Atelier lit les modèles des véhicules dans le jeu : activez Lire les données du jeu pour l’utiliser.",
-      "openGame": "Ouvrir les paramètres du jeu"
+      "openGame": "Ouvrir les paramètres du jeu",
+      "cutout": "Fichiers de suppression d’arrière-plan",
+      "cutoutSize": "{{size}} sur ce PC (ONNX Runtime et le modèle isnet-anime).",
+      "cutoutNone": "Non téléchargés. Atelier demande avant de les télécharger ({{size}}) la première fois que vous supprimez un arrière-plan.",
+      "cutoutPending": "Supprimés. L’opération se termine au prochain démarrage de Livery.",
+      "cutoutConfirmTitle": "Supprimer les fichiers de suppression d’arrière-plan ?",
+      "cutoutConfirmBody": "Cela libère {{size}}. Les images déjà détourées restent telles quelles ; Livery retélécharge les fichiers la prochaine fois que vous supprimez un arrière-plan.",
+      "cutoutRemove": "Supprimer",
+      "cutoutRemoved": "Fichiers de suppression d’arrière-plan supprimés."
     },
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "Un gestionnaire de skins utilisateur pour War Thunder. Parcourez WT Live, installez en un clic, gardez votre hangar en ordre.",
       "privacyTitle": "Confidentialité",
-      "privacy": "Pas de compte, pas de publicité, pas de télémétrie. Livery se connecte uniquement à WT Live (live.warthunder.com et son serveur d’images) quand vous parcourez ou installez des skins, et à GitHub pour rechercher les mises à jour. Vos paramètres et votre bibliothèque restent sur ce PC. Livery lit les fichiers du jeu et les compositions de votre profil War Thunder sans les modifier. « Envoyer un retour » ouvre seulement une page GitHub dans votre navigateur : rien n’est envoyé tant que vous ne l’avez pas validée sur GitHub.",
+      "privacy": "Pas de compte, pas de publicité, pas de télémétrie. Livery se connecte uniquement à WT Live (live.warthunder.com et son serveur d’images) quand vous parcourez ou installez des skins, et à GitHub pour rechercher les mises à jour. Vos paramètres et votre bibliothèque restent sur ce PC. Livery lit les fichiers du jeu et les compositions de votre profil War Thunder sans les modifier. « Envoyer un retour » ouvre seulement une page GitHub dans votre navigateur : rien n’est envoyé tant que vous ne l’avez pas validée sur GitHub. Si vous utilisez Supprimer l’arrière-plan dans Atelier, Livery télécharge une seule fois ses fichiers depuis GitHub, uniquement à votre demande ; vos images restent sur ce PC.",
       "links": "Liens",
       "source": "Code source",
       "sourceHint": "Ouvre le dépôt de Livery sur GitHub",
@@ -1358,7 +1460,9 @@
       "showText": "Afficher le texte de la licence",
       "hideText": "Masquer le texte de la licence",
       "text": "Texte de la licence de {{name}}",
-      "close": "Fermer"
+      "close": "Fermer",
+      "onDemand": "Téléchargés à la demande",
+      "onDemandHelper": "Ne font pas partie de Livery : téléchargés depuis GitHub seulement à la première utilisation de Supprimer l’arrière-plan dans Atelier."
     }
   }
 }

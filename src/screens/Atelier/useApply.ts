@@ -6,6 +6,7 @@ import type { VehicleModelData } from '@/atelier/modelBuffer';
 import { errorText } from '@/lib/errors';
 import { listenEvent } from '@/lib/events';
 import { call, callRaw, toAppError } from '@/lib/tauri';
+import { EXPORT_PICTURE_NOT_READY } from '@/atelier/gl/baker';
 import { atelierProjectKey } from '@/queries/atelier';
 import { HANGAR_KEY } from '@/queries/hangar';
 import { undoReplace } from '@/queries/queue';
@@ -134,7 +135,8 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
         await yieldToPaint();
         if (current.aborted) return;
         const engine = latest.current.engine();
-        if (!engine) throw new ViewLostError('Atelier: the 3D view is gone');
+        // A view recreated mid-export holds no full-size pictures: never bake with it.
+        if (!engine || engine !== exporting) throw new ViewLostError('Atelier: the 3D view is gone');
         engine.baker.setLayers(layers, slots);
         const result = engine.baker.bakeForExport(slot, highQuality);
         downscaled ||= result.downscaled;
@@ -182,7 +184,13 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
     } catch (e) {
       if (current.applyId && !current.committing) void call('atelier_apply_cancel', { applyId: current.applyId }).catch(() => {});
       if (!current.aborted || current.committing) {
-        toast(isViewLost(e, latest.current.engine()) ? t('atelier.apply.viewLost') : errorText(toAppError(e), t));
+        toast(
+          isViewLost(e, latest.current.engine())
+            ? t('atelier.apply.viewLost')
+            : e instanceof Error && e.message.startsWith(EXPORT_PICTURE_NOT_READY)
+              ? t('atelier.apply.pictureNotReady')
+              : errorText(toAppError(e), t),
+        );
       }
     } finally {
       unlisten?.();

@@ -1063,7 +1063,8 @@
       "top": "Oben",
       "canvas": "3D-Ansicht von {{vehicle}}",
       "help": "Ziehen dreht, Ziehen mit rechter Maustaste verschiebt, Mausrad zoomt.",
-      "brushHelp": "Auf dem Fahrzeug ziehen, um einen Bereich zu schützen. Rechts ziehen oder Alt+Ziehen dreht es."
+      "brushHelp": "Auf dem Fahrzeug ziehen, um einen Bereich zu schützen. Rechts ziehen oder Alt+Ziehen dreht es.",
+      "decalHelp": "Rahmen ziehen zum Verschieben, eine Ecke zum Skalieren, den Punkt zum Drehen. Pfeiltasten verschieben, Umschalt+Pfeile drehen, + und − skalieren, Alt+Pfeile drehen die Ansicht."
     },
     "layers": {
       "title": "Ebenen",
@@ -1073,7 +1074,21 @@
       "show": "{{name}} einblenden",
       "hide": "{{name}} ausblenden",
       "renameLabel": "Neuer Name für {{name}}",
-      "renameHint": "Doppelklick zum Umbenennen"
+      "renameHint": "Doppelklick zum Umbenennen",
+      "image": "Bild",
+      "text": "Text",
+      "addImage": "Bild hinzufügen",
+      "addText": "Text hinzufügen",
+      "imageFilter": "Bilder",
+      "notPlaced": "Nicht auf dem Fahrzeug platziert",
+      "missingPicture": "Das Bild fehlt im Projekt",
+      "missingFont": "{{font}} ist auf diesem PC nicht installiert: eine andere Schrift springt ein",
+      "deleted": "Ebene „{{name}}“ gelöscht",
+      "dragHint": "Zum Umordnen ziehen",
+      "actions": "Aktionen für {{name}}",
+      "duplicate": "Duplizieren",
+      "delete": "Löschen",
+      "reorderHint": "Alt+↑ und Alt+↓ verschieben die gewählte Ebene nach oben und unten."
     },
     "parts": {
       "title": "Teile",
@@ -1118,7 +1133,33 @@
       "hull": "Wanne",
       "turret": "Turm",
       "gun": "Kanone",
-      "clear": "Geschützte Bereiche löschen"
+      "clear": "Geschützte Bereiche löschen",
+      "notPlaced": "Die Position dieser Ebene auf dem Fahrzeug ließ sich nicht lesen. Neu platzieren, um sie anzuzeigen.",
+      "placeAgain": "Auf dem Fahrzeug platzieren",
+      "opacity": "Deckkraft",
+      "depth": "Tiefe",
+      "cm": "{{value}} cm",
+      "depthHint": "Wie weit es in die Oberfläche reicht. In der Ansicht mit Alt+Mausrad ändern.",
+      "mirror": "Auf die andere Seite spiegeln",
+      "mirrorHelp": "Fügt auf der Gegenseite eine richtig herum lesbare Kopie hinzu.",
+      "mirrorShared": "Hier teilen sich beide Seiten dieselbe Textur, es erscheint also schon auf der anderen Seite (spiegelverkehrt). An dieser Stelle ist Spiegeln aus.",
+      "missingPicture": "Dieses Bild fehlt im Projekt und wird daher weder angezeigt noch angewendet. Ebene löschen oder das Bild erneut hinzufügen.",
+      "flip": "Horizontal spiegeln",
+      "removeBackground": "Hintergrund entfernen",
+      "removeBackgroundHint": "Behält das Motiv und macht den Hintergrund transparent, auf diesem PC",
+      "refineEdge": "Kante verfeinern",
+      "refineEdgeHint": "Teile des Bildes mit einem Pinsel löschen oder zurückholen",
+      "text": "Text",
+      "textCount": "{{n}}/{{max}}",
+      "font": "Schrift",
+      "fontStyle": "Schnitt",
+      "fontMissing": "Diese Schrift ist auf diesem PC nicht installiert: Bis du eine wählst, springt eine andere ein.",
+      "textColor": "Textfarbe",
+      "fill": "Füllung",
+      "outlineColor": "Konturfarbe",
+      "outline": "Kontur",
+      "outlineWidth": "Konturbreite",
+      "skew": "Neigung"
     },
     "apply": {
       "button": "Ins Spiel übertragen",
@@ -1140,11 +1181,63 @@
       "reselect": "Wähle ihn im Hangar erneut aus, um die Änderungen zu sehen.",
       "restored": "Die vorherige Version ist zurück.",
       "downscaled": "Deine Grafikkarte kann diese Größe nicht malen: Die Textur wurde mit 2048 gespeichert.",
-      "cancelled": "Übertragen abgebrochen: Der Skin im Spiel ist unverändert."
+      "cancelled": "Übertragen abgebrochen: Der Skin im Spiel ist unverändert.",
+      "pictureNotReady": "Ein Bild auf dem Fahrzeug ist noch nicht fertig geladen. Versuche es erneut."
     },
     "toast": {
       "deleted": "Projekt „{{name}}“ gelöscht",
       "renamed": "In „{{name}}“ umbenannt"
+    },
+    "place": {
+      "hint": "Auf das Fahrzeug klicken, um es zu platzieren · Eingabe: Mitte der Ansicht · Esc: abbrechen",
+      "start": "Auf das Fahrzeug klicken, um die neue Ebene zu platzieren. Eingabe setzt sie in die Mitte der Ansicht, Esc bricht ab.",
+      "missed": "Dort ist kein Teil des Fahrzeugs. Direkt auf das Fahrzeug klicken.",
+      "done": "Platziert. Ziehen oder mit den Pfeiltasten anpassen."
+    },
+    "text": {
+      "default": "Text"
+    },
+    "cutout": {
+      "title": "Hintergrund entfernen",
+      "close": "Schließen",
+      "checking": "Dateien zum Entfernen des Hintergrunds werden geprüft…",
+      "consent": "Zum Entfernen von Hintergründen braucht Livery zwei Dateien, die es einmalig von GitHub lädt:",
+      "runtime": "ONNX Runtime",
+      "model": "Modell isnet-anime (Projekt rembg)",
+      "privacy": "{{size}} zum Herunterladen. Sie bleiben auf diesem PC und laufen hier: Deine Bilder verlassen ihn nie. Unter Einstellungen → Experimentell lassen sie sich entfernen.",
+      "download": "Herunterladen ({{size}})",
+      "restart": "Starte Livery zuerst neu: Die entfernten Dateien zum Entfernen des Hintergrunds waren noch in Gebrauch und verschwinden beim nächsten Start ganz. Danach lassen sie sich neu herunterladen.",
+      "downloading": "Wird von GitHub heruntergeladen…",
+      "received": "{{received}} von {{total}}",
+      "waiting": "Wartet",
+      "progress": "Hintergrund wird entfernt",
+      "step": {
+        "load": "Modell wird geladen…",
+        "run": "Motiv wird erkannt…",
+        "write": "Neues Bild wird gespeichert…"
+      },
+      "local": "Das läuft auf diesem PC: Das Bild wird nirgendwohin gesendet. Das Original bleibt im Projekt.",
+      "retry": "Erneut versuchen",
+      "done": "Hintergrund entfernt. Strg+Z holt ihn zurück.",
+      "stale": "Die Ebene hat sich inzwischen geändert, das Ergebnis wurde nicht übernommen."
+    },
+    "refine": {
+      "title": "Kante verfeinern",
+      "close": "Schließen",
+      "apply": "Übernehmen",
+      "canvas": "Das zu verfeinernde Bild",
+      "zoomOut": "Verkleinern",
+      "zoomIn": "Vergrößern",
+      "fit": "An Ansicht anpassen",
+      "help": "Über das Bild malen: Löschen macht es transparent, Wiederherstellen holt das Original zurück. Strg+Mausrad zoomt.",
+      "tool": "Pinsel",
+      "erase": "Löschen",
+      "restore": "Wiederherstellen",
+      "size": "Pinselgröße",
+      "px": "{{value}} px",
+      "hardness": "Härte",
+      "undo": "Strich rückgängig",
+      "stale": "Das Bild der Ebene hat sich inzwischen geändert, die verfeinerte Kante wurde nicht übernommen."
     }
   },
   "settings": {
@@ -1179,7 +1272,8 @@
         "sections": "1–5",
         "sidebar": "[ ]",
         "undo": "Strg Z",
-        "close": "Esc"
+        "close": "Esc",
+        "sectionsAtelier": "1–6"
       },
       "actions": {
         "search": "suchen",
@@ -1282,13 +1376,21 @@
       "atelier": "Atelier",
       "atelierHelper": "Erstelle Skins auf einem 3D-Modell deines Fahrzeugs. Experimentell: Manches kann sich ändern oder nicht funktionieren.",
       "needsGameData": "Das Atelier liest die Fahrzeugmodelle aus dem Spiel: Schalte „Daten aus dem Spiel lesen“ ein, um es zu nutzen.",
-      "openGame": "Spiel-Einstellungen öffnen"
+      "openGame": "Spiel-Einstellungen öffnen",
+      "cutout": "Dateien zum Entfernen des Hintergrunds",
+      "cutoutSize": "{{size}} auf diesem PC (ONNX Runtime und das Modell isnet-anime).",
+      "cutoutNone": "Nicht heruntergeladen. Atelier fragt vor dem Herunterladen ({{size}}), wenn du zum ersten Mal einen Hintergrund entfernst.",
+      "cutoutPending": "Entfernt. Das wird beim nächsten Start von Livery abgeschlossen.",
+      "cutoutConfirmTitle": "Dateien zum Entfernen des Hintergrunds löschen?",
+      "cutoutConfirmBody": "Das gibt {{size}} frei. Bereits freigestellte Bilder bleiben, wie sie sind; Livery lädt die Dateien erneut, wenn du wieder einen Hintergrund entfernst.",
+      "cutoutRemove": "Löschen",
+      "cutoutRemoved": "Dateien zum Entfernen des Hintergrunds gelöscht."
     },
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "Ein Manager für benutzerdefinierte Skins in War Thunder. Durchsuche WT Live, installiere mit einem Klick, halte deinen Hangar ordentlich.",
       "privacyTitle": "Datenschutz",
-      "privacy": "Kein Konto, keine Werbung, keine Telemetrie. Livery verbindet sich nur mit WT Live (live.warthunder.com und dessen Bildserver), wenn du Skins durchsuchst oder installierst, und mit GitHub, um nach Updates zu suchen. Deine Einstellungen und deine Bibliothek bleiben auf diesem PC. Die Dateien des Spiels und die Aufstellungen in deinem War-Thunder-Profil werden gelesen, aber nie verändert. „Feedback senden“ öffnet nur eine GitHub-Seite in deinem Browser: Es wird nichts gesendet, bis du sie dort abschickst.",
+      "privacy": "Kein Konto, keine Werbung, keine Telemetrie. Livery verbindet sich nur mit WT Live (live.warthunder.com und dessen Bildserver), wenn du Skins durchsuchst oder installierst, und mit GitHub, um nach Updates zu suchen. Deine Einstellungen und deine Bibliothek bleiben auf diesem PC. Die Dateien des Spiels und die Aufstellungen in deinem War-Thunder-Profil werden gelesen, aber nie verändert. „Feedback senden“ öffnet nur eine GitHub-Seite in deinem Browser: Es wird nichts gesendet, bis du sie dort abschickst. Wenn du in Atelier Hintergrund entfernen nutzt, lädt Livery die nötigen Dateien einmalig und nur auf deine Anfrage von GitHub; deine Bilder bleiben auf diesem PC.",
       "links": "Links",
       "source": "Quellcode",
       "sourceHint": "Öffnet das Repository von Livery auf GitHub",
@@ -1311,7 +1413,9 @@
       "showText": "Lizenztext anzeigen",
       "hideText": "Lizenztext ausblenden",
       "text": "Lizenztext von {{name}}",
-      "close": "Schließen"
+      "close": "Schließen",
+      "onDemand": "Bei Bedarf heruntergeladen",
+      "onDemandHelper": "Nicht Teil von Livery: Sie werden erst von GitHub geladen, wenn du in Atelier zum ersten Mal Hintergrund entfernen nutzt."
     }
   }
 }

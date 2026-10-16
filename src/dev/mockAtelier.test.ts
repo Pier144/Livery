@@ -28,7 +28,7 @@ import {
   ASSET_NOT_FOUND,
   ATELIER_DISABLED,
   CUTOUT_BUSY,
-  CUTOUT_FAILED,
+  CUTOUT_CANCELLED,
   CUTOUT_MARGIN,
   CUTOUT_NOT_READY,
   CUTOUT_RESTART_NEEDED,
@@ -494,6 +494,6 @@ describe('mock Atelier · background removal', () => {
     const source = await call<AssetRef>('atelier_import_image', { projectId: p.id, path: 'C:\\a.png' });
     const running = call('atelier_cutout', { projectId: p.id, assetId: source.id });
     await call('atelier_cutout_cancel');
-    expect(await rejection(running)).toMatchObject({ message: CUTOUT_FAILED });
+    expect(await rejection(running)).toMatchObject({ code: 'internal', message: CUTOUT_CANCELLED });
   });
 });

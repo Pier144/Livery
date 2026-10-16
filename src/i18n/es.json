@@ -1106,7 +1106,8 @@
       "top": "Arriba",
       "canvas": "Vista 3D de {{vehicle}}",
       "help": "Arrastra para girar, con el botón derecho para mover, la rueda para hacer zoom.",
-      "brushHelp": "Arrastra sobre el vehículo para proteger una zona. Con el botón derecho o Alt+arrastrar lo giras."
+      "brushHelp": "Arrastra sobre el vehículo para proteger una zona. Con el botón derecho o Alt+arrastrar lo giras.",
+      "decalHelp": "Arrastra el marco para moverlo, una esquina para cambiar el tamaño, el punto para girarlo. Flechas para desplazar, Mayús+flechas para girar, + y − para cambiar el tamaño, Alt+flechas para girar la vista."
     },
     "layers": {
       "title": "Capas",
@@ -1116,7 +1117,21 @@
       "show": "Mostrar {{name}}",
       "hide": "Ocultar {{name}}",
       "renameLabel": "Nuevo nombre para {{name}}",
-      "renameHint": "Doble clic para renombrar"
+      "renameHint": "Doble clic para renombrar",
+      "image": "Imagen",
+      "text": "Texto",
+      "addImage": "Añadir imagen",
+      "addText": "Añadir texto",
+      "imageFilter": "Imágenes",
+      "notPlaced": "Sin colocar en el vehículo",
+      "missingPicture": "Falta la imagen en el proyecto",
+      "missingFont": "{{font}} no está instalada en este PC: se usa otra fuente en su lugar",
+      "deleted": "Capa «{{name}}» eliminada",
+      "dragHint": "Arrastra para reordenar",
+      "actions": "Acciones de {{name}}",
+      "duplicate": "Duplicar",
+      "delete": "Eliminar",
+      "reorderHint": "Alt+↑ y Alt+↓ suben y bajan la capa seleccionada."
     },
     "parts": {
       "title": "Partes",
@@ -1161,7 +1176,33 @@
       "hull": "Casco",
       "turret": "Torreta",
       "gun": "Cañón",
-      "clear": "Borrar las zonas protegidas"
+      "clear": "Borrar las zonas protegidas",
+      "notPlaced": "No se pudo leer dónde está esta capa en el vehículo. Vuelve a colocarla para mostrarla.",
+      "placeAgain": "Colocar en el vehículo",
+      "opacity": "Opacidad",
+      "depth": "Profundidad",
+      "cm": "{{value}} cm",
+      "depthHint": "Cuánto alcanza dentro de la superficie. En la vista se cambia con Alt+rueda.",
+      "mirror": "Reflejar en el otro lado",
+      "mirrorHelp": "Añade una copia en el lado opuesto que se lee en el sentido correcto.",
+      "mirrorShared": "Aquí ambos lados comparten la misma textura, así que ya aparece en el otro lado (invertido). El reflejo está desactivado en este punto.",
+      "missingPicture": "Falta esta imagen en el proyecto, así que no se muestra ni se aplica. Elimina la capa o vuelve a añadir la imagen.",
+      "flip": "Voltear horizontalmente",
+      "removeBackground": "Quitar fondo",
+      "removeBackgroundHint": "Conserva el sujeto y vuelve transparente el fondo, en este PC",
+      "refineEdge": "Refinar borde",
+      "refineEdgeHint": "Borra o recupera partes de la imagen con un pincel",
+      "text": "Texto",
+      "textCount": "{{n}}/{{max}}",
+      "font": "Fuente",
+      "fontStyle": "Estilo",
+      "fontMissing": "Esta fuente no está instalada en este PC: se usa otra hasta que elijas una.",
+      "textColor": "Color del texto",
+      "fill": "Relleno",
+      "outlineColor": "Color del contorno",
+      "outline": "Contorno",
+      "outlineWidth": "Grosor del contorno",
+      "skew": "Inclinación"
     },
     "apply": {
       "button": "Aplicar al juego",
@@ -1183,11 +1224,63 @@
       "reselect": "Vuelve a seleccionarla en el hangar para ver los cambios.",
       "restored": "Ha vuelto la versión anterior.",
       "downscaled": "Tu tarjeta gráfica no puede pintar este tamaño: la textura se guardó a 2048.",
-      "cancelled": "Aplicación cancelada: la skin del juego no ha cambiado."
+      "cancelled": "Aplicación cancelada: la skin del juego no ha cambiado.",
+      "pictureNotReady": "Una imagen del vehículo no ha terminado de cargarse. Vuelve a intentar Aplicar."
     },
     "toast": {
       "deleted": "Proyecto «{{name}}» eliminado",
       "renamed": "Renombrado como «{{name}}»"
+    },
+    "place": {
+      "hint": "Haz clic en el vehículo para colocarlo · Intro: centro de la vista · Esc: cancelar",
+      "start": "Haz clic en el vehículo para colocar la nueva capa. Intro la coloca en el centro de la vista, Esc cancela.",
+      "missed": "Ahí no está el vehículo. Haz clic sobre el vehículo.",
+      "done": "Colocado. Arrástralo o usa las flechas para ajustarlo."
+    },
+    "text": {
+      "default": "Texto"
+    },
+    "cutout": {
+      "title": "Quitar fondo",
+      "close": "Cerrar",
+      "checking": "Comprobando los archivos para quitar fondos…",
+      "consent": "Para quitar fondos hacen falta dos archivos que Livery descarga una sola vez desde GitHub:",
+      "runtime": "ONNX Runtime",
+      "model": "Modelo isnet-anime (proyecto rembg)",
+      "privacy": "{{size}} para descargar. Se quedan en este PC y funcionan aquí: tus imágenes nunca salen de él. Puedes quitarlos en Ajustes → Experimental.",
+      "download": "Descargar ({{size}})",
+      "restart": "Primero reinicia Livery: los archivos para quitar fondos que eliminaste aún estaban en uso y terminan de borrarse al volver a abrirlo. Después podrá descargarlos de nuevo.",
+      "downloading": "Descargando desde GitHub…",
+      "received": "{{received}} de {{total}}",
+      "waiting": "En espera",
+      "progress": "Quitando el fondo",
+      "step": {
+        "load": "Cargando el modelo…",
+        "run": "Buscando el sujeto…",
+        "write": "Guardando la nueva imagen…"
+      },
+      "local": "Se hace en este PC: la imagen no se envía a ningún sitio. El original se queda en el proyecto.",
+      "retry": "Reintentar",
+      "done": "Fondo quitado. Ctrl+Z lo recupera.",
+      "stale": "La capa cambió mientras tanto, así que no se usó el resultado."
+    },
+    "refine": {
+      "title": "Refinar borde",
+      "close": "Cerrar",
+      "apply": "Aplicar",
+      "canvas": "La imagen que se refina",
+      "zoomOut": "Alejar",
+      "zoomIn": "Acercar",
+      "fit": "Ajustar a la vista",
+      "help": "Pinta sobre la imagen: Borrar la vuelve transparente, Restaurar recupera el original. Ctrl+rueda para el zoom.",
+      "tool": "Pincel",
+      "erase": "Borrar",
+      "restore": "Restaurar",
+      "size": "Tamaño del pincel",
+      "px": "{{value}} px",
+      "hardness": "Dureza",
+      "undo": "Deshacer trazo",
+      "stale": "La imagen de la capa cambió mientras tanto, así que no se usó el borde refinado."
     }
   },
   "settings": {
@@ -1222,7 +1315,8 @@
         "sections": "1–5",
         "sidebar": "[ ]",
         "undo": "Ctrl Z",
-        "close": "Esc"
+        "close": "Esc",
+        "sectionsAtelier": "1–6"
       },
       "actions": {
         "search": "buscar",
@@ -1329,13 +1423,21 @@
       "atelier": "Atelier",
       "atelierHelper": "Crea skins sobre un modelo 3D de tu vehículo. Experimental: algunas cosas pueden cambiar o fallar.",
       "needsGameData": "El Atelier lee los modelos de los vehículos del juego: activa Leer datos del juego para usarlo.",
-      "openGame": "Abrir los ajustes del juego"
+      "openGame": "Abrir los ajustes del juego",
+      "cutout": "Archivos para quitar fondos",
+      "cutoutSize": "{{size}} en este PC (ONNX Runtime y el modelo isnet-anime).",
+      "cutoutNone": "Sin descargar. Atelier pregunta antes de descargarlos ({{size}}) la primera vez que quitas un fondo.",
+      "cutoutPending": "Eliminados. Termina la próxima vez que se abra Livery.",
+      "cutoutConfirmTitle": "¿Eliminar los archivos para quitar fondos?",
+      "cutoutConfirmBody": "Libera {{size}}. Las imágenes ya recortadas se quedan como están; Livery vuelve a descargar los archivos la próxima vez que quites un fondo.",
+      "cutoutRemove": "Eliminar",
+      "cutoutRemoved": "Archivos para quitar fondos eliminados."
     },
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "Un gestor de skins (los camuflajes de usuario del juego) para War Thunder. Explora WT Live, instala con un clic y mantén tu hangar en orden.",
       "privacyTitle": "Privacidad",
-      "privacy": "Sin cuenta, sin anuncios, sin telemetría. Livery solo se conecta a WT Live (live.warthunder.com y su servidor de imágenes) cuando exploras o instalas skins, y a GitHub para buscar actualizaciones. Tus ajustes y tu biblioteca se quedan en este PC. Lee los archivos del juego y las alineaciones de tu perfil de War Thunder sin modificarlos. «Enviar comentarios» solo abre una página de GitHub en tu navegador: no se envía nada hasta que la publiques allí.",
+      "privacy": "Sin cuenta, sin anuncios, sin telemetría. Livery solo se conecta a WT Live (live.warthunder.com y su servidor de imágenes) cuando exploras o instalas skins, y a GitHub para buscar actualizaciones. Tus ajustes y tu biblioteca se quedan en este PC. Lee los archivos del juego y las alineaciones de tu perfil de War Thunder sin modificarlos. «Enviar comentarios» solo abre una página de GitHub en tu navegador: no se envía nada hasta que la publiques allí. Si usas Quitar fondo en Atelier, Livery descarga sus archivos de GitHub una sola vez y solo cuando lo pides; tus imágenes se quedan en este PC.",
       "links": "Enlaces",
       "source": "Código fuente",
       "sourceHint": "Abre el repositorio de Livery en GitHub",
@@ -1358,7 +1460,9 @@
       "showText": "Mostrar el texto de la licencia",
       "hideText": "Ocultar el texto de la licencia",
       "text": "Texto de la licencia de {{name}}",
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "onDemand": "Descargados bajo demanda",
+      "onDemandHelper": "No forman parte de Livery: se descargan de GitHub solo la primera vez que usas Quitar fondo en Atelier."
     }
   }
 }

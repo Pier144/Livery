@@ -1020,7 +1020,8 @@
       "top": "顶部",
       "canvas": "{{vehicle}} 的 3D 视图",
       "help": "拖动可旋转，右键拖动可平移，滚轮可缩放。",
-      "brushHelp": "在载具上拖动以保护一个区域。右键拖动或按住 Alt 拖动可旋转载具。"
+      "brushHelp": "在载具上拖动以保护一个区域。右键拖动或按住 Alt 拖动可旋转载具。",
+      "decalHelp": "拖动边框可移动，拖动角可缩放，拖动圆点可旋转。方向键微移，Shift+方向键旋转，+ 和 − 缩放，Alt+方向键转动视角。"
     },
     "layers": {
       "title": "图层",
@@ -1030,7 +1031,21 @@
       "show": "显示 {{name}}",
       "hide": "隐藏 {{name}}",
       "renameLabel": "{{name}} 的新名称",
-      "renameHint": "双击以重命名"
+      "renameHint": "双击以重命名",
+      "image": "图片",
+      "text": "文字",
+      "addImage": "添加图片",
+      "addText": "添加文字",
+      "imageFilter": "图片",
+      "notPlaced": "尚未放置到载具上",
+      "missingPicture": "项目中缺少这张图片",
+      "missingFont": "此电脑未安装 {{font}}，已用其他字体代替",
+      "deleted": "已删除图层“{{name}}”",
+      "dragHint": "拖动以调整顺序",
+      "actions": "{{name}} 的操作",
+      "duplicate": "复制",
+      "delete": "删除",
+      "reorderHint": "Alt+↑ 和 Alt+↓ 可上移或下移所选图层。"
     },
     "parts": {
       "title": "部件",
@@ -1075,7 +1090,33 @@
       "hull": "车体",
       "turret": "炮塔",
       "gun": "火炮",
-      "clear": "清除保护区域"
+      "clear": "清除保护区域",
+      "notPlaced": "无法读取此图层在载具上的位置。重新放置即可显示。",
+      "placeAgain": "放置到载具上",
+      "opacity": "不透明度",
+      "depth": "深度",
+      "cm": "{{value}} 厘米",
+      "depthHint": "投射进入表面的深度。在视图中可用 Alt+滚轮调整。",
+      "mirror": "镜像到另一侧",
+      "mirrorHelp": "在对侧添加一个方向正确的副本。",
+      "mirrorShared": "此处两侧共用同一纹理，因此另一侧已经会显示（左右相反）。此位置无法使用镜像。",
+      "missingPicture": "项目中缺少这张图片，因此不会显示或应用。请删除此图层或重新添加图片。",
+      "flip": "水平翻转",
+      "removeBackground": "去除背景",
+      "removeBackgroundHint": "在此电脑上保留主体并将背景设为透明",
+      "refineEdge": "修整边缘",
+      "refineEdgeHint": "用画笔擦除或恢复图片的部分区域",
+      "text": "文字",
+      "textCount": "{{n}}/{{max}}",
+      "font": "字体",
+      "fontStyle": "样式",
+      "fontMissing": "此电脑未安装该字体，在你选择其他字体前将用替代字体显示。",
+      "textColor": "文字颜色",
+      "fill": "填充",
+      "outlineColor": "描边颜色",
+      "outline": "描边",
+      "outlineWidth": "描边宽度",
+      "skew": "倾斜"
     },
     "apply": {
       "button": "应用到游戏",
@@ -1097,11 +1138,63 @@
       "reselect": "在基地中重新选择它即可看到更改。",
       "restored": "已恢复之前的版本。",
       "downscaled": "你的显卡无法绘制这个尺寸：纹理已按 2048 保存。",
-      "cancelled": "已取消应用：游戏中的涂装没有变化。"
+      "cancelled": "已取消应用：游戏中的涂装没有变化。",
+      "pictureNotReady": "载具上的某张图片尚未加载完成，请重新应用。"
     },
     "toast": {
       "deleted": "已删除项目“{{name}}”",
       "renamed": "已重命名为“{{name}}”"
+    },
+    "place": {
+      "hint": "点击载具进行放置 · Enter：视图中央 · Esc：取消",
+      "start": "点击载具放置新图层。按 Enter 放在视图中央，按 Esc 取消。",
+      "missed": "那里没有载具，请直接点击载具。",
+      "done": "已放置。拖动或使用方向键进行调整。"
+    },
+    "text": {
+      "default": "文字"
+    },
+    "cutout": {
+      "title": "去除背景",
+      "close": "关闭",
+      "checking": "正在检查去除背景所需的文件…",
+      "consent": "去除背景需要两个文件，Livery 会从 GitHub 下载一次：",
+      "runtime": "ONNX Runtime",
+      "model": "isnet-anime 模型（rembg 项目）",
+      "privacy": "需下载 {{size}}。文件保存在此电脑并在本地运行，你的图片不会离开此电脑。可在“设置 → 实验性功能”中删除。",
+      "download": "下载（{{size}}）",
+      "restart": "请先重启 Livery：你删除的去除背景文件仍在使用中，会在 Livery 下次启动时彻底删除。之后可以重新下载。",
+      "downloading": "正在从 GitHub 下载…",
+      "received": "{{received}} / {{total}}",
+      "waiting": "等待中",
+      "progress": "正在去除背景",
+      "step": {
+        "load": "正在加载模型…",
+        "run": "正在识别主体…",
+        "write": "正在保存新图片…"
+      },
+      "local": "处理在此电脑上进行，图片不会发送到任何地方。原图保留在项目中。",
+      "retry": "重试",
+      "done": "已去除背景。按 Ctrl+Z 可恢复。",
+      "stale": "图层在此期间已更改，因此未使用该结果。"
+    },
+    "refine": {
+      "title": "修整边缘",
+      "close": "关闭",
+      "apply": "应用",
+      "canvas": "要修整的图片",
+      "zoomOut": "缩小",
+      "zoomIn": "放大",
+      "fit": "适合视图",
+      "help": "在图片上涂抹：“擦除”使其透明，“恢复”还原原图。Ctrl+滚轮缩放。",
+      "tool": "画笔",
+      "erase": "擦除",
+      "restore": "恢复",
+      "size": "画笔大小",
+      "px": "{{value}} 像素",
+      "hardness": "硬度",
+      "undo": "撤销笔画",
+      "stale": "图层的图片在此期间已更改，因此未使用修整后的边缘。"
     }
   },
   "settings": {
@@ -1136,7 +1229,8 @@
         "sections": "1–5",
         "sidebar": "[ ]",
         "undo": "Ctrl Z",
-        "close": "Esc"
+        "close": "Esc",
+        "sectionsAtelier": "1–6"
       },
       "actions": {
         "search": "搜索",
@@ -1235,13 +1329,21 @@
       "atelier": "涂装工坊",
       "atelierHelper": "在载具的 3D 模型上制作涂装。实验性功能：部分内容可能会变动或出错。",
       "needsGameData": "涂装工坊从游戏中读取载具模型：请开启“从游戏读取数据”后使用。",
-      "openGame": "打开游戏设置"
+      "openGame": "打开游戏设置",
+      "cutout": "去除背景所需文件",
+      "cutoutSize": "此电脑上占用 {{size}}（ONNX Runtime 和 isnet-anime 模型）。",
+      "cutoutNone": "尚未下载。首次去除背景时，Atelier 会先询问再下载（{{size}}）。",
+      "cutoutPending": "已删除，将在 Livery 下次启动时完成。",
+      "cutoutConfirmTitle": "删除去除背景所需的文件？",
+      "cutoutConfirmBody": "将释放 {{size}}。已去除背景的图片保持不变；下次去除背景时，Livery 会重新下载这些文件。",
+      "cutoutRemove": "删除",
+      "cutoutRemoved": "已删除去除背景所需的文件。"
     },
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "War Thunder 用户涂装管理器。浏览 WT Live，一键安装，让您的基地井井有条。",
       "privacyTitle": "隐私",
-      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件和您 War Thunder 存档中的阵容，不会做任何更改。“发送反馈”只会在浏览器中打开一个 GitHub 页面：在您于该页面提交之前，不会发送任何内容。",
+      "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件和您 War Thunder 存档中的阵容，不会做任何更改。“发送反馈”只会在浏览器中打开一个 GitHub 页面：在您于该页面提交之前，不会发送任何内容。 如果你在 Atelier 中使用“去除背景”，Livery 只会在你请求时从 GitHub 下载一次所需文件；你的图片始终保留在此电脑上。",
       "links": "链接",
       "source": "源代码",
       "sourceHint": "在 GitHub 上打开 Livery 的代码仓库",
@@ -1264,7 +1366,9 @@
       "showText": "显示许可证文本",
       "hideText": "隐藏许可证文本",
       "text": "{{name}} 许可证文本",
-      "close": "关闭"
+      "close": "关闭",
+      "onDemand": "按需下载",
+      "onDemandHelper": "不属于 Livery 本体：仅在你首次在 Atelier 中使用“去除背景”时从 GitHub 下载。"
     }
   }
 }

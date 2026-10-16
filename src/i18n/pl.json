@@ -1149,7 +1149,8 @@
       "top": "Góra",
       "canvas": "Widok 3D: {{vehicle}}",
       "help": "Przeciągnij, aby obrócić, prawym przyciskiem, aby przesunąć, kółkiem, aby przybliżyć.",
-      "brushHelp": "Przeciągnij po pojeździe, aby chronić obszar. Prawy przycisk lub Alt+przeciąganie obraca pojazd."
+      "brushHelp": "Przeciągnij po pojeździe, aby chronić obszar. Prawy przycisk lub Alt+przeciąganie obraca pojazd.",
+      "decalHelp": "Przeciągnij ramkę, aby przesunąć, róg, aby zmienić rozmiar, kropkę, aby obrócić. Strzałki przesuwają, Shift+strzałki obracają, + i − zmieniają rozmiar, Alt+strzałki obracają widok."
     },
     "layers": {
       "title": "Warstwy",
@@ -1159,7 +1160,21 @@
       "show": "Pokaż: {{name}}",
       "hide": "Ukryj: {{name}}",
       "renameLabel": "Nowa nazwa dla: {{name}}",
-      "renameHint": "Kliknij dwukrotnie, aby zmienić nazwę"
+      "renameHint": "Kliknij dwukrotnie, aby zmienić nazwę",
+      "image": "Obraz",
+      "text": "Tekst",
+      "addImage": "Dodaj obraz",
+      "addText": "Dodaj tekst",
+      "imageFilter": "Obrazy",
+      "notPlaced": "Nie umieszczono na pojeździe",
+      "missingPicture": "Brak obrazu w projekcie",
+      "missingFont": "Czcionka {{font}} nie jest zainstalowana na tym PC: zastępuje ją inna",
+      "deleted": "Usunięto warstwę „{{name}}”",
+      "dragHint": "Przeciągnij, aby zmienić kolejność",
+      "actions": "Działania: {{name}}",
+      "duplicate": "Duplikuj",
+      "delete": "Usuń",
+      "reorderHint": "Alt+↑ i Alt+↓ przesuwają zaznaczoną warstwę w górę i w dół."
     },
     "parts": {
       "title": "Części",
@@ -1204,7 +1219,33 @@
       "hull": "Kadłub",
       "turret": "Wieża",
       "gun": "Działo",
-      "clear": "Wyczyść obszary chronione"
+      "clear": "Wyczyść obszary chronione",
+      "notPlaced": "Nie udało się odczytać położenia tej warstwy na pojeździe. Umieść ją ponownie, aby ją pokazać.",
+      "placeAgain": "Umieść na pojeździe",
+      "opacity": "Krycie",
+      "depth": "Głębokość",
+      "cm": "{{value}} cm",
+      "depthHint": "Jak głęboko sięga w powierzchnię. W widoku zmienia się Alt+kółkiem.",
+      "mirror": "Odbij na drugą stronę",
+      "mirrorHelp": "Dodaje kopię po przeciwnej stronie, czytelną we właściwą stronę.",
+      "mirrorShared": "Tutaj obie strony mają wspólną teksturę, więc obraz już widać po drugiej stronie (odwrócony). W tym miejscu odbicie jest wyłączone.",
+      "missingPicture": "Tego obrazu brakuje w projekcie, więc nie jest pokazywany ani stosowany. Usuń warstwę lub dodaj obraz ponownie.",
+      "flip": "Odwróć w poziomie",
+      "removeBackground": "Usuń tło",
+      "removeBackgroundHint": "Zachowuje obiekt i robi tło przezroczystym, na tym PC",
+      "refineEdge": "Popraw krawędź",
+      "refineEdgeHint": "Wymaż lub przywróć fragmenty obrazu pędzlem",
+      "text": "Tekst",
+      "textCount": "{{n}}/{{max}}",
+      "font": "Czcionka",
+      "fontStyle": "Styl",
+      "fontMissing": "Ta czcionka nie jest zainstalowana na tym PC: do czasu wyboru innej zastępuje ją zamiennik.",
+      "textColor": "Kolor tekstu",
+      "fill": "Wypełnienie",
+      "outlineColor": "Kolor obrysu",
+      "outline": "Obrys",
+      "outlineWidth": "Grubość obrysu",
+      "skew": "Pochylenie"
     },
     "apply": {
       "button": "Zastosuj w grze",
@@ -1226,11 +1267,63 @@
       "reselect": "Wybierz go ponownie w hangarze, aby zobaczyć zmiany.",
       "restored": "Przywrócono poprzednią wersję.",
       "downscaled": "Karta graficzna nie może malować w tym rozmiarze: tekstura została zapisana w 2048.",
-      "cancelled": "Anulowano: kamuflaż w grze się nie zmienił."
+      "cancelled": "Anulowano: kamuflaż w grze się nie zmienił.",
+      "pictureNotReady": "Jeden z obrazów na pojeździe nie skończył się wczytywać. Spróbuj zastosować ponownie."
     },
     "toast": {
       "deleted": "Usunięto projekt „{{name}}”",
       "renamed": "Zmieniono nazwę na „{{name}}”"
+    },
+    "place": {
+      "hint": "Kliknij pojazd, aby umieścić · Enter: środek widoku · Esc: anuluj",
+      "start": "Kliknij pojazd, aby umieścić nową warstwę. Enter umieszcza ją na środku widoku, Esc anuluje.",
+      "missed": "Tam nie ma pojazdu. Kliknij sam pojazd.",
+      "done": "Umieszczono. Przeciągnij lub użyj strzałek, aby dopasować."
+    },
+    "text": {
+      "default": "Tekst"
+    },
+    "cutout": {
+      "title": "Usuwanie tła",
+      "close": "Zamknij",
+      "checking": "Sprawdzanie plików do usuwania tła…",
+      "consent": "Do usuwania tła potrzebne są dwa pliki, które Livery pobierze jednorazowo z GitHuba:",
+      "runtime": "ONNX Runtime",
+      "model": "Model isnet-anime (projekt rembg)",
+      "privacy": "Do pobrania: {{size}}. Pliki zostają na tym PC i tu działają: twoje obrazy nigdy go nie opuszczają. Można je usunąć w Ustawienia → Eksperymentalne.",
+      "download": "Pobierz ({{size}})",
+      "restart": "Najpierw uruchom ponownie Livery: usunięte pliki do usuwania tła były jeszcze w użyciu i znikną przy następnym uruchomieniu. Potem będzie można pobrać je od nowa.",
+      "downloading": "Pobieranie z GitHuba…",
+      "received": "{{received}} z {{total}}",
+      "waiting": "Oczekiwanie",
+      "progress": "Usuwanie tła",
+      "step": {
+        "load": "Wczytywanie modelu…",
+        "run": "Wykrywanie obiektu…",
+        "write": "Zapisywanie nowego obrazu…"
+      },
+      "local": "Działa to na tym PC: obraz nie jest nigdzie wysyłany. Oryginał zostaje w projekcie.",
+      "retry": "Spróbuj ponownie",
+      "done": "Tło usunięto. Ctrl+Z je przywraca.",
+      "stale": "Warstwa w międzyczasie się zmieniła, więc wynik nie został użyty."
+    },
+    "refine": {
+      "title": "Poprawianie krawędzi",
+      "close": "Zamknij",
+      "apply": "Zastosuj",
+      "canvas": "Obraz do poprawienia",
+      "zoomOut": "Pomniejsz",
+      "zoomIn": "Powiększ",
+      "fit": "Dopasuj do widoku",
+      "help": "Maluj po obrazie: Wymaż robi go przezroczystym, Przywróć przywraca oryginał. Ctrl+kółko powiększa.",
+      "tool": "Pędzel",
+      "erase": "Wymaż",
+      "restore": "Przywróć",
+      "size": "Rozmiar pędzla",
+      "px": "{{value}} px",
+      "hardness": "Twardość",
+      "undo": "Cofnij pociągnięcie",
+      "stale": "Obraz warstwy w międzyczasie się zmienił, więc poprawiona krawędź nie została użyta."
     }
   },
   "settings": {
@@ -1265,7 +1358,8 @@
         "sections": "1–5",
         "sidebar": "[ ]",
         "undo": "Ctrl Z",
-        "close": "Esc"
+        "close": "Esc",
+        "sectionsAtelier": "1–6"
       },
       "actions": {
         "search": "szukaj",
@@ -1376,13 +1470,21 @@
       "atelier": "Atelier",
       "atelierHelper": "Twórz skiny na modelu 3D swojego pojazdu. Funkcja eksperymentalna: coś może się zmienić lub nie działać.",
       "needsGameData": "Atelier wczytuje modele pojazdów z gry: aby z niego korzystać, włącz Wczytuj dane z gry.",
-      "openGame": "Otwórz ustawienia gry"
+      "openGame": "Otwórz ustawienia gry",
+      "cutout": "Pliki do usuwania tła",
+      "cutoutSize": "{{size}} na tym PC (ONNX Runtime i model isnet-anime).",
+      "cutoutNone": "Nie pobrano. Atelier zapyta przed pobraniem ({{size}}), gdy pierwszy raz usuniesz tło.",
+      "cutoutPending": "Usunięto. Zakończy się to przy następnym uruchomieniu Livery.",
+      "cutoutConfirmTitle": "Usunąć pliki do usuwania tła?",
+      "cutoutConfirmBody": "Zwolni to {{size}}. Obrazy z już usuniętym tłem zostają bez zmian; Livery pobierze pliki ponownie przy następnym usuwaniu tła.",
+      "cutoutRemove": "Usuń",
+      "cutoutRemoved": "Usunięto pliki do usuwania tła."
     },
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "Menedżer kamuflaży użytkowników dla War Thunder. Przeglądaj WT Live, instaluj jednym kliknięciem, utrzymuj porządek w hangarze.",
       "privacyTitle": "Prywatność",
-      "privacy": "Bez konta, bez reklam, bez telemetrii. Livery łączy się tylko z WT Live (live.warthunder.com i jego serwerem obrazów), gdy przeglądasz lub instalujesz kamuflaże, oraz z serwisem GitHub, aby sprawdzić aktualizacje. Twoje ustawienia i biblioteka zostają na tym komputerze. Livery odczytuje pliki gry i zestawy z twojego profilu War Thunder, nie zmieniając ich. „Wyślij opinię” tylko otwiera stronę GitHub w przeglądarce: nic nie zostanie wysłane, dopóki jej tam nie zatwierdzisz.",
+      "privacy": "Bez konta, bez reklam, bez telemetrii. Livery łączy się tylko z WT Live (live.warthunder.com i jego serwerem obrazów), gdy przeglądasz lub instalujesz kamuflaże, oraz z serwisem GitHub, aby sprawdzić aktualizacje. Twoje ustawienia i biblioteka zostają na tym komputerze. Livery odczytuje pliki gry i zestawy z twojego profilu War Thunder, nie zmieniając ich. „Wyślij opinię” tylko otwiera stronę GitHub w przeglądarce: nic nie zostanie wysłane, dopóki jej tam nie zatwierdzisz. Jeśli używasz Usuń tło w Atelier, Livery jednorazowo i tylko na twoje żądanie pobiera potrzebne pliki z GitHuba; twoje obrazy zostają na tym PC.",
       "links": "Linki",
       "source": "Kod źródłowy",
       "sourceHint": "Otwiera repozytorium Livery w serwisie GitHub",
@@ -1405,7 +1507,9 @@
       "showText": "Pokaż tekst licencji",
       "hideText": "Ukryj tekst licencji",
       "text": "Tekst licencji {{name}}",
-      "close": "Zamknij"
+      "close": "Zamknij",
+      "onDemand": "Pobierane na żądanie",
+      "onDemandHelper": "Nie są częścią Livery: pobierane z GitHuba dopiero przy pierwszym użyciu Usuń tło w Atelier."
     }
   }
 }

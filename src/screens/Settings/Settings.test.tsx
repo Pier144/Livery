@@ -2,6 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmDialog } from '@/components/chrome/ConfirmDialog';
 import { Toaster } from '@/components/chrome/Toaster';
 import { useLanguageSync } from '@/hooks/useLanguageSync';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
@@ -12,7 +13,8 @@ import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
 import { useUpdate } from '@/store/update';
-import type { AppError, Backup, Settings as SettingsData, UpdateInfo, WtLiveStorage } from '@/types';
+import type { AppError, Backup, CutoutStatus, Settings as SettingsData, UpdateInfo, WtLiveStorage } from '@/types';
+import { resetDecalUi, setCutoutBusy } from '../Atelier/decalUi';
 import { version as PACKAGE_VERSION } from '../../../package.json';
 import { Settings } from '../Settings';
 import { SECTIONS, resetSettingsUi, useSettingsUi, type SettingsSection } from './settingsUi';
@@ -79,6 +81,8 @@ let failSetSettings: AppError | null;
 let storage: WtLiveStorage;
 /** What `check_update` answers, or the error it throws. */
 let updateFeed: UpdateInfo | AppError;
+/** What `atelier_cutout_status` answers (null: the command fails, the row stays hidden). */
+let cutout: CutoutStatus | null;
 
 function installBackend() {
   backend.call.mockImplementation(async (cmd: string, args: Args = {}) => {
@@ -108,6 +112,12 @@ function installBackend() {
       case 'install_update':
         // The real command closes Livery; here it just never answers.
         return new Promise(() => {});
+      case 'atelier_cutout_status':
+        if (!cutout) throw { code: 'internal', message: 'no cutout' } satisfies AppError;
+        return cutout;
+      case 'atelier_cutout_remove':
+        cutout = { runtime: false, model: false, bytes: 0, downloadBytes: 236_069_933, pendingRemoval: true };
+        return cutout;
       case 'clear_backups': {
         // `ids` absent → every kept backup; given → only those (unknown ids ignored).
         const ids = args.ids as string[] | undefined;
@@ -131,6 +141,7 @@ function Harness() {
     <>
       <Settings />
       <Toaster />
+      <ConfirmDialog />
     </>
   );
 }
@@ -178,6 +189,9 @@ beforeEach(() => {
   failSetSettings = null;
   storage = { cacheBytes: 12 * MB, hiddenCount: 3 };
   updateFeed = { current: '0.2.0', ready: false };
+  cutout = null;
+  resetDecalUi();
+  setCutoutBusy(false);
   installBackend();
 });
 
@@ -366,6 +380,11 @@ describe('Settings · General', () => {
     expect(list.textContent?.replace(/\s+/g, ' ')).toBe('Ctrl K search · 1–5 sections · [ ] sidebar · Ctrl Z undo · Esc close');
     expect(within(list).getByText('Ctrl K').tagName).toBe('KBD');
     expect(within(list).getAllByRole('listitem')).toHaveLength(5);
+  });
+
+  it('counts Atelier among the sections while it is on', () => {
+    renderSettings('general', { atelierEnabled: true });
+    expect(screen.getByRole('list').textContent).toContain('1–6 sections');
   });
 });
 
@@ -720,6 +739,43 @@ describe('Settings · Experimental', () => {
   });
 });
 
+describe('Settings · Experimental · background removal files', () => {
+  const READY: CutoutStatus = { runtime: true, model: true, bytes: 190 * MB, downloadBytes: 0, pendingRemoval: false };
+
+  it('says the files aren’t downloaded yet, with nothing to remove', async () => {
+    cutout = { runtime: false, model: false, bytes: 0, downloadBytes: 225 * MB, pendingRemoval: false };
+    renderSettings('experimental', { atelierEnabled: true });
+    expect(await screen.findByText('Not downloaded. Atelier asks before downloading them (225 MB) the first time you remove a background.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
+  });
+
+  it('shows their size and removes them after asking; a runtime in use finishes at the next start', async () => {
+    cutout = READY;
+    const { user, container } = renderSettings('experimental', { atelierEnabled: true });
+    expect(await screen.findByText('190 MB on this PC (ONNX Runtime and the isnet-anime model).')).toBeInTheDocument();
+    expect(await seriousViolations(container)).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    const ask = screen.getByRole('alertdialog', { name: 'Remove the background-removal files?' });
+    expect(ask).toHaveAccessibleDescription(/This frees 190 MB/);
+    await user.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    expect(calls('atelier_cutout_remove')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(calls('atelier_cutout_remove')).toHaveLength(1));
+    expect(await within(panel()).findByText('Removed. This finishes the next time Livery starts.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
+  });
+
+  it('Remove waits while a download or a cutout runs', async () => {
+    cutout = READY;
+    setCutoutBusy(true);
+    renderSettings('experimental', { atelierEnabled: true });
+    expect(await screen.findByRole('button', { name: 'Remove' })).toBeDisabled();
+    act(() => setCutoutBusy(false));
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled();
+  });
+});
+
 // ── Language ────────────────────────────────────────────────────────────────
 
 describe('Settings · Language', () => {
@@ -866,6 +922,9 @@ describe('Settings · About', () => {
     await user.click(screen.getByRole('button', { name: 'Licenses' }));
     const dialog = screen.getByRole('dialog', { name: 'Licenses' });
     expect(within(dialog).getByText('Desktop app: every Rust crate')).toBeInTheDocument();
+    const onDemand = within(dialog).getByRole('region', { name: 'Downloaded on demand' });
+    expect(within(onDemand).getByText('ONNX Runtime · Microsoft')).toBeInTheDocument();
+    expect(within(onDemand).getByText('Apache-2.0')).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
     const [rust, javascript] = within(dialog).getAllByRole('button', { name: 'Show license text' }).slice(-2) as [HTMLElement, HTMLElement];
     await user.click(rust);

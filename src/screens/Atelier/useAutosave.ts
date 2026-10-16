@@ -11,6 +11,18 @@ export type SaveState = 'saved' | 'saving' | 'error';
 /** What one queued save did. */
 type Outcome = 'saved' | 'failed' | 'skipped';
 
+/** The last queued save of every editor instance (a closed editor's leave-save may still be running). */
+const queues = new Set<Promise<Outcome>>();
+
+/**
+ * Resolves once every save queued so far (by any editor, including one just closed) has
+ * finished, whatever its outcome. Opening a project waits for it before the asset GC
+ * (`atelier_project_open`) and the fresh read, so neither sees an older file than the last edit.
+ */
+export async function savesSettled(): Promise<void> {
+  while (queues.size > 0) await Promise.allSettled([...queues]);
+}
+
 /**
  * Saves the open project about a second after the last change (`atelier_project_save`), one save
  * at a time; a change made while a save is on its way is saved after it. A failed save shows as
@@ -40,6 +52,11 @@ export function useAutosave(delayMs = AUTOSAVE_MS): { saveState: SaveState; flus
   const enqueue = useCallback((task: () => Promise<Outcome>): Promise<Outcome> => {
     const next = queue.current.then(task, task);
     queue.current = next;
+    queues.add(next);
+    const done = () => {
+      queues.delete(next);
+    };
+    next.then(done, done);
     return next;
   }, []);
 

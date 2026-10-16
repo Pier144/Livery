@@ -40,6 +40,8 @@ module.exports = {
   },
   backgroundImage: {
     grid: 'linear-gradient(#1c1d21 1px, transparent 1px), linear-gradient(90deg, #1c1d21 1px, transparent 1px)',
+    // Transparency checkerboard (Atelier's Refine edge).
+    checker: 'conic-gradient(#2a2b30 25%, #1c1d21 0 50%, #2a2b30 0 75%, #1c1d21 0)',
     placeholder: 'repeating-linear-gradient(135deg,#1e1f23 0 10px,#232428 10px 20px)',
     shimmer: 'linear-gradient(90deg,#1c1d21 25%,#232428 50%,#1c1d21 75%)',
     // Small stripes: First run import thumbs (6px) and atlas tiles (5px).
@@ -52,7 +54,7 @@ module.exports = {
     hatch: 'repeating-linear-gradient(45deg,transparent 0 9px,oklch(0.78 0.16 70 / .18) 9px 10px)',
     scanline: 'linear-gradient(90deg,transparent,oklch(0.78 0.16 70 / .5),transparent)',
   },
-  backgroundSize: { grid: '28px 28px', shimmer: '200% 100%' },
+  backgroundSize: { grid: '28px 28px', shimmer: '200% 100%', checker: '16px 16px' },
   backgroundPosition: { grid: '-1px -1px' },
   transitionDuration: { 120: '120ms', 150: '150ms', 200: '200ms', 250: '250ms' },
   // Micro-animations (0.3.1): `decel` decelerates, `spring` overshoots a little (switch knob, pops).

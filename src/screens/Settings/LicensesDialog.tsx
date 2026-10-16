@@ -36,6 +36,18 @@ const LIBRARIES = [
   { name: 'reqwest · hyper', license: 'MIT / Apache-2.0' },
   { name: 'rustls', license: 'Apache-2.0 / ISC / MIT' },
   { name: 'minisign-verify', license: 'MIT' },
+  { name: 'three.js', license: 'MIT' },
+  { name: 'image', license: 'MIT / Apache-2.0' },
+  { name: 'ort', license: 'MIT / Apache-2.0' },
+] as const;
+
+/**
+ * Downloaded only when the user first asks for Remove background (Atelier), from GitHub; never
+ * bundled. Names and SPDX ids aren't translated.
+ */
+const ON_DEMAND = [
+  { name: 'ONNX Runtime · Microsoft', license: 'MIT' },
+  { name: 'isnet-anime · SkyTNT (anime-segmentation, via rembg)', license: 'Apache-2.0' },
 ] as const;
 
 /**
@@ -138,6 +150,7 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
   const fontsId = useId();
   const librariesId = useId();
   const noticesId = useId();
+  const onDemandId = useId();
   const allId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -244,6 +257,20 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
             <ul className="flex flex-col gap-2">
               {NOTICES.map((notice) => (
                 <LicenseText key={notice.name} {...notice} />
+              ))}
+            </ul>
+          </section>
+          <section aria-labelledby={onDemandId} className="flex flex-col gap-2">
+            <h3 id={onDemandId} className="font-mono text-mono-label uppercase text-ink-4">
+              {t('settings.licenses.onDemand')}
+            </h3>
+            <p className="text-meta text-ink-3">{t('settings.licenses.onDemandHelper')}</p>
+            <ul className="flex flex-col rounded-card border border-line-2">
+              {ON_DEMAND.map((item) => (
+                <li key={item.name} className="flex items-baseline justify-between gap-3 border-b border-line-2 px-3.5 py-2.5 last:border-b-0">
+                  <span className="text-body leading-[normal] text-ink-1">{item.name}</span>
+                  <span className="flex-none font-mono text-mono-sm leading-[normal] text-ink-3">{item.license}</span>
+                </li>
               ))}
             </ul>
           </section>

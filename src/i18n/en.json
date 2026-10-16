@@ -1063,7 +1063,8 @@
       "top": "Top",
       "canvas": "3D view of {{vehicle}}",
       "help": "Drag to turn, right-drag to move, scroll to zoom.",
-      "brushHelp": "Drag on the vehicle to protect an area. Right-drag or Alt+drag turns it."
+      "brushHelp": "Drag on the vehicle to protect an area. Right-drag or Alt+drag turns it.",
+      "decalHelp": "Drag the frame to move it, a corner to resize, the dot to turn. Arrows nudge, Shift+arrows turn, + and − resize, Alt+arrows turn the view."
     },
     "layers": {
       "title": "Layers",
@@ -1073,7 +1074,21 @@
       "show": "Show {{name}}",
       "hide": "Hide {{name}}",
       "renameLabel": "New name for {{name}}",
-      "renameHint": "Double-click to rename"
+      "renameHint": "Double-click to rename",
+      "image": "Image",
+      "text": "Text",
+      "addImage": "Add image",
+      "addText": "Add text",
+      "imageFilter": "Pictures",
+      "notPlaced": "Not placed on the vehicle",
+      "missingPicture": "The picture is missing from the project",
+      "missingFont": "{{font}} isn’t installed on this PC: another font stands in",
+      "deleted": "Deleted layer “{{name}}”",
+      "dragHint": "Drag to reorder",
+      "actions": "{{name}} actions",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "reorderHint": "Alt+↑ and Alt+↓ move the selected layer up and down."
     },
     "parts": {
       "title": "Parts",
@@ -1118,7 +1133,33 @@
       "hull": "Hull",
       "turret": "Turret",
       "gun": "Gun",
-      "clear": "Clear protected areas"
+      "clear": "Clear protected areas",
+      "notPlaced": "This layer’s place on the vehicle couldn’t be read. Place it again to show it.",
+      "placeAgain": "Place on the vehicle",
+      "opacity": "Opacity",
+      "depth": "Depth",
+      "cm": "{{value}} cm",
+      "depthHint": "How far it reaches into the surface. Alt+wheel changes it on the view.",
+      "mirror": "Mirror to the other side",
+      "mirrorHelp": "Adds a copy on the opposite side that reads the right way round.",
+      "mirrorShared": "Here both sides share the same texture, so it already shows on the other side (reversed). Mirror is off for this spot.",
+      "missingPicture": "This picture is missing from the project, so it isn’t shown or applied. Delete the layer or add the picture again.",
+      "flip": "Flip horizontally",
+      "removeBackground": "Remove background",
+      "removeBackgroundHint": "Keeps the subject and makes the background transparent, on this PC",
+      "refineEdge": "Refine edge",
+      "refineEdgeHint": "Erase or bring back parts of the picture with a brush",
+      "text": "Text",
+      "textCount": "{{n}}/{{max}}",
+      "font": "Font",
+      "fontStyle": "Style",
+      "fontMissing": "This font isn’t installed on this PC: another font stands in until you pick one.",
+      "textColor": "Text colour",
+      "fill": "Fill",
+      "outlineColor": "Outline colour",
+      "outline": "Outline",
+      "outlineWidth": "Outline width",
+      "skew": "Slant"
     },
     "apply": {
       "button": "Apply to game",
@@ -1140,11 +1181,63 @@
       "reselect": "Select it again in the hangar to see the changes.",
       "restored": "The previous version is back.",
       "downscaled": "Your graphics card can’t paint this size: the texture was saved at 2048.",
-      "cancelled": "Apply cancelled: the skin in the game is unchanged."
+      "cancelled": "Apply cancelled: the skin in the game is unchanged.",
+      "pictureNotReady": "A picture on the vehicle hasn’t finished loading. Try Apply again."
     },
     "toast": {
       "deleted": "Deleted project “{{name}}”",
       "renamed": "Renamed to “{{name}}”"
+    },
+    "place": {
+      "hint": "Click on the vehicle to place it · Enter: middle of the view · Esc: cancel",
+      "start": "Click on the vehicle to place the new layer. Enter places it in the middle of the view, Escape cancels.",
+      "missed": "Nothing of the vehicle there. Click on the vehicle itself.",
+      "done": "Placed. Drag it or use the arrow keys to adjust it."
+    },
+    "text": {
+      "default": "Text"
+    },
+    "cutout": {
+      "title": "Remove background",
+      "close": "Close",
+      "checking": "Checking the background-removal files…",
+      "consent": "Removing backgrounds needs two files that Livery downloads once, from GitHub:",
+      "runtime": "ONNX Runtime",
+      "model": "isnet-anime model (rembg project)",
+      "privacy": "{{size}} to download. They stay on this PC and run here: your pictures never leave it. Settings → Experimental removes them.",
+      "download": "Download ({{size}})",
+      "restart": "Restart Livery first: the background-removal files you removed were still in use, and they finish going away when Livery starts again. After that it can download them anew.",
+      "downloading": "Downloading from GitHub…",
+      "received": "{{received}} of {{total}}",
+      "waiting": "Waiting",
+      "progress": "Removing the background",
+      "step": {
+        "load": "Loading the model…",
+        "run": "Finding the subject…",
+        "write": "Saving the new picture…"
+      },
+      "local": "This runs on this PC: the picture isn’t sent anywhere. The original stays in the project.",
+      "retry": "Try again",
+      "done": "Background removed. Ctrl+Z brings it back.",
+      "stale": "The layer changed meanwhile, so the result wasn’t used."
+    },
+    "refine": {
+      "title": "Refine edge",
+      "close": "Close",
+      "apply": "Apply",
+      "canvas": "The picture to refine",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "fit": "Fit to view",
+      "help": "Paint over the picture: Erase makes it transparent, Restore brings back the original. Ctrl+wheel zooms.",
+      "tool": "Brush",
+      "erase": "Erase",
+      "restore": "Restore",
+      "size": "Brush size",
+      "px": "{{value}} px",
+      "hardness": "Hardness",
+      "undo": "Undo stroke",
+      "stale": "The layer’s picture changed meanwhile, so the refined edge wasn’t used."
     }
   },
   "settings": {
@@ -1179,7 +1272,8 @@
         "sections": "1–5",
         "sidebar": "[ ]",
         "undo": "Ctrl Z",
-        "close": "Esc"
+        "close": "Esc",
+        "sectionsAtelier": "1–6"
       },
       "actions": {
         "search": "search",
@@ -1282,13 +1376,21 @@
       "atelier": "Atelier",
       "atelierHelper": "Create skins on a 3D model of your vehicle. Experimental: things may change or break.",
       "needsGameData": "Atelier reads your vehicles’ models from the game: turn on Read data from the game to use it.",
-      "openGame": "Open Game settings"
+      "openGame": "Open Game settings",
+      "cutout": "Background removal files",
+      "cutoutSize": "{{size}} on this PC (ONNX Runtime and the isnet-anime model).",
+      "cutoutNone": "Not downloaded. Atelier asks before downloading them ({{size}}) the first time you remove a background.",
+      "cutoutPending": "Removed. This finishes the next time Livery starts.",
+      "cutoutConfirmTitle": "Remove the background-removal files?",
+      "cutoutConfirmBody": "This frees {{size}}. Pictures you already cut out stay as they are; Livery downloads the files again the next time you remove a background.",
+      "cutoutRemove": "Remove",
+      "cutoutRemoved": "Background removal files removed."
     },
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.",
       "privacyTitle": "Privacy",
-      "privacy": "No account, no ads, no telemetry. Livery connects only to WT Live (live.warthunder.com and its image server) when you browse or install skins, and to GitHub to check for updates. Your settings and library stay on this PC. It reads the game’s files and the lineups in your War Thunder profile without changing them. “Send feedback” only opens a GitHub page in your browser: nothing is sent until you submit it there.",
+      "privacy": "No account, no ads, no telemetry. Livery connects only to WT Live (live.warthunder.com and its image server) when you browse or install skins, and to GitHub to check for updates. Your settings and library stay on this PC. It reads the game’s files and the lineups in your War Thunder profile without changing them. “Send feedback” only opens a GitHub page in your browser: nothing is sent until you submit it there. If you use Remove background in Atelier, Livery downloads its files from GitHub once, only when you ask; your pictures stay on this PC.",
       "links": "Links",
       "source": "Source code",
       "sourceHint": "Opens Livery’s repository on GitHub",
@@ -1311,7 +1413,9 @@
       "showText": "Show license text",
       "hideText": "Hide license text",
       "text": "{{name}} license text",
-      "close": "Close"
+      "close": "Close",
+      "onDemand": "Downloaded on demand",
+      "onDemandHelper": "Not part of Livery: downloaded from GitHub only when you first use Remove background in Atelier."
     }
   }
 }

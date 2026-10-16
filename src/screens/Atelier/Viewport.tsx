@@ -1,12 +1,17 @@
-import { useContext, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { boundingDiagonal, defaultDecalSize, frameFromHit } from '@/atelier/decal';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import { QUICK_VIEWS, type QuickView } from '@/atelier/gl/scene';
 import type { VehicleModelData } from '@/atelier/modelBuffer';
-import { maskOf, type PartFilter, type Vec3 } from '@/atelier/project';
+import { dot, isDecalLayer, maskOf, type Decal, type DecalLayer, type PartFilter, type Vec3 } from '@/atelier/project';
+import { measureTextAspect } from '@/atelier/text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/lib/cn';
+import { DecalGizmo } from './DecalGizmo';
+import { decalCorners, nudgePoint, rotateDecal, ROTATE_STEP_DEG, scaleDecal, SCALE_STEP, slideTo, wheelDepth } from './decalOps';
+import { assetSize, setPlacingLayer, useDecalUi } from './decalUi';
 import { distance, enabledSlots, POINT_SPACING } from './editorModel';
 import { EngineContext, type Engine } from './engine';
 
@@ -33,9 +38,22 @@ interface ViewportProps {
   onBeforeDispose?: (engine: Engine) => void;
   /** The engine couldn't start (no WebGL context): the view shows why. */
   onFailed?: () => void;
+  /** A decal gesture (drag, key presses, placement) ended: one undo step was made. */
+  onDecalGestureEnd?: (layerId: string) => void;
 }
 
-type Drag = { kind: 'orbit' | 'pan'; x: number; y: number } | { kind: 'paint' };
+type Drag = { kind: 'orbit' | 'pan'; x: number; y: number; startX: number; startY: number; moved: boolean } | { kind: 'paint' };
+
+/** A click that moved less than this (CSS px) places a layer instead of turning the view. */
+const CLICK_SLOP = 4;
+/** Alt+wheel depth edits end their undo step after this quiet time. */
+const WHEEL_GESTURE_MS = 400;
+
+/** The selected image or text layer when it is placed (its gizmo and keys apply), else null. */
+function selectedPlaced(s: ReturnType<typeof useAtelierEditor.getState>): (DecalLayer & { decal: Decal }) | null {
+  const layer = s.layers.find((l) => l.id === s.selectedId);
+  return isDecalLayer(layer) && layer.decal ? (layer as DecalLayer & { decal: Decal }) : null;
+}
 
 /** Arrow keys turn the view this many pixels' worth; + and − zoom by this wheel delta. */
 const KEY_ORBIT_PX = 24;
@@ -50,12 +68,29 @@ const MAX_SAMPLES = 8;
  * left drag adds a Protected-areas stroke: raycasts run once per animation frame and a point is
  * added whenever the brush moved a third of its radius.
  */
-export function Viewport({ model, templates, label, showTemplate, brush, onEngine, onBeforeDispose, onFailed }: ViewportProps) {
+export function Viewport({ model, templates, label, showTemplate, brush, onEngine, onBeforeDispose, onFailed, onDecalGestureEnd }: ViewportProps) {
   const { t } = useTranslation();
   const factory = useContext(EngineContext);
   const hostRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Engine | null>(null);
+  const [engine, setEngine] = useState<Engine | null>(null);
   const [failed, setFailed] = useState(false);
+  const pending = useAtelierEditor((s) => s.pending);
+  const placingLayerId = useDecalUi((s) => s.placingLayerId);
+  const placing = pending !== null || placingLayerId !== null;
+  const placingRef = useRef(placing);
+  placingRef.current = placing;
+  const decalLayer = useAtelierEditor((s) => (placing ? null : selectedPlaced(s)));
+  const decalRef = useRef(decalLayer);
+  decalRef.current = decalLayer;
+  const [announcement, setAnnouncement] = useState('');
+  const diagonal = useMemo(() => boundingDiagonal(model.positions), [model]);
+  /** The layer whose decal keys are being held (one undo step until the key goes up). */
+  const keyGesture = useRef<string | null>(null);
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gestureEnd = useRef(onDecalGestureEnd);
+  gestureEnd.current = onDecalGestureEnd;
   const [cursor, setCursor] = useState<{ x: number; y: number; r: number } | null>(null);
   const drag = useRef<Drag | null>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
@@ -100,7 +135,9 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
       if (s.layers !== prev.layers || s.project?.slots !== prev.project?.slots) sync(s);
     });
     callbacks.current.onEngine(engine);
+    setEngine(engine);
     return () => {
+      setEngine(null);
       unsubscribe();
       if (frame.current !== null) cancelAnimationFrame(frame.current);
       frame.current = null;
@@ -132,19 +169,92 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     }
   }, [brushOn]);
 
-  // Wheel zoom needs a non-passive listener to keep the page from scrolling.
+  // Wheel zoom needs a non-passive listener to keep the page from scrolling. With a decal
+  // selected, Alt+wheel changes its depth instead (one undo step per wheel burst).
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
+    const frameEl = frameRef.current;
+    if (!frameEl) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      const layer = decalRef.current;
+      if (e.altKey && layer) {
+        const store = useAtelierEditor.getState();
+        store.setDecal(layer.id, { depth: wheelDepth(layer.decal.depth, e.deltaY) }, 'depth');
+        if (wheelTimer.current) clearTimeout(wheelTimer.current);
+        wheelTimer.current = setTimeout(() => {
+          wheelTimer.current = null;
+          useAtelierEditor.getState().endGesture();
+          gestureEnd.current?.(layer.id);
+        }, WHEEL_GESTURE_MS);
+        return;
+      }
       engineRef.current?.scene.zoomBy(e.deltaY);
       schedule();
     };
-    host.addEventListener('wheel', onWheel, { passive: false });
-    return () => host.removeEventListener('wheel', onWheel);
+    frameEl.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      frameEl.removeEventListener('wheel', onWheel);
+      if (wheelTimer.current) clearTimeout(wheelTimer.current);
+    };
     // `schedule` only reads refs.
   }, []);
+
+  // A layer waiting for its placement: say so and give the view the keys (Enter, Escape).
+  const placingKey = pending ? `new:${pending.kind}` : placingLayerId ? `again:${placingLayerId}` : null;
+  useEffect(() => {
+    if (!placingKey) return;
+    setAnnouncement(t('atelier.place.start'));
+    hostRef.current?.focus({ preventScroll: true });
+  }, [placingKey, t]);
+
+  /**
+   * Places the waiting layer where the view shows the model at (`x`, `y`): the decal faces out
+   * along the surface, its up the screen's, sized from the model (25% of its diagonal) and the
+   * picture's or text's aspect. False when nothing is there.
+   */
+  const placeAt = (x: number, y: number): boolean => {
+    const e = engineRef.current;
+    if (!e) return false;
+    const hit = e.scene.raycast(x, y);
+    if (!hit) {
+      setAnnouncement(t('atelier.place.missed'));
+      return false;
+    }
+    const store = useAtelierEditor.getState();
+    const again = useDecalUi.getState().placingLayerId;
+    const target = again ? store.layers.find((l) => l.id === again) : undefined;
+    let aspect = store.pending?.aspect ?? 1;
+    if (!store.pending && isDecalLayer(target)) {
+      if (target.kind === 'image') {
+        const size = assetSize(target.assetId);
+        aspect = size ? size.width / size.height : 1;
+      } else {
+        aspect = measureTextAspect(target) ?? 1;
+      }
+    }
+    const decal = frameFromHit(hit.point, hit.normal, e.scene.cameraMatrixWorld(), defaultDecalSize(diagonal, aspect));
+    if (!decal) return false;
+    let placed: string | null = null;
+    if (store.pending) placed = store.placePending(decal);
+    else if (again && isDecalLayer(target)) {
+      store.setDecal(again, decal);
+      store.select(again);
+      setPlacingLayer(null);
+      placed = again;
+    }
+    if (!placed) return false;
+    setAnnouncement(t('atelier.place.done'));
+    gestureEnd.current?.(placed);
+    return true;
+  };
+
+  /** Slides the decal so its centre lands under the view point (`x`, `y`); false when that misses the model. */
+  const slideDecalTo = (layer: DecalLayer & { decal: Decal }, x: number, y: number, mergeKey: string): boolean => {
+    const hit = engineRef.current?.scene.raycast(x, y);
+    if (!hit) return false;
+    useAtelierEditor.getState().setDecal(layer.id, slideTo(layer.decal, hit.point, hit.normal), mergeKey);
+    return true;
+  };
 
   /** One raycast for the latest pointer position: the cursor, and the stroke while painting. */
   /** Adds `point` to the stroke being drawn unless it is within a third of the radius of the last one. */
@@ -230,14 +340,16 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
       trace();
       return;
     }
+    // With the brush or a decal, the right button turns the view (the left one is the tool's) and the middle one moves it.
+    const tool = settings !== null || decalRef.current !== null;
     let kind: 'orbit' | 'pan' | null = null;
     if (e.button === 0) kind = 'orbit';
-    else if (e.button === 2) kind = settings ? 'orbit' : 'pan';
+    else if (e.button === 2) kind = tool ? 'orbit' : 'pan';
     else if (e.button === 1) kind = 'pan';
     if (!kind) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    drag.current = { kind, x: e.clientX, y: e.clientY };
+    drag.current = { kind, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, moved: false };
   };
 
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
@@ -246,9 +358,12 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     pointer.current = local(e);
     const d = drag.current;
     if (d && d.kind !== 'paint') {
+      const moved = d.moved || Math.hypot(e.clientX - d.startX, e.clientY - d.startY) >= CLICK_SLOP;
+      // While placing, a click places: the view only turns once the pointer really moves.
+      if (placingRef.current && !moved) return;
       const dx = e.clientX - d.x;
       const dy = e.clientY - d.y;
-      drag.current = { ...d, x: e.clientX, y: e.clientY };
+      drag.current = { ...d, x: e.clientX, y: e.clientY, moved };
       if (d.kind === 'orbit') engine.scene.orbitBy(dx, dy);
       else engine.scene.panBy(dx, dy);
     }
@@ -268,6 +383,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     drag.current = null;
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     if (d.kind === 'paint') useAtelierEditor.getState().endStroke();
+    else if (placingRef.current && !d.moved && e.button === 0 && e.type === 'pointerup') placeAt(local(e).x, local(e).y);
   };
 
   /** The pointer was taken away (another window, a touch cancel): the drag ends where it was. */
@@ -284,9 +400,72 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     setCursor(null);
   };
 
+  /** Ends a decal gesture made with keys (on key up). */
+  const onKeyUp = () => {
+    const id = keyGesture.current;
+    if (!id) return;
+    keyGesture.current = null;
+    useAtelierEditor.getState().endGesture();
+    gestureEnd.current?.(id);
+  };
+
+  /**
+   * Keys with a decal selected: arrows slide it on screen (re-raycast, so it follows the surface),
+   * Shift+arrows turn it, + and − scale it, Alt+arrows (and Alt with + / −) move the view. Held
+   * keys make one undo step. False when the key isn't one of these.
+   */
+  const decalKey = (e: KeyboardEvent<HTMLDivElement>, layer: DecalLayer & { decal: Decal }): boolean => {
+    const scene = engineRef.current?.scene;
+    if (!scene || e.ctrlKey || e.metaKey || e.altKey) return false;
+    const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    const store = useAtelierEditor.getState();
+    const arrow = arrows[e.key];
+    if (arrow && e.shiftKey) {
+      if (arrow[0] === 0) return false;
+      // Shift+Left turns counter-clockwise as seen, Shift+Right clockwise.
+      const facingViewer = dot(scene.viewDirection(), layer.decal.normal) < 0;
+      const turn = ((-arrow[0] * ROTATE_STEP_DEG * Math.PI) / 180) * (facingViewer ? 1 : -1);
+      store.setDecal(layer.id, rotateDecal(layer.decal, turn), 'key-rotate');
+    } else if (arrow) {
+      // A step of a twentieth of the decal's size on screen (at least 2 px), in the arrow's screen direction.
+      const c = scene.project(layer.decal.center);
+      const corners = decalCorners(layer.decal).map((p) => scene.project(p));
+      const size = Math.max(...corners.map((p) => Math.hypot(p.x - c.x, p.y - c.y))) * 2;
+      const step = Math.max(2, size / 20);
+      if (!slideDecalTo(layer, c.x + arrow[0] * step, c.y + arrow[1] * step, 'key-move')) {
+        // Off the model on screen: a step along the decal's own plane.
+        store.setDecal(layer.id, { center: nudgePoint(layer.decal, arrow[0], -arrow[1]) }, 'key-move');
+      }
+    } else if (e.key === '+' || e.key === '=') {
+      store.setDecal(layer.id, scaleDecal(layer.decal, SCALE_STEP), 'key-scale');
+    } else if (e.key === '-') {
+      store.setDecal(layer.id, scaleDecal(layer.decal, 1 / SCALE_STEP), 'key-scale');
+    } else {
+      return false;
+    }
+    if (keyGesture.current !== layer.id) {
+      keyGesture.current = layer.id;
+    }
+    return true;
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const scene = engineRef.current?.scene;
-    if (!scene || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (!scene) return;
+    if (placingRef.current && e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      const { width, height } = scene.viewSize();
+      placeAt(width / 2, height / 2);
+      return;
+    }
+    const layer = decalRef.current;
+    if (layer && decalKey(e, layer)) {
+      e.preventDefault();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey) return;
+    // With a decal selected the view's keys need Alt; otherwise Alt is left to the system.
+    if (e.altKey !== (layer !== null)) return;
     const moves: Record<string, () => void> = {
       ArrowLeft: () => scene.orbitBy(-KEY_ORBIT_PX, 0),
       ArrowRight: () => scene.orbitBy(KEY_ORBIT_PX, 0),
@@ -313,8 +492,9 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
   }
 
   const helpId = 'atelier-viewport-help';
+  const help = placing ? t('atelier.place.hint') : brush ? t('atelier.view.brushHelp') : decalLayer ? t('atelier.view.decalHelp') : t('atelier.view.help');
   return (
-    <div className="relative min-h-0 min-w-0 overflow-hidden bg-bg-0 bg-grid">
+    <div ref={frameRef} className="relative min-h-0 min-w-0 overflow-hidden bg-bg-0 bg-grid">
       <div
         ref={hostRef}
         tabIndex={0}
@@ -323,7 +503,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
         aria-describedby={helpId}
         className={cn(
           'absolute inset-0 touch-none outline-none focus-visible:outline focus-visible:-outline-offset-2',
-          brush ? 'cursor-none' : 'cursor-grab active:cursor-grabbing',
+          brush ? 'cursor-none' : placing ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing',
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -333,7 +513,25 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
         onPointerLeave={onPointerLeave}
         onContextMenu={(e) => e.preventDefault()}
         onKeyDown={onKeyDown}
+        onKeyUp={onKeyUp}
+        onBlur={onKeyUp}
       />
+      {engine && decalLayer && !brush && (
+        <DecalGizmo
+          scene={engine.scene}
+          layer={decalLayer}
+          onGestureStart={() => hostRef.current?.focus({ preventScroll: true })}
+          onGestureEnd={(id) => gestureEnd.current?.(id)}
+        />
+      )}
+      {placing && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3">
+          <p className="rounded-ctl border border-amber-35 bg-bg-scrim px-3 py-1.5 text-meta text-ink-1">{t('atelier.place.hint')}</p>
+        </div>
+      )}
+      <div aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
       {brush && cursor && (
         <div
           aria-hidden
@@ -357,7 +555,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
           ))}
         </div>
         <p id={helpId} className="min-w-0 truncate rounded-tag bg-bg-scrim px-2 py-1 text-meta text-ink-3 max-xl:sr-only">
-          {brush ? t('atelier.view.brushHelp') : t('atelier.view.help')}
+          {help}
         </p>
       </div>
     </div>

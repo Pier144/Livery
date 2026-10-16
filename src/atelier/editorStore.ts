@@ -145,6 +145,12 @@ interface EditorState {
   duplicateLayer(id: string): void;
   /** Image, text and unsupported layers only, kept between the Base and the mask. */
   moveLayer(id: string, toIndex: number): void;
+  /**
+   * Puts back a deleted image, text or unsupported layer at `index` (kept between the Base and the
+   * mask) as one undo step and selects it: the "Layer deleted" toast's Undo once other edits came
+   * after the delete. Ignored when a layer with its id is already there.
+   */
+  restoreLayer(layer: Layer, index: number): void;
   /** A decal edit; on a layer without a decal, `patch` must be a whole decal. Ignored when the result doesn't check out. */
   setDecal(id: string, patch: Partial<Decal>, mergeKey?: string): void;
   /** Ignored when the result doesn't check out (e.g. an empty asset id); numbers are clamped. */
@@ -383,6 +389,14 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       const target = Math.min(last, Math.max(1, Math.round(toIndex)));
       if (target === at) return;
       commit(inserted(layers.filter((l) => l.id !== id), target, layer));
+    },
+
+    restoreLayer: (layer, index) => {
+      const { layers } = get();
+      if (layer.kind === 'base' || layer.kind === 'mask' || layers.some((l) => l.id === layer.id) || !Number.isFinite(index)) return;
+      const last = layers.length - (maskOf(layers) ? 1 : 0);
+      const at = Math.min(last, Math.max(1, Math.round(index)));
+      commit(inserted(layers, at, layer), { selectedId: layer.id });
     },
 
     setDecal: (id, patch, mergeKey) => {

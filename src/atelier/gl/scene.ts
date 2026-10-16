@@ -172,6 +172,7 @@ export class EditorScene {
   private framing = framingDistance(1);
   private orbit: OrbitState = defaultOrbit([0, 0, 0], framingDistance(1));
   private frame: number | null = null;
+  private readonly renderListeners = new Set<() => void>();
   private width = 1;
   private height = 1;
   private disposed = false;
@@ -252,6 +253,34 @@ export class EditorScene {
     if (this.disposed) return;
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, this.camera);
+    for (const listener of this.renderListeners) listener();
+  }
+
+  /** Calls `listener` after every frame drawn (overlays that follow the camera); returns the unsubscribe. */
+  onRender(listener: () => void): () => void {
+    this.renderListeners.add(listener);
+    return () => this.renderListeners.delete(listener);
+  }
+
+  /** The view's size in CSS pixels. */
+  viewSize(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
+  }
+
+  /** The camera's world matrix, column-major (`Matrix4.elements`): `frameFromHit` takes its screen-up. */
+  cameraMatrixWorld(): number[] {
+    return [...this.camera.matrixWorld.elements];
+  }
+
+  /**
+   * A model-space point on the canvas, in CSS pixels from its top-left; `behind` when it lies
+   * behind the camera (its x, y are then meaningless).
+   */
+  project(p: Vec3): { x: number; y: number; behind: boolean } {
+    const v = this.scratch.set(p[0], p[1], p[2]).applyMatrix4(this.camera.matrixWorldInverse);
+    const behind = v.z >= 0;
+    v.applyMatrix4(this.camera.projectionMatrix);
+    return { x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height, behind };
   }
 
   quickView(view: QuickView): void {
@@ -372,6 +401,7 @@ export class EditorScene {
     if (this.frame !== null) cancelAnimationFrame(this.frame);
     this.frame = null;
     this.resize?.disconnect();
+    this.renderListeners.clear();
     this.clearModel();
     this.headlight.dispose();
   }

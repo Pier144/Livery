@@ -2,15 +2,16 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAtelierEditor } from '@/atelier/editorStore';
-import { maskOf, type BaseLayer } from '@/atelier/project';
+import { maskOf, type BaseLayer, type DecalLayer, type ImageLayer, type Layer, type TextLayer } from '@/atelier/project';
 import { Toaster } from '@/components/chrome/Toaster';
-import { encodeMockModel, mockTemplate, MOCK_TEXTURE_SIZE } from '@/dev/mockAtelier';
+import { encodeAsset, encodeMockModel, mockPicture, mockTemplate, MOCK_TEXTURE_SIZE } from '@/dev/mockAtelier';
 import { useAtelierUi } from '@/store/atelier';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
-import type { ApplyProgress, AtelierProject, HangarSkin } from '@/types';
+import type { ApplyProgress, AtelierProject, CutoutStatus, HangarSkin } from '@/types';
+import { resetDecalUi } from './decalUi';
 import { Editor } from './Editor';
 import { EngineContext, type Engine, type EngineFactory } from './engine';
 
@@ -18,7 +19,11 @@ const backend = vi.hoisted(() => ({
   call: vi.fn<(cmd: string, args?: Record<string, unknown>) => Promise<unknown>>(),
   callRaw: vi.fn<(cmd: string, body: Uint8Array, headers: Record<string, string>) => Promise<unknown>>(),
   progress: [] as ((p: ApplyProgress) => void)[],
+  /** Every listener with its event name (decal tests emit download and cutout progress). */
+  events: [] as { name: string; handler: (p: unknown) => void }[],
 }));
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(async () => 'C:\\Pictures\\logo.png') }));
 
 vi.mock('@/lib/tauri', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/tauri')>()),
@@ -29,10 +34,13 @@ vi.mock('@/lib/tauri', async (importOriginal) => ({
 }));
 
 vi.mock('@/lib/events', () => ({
-  listenEvent: async (_name: string, handler: (p: ApplyProgress) => void) => {
+  listenEvent: async (name: string, handler: (p: ApplyProgress) => void) => {
     backend.progress.push(handler);
+    const entry = { name, handler: handler as (p: unknown) => void };
+    backend.events.push(entry);
     return () => {
       backend.progress = backend.progress.filter((h) => h !== handler);
+      backend.events = backend.events.filter((e) => e !== entry);
     };
   },
 }));
@@ -62,7 +70,12 @@ let commit: () => Promise<unknown>;
 let begin: () => Promise<unknown>;
 let texture: () => Promise<unknown>;
 
+/** Answers a test adds for one command (checked before the defaults). */
+let extra: Record<string, (args: Record<string, unknown>) => unknown> = {};
+
 function answer(cmd: string, args: Record<string, unknown> = {}): unknown {
+  const own = extra[cmd];
+  if (own) return own(args);
   switch (cmd) {
     case 'atelier_project_get':
       return stored;
@@ -83,6 +96,7 @@ function answer(cmd: string, args: Record<string, unknown> = {}): unknown {
       return commit();
     case 'atelier_apply_cancel':
     case 'undo_replace':
+    case 'atelier_project_open':
       return null;
     default:
       return Promise.reject({ code: 'noBackend', message: `unexpected ${cmd}` });
@@ -120,6 +134,11 @@ function stubEngine() {
       view: vi.fn(() => ({ target: [0, 0, 0] as [number, number, number], radius: 4, theta: 0.5, phi: 1 })),
       setView: vi.fn(),
       contextLost: vi.fn(() => false),
+      onRender: vi.fn(() => () => {}),
+      viewSize: vi.fn(() => ({ width: 200, height: 100 })),
+      cameraMatrixWorld: vi.fn(() => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+      // Consistent with `raycast`: a model point (0.5, y, z) is at (z·100, y·100) on the view.
+      project: vi.fn((p: [number, number, number]) => ({ x: p[2] * 100, y: p[1] * 100, behind: false })),
     },
     baker: {
       setLayers: vi.fn(),
@@ -173,6 +192,8 @@ beforeEach(() => {
   commit = async () => ({ skin: SKIN });
   texture = async () => null;
   backend.progress = [];
+  backend.events = [];
+  extra = {};
   backend.call.mockReset();
   backend.call.mockImplementation(async (cmd, args) => answer(cmd, args));
   backend.callRaw.mockReset();
@@ -564,6 +585,301 @@ describe('Atelier editor', () => {
     act(() => useAtelierUi.getState().close());
     first.unmount();
     expect(engine.scene.thumbnailPng).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Images, text, mirror, background removal ───────────────────────────────
+
+const IMPORTED = { id: 'img-1', width: 400, height: 200 };
+const FONTS = [
+  { family: 'Arial', style: 'Regular', file: 'arial.ttf' },
+  { family: 'Arial', style: 'Bold', file: 'arialbd.ttf' },
+  { family: 'Verdana', style: 'Regular', file: 'verdana.ttf' },
+];
+const NOT_READY: CutoutStatus = { runtime: false, model: false, bytes: 0, downloadBytes: 236_069_933, pendingRemoval: false };
+const READY: CutoutStatus = { runtime: true, model: true, bytes: 236_069_933, downloadBytes: 0, pendingRemoval: false };
+
+const S = () => useAtelierEditor.getState();
+const decalLayer = (id: string) => S().layers.find((l) => l.id === id) as DecalLayer;
+const view = () => screen.getByRole('application', { name: /3D view of/ });
+const emit = (name: string, payload: unknown) => act(() => backend.events.filter((e) => e.name === name).forEach((e) => e.handler(payload)));
+
+function decalAnswers() {
+  extra = {
+    atelier_import_image: () => IMPORTED,
+    atelier_fonts: () => FONTS,
+    atelier_font_file: () => Promise.reject({ code: 'notFound', message: 'no font' }),
+    atelier_asset: () => encodeAsset(mockPicture(400, 200)),
+  };
+}
+
+/** Add image → the picture waits → a click on the view places it; returns the new layer's id. */
+async function placeImage(user: ReturnType<typeof userEvent.setup>, at = { x: 50, y: 20 }): Promise<string> {
+  await user.click(screen.getByRole('button', { name: 'Add image' }));
+  await waitFor(() => expect(S().pending).not.toBeNull());
+  fireEvent.pointerDown(view(), { button: 0, clientX: at.x, clientY: at.y, pointerId: 1 });
+  fireEvent.pointerUp(view(), { button: 0, clientX: at.x, clientY: at.y, pointerId: 1 });
+  await waitFor(() => expect(S().pending).toBeNull());
+  return S().selectedId!;
+}
+
+describe('Atelier editor · images and text', () => {
+  beforeEach(() => {
+    resetDecalUi();
+    decalAnswers();
+  });
+
+  it('opens a project after earlier saves, cleaning unused pictures before reading it fresh', async () => {
+    renderEditor();
+    await ready();
+    const open = backend.call.mock.calls.findIndex(([c]) => c === 'atelier_project_open');
+    const get = backend.call.mock.calls.findIndex(([c]) => c === 'atelier_project_get');
+    expect(open).toBeGreaterThanOrEqual(0);
+    expect(backend.call.mock.invocationCallOrder[open]!).toBeLessThan(backend.call.mock.invocationCallOrder[get]!);
+    expect(calls('atelier_project_open')).toEqual([{ projectId: 'p1' }]);
+  });
+
+  it('adds a picture: it waits for its click (announced), lands on the model, one undo step; Escape cancels', async () => {
+    const user = userEvent.setup();
+    const { container } = renderEditor();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Add image' }));
+    expect(calls('atelier_import_image')).toEqual([{ projectId: 'p1', path: 'C:\\Pictures\\logo.png' }]);
+    await waitFor(() => expect(S().pending).toMatchObject({ kind: 'image', assetId: 'img-1', aspect: 2, name: 'logo' }));
+    expect(screen.getByText(/Click on the vehicle to place the new layer/)).toBeInTheDocument();
+    expect(view()).toHaveFocus();
+    const past = S().past.length;
+    // A drag turns the view; it doesn't place.
+    fireEvent.pointerDown(view(), { button: 0, clientX: 50, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(view(), { button: 0, clientX: 80, clientY: 20, pointerId: 1 });
+    fireEvent.pointerUp(view(), { button: 0, clientX: 80, clientY: 20, pointerId: 1 });
+    expect(S().pending).not.toBeNull();
+    expect(engine.scene.orbitBy).toHaveBeenCalled();
+    fireEvent.pointerDown(view(), { button: 0, clientX: 50, clientY: 20, pointerId: 1 });
+    fireEvent.pointerUp(view(), { button: 0, clientX: 50, clientY: 20, pointerId: 1 });
+    const layer = S().layers.find((l) => l.kind === 'image') as ImageLayer;
+    expect(layer).toMatchObject({ assetId: 'img-1', name: 'logo' });
+    expect(layer.decal!.center).toEqual([0.5, 0.2, 0.5]);
+    expect(layer.decal!.normal).toEqual([1, 0, 0]);
+    expect(layer.decal!.width / layer.decal!.height).toBeCloseTo(2);
+    expect(S().past).toHaveLength(past + 1);
+    expect(S().selectedId).toBe(layer.id);
+    expect(screen.getByText('Placed. Drag it or use the arrow keys to adjust it.')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Layers' })).getByRole('button', { name: 'logo', pressed: true })).toBeInTheDocument();
+    expect(engine.baker.decalTouchesSharedTexels).toHaveBeenCalled();
+    expect(await seriousViolations(container)).toEqual([]);
+
+    // Enter places at the middle of the view (200 × 100 → the point under (100, 50)).
+    await user.click(screen.getByRole('button', { name: 'Add image' }));
+    await waitFor(() => expect(S().pending).not.toBeNull());
+    await user.keyboard('{Enter}');
+    expect(decalLayer(S().selectedId!).decal!.center).toEqual([0.5, 0.5, 1]);
+
+    // Escape drops a waiting layer, nothing to undo.
+    await user.click(screen.getByRole('button', { name: 'Add image' }));
+    await waitFor(() => expect(S().pending).not.toBeNull());
+    const before = S().past.length;
+    await user.keyboard('{Escape}');
+    expect(S().pending).toBeNull();
+    expect(S().past).toHaveLength(before);
+    await user.keyboard('{Control>}z{/Control}');
+    expect(S().layers.filter((l) => l.kind === 'image')).toHaveLength(1);
+  });
+
+  it('moves, turns and scales the selected decal from the keyboard, one undo step each; Alt+arrows turn the view', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    const id = await placeImage(user);
+    const start = decalLayer(id).decal!;
+    view().focus();
+    await user.keyboard('{ArrowRight}');
+    expect(decalLayer(id).decal!.center[2]).toBeGreaterThan(start.center[2]);
+    await user.keyboard('{Shift>}{ArrowLeft}{/Shift}');
+    expect(decalLayer(id).decal!.up[2]).toBeCloseTo(Math.sin((5 * Math.PI) / 180));
+    await user.keyboard('+');
+    expect(decalLayer(id).decal!.width).toBeCloseTo(start.width * 1.05);
+    expect(engine.scene.orbitBy).not.toHaveBeenCalled();
+    await user.keyboard('{Alt>}{ArrowLeft}{/Alt}');
+    expect(engine.scene.orbitBy).toHaveBeenCalledWith(-24, 0);
+    await user.keyboard('{Control>}z{/Control}');
+    expect(decalLayer(id).decal!.width).toBeCloseTo(start.width);
+    expect(decalLayer(id).decal!.up[2]).toBeCloseTo(Math.sin((5 * Math.PI) / 180));
+    await user.keyboard('{Control>}z{/Control}');
+    expect(decalLayer(id).decal!.up).toEqual(start.up);
+    await user.keyboard('{Control>}z{/Control}');
+    expect(decalLayer(id).decal!.center).toEqual(start.center);
+  });
+
+  it('drags the decal along the surface with its gizmo, one undo step per drag', async () => {
+    const user = userEvent.setup();
+    const { container } = renderEditor();
+    await ready();
+    const id = await placeImage(user);
+    const past = S().past.length;
+    const body = container.querySelector('[data-gizmo="body"]')!;
+    fireEvent.pointerDown(body, { button: 0, clientX: 50, clientY: 20, pointerId: 2 });
+    fireEvent.pointerMove(body, { clientX: 60, clientY: 30, pointerId: 2 });
+    fireEvent.pointerMove(body, { clientX: 70, clientY: 30, pointerId: 2 });
+    fireEvent.pointerUp(body, { clientX: 70, clientY: 30, pointerId: 2 });
+    expect(decalLayer(id).decal!.center).toEqual([0.5, 0.3, 0.7]);
+    expect(S().past).toHaveLength(past + 1);
+    const rotate = container.querySelector('[data-gizmo="rotate"]');
+    expect(rotate).not.toBeNull();
+    expect(container.querySelectorAll('[data-gizmo^="corner"]')).toHaveLength(4);
+  });
+
+  it('offers Mirror off where both sides share the texture, and turns it on elsewhere', async () => {
+    const user = userEvent.setup();
+    engine.baker.decalTouchesSharedTexels.mockResolvedValue(true);
+    renderEditor();
+    await ready();
+    const id = await placeImage(user);
+    const mirror = await screen.findByRole('switch', { name: 'Mirror to the other side' });
+    await waitFor(() => expect(mirror).toBeDisabled());
+    expect(screen.getByText(/share the same texture/)).toBeInTheDocument();
+    engine.baker.decalTouchesSharedTexels.mockResolvedValue(false);
+    // A move ends with a new check: here nothing is shared.
+    view().focus();
+    await user.keyboard('{ArrowRight}');
+    await waitFor(() => expect(mirror).toBeEnabled());
+    await user.click(mirror);
+    await waitFor(() => expect(decalLayer(id).decal!.mirror).toBe(true));
+    expect(mirror).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('duplicates, deletes (toast Undo) and reorders layers, each undoable', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    const a = await placeImage(user);
+    const layers = within(screen.getByRole('region', { name: 'Layers' }));
+    await user.click(layers.getByRole('button', { name: 'logo actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    const copy = S().selectedId!;
+    expect(copy).not.toBe(a);
+    expect(S().layers.map((l) => l.id).slice(1)).toEqual([a, copy]);
+    // Alt+↓ on the copy's row moves it under the original.
+    layers.getAllByRole('button', { name: 'logo' })[0]!.focus();
+    await user.keyboard('{Alt>}{ArrowDown}{/Alt}');
+    expect(S().layers.map((l) => l.id).slice(1)).toEqual([copy, a]);
+    await user.keyboard('{Control>}z{/Control}');
+    expect(S().layers.map((l) => l.id).slice(1)).toEqual([a, copy]);
+    // Delete: a toast offers Undo.
+    await user.click(layers.getAllByRole('button', { name: 'logo actions' })[0]!);
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(S().layers.map((l) => l.id)).not.toContain(copy);
+    expect(toastTexts()).toContain('Deleted layer “logo”');
+    const toasts = screen.getByRole('region', { name: /notifications/i });
+    await user.click(within(toasts).getByRole('button', { name: 'Undo' }));
+    expect(S().layers.map((l) => l.id).slice(1)).toEqual([a, copy]);
+  });
+
+  it('adds text: placed with Enter; typing reaches the layer (and the bake) after a short pause', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Add text' }));
+    expect(S().pending).toMatchObject({ kind: 'text', text: 'Text', font: { family: 'Arial', style: 'Regular' } });
+    await user.keyboard('{Enter}');
+    const id = S().selectedId!;
+    expect(decalLayer(id).kind).toBe('text');
+    const field = await screen.findByRole('textbox', { name: 'Text' });
+    await user.type(field, ' A');
+    // Not yet: the text reaches the layer 150 ms after the last key.
+    expect((decalLayer(id) as TextLayer).text).toBe('Text');
+    await waitFor(() => expect((decalLayer(id) as TextLayer).text).toBe('Text A'));
+    const baked = engine.baker.setLayers.mock.calls.at(-1)![0] as Layer[];
+    expect(baked.find((l) => l.id === id)).toMatchObject({ text: 'Text A' });
+    // The font pickers list the installed fonts.
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Font' }), 'Verdana');
+    expect((decalLayer(id) as TextLayer).font).toEqual({ family: 'Verdana', style: 'Regular' });
+  });
+
+  it('removes a background: asks to download, shows progress, cuts out, refits the layer in one undo step', async () => {
+    const user = userEvent.setup();
+    let finishDownload!: (s: CutoutStatus) => void;
+    let finishCutout!: (r: unknown) => void;
+    extra.atelier_cutout_status = () => NOT_READY;
+    extra.atelier_cutout_download = () => new Promise((r) => (finishDownload = r));
+    extra.atelier_cutout = () => new Promise((r) => (finishCutout = r));
+    renderEditor();
+    await ready();
+    const id = await placeImage(user);
+    const before = decalLayer(id) as ImageLayer;
+    await user.click(screen.getByRole('button', { name: 'Remove background' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Remove background' });
+    expect(within(dialog).getByText(/two files that Livery downloads once/)).toBeInTheDocument();
+    expect(await seriousViolations(dialog)).toEqual([]);
+    await user.click(within(dialog).getByRole('button', { name: 'Download (225 MB)' }));
+    expect(calls('atelier_cutout_download')).toHaveLength(1);
+    emit('atelier://download-progress', { item: 'model', received: 88_000_000, total: 176_069_933 });
+    expect(within(dialog).getByRole('progressbar', { name: 'isnet-anime model (rembg project)' })).toHaveAttribute('aria-valuenow', '50');
+    await act(async () => finishDownload(READY));
+    await waitFor(() => expect(calls('atelier_cutout')).toEqual([{ projectId: 'p1', assetId: 'img-1' }]));
+    emit('atelier://cutout-progress', { step: 'run' });
+    expect(within(dialog).getByText('Finding the subject…')).toBeInTheDocument();
+    const past = S().past.length;
+    await act(async () => finishCutout({ asset: { id: 'img-cut', width: 200, height: 100 }, crop: { x: 100, y: 50, w: 200, h: 100 } }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const after = decalLayer(id) as ImageLayer;
+    expect(after).toMatchObject({ assetId: 'img-cut', sourceAssetId: 'img-1', sourceOffset: { x: 100, y: 50, w: 200, h: 100 } });
+    // The crop is centred: same place, half the size.
+    expect(after.decal!.center).toEqual(before.decal!.center);
+    expect(after.decal!.width).toBeCloseTo(before.decal!.width / 2);
+    expect(S().past).toHaveLength(past + 1);
+    expect(toastTexts()).toContain('Background removed. Ctrl+Z brings it back.');
+  });
+
+  it('a cancelled download ends quietly; a removal waiting for a restart says so', async () => {
+    const user = userEvent.setup();
+    let failDownload!: (e: unknown) => void;
+    extra.atelier_cutout_status = () => NOT_READY;
+    extra.atelier_cutout_download = () => new Promise((_, reject) => (failDownload = reject));
+    extra.atelier_cutout_cancel = () => null;
+    renderEditor();
+    await ready();
+    await placeImage(user);
+    await user.click(screen.getByRole('button', { name: 'Remove background' }));
+    await user.click(await screen.findByRole('button', { name: /^Download/ }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(calls('atelier_cutout_cancel')).toHaveLength(1);
+    await act(async () => failDownload({ code: 'network', message: 'Download cancelled' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(toastTexts()).toEqual([]);
+
+    extra.atelier_cutout_status = () => ({ ...NOT_READY, pendingRemoval: true });
+    await user.click(screen.getByRole('button', { name: 'Remove background' }));
+    expect(await screen.findByText(/Restart Livery first/)).toBeInTheDocument();
+    expect(calls('atelier_cutout_download')).toHaveLength(1);
+  });
+
+  it('refine edge saves the brushed picture as a new asset, keeping where it came from (one undo step)', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    backend.callRaw.mockImplementation(async (cmd) => (cmd === 'atelier_asset_put' ? { id: 'img-refined', width: 400, height: 200 } : null));
+    renderEditor();
+    await ready();
+    const id = await placeImage(user);
+    await user.click(screen.getByRole('button', { name: 'Refine edge' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Refine edge' });
+    const canvas = await within(dialog).findByLabelText('The picture to refine');
+    expect(await seriousViolations(dialog)).toEqual([]);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 400, height: 200, right: 400, bottom: 200, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 240, clientY: 150, pointerId: 3 });
+    fireEvent.pointerMove(canvas, { clientX: 250, clientY: 150, pointerId: 3 });
+    fireEvent.pointerUp(canvas, { clientX: 250, clientY: 150, pointerId: 3 });
+    const past = S().past.length;
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const put = backend.callRaw.mock.calls.find(([c]) => c === 'atelier_asset_put')!;
+    expect(put[2]).toEqual({ 'x-project-id': 'p1', 'x-width': '400', 'x-height': '200' });
+    // The brush erased alpha around (240, 150); RGB stays.
+    const body = put[1];
+    const at = (150 * 400 + 240) * 4;
+    expect(body[at + 3]).toBeLessThan(255);
+    expect(decalLayer(id)).toMatchObject({ assetId: 'img-refined', sourceAssetId: 'img-1', sourceOffset: { x: 0, y: 0, w: 400, h: 200 } });
+    expect(S().past).toHaveLength(past + 1);
   });
 });
 

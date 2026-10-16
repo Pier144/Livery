@@ -1,0 +1,331 @@
+import { Brush, Crosshair, FlipHorizontal2, Wand2 } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useAtelierEditor } from '@/atelier/editorStore';
+import { MAX_OUTLINE_WIDTH, MAX_SKEW, MAX_TEXT_CHARS, type Decal, type DecalLayer, type FontRef, type ImageLayer, type PartFilter, type TextLayer } from '@/atelier/project';
+import { debounce, fontStatus } from '@/atelier/text';
+import { Button } from '@/components/ui/Button';
+import { ChipDropdown } from '@/components/ui/ChipDropdown';
+import { Switch } from '@/components/ui/Switch';
+import { useFonts } from '@/queries/atelier';
+import type { PartGroup } from '@/types';
+import { ColorSwatch, Field, Slider } from './controls';
+import { MAX_DEPTH_UI, MIN_DEPTH_UI } from './decalOps';
+import { setPlacingLayer, useDecalUi } from './decalUi';
+
+interface DecalPropertiesProps {
+  layer: DecalLayer;
+  checkShared: (layerId: string, decal?: Decal) => Promise<boolean>;
+  onRemoveBackground: (layerId: string) => void;
+  onRefineEdge: (layerId: string) => void;
+}
+
+const SELECT =
+  'h-ctl w-full min-w-0 rounded-ctl border border-line-3 bg-bg-input px-2 text-meta text-ink-1 hover:border-line-4 focus-visible:outline focus-visible:-outline-offset-1 disabled:opacity-50';
+
+/**
+ * An image or text layer's settings: what it shows (text, font, colours, outline, slant; for a
+ * picture flip, Remove background and Refine edge), how it is drawn (opacity, box depth), where
+ * (Only this part, Mirror). Sliders and colour pickers make one undo step per drag or picker
+ * session; text typed in the field reaches the layer 150 ms after the last key (one undo step
+ * until the field is left).
+ */
+export function DecalProperties({ layer, checkShared, onRemoveBackground, onRefineEdge }: DecalPropertiesProps) {
+  const { t } = useTranslation();
+  const setLayerProps = useAtelierEditor((s) => s.setLayerProps);
+  const setDecal = useAtelierEditor((s) => s.setDecal);
+  const endGesture = useAtelierEditor((s) => s.endGesture);
+  const missing = useDecalUi((s) => layer.kind === 'image' && s.missingAssets[layer.assetId] === true);
+  useDecalUi((s) => s.fontsVersion);
+
+  if (!layer.decal) {
+    return (
+      <div className="flex flex-col items-start gap-3 rounded-ctl border border-line-2 bg-bg-2 p-3">
+        <p className="text-meta text-ink-2">{t('atelier.props.notPlaced')}</p>
+        <Button size={28} onClick={() => setPlacingLayer(layer.id)}>
+          <Crosshair size={14} strokeWidth={1.75} aria-hidden />
+          {t('atelier.props.placeAgain')}
+        </Button>
+      </div>
+    );
+  }
+  const decal = layer.decal;
+
+  return (
+    <>
+      {layer.kind === 'image' ? (
+        <ImageContent layer={layer} missing={missing} onRemoveBackground={onRemoveBackground} onRefineEdge={onRefineEdge} />
+      ) : (
+        <TextContent layer={layer} />
+      )}
+      <Slider
+        label={t('atelier.props.opacity')}
+        value={layer.opacity}
+        min={0}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(opacity) => setLayerProps(layer.id, { opacity }, 'opacity')}
+        onCommit={endGesture}
+      />
+      <Slider
+        label={t('atelier.props.depth')}
+        value={Math.min(MAX_DEPTH_UI, Math.max(MIN_DEPTH_UI, decal.depth))}
+        min={MIN_DEPTH_UI}
+        max={MAX_DEPTH_UI}
+        step={0.01}
+        format={(v) => t('atelier.props.cm', { value: Math.round(v * 100) })}
+        hint={t('atelier.props.depthHint')}
+        onChange={(depth) => setDecal(layer.id, { depth }, 'depth')}
+        onCommit={endGesture}
+      />
+      <PartFilterChip value={decal.part} onChange={(part) => setDecal(layer.id, { part })} />
+      <MirrorRow layer={layer} decal={decal} checkShared={checkShared} />
+    </>
+  );
+}
+
+function PartFilterChip({ value, onChange }: { value: string; onChange: (part: PartFilter) => void }) {
+  const { t } = useTranslation();
+  const parts: { value: PartGroup; label: string }[] = [
+    { value: 'hull', label: t('atelier.props.hull') },
+    { value: 'turret', label: t('atelier.props.turret') },
+    { value: 'gun', label: t('atelier.props.gun') },
+  ];
+  const current = parts.find((p) => p.value === value)?.value ?? null;
+  return (
+    <ChipDropdown<PartGroup>
+      label={t('atelier.props.only')}
+      value={current}
+      options={parts}
+      anyLabel={t('atelier.props.allParts')}
+      onChange={(v) => onChange(v ?? 'all')}
+      className="self-start"
+    />
+  );
+}
+
+/** Mirror to the other side: off by default; offered off where the model already shares the texture between sides. */
+function MirrorRow({ layer, decal, checkShared }: { layer: DecalLayer; decal: Decal; checkShared: DecalPropertiesProps['checkShared'] }) {
+  const { t } = useTranslation();
+  const labelId = useId();
+  const hintId = useId();
+  const shared = useDecalUi((s) => s.shared[layer.id] === true);
+  const [checking, setChecking] = useState(false);
+  const setDecal = useAtelierEditor((s) => s.setDecal);
+
+  const toggle = async (next: boolean) => {
+    if (!next) {
+      setDecal(layer.id, { mirror: false });
+      return;
+    }
+    setChecking(true);
+    try {
+      if (!(await checkShared(layer.id, decal))) setDecal(layer.id, { mirror: true });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-3">
+        <span id={labelId} className="text-meta text-ink-3">
+          {t('atelier.props.mirror')}
+        </span>
+        <Switch
+          checked={decal.mirror}
+          onChange={(next) => void toggle(next)}
+          disabled={checking || (shared && !decal.mirror)}
+          aria-busy={checking || undefined}
+          aria-labelledby={labelId}
+          aria-describedby={hintId}
+        />
+      </div>
+      <p id={hintId} className="text-meta text-ink-4">
+        {shared ? t('atelier.props.mirrorShared') : t('atelier.props.mirrorHelp')}
+      </p>
+    </div>
+  );
+}
+
+function ImageContent({
+  layer,
+  missing,
+  onRemoveBackground,
+  onRefineEdge,
+}: {
+  layer: ImageLayer;
+  missing: boolean;
+  onRemoveBackground: (id: string) => void;
+  onRefineEdge: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const setLayerProps = useAtelierEditor((s) => s.setLayerProps);
+  const busy = useDecalUi((s) => s.cutoutBusy);
+  const flipId = useId();
+  return (
+    <>
+      {missing && <p className="rounded-ctl border border-line-2 bg-bg-2 p-3 text-meta text-ink-2">{t('atelier.props.missingPicture')}</p>}
+      <div className="flex items-center justify-between gap-3">
+        <span id={flipId} className="flex items-center gap-2 text-meta text-ink-3">
+          <FlipHorizontal2 size={14} strokeWidth={1.75} aria-hidden />
+          {t('atelier.props.flip')}
+        </span>
+        <Switch checked={layer.flipX} onChange={(flipX) => setLayerProps(layer.id, { flipX })} aria-labelledby={flipId} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size={28} disabled={missing || busy} onClick={() => onRemoveBackground(layer.id)} title={t('atelier.props.removeBackgroundHint')}>
+          <Wand2 size={14} strokeWidth={1.75} aria-hidden />
+          {t('atelier.props.removeBackground')}
+        </Button>
+        <Button size={28} disabled={missing} onClick={() => onRefineEdge(layer.id)} title={t('atelier.props.refineEdgeHint')}>
+          <Brush size={14} strokeWidth={1.75} aria-hidden />
+          {t('atelier.props.refineEdge')}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function TextContent({ layer }: { layer: TextLayer }) {
+  const { t } = useTranslation();
+  const setLayerProps = useAtelierEditor((s) => s.setLayerProps);
+  const endGesture = useAtelierEditor((s) => s.endGesture);
+  const fonts = useFonts();
+  const textId = useId();
+  const familyId = useId();
+  const styleId = useId();
+  const countId = useId();
+  const [draft, setDraft] = useState(layer.text);
+  const editing = useRef(false);
+
+  // Typing re-rasterises the text: the layer gets it 150 ms after the last key.
+  const id = layer.id;
+  const push = useMemo(() => debounce((text: string) => useAtelierEditor.getState().setLayerProps(id, { text }, 'text')), [id]);
+  useEffect(() => () => push.flush(), [push]);
+  // Undo, redo or another layer: the field shows the layer's text (not while typing in it).
+  useEffect(() => {
+    if (!editing.current) setDraft(layer.text);
+  }, [layer.text, id]);
+
+  const families = useMemo(() => {
+    const list = [...new Set((fonts.data ?? []).map((f) => f.family))].sort((a, b) => a.localeCompare(b));
+    if (!list.includes(layer.font.family)) list.unshift(layer.font.family);
+    return list;
+  }, [fonts.data, layer.font.family]);
+  const styles = useMemo(() => {
+    const list = (fonts.data ?? []).filter((f) => f.family === layer.font.family).map((f) => f.style);
+    if (!list.includes(layer.font.style)) list.unshift(layer.font.style);
+    return list;
+  }, [fonts.data, layer.font.family, layer.font.style]);
+
+  const setFont = (font: FontRef) => setLayerProps(layer.id, { font });
+  const pickFamily = (family: string) => {
+    const available = (fonts.data ?? []).filter((f) => f.family === family).map((f) => f.style);
+    const style = available.includes(layer.font.style) ? layer.font.style : (available.find((s) => s === 'Regular') ?? available[0] ?? 'Regular');
+    setFont({ family, style });
+  };
+  const fontMissing = fontStatus(layer.font) === 'missing';
+
+  return (
+    <>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-2">
+          <label htmlFor={textId} className="text-meta text-ink-3">
+            {t('atelier.props.text')}
+          </label>
+          <span id={countId} className="font-mono text-mono-sm text-ink-4">
+            {t('atelier.props.textCount', { n: [...draft].length, max: MAX_TEXT_CHARS })}
+          </span>
+        </div>
+        <textarea
+          id={textId}
+          value={draft}
+          rows={2}
+          maxLength={MAX_TEXT_CHARS}
+          aria-describedby={countId}
+          onFocus={() => {
+            editing.current = true;
+          }}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            push(e.target.value.replace(/\r?\n/g, ' '));
+          }}
+          onBlur={() => {
+            editing.current = false;
+            push.flush();
+            endGesture();
+          }}
+          className="min-h-[52px] w-full resize-y rounded-ctl border border-line-3 bg-bg-input px-2 py-1.5 text-body text-ink-1 outline-none hover:border-line-4 focus-visible:border-line-4"
+        />
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)] gap-2">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <label htmlFor={familyId} className="text-meta text-ink-3">
+            {t('atelier.props.font')}
+          </label>
+          <select id={familyId} value={layer.font.family} onChange={(e) => pickFamily(e.target.value)} className={SELECT}>
+            {families.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <label htmlFor={styleId} className="text-meta text-ink-3">
+            {t('atelier.props.fontStyle')}
+          </label>
+          <select id={styleId} value={layer.font.style} onChange={(e) => setFont({ family: layer.font.family, style: e.target.value })} className={SELECT}>
+            {styles.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {fontMissing && <p className="text-meta text-ink-3">{t('atelier.props.fontMissing')}</p>}
+      <Field label={t('atelier.props.colors')}>
+        {() => (
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <ColorSwatch value={layer.color} label={t('atelier.props.textColor')} onInput={(color) => setLayerProps(layer.id, { color }, 'color')} onCommit={endGesture} />
+              <span className="text-meta text-ink-3">{t('atelier.props.fill')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ColorSwatch
+                value={layer.outlineColor}
+                label={t('atelier.props.outlineColor')}
+                onInput={(outlineColor) => setLayerProps(layer.id, { outlineColor }, 'outlineColor')}
+                onCommit={endGesture}
+              />
+              <span className="text-meta text-ink-3">{t('atelier.props.outline')}</span>
+            </div>
+          </div>
+        )}
+      </Field>
+      <Slider
+        label={t('atelier.props.outlineWidth')}
+        value={layer.outlineWidth}
+        min={0}
+        max={MAX_OUTLINE_WIDTH}
+        step={0.5}
+        format={(v) => `${v.toFixed(1)}%`}
+        onChange={(outlineWidth) => setLayerProps(layer.id, { outlineWidth }, 'outlineWidth')}
+        onCommit={endGesture}
+      />
+      <Slider
+        label={t('atelier.props.skew')}
+        value={layer.skew}
+        min={-MAX_SKEW}
+        max={MAX_SKEW}
+        step={0.01}
+        format={(v) => `${Math.round((Math.atan(v) * 180) / Math.PI)}°`}
+        onChange={(skew) => setLayerProps(layer.id, { skew }, 'skew')}
+        onCommit={endGesture}
+      />
+    </>
+  );
+}

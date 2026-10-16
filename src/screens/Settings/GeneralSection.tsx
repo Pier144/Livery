@@ -138,7 +138,7 @@ export function GeneralSection() {
                 // The spaces are for the text (screen readers, copy); the flex gap does the layout.
                 <li key={key} className="flex items-center gap-1.5">
                   {i > 0 && <span aria-hidden>{' · '}</span>}
-                  <Kbd>{t(`settings.general.keys.${key}`)}</Kbd>{' '}
+                  <Kbd>{key === 'sections' && settings.atelierEnabled ? t('settings.general.keys.sectionsAtelier') : t(`settings.general.keys.${key}`)}</Kbd>{' '}
                   <span>{t(`settings.general.actions.${key}`)}</span>
                 </li>
               ))}

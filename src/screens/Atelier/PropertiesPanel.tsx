@@ -1,5 +1,5 @@
 import { Plus, Shuffle, Trash2, X } from 'lucide-react';
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import {
@@ -8,8 +8,10 @@ import {
   maskOf,
   MAX_CAMO_COLORS,
   MIN_CAMO_COLORS,
+  isDecalLayer,
   type BaseLayer,
   type BaseMode,
+  type Decal,
   type Layer,
   type PartFilter,
 } from '@/atelier/project';
@@ -17,6 +19,8 @@ import { Button } from '@/components/ui/Button';
 import { ChipDropdown } from '@/components/ui/ChipDropdown';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { PartGroup } from '@/types';
+import { ColorSwatch, Field, Slider } from './controls';
+import { DecalProperties } from './DecalProperties';
 import { BRUSH_MAX, BRUSH_MIN, MASK_ROW_ID, nextCamoColor, SCALE_MAX, SCALE_MIN, shuffledSeed } from './editorModel';
 import { PANEL_LABEL, useLayerName } from './LayersPanel';
 
@@ -31,10 +35,17 @@ export interface BrushUi {
 interface PropertiesPanelProps {
   brush: BrushUi;
   onBrush: (patch: Partial<BrushUi>) => void;
+  /** Whether a layer's decal lands on shared texels (Mirror is then offered off). */
+  checkShared: (layerId: string, decal?: Decal) => Promise<boolean>;
+  onRemoveBackground: (layerId: string) => void;
+  onRefineEdge: (layerId: string) => void;
 }
 
-/** The selected layer's properties: the Base's paint, the Protected areas' brush, or a note for layers this version can't edit. */
-export function PropertiesPanel({ brush, onBrush }: PropertiesPanelProps) {
+/**
+ * The selected layer's properties: the Base's paint, the Protected areas' brush, an image or text
+ * layer's settings, or a note for layers this version can't edit.
+ */
+export function PropertiesPanel({ brush, onBrush, checkShared, onRemoveBackground, onRefineEdge }: PropertiesPanelProps) {
   const { t } = useTranslation();
   const layers = useAtelierEditor((s) => s.layers);
   const selectedId = useAtelierEditor((s) => s.selectedId);
@@ -49,6 +60,9 @@ export function PropertiesPanel({ brush, onBrush }: PropertiesPanelProps) {
   if (maskSelected) {
     title = nameOf(mask, 'mask');
     body = <MaskProperties brush={brush} onBrush={onBrush} hidden={mask !== undefined && !mask.visible} strokes={mask?.strokes.length ?? 0} />;
+  } else if (isDecalLayer(selected)) {
+    title = nameOf(selected, selected.kind);
+    body = <DecalProperties layer={selected} checkShared={checkShared} onRemoveBackground={onRemoveBackground} onRefineEdge={onRefineEdge} />;
   } else if (selected?.kind === 'unsupported') {
     title = nameOf(selected, 'unsupported');
     body = <p className="text-body text-ink-3">{t('atelier.props.unsupported')}</p>;
@@ -179,35 +193,6 @@ function BaseProperties({ base }: { base: BaseLayer }) {
   );
 }
 
-/**
- * A colour well (`<input type="color">`). Every change while the picker is open merges into one
- * undo step; closing the picker (`change`) or leaving the field ends it.
- */
-function ColorSwatch({ value, label, onInput, onCommit }: { value: string; label: string; onInput: (hex: string) => void; onCommit: () => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const commit = useRef(onCommit);
-  commit.current = onCommit;
-  useEffect(() => {
-    const input = ref.current;
-    if (!input) return;
-    const onChange = () => commit.current();
-    input.addEventListener('change', onChange);
-    return () => input.removeEventListener('change', onChange);
-  }, []);
-  return (
-    <input
-      ref={ref}
-      type="color"
-      value={value}
-      aria-label={label}
-      title={value}
-      onChange={(e) => onInput(e.target.value)}
-      onBlur={onCommit}
-      className="block h-8 w-8 cursor-pointer appearance-none rounded-ctl border border-line-3 bg-transparent p-0.5 hover:border-line-4 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-menu [&::-webkit-color-swatch]:border-0"
-    />
-  );
-}
-
 // ── Protected areas ─────────────────────────────────────────────────────────
 
 function MaskProperties({ brush, onBrush, hidden, strokes }: { brush: BrushUi; onBrush: (patch: Partial<BrushUi>) => void; hidden: boolean; strokes: number }) {
@@ -282,64 +267,3 @@ function MaskProperties({ brush, onBrush, hidden, strokes }: { brush: BrushUi; o
   );
 }
 
-// ── Controls ────────────────────────────────────────────────────────────────
-
-/** A labelled block; `children` gets the label's id (for `aria-describedby`). */
-function Field({ label, children }: { label: string; children: (labelId: string) => ReactNode }) {
-  const id = useId();
-  return (
-    <div className="flex flex-col gap-2">
-      <span id={id} className="text-meta text-ink-3">
-        {label}
-      </span>
-      {children(id)}
-    </div>
-  );
-}
-
-/** A range slider with its value; `onCommit` runs when a drag or key press ends. */
-function Slider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  format,
-  onChange,
-  onCommit,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  format: (v: number) => string;
-  onChange: (v: number) => void;
-  onCommit?: () => void;
-}) {
-  const id = useId();
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={id} className="text-meta text-ink-3">
-          {label}
-        </label>
-        <span className="font-mono text-mono-sm text-ink-2">{format(value)}</span>
-      </div>
-      <input
-        id={id}
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-valuetext={format(value)}
-        onChange={(e) => onChange(Number(e.target.value))}
-        onPointerUp={onCommit}
-        onKeyUp={onCommit}
-        onBlur={onCommit}
-        className="h-4 w-full cursor-pointer accent-amber"
-      />
-    </div>
-  );
-}

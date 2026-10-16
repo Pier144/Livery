@@ -1100,13 +1100,14 @@
     },
     "view": {
       "label": "Viste rapide",
-      "front": "Davanti",
+      "front": "Fronte",
       "side": "Lato",
-      "rear": "Dietro",
+      "rear": "Retro",
       "top": "Sopra",
       "canvas": "Vista 3D di {{vehicle}}",
       "help": "Trascina per ruotare, tasto destro per spostare, rotellina per lo zoom.",
-      "brushHelp": "Trascina sul veicolo per proteggere una zona. Per ruotarlo, trascina col tasto destro o con Alt."
+      "brushHelp": "Trascina sul veicolo per proteggere una zona. Per ruotarlo, trascina col tasto destro o con Alt.",
+      "decalHelp": "Trascina la cornice per spostarla, un angolo per ridimensionarla, il pallino per ruotarla. Frecce per spostare, Maiusc+frecce per ruotare, + e − per ridimensionare, Alt+frecce per ruotare la vista."
     },
     "layers": {
       "title": "Livelli",
@@ -1116,7 +1117,21 @@
       "show": "Mostra {{name}}",
       "hide": "Nascondi {{name}}",
       "renameLabel": "Nuovo nome per {{name}}",
-      "renameHint": "Doppio clic per rinominare"
+      "renameHint": "Doppio clic per rinominare",
+      "image": "Immagine",
+      "text": "Testo",
+      "addImage": "Aggiungi immagine",
+      "addText": "Aggiungi testo",
+      "imageFilter": "Immagini",
+      "notPlaced": "Non posizionato sul veicolo",
+      "missingPicture": "L’immagine manca dal progetto",
+      "missingFont": "{{font}} non è installato su questo PC: al suo posto c’è un altro carattere",
+      "deleted": "Livello «{{name}}» eliminato",
+      "dragHint": "Trascina per riordinare",
+      "actions": "Azioni di {{name}}",
+      "duplicate": "Duplica",
+      "delete": "Elimina",
+      "reorderHint": "Alt+↑ e Alt+↓ spostano su e giù il livello selezionato."
     },
     "parts": {
       "title": "Parti",
@@ -1161,7 +1176,33 @@
       "hull": "Scafo",
       "turret": "Torretta",
       "gun": "Cannone",
-      "clear": "Cancella le zone protette"
+      "clear": "Cancella le zone protette",
+      "notPlaced": "Non è stato possibile leggere dove si trova questo livello sul veicolo. Posizionalo di nuovo per mostrarlo.",
+      "placeAgain": "Posiziona sul veicolo",
+      "opacity": "Opacità",
+      "depth": "Profondità",
+      "cm": "{{value}} cm",
+      "depthHint": "Quanto entra nella superficie. Sulla vista si cambia con Alt+rotellina.",
+      "mirror": "Specchia sull’altro lato",
+      "mirrorHelp": "Aggiunge una copia sul lato opposto, leggibile nel verso giusto.",
+      "mirrorShared": "Qui i due lati condividono la stessa texture, quindi compare già sull’altro lato (al contrario). Per questo punto lo specchio è disattivato.",
+      "missingPicture": "Questa immagine manca dal progetto, quindi non viene mostrata né applicata. Elimina il livello o aggiungi di nuovo l’immagine.",
+      "flip": "Rifletti in orizzontale",
+      "removeBackground": "Rimuovi sfondo",
+      "removeBackgroundHint": "Tiene il soggetto e rende trasparente lo sfondo, su questo PC",
+      "refineEdge": "Rifinisci bordo",
+      "refineEdgeHint": "Cancella o recupera parti dell’immagine con un pennello",
+      "text": "Testo",
+      "textCount": "{{n}}/{{max}}",
+      "font": "Carattere",
+      "fontStyle": "Stile",
+      "fontMissing": "Questo carattere non è installato su questo PC: al suo posto ne viene usato un altro finché non ne scegli uno.",
+      "textColor": "Colore del testo",
+      "fill": "Riempimento",
+      "outlineColor": "Colore del contorno",
+      "outline": "Contorno",
+      "outlineWidth": "Spessore del contorno",
+      "skew": "Inclinazione"
     },
     "apply": {
       "button": "Applica al gioco",
@@ -1183,11 +1224,63 @@
       "reselect": "Riselezionala nell’hangar per vedere le modifiche.",
       "restored": "È tornata la versione precedente.",
       "downscaled": "La scheda grafica non riesce a dipingere a questa dimensione: la texture è stata salvata a 2048.",
-      "cancelled": "Applicazione annullata: la skin nel gioco non è cambiata."
+      "cancelled": "Applicazione annullata: la skin nel gioco non è cambiata.",
+      "pictureNotReady": "Un’immagine sul veicolo non ha finito di caricarsi. Riprova Applica."
     },
     "toast": {
       "deleted": "Progetto “{{name}}” eliminato",
       "renamed": "Rinominato in “{{name}}”"
+    },
+    "place": {
+      "hint": "Clicca sul veicolo per posizionarlo · Invio: centro della vista · Esc: annulla",
+      "start": "Clicca sul veicolo per posizionare il nuovo livello. Invio lo mette al centro della vista, Esc annulla.",
+      "missed": "Lì non c’è il veicolo. Clicca sul veicolo.",
+      "done": "Posizionato. Trascinalo o usa le frecce per sistemarlo."
+    },
+    "text": {
+      "default": "Testo"
+    },
+    "cutout": {
+      "title": "Rimuovi sfondo",
+      "close": "Chiudi",
+      "checking": "Controllo dei file per rimuovere lo sfondo…",
+      "consent": "Per rimuovere gli sfondi servono due file che Livery scarica una volta sola da GitHub:",
+      "runtime": "ONNX Runtime",
+      "model": "Modello isnet-anime (progetto rembg)",
+      "privacy": "{{size}} da scaricare. Restano su questo PC e funzionano qui: le tue immagini non lo lasciano mai. Si rimuovono da Impostazioni → Sperimentale.",
+      "download": "Scarica ({{size}})",
+      "restart": "Prima riavvia Livery: i file per rimuovere lo sfondo che hai eliminato erano ancora in uso e vengono cancellati del tutto al prossimo avvio. Dopo potrà scaricarli di nuovo.",
+      "downloading": "Download da GitHub…",
+      "received": "{{received}} di {{total}}",
+      "waiting": "In attesa",
+      "progress": "Rimozione dello sfondo",
+      "step": {
+        "load": "Caricamento del modello…",
+        "run": "Ricerca del soggetto…",
+        "write": "Salvataggio della nuova immagine…"
+      },
+      "local": "Avviene su questo PC: l’immagine non viene inviata da nessuna parte. L’originale resta nel progetto.",
+      "retry": "Riprova",
+      "done": "Sfondo rimosso. Ctrl+Z lo riporta.",
+      "stale": "Nel frattempo il livello è cambiato, quindi il risultato non è stato usato."
+    },
+    "refine": {
+      "title": "Rifinisci bordo",
+      "close": "Chiudi",
+      "apply": "Applica",
+      "canvas": "L’immagine da rifinire",
+      "zoomOut": "Riduci",
+      "zoomIn": "Ingrandisci",
+      "fit": "Adatta alla vista",
+      "help": "Dipingi sull’immagine: Cancella la rende trasparente, Ripristina riporta l’originale. Ctrl+rotellina per lo zoom.",
+      "tool": "Pennello",
+      "erase": "Cancella",
+      "restore": "Ripristina",
+      "size": "Dimensione pennello",
+      "px": "{{value}} px",
+      "hardness": "Durezza",
+      "undo": "Annulla tratto",
+      "stale": "Nel frattempo l’immagine del livello è cambiata, quindi il bordo rifinito non è stato usato."
     }
   },
   "settings": {
@@ -1222,7 +1315,8 @@
         "sections": "1–5",
         "sidebar": "[ ]",
         "undo": "Ctrl Z",
-        "close": "Esc"
+        "close": "Esc",
+        "sectionsAtelier": "1–6"
       },
       "actions": {
         "search": "cerca",
@@ -1329,13 +1423,21 @@
       "atelier": "Atelier",
       "atelierHelper": "Crea skin su un modello 3D del tuo veicolo. Sperimentale: alcune cose potrebbero cambiare o non funzionare.",
       "needsGameData": "L’Atelier legge i modelli dei veicoli dal gioco: per usarlo attiva Leggi i dati dal gioco.",
-      "openGame": "Apri le impostazioni del gioco"
+      "openGame": "Apri le impostazioni del gioco",
+      "cutout": "File per rimuovere lo sfondo",
+      "cutoutSize": "{{size}} su questo PC (ONNX Runtime e il modello isnet-anime).",
+      "cutoutNone": "Non scaricati. Atelier chiede prima di scaricarli ({{size}}) la prima volta che rimuovi uno sfondo.",
+      "cutoutPending": "Rimossi. L’operazione si completa al prossimo avvio di Livery.",
+      "cutoutConfirmTitle": "Eliminare i file per rimuovere lo sfondo?",
+      "cutoutConfirmBody": "Libera {{size}}. Le immagini già scontornate restano come sono; Livery riscarica i file la prossima volta che rimuovi uno sfondo.",
+      "cutoutRemove": "Elimina",
+      "cutoutRemoved": "File per rimuovere lo sfondo eliminati."
     },
     "about": {
       "build": "{{version}} · Windows x64",
       "description": "Un gestore di skin utente per War Thunder. Sfoglia WT Live, installa con un clic, tieni in ordine il tuo hangar.",
       "privacyTitle": "Privacy",
-      "privacy": "Nessun account, nessuna pubblicità, nessuna telemetria. Livery si collega solo a WT Live (live.warthunder.com e il suo server di immagini) quando sfogli o installi skin, e a GitHub per controllare gli aggiornamenti. Impostazioni e libreria restano su questo PC. Legge i file del gioco e le formazioni del tuo profilo di War Thunder senza modificarli. «Invia un feedback» apre solo una pagina di GitHub nel browser: non parte nulla finché non la invii lì.",
+      "privacy": "Nessun account, nessuna pubblicità, nessuna telemetria. Livery si collega solo a WT Live (live.warthunder.com e il suo server di immagini) quando sfogli o installi skin, e a GitHub per controllare gli aggiornamenti. Impostazioni e libreria restano su questo PC. Legge i file del gioco e le formazioni del tuo profilo di War Thunder senza modificarli. «Invia un feedback» apre solo una pagina di GitHub nel browser: non parte nulla finché non la invii lì. Se usi Rimuovi sfondo in Atelier, Livery scarica una volta sola i file necessari da GitHub, solo quando lo chiedi; le tue immagini restano su questo PC.",
       "links": "Link",
       "source": "Codice sorgente",
       "sourceHint": "Apre il repository di Livery su GitHub",
@@ -1358,7 +1460,9 @@
       "showText": "Mostra il testo della licenza",
       "hideText": "Nascondi il testo della licenza",
       "text": "Testo della licenza di {{name}}",
-      "close": "Chiudi"
+      "close": "Chiudi",
+      "onDemand": "Scaricati su richiesta",
+      "onDemandHelper": "Non fanno parte di Livery: vengono scaricati da GitHub solo quando usi per la prima volta Rimuovi sfondo in Atelier."
     }
   }
 }

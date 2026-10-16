@@ -4,25 +4,29 @@ import { useTranslation } from 'react-i18next';
 import { resetAtelierEditor, useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import type { OrbitState } from '@/atelier/gl/scene';
-import { maskOf } from '@/atelier/project';
+import { isDecalLayer, maskOf, type Decal, type TextLayer } from '@/atelier/project';
+import { fontStatus, loadFont } from '@/atelier/text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { errorText } from '@/lib/errors';
-import { toAppError } from '@/lib/tauri';
-import { ATELIER_PROJECTS_KEY, useAtelierProject, useSetThumb, useTemplateTextures, useVehicleModel } from '@/queries/atelier';
+import { call, toAppError } from '@/lib/tauri';
+import { ATELIER_PROJECTS_KEY, atelierProjectKey, openProjectAssets, useSetThumb, useTemplateTextures, useVehicleModel } from '@/queries/atelier';
 import { useVehicleNames, useVehicles } from '@/queries/vehicles';
 import { useAtelierUi } from '@/store/atelier';
 import { toast } from '@/store/toasts';
-import type { AtelierProjectSummary } from '@/types';
+import type { AppError, AtelierProject, AtelierProjectSummary } from '@/types';
 import { vehicleLabel } from '../Explore/exploreModel';
+import { CutoutDownloadDialog } from './CutoutDownloadDialog';
+import { bumpFonts, resetDecalUi, setPlacingLayer, setShared, useDecalUi } from './decalUi';
 import { BRUSH_DEFAULT, enabledSlots, HARDNESS_DEFAULT, isTypingTarget, MASK_ROW_ID } from './editorModel';
 import { EditorTopBar } from './EditorTopBar';
 import type { Engine } from './engine';
 import { LayersPanel } from './LayersPanel';
 import { PartsList } from './PartsList';
 import { PropertiesPanel, type BrushUi } from './PropertiesPanel';
+import { RefineEdgeDialog } from './RefineEdgeDialog';
 import { useApply } from './useApply';
-import { useAutosave } from './useAutosave';
+import { savesSettled, useAutosave } from './useAutosave';
 import { Viewport, type BrushSettings } from './Viewport';
 
 /** Side of the project thumbnail (PNG). */
@@ -34,24 +38,85 @@ const GRID = 'grid min-h-0 flex-1 grid-cols-[232px_minmax(0,1fr)_272px] xl:grid-
 const savedViews = new Map<string, OrbitState>();
 
 /**
+ * Opens project `id` into the editor store, unless the store already holds it (back from another
+ * screen: it stays as it is, with its undo history). In this order: every save still on its way
+ * (a closed editor's leave-save) finishes, the backend drops pictures nothing uses
+ * (`atelier_project_open`, which reads the saved file), and the project is read fresh (never the
+ * cached copy) and loaded. A failed cleanup isn't fatal. Returns the read's error, if any.
+ */
+function useOpenProject(id: string): AppError | null {
+  const qc = useQueryClient();
+  const [error, setError] = useState<AppError | null>(null);
+  useEffect(() => {
+    if (useAtelierEditor.getState().project?.id === id) return;
+    let cancelled = false;
+    setError(null);
+    void (async () => {
+      await savesSettled();
+      if (cancelled) return;
+      try {
+        await openProjectAssets(id);
+      } catch (e) {
+        console.warn('Atelier: unused pictures not cleaned up', e);
+      }
+      if (cancelled) return;
+      const fresh = await qc.fetchQuery({
+        queryKey: atelierProjectKey(id),
+        queryFn: () => call<AtelierProject>('atelier_project_get', { id }),
+        staleTime: 0,
+      });
+      if (cancelled || useAtelierEditor.getState().project?.id === id) return;
+      resetDecalUi();
+      useAtelierEditor.getState().load(fresh);
+    })().catch((e: unknown) => {
+      if (!cancelled) setError(toAppError(e));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, qc]);
+  return error;
+}
+
+/** Text layers' fonts: loaded once each (the stand-in measures meanwhile), then the layers using them re-measured. */
+function useTextFonts() {
+  useEffect(() => {
+    const load = (layers: readonly { kind: string }[]) => {
+      for (const layer of layers) {
+        if (layer.kind !== 'text') continue;
+        const font = (layer as TextLayer).font;
+        if (fontStatus(font) !== undefined) continue;
+        void loadFont(font).then(() => {
+          bumpFonts();
+          const store = useAtelierEditor.getState();
+          for (const l of store.layers) {
+            if (l.kind === 'text' && l.font.family === font.family && l.font.style === font.style) store.refreshTextMetrics(l.id);
+          }
+        });
+      }
+    };
+    load(useAtelierEditor.getState().layers);
+    return useAtelierEditor.subscribe((s, prev) => {
+      if (s.layers !== prev.layers) load(s.layers);
+    });
+  }, []);
+}
+
+/**
  * The Atelier editor of one project (spec §2 "Editor layout"): top bar, layers and parts on the
  * left, the 3D view in the centre, the selected layer's properties on the right. The project is
- * loaded into the editor store once per project id (autosaves update the cached copy, never the
- * store); closing the project resets the store, visiting another screen keeps it (and its undo
- * history) for the way back.
+ * loaded into the editor store once per project id (`useOpenProject`; autosaves update the
+ * cached copy, never the store); closing the project resets the store, visiting another screen
+ * keeps it (and its undo history) for the way back.
  */
 export function Editor({ id }: { id: string }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const query = useAtelierProject(id);
+  const openError = useOpenProject(id);
   const project = useAtelierEditor((s) => (s.project?.id === id ? s.project : null));
   const vehicles = useVehicles();
   const names = useVehicleNames();
-
-  // Into the store once; a project the store already holds (back from another screen) stays as it is.
-  useEffect(() => {
-    if (query.data && useAtelierEditor.getState().project?.id !== id) useAtelierEditor.getState().load(query.data);
-  }, [query.data, id]);
+  useTextFonts();
 
   const { saveState, flush } = useAutosave();
   const model = useVehicleModel(project?.vehicle ?? null);
@@ -120,9 +185,39 @@ export function Editor({ id }: { id: string }) {
     },
     [id, setThumb],
   );
+  // Whether the Baker has the pictures of the current layers (a thumbnail without its decals isn't taken).
+  const picturesSettled = useRef(true);
+  useEffect(() => {
+    if (!engine) return;
+    let generation = 0;
+    const check = () => {
+      const mine = ++generation;
+      picturesSettled.current = false;
+      // After the viewport gave the Baker the new layers (its listener runs in the same update).
+      queueMicrotask(() => {
+        engine.baker
+          .whenReady()
+          .then(() => {
+            if (mine === generation) picturesSettled.current = true;
+          })
+          .catch(() => {});
+      });
+    };
+    check();
+    const unsubscribe = useAtelierEditor.subscribe((s, prev) => {
+      if (s.layers !== prev.layers) check();
+    });
+    return () => {
+      unsubscribe();
+      generation = -1;
+    };
+  }, [engine]);
+
   const onBeforeDispose = useCallback(
     (e: Engine) => {
       savedViews.set(id, e.scene.view());
+      // Leaving before the decal pictures loaded: the thumbnail there is stays (it would miss them).
+      if (!picturesSettled.current) return;
       const hasThumb = qc.getQueryData<AtelierProjectSummary[]>(ATELIER_PROJECTS_KEY)?.find((p) => p.id === id)?.hasThumb;
       if (useAtelierEditor.getState().revision !== thumbRevision.current || hasThumb === false) sendThumb(e);
     },
@@ -145,7 +240,10 @@ export function Editor({ id }: { id: string }) {
   // `useAutosave`, so its leave-save has taken its copy first.
   useEffect(
     () => () => {
-      if (useAtelierUi.getState().openProjectId !== id) resetAtelierEditor();
+      if (useAtelierUi.getState().openProjectId !== id) {
+        resetAtelierEditor();
+        resetDecalUi();
+      }
     },
     [id],
   );
@@ -198,17 +296,60 @@ export function Editor({ id }: { id: string }) {
   const onBrush = useCallback((patch: Partial<BrushUi>) => setBrushUi((b) => ({ ...b, ...patch })), []);
   const mask = useAtelierEditor((s) => maskOf(s.layers));
   const selectedId = useAtelierEditor((s) => s.selectedId);
+  const selectedDecalId = useAtelierEditor((s) => {
+    const layer = s.layers.find((l) => l.id === s.selectedId);
+    return isDecalLayer(layer) && layer.decal ? layer.id : null;
+  });
   const maskSelected = selectedId === MASK_ROW_ID || (mask !== undefined && selectedId === mask.id);
   // A hidden mask protects nothing: the brush is off until it is shown again.
   const brushActive = maskSelected && (mask === undefined || mask.visible) && !showTemplate;
   const radiusScale = engine?.scene.boundingRadius ?? 1;
+  // Escape drops a layer waiting for its placement click (dialogs keep their own Escape).
+  const pendingPlacement = useAtelierEditor((s) => s.pending !== null);
+  const placingAgain = useDecalUi((s) => s.placingLayerId !== null);
+  const placing = pendingPlacement || placingAgain;
+  useEffect(() => {
+    if (!placing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      e.preventDefault();
+      useAtelierEditor.getState().cancelPlacement();
+      setPlacingLayer(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [placing]);
+
+  /** Whether a layer's decal lands on texels more than one triangle draws (Mirror is then offered off); remembered per layer. */
+  const checkShared = useCallback(async (layerId: string, decal?: Decal): Promise<boolean> => {
+    const layer = useAtelierEditor.getState().layers.find((l) => l.id === layerId);
+    const target = decal ?? (isDecalLayer(layer) ? layer.decal : null);
+    const e = engineRef.current;
+    if (!target || !e) return false;
+    try {
+      const shared = await e.baker.decalTouchesSharedTexels(target);
+      setShared(layerId, shared);
+      return shared;
+    } catch (err) {
+      console.warn('Atelier: shared-texel check failed', err);
+      return false;
+    }
+  }, []);
+  // Checked when a placed decal layer gets selected (and when the engine arrives).
+  useEffect(() => {
+    if (selectedDecalId && engine) void checkShared(selectedDecalId);
+  }, [selectedDecalId, engine, checkShared]);
+
+  const [cutoutLayer, setCutoutLayer] = useState<string | null>(null);
+  const [refineLayer, setRefineLayer] = useState<string | null>(null);
+
   const brush = useMemo<BrushSettings | null>(
     () => (brushActive ? { radius: brushUi.size * radiusScale, hardness: brushUi.hardness, erase: brushUi.erase, part: brushUi.part } : null),
     [brushActive, brushUi, radiusScale],
   );
 
   const vehicle = project ? vehicleLabel(vehicles, project.vehicle, names) : '';
-  const fatal = query.error ?? model.error;
+  const fatal = openError ?? model.error;
   if (fatal && !project?.id) return <Failed message={errorText(toAppError(fatal), t)} />;
   if (model.error) return <Failed message={errorText(toAppError(model.error), t)} />;
   if (!project || !model.data || !templates) return <EditorLoading />;
@@ -249,9 +390,18 @@ export function Editor({ id }: { id: string }) {
           onEngine={onEngine}
           onBeforeDispose={onBeforeDispose}
           onFailed={onViewFailed}
+          onDecalGestureEnd={checkShared}
         />
-        <PropertiesPanel brush={brushUi} onBrush={onBrush} />
+        <PropertiesPanel
+          brush={brushUi}
+          onBrush={onBrush}
+          checkShared={checkShared}
+          onRemoveBackground={setCutoutLayer}
+          onRefineEdge={setRefineLayer}
+        />
       </div>
+      {cutoutLayer !== null && <CutoutDownloadDialog projectId={id} layerId={cutoutLayer} onClose={() => setCutoutLayer(null)} />}
+      {refineLayer !== null && <RefineEdgeDialog projectId={id} layerId={refineLayer} onClose={() => setRefineLayer(null)} />}
     </section>
   );
 }
