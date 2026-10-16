@@ -585,16 +585,23 @@ pub async fn atelier_cutout(app: AppHandle, project_id: String, asset_id: String
         return Err(AppError::new(ErrorCode::InvalidInput, ATELIER_DISABLED));
     }
     blocking(move || {
-        let atelier = app.state::<AtelierState>();
-        let (w, h, rgba) = atelier.asset(&project_id, &asset_id)?;
-        let source = image::RgbaImage::from_raw(w, h, rgba)
-            .ok_or_else(|| AppError::new(ErrorCode::Internal, ASSET_INVALID).with_detail("size"))?;
-        let emit = |step: CutoutStep| {
+        // Each step is announced as it starts, Load before anything slow (reading the picture).
+        let mut last = None;
+        let mut emit = |step: CutoutStep| {
+            if last == Some(step) {
+                return;
+            }
+            last = Some(step);
             if let Err(e) = app.emit(CUTOUT_PROGRESS_EVENT, CutoutProgress { step }) {
                 tracing::warn!(error = %e, "could not emit {CUTOUT_PROGRESS_EVENT}");
             }
         };
-        let (cut, crop) = app.state::<CutoutState>().cut(&source, &mut |step| emit(step))?;
+        emit(CutoutStep::Load);
+        let atelier = app.state::<AtelierState>();
+        let (w, h, rgba) = atelier.asset(&project_id, &asset_id)?;
+        let source = image::RgbaImage::from_raw(w, h, rgba)
+            .ok_or_else(|| AppError::new(ErrorCode::Internal, ASSET_INVALID).with_detail("size"))?;
+        let (cut, crop) = app.state::<CutoutState>().cut(&source, &mut emit)?;
         drop(source);
         emit(CutoutStep::Write);
         let asset = atelier.put_asset(&project_id, cut.width(), cut.height(), cut.as_raw())?;

@@ -5,8 +5,9 @@
 
 use image::{Rgba, RgbaImage};
 use livery_lib::atelier::cutout::{
-    alpha_bbox, apply_mask, normalise_mask, postprocess, preload_error, preprocess, with_margin, Cutout, RuntimeFiles,
-    ALPHA_THRESHOLD, CROP_MARGIN, CUTOUT_FAILED, CUTOUT_NOT_READY, CUTOUT_RUNTIME_MISSING_DEPS, MEAN, SIDE,
+    alpha_bbox, apply_mask, background_colour, decontaminate, normalise_mask, postprocess, preload_error, preprocess,
+    with_margin, Cutout, RuntimeFiles, ALPHA_THRESHOLD, CROP_MARGIN, CUTOUT_FAILED, CUTOUT_NOT_READY,
+    CUTOUT_RUNTIME_MISSING_DEPS, MEAN, SIDE, UNMIX_ALPHA,
 };
 use livery_lib::atelier::models::FileHash;
 use livery_lib::atelier::sha256::{digest, hex};
@@ -113,6 +114,93 @@ fn postprocess_crops_the_subject_and_keeps_its_colours() {
     assert_eq!(cut.get_pixel(crop.w / 2, crop.h / 2)[3], 255);
     // A flat mask finds nothing.
     assert!(postprocess(&source, &vec![0.5; PLANE]).is_none());
+}
+
+/// A red disc with a soft edge over flat blue, as a camera or renderer blends it: `source`
+/// opaque, `masked` with the disc's coverage as alpha.
+fn soft_disc(side: u32) -> (RgbaImage, RgbaImage) {
+    let (red, blue) = ([230f32, 20.0, 10.0], [10f32, 40.0, 220.0]);
+    let centre = side as f32 / 2.0;
+    let coverage = |x: u32, y: u32| {
+        let d = ((x as f32 + 0.5 - centre).powi(2) + (y as f32 + 0.5 - centre).powi(2)).sqrt();
+        ((side as f32 * 0.35 - d) / 6.0 + 0.5).clamp(0.0, 1.0)
+    };
+    let source = RgbaImage::from_fn(side, side, |x, y| {
+        let a = coverage(x, y);
+        let mix = |c: usize| (red[c] * a + blue[c] * (1.0 - a)).round() as u8;
+        Rgba([mix(0), mix(1), mix(2), 255])
+    });
+    let masked = RgbaImage::from_fn(side, side, |x, y| {
+        let mut px = *source.get_pixel(x, y);
+        px[3] = (coverage(x, y) * 255.0).round() as u8;
+        px
+    });
+    (source, masked)
+}
+
+#[test]
+fn a_uniform_background_is_found_and_taken_out_of_the_edges() {
+    let (source, masked) = soft_disc(200);
+    let bg = background_colour(&source, &masked).expect("uniform background");
+    assert!(bg.iter().zip([10.0f32, 40.0, 220.0]).all(|(a, b)| (a - b).abs() < 1.0), "{bg:?}");
+    let mut cut = masked.clone();
+    decontaminate(&mut cut, bg);
+    let mut edges = 0;
+    for (before, after) in masked.pixels().zip(cut.pixels()) {
+        let a = f32::from(before[3]) / 255.0;
+        if a > UNMIX_ALPHA.0 && a < UNMIX_ALPHA.1 {
+            edges += 1;
+            // Red, not purple: the blue that leaked in is gone.
+            assert!(after[0] >= 220 && after[2] <= 25, "{before:?} -> {after:?}");
+        } else {
+            assert_eq!(before, after);
+        }
+        assert_eq!(before[3], after[3]);
+    }
+    assert!(edges > 100, "{edges} edge pixels");
+}
+
+#[test]
+fn a_busy_background_is_left_alone() {
+    let (_, masked) = soft_disc(200);
+    // Same alpha, but the background is noise.
+    let noisy = RgbaImage::from_fn(200, 200, |x, y| {
+        let v = ((x * 7919 + y * 104_729) % 256) as u8;
+        Rgba([v, 255 - v, v / 2, 255])
+    });
+    assert!(background_colour(&noisy, &masked).is_none());
+    // Too little background to judge.
+    let all_subject = RgbaImage::from_pixel(50, 50, Rgba([200, 0, 0, 255]));
+    assert!(background_colour(&all_subject, &all_subject).is_none());
+}
+
+#[test]
+fn postprocess_cleans_the_edges_of_a_cut_on_flat_blue() {
+    let side = 256;
+    let (source, masked) = soft_disc(side);
+    // The model's plane: the disc's coverage at 1024², as the mask the picture came from.
+    let scale = side as f32 / SIDE as f32;
+    let plane: Vec<f32> = (0..PLANE)
+        .map(|i| {
+            let (x, y) = ((i % SIDE as usize) as f32 * scale, (i / SIDE as usize) as f32 * scale);
+            f32::from(masked.get_pixel((x as u32).min(side - 1), (y as u32).min(side - 1))[3]) / 255.0
+        })
+        .collect();
+    let (cut, crop) = postprocess(&source, &plane).unwrap();
+    let mut purple = 0;
+    let mut edges = 0;
+    for (x, y, px) in cut.enumerate_pixels() {
+        let a = f32::from(px[3]) / 255.0;
+        if a > 0.2 && a < 0.9 {
+            edges += 1;
+            let raw = source.get_pixel(crop.x + x, crop.y + y);
+            // Bluer than the raw blend would be wrong; most edges end up clearly red.
+            assert!(px[2] <= raw[2], "{raw:?} -> {px:?}");
+            purple += usize::from(px[2] > 80);
+        }
+    }
+    assert!(edges > 50, "{edges}");
+    assert!(purple * 10 < edges, "{purple} of {edges} edge pixels still purple");
 }
 
 #[test]

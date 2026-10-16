@@ -13,6 +13,22 @@ use tauri::State;
 /// to another folder, in every build: the way to run Livery without touching the real data.
 pub const DATA_DIR_ENV: &str = "LIVERY_DATA_DIR";
 
+/// WebView2's own override of its data folder (cache, local storage), which takes precedence over
+/// the folder Tauri passes.
+pub const WEBVIEW_DATA_ENV: &str = "WEBVIEW2_USER_DATA_FOLDER";
+
+/// With [`DATA_DIR_ENV`] set (and [`WEBVIEW_DATA_ENV`] not), points WebView2's data folder at
+/// `<data>/webview`, so a run on a scratch data folder leaves `%LOCALAPPDATA%` alone. Windows
+/// only; `main` calls it first, before any thread starts.
+pub fn webview_data_into_data_dir() {
+    if !cfg!(windows) || std::env::var_os(WEBVIEW_DATA_ENV).is_some() {
+        return;
+    }
+    if let Some(dir) = data_dir_override(std::env::var_os(DATA_DIR_ENV)) {
+        std::env::set_var(WEBVIEW_DATA_ENV, dir.join("webview"));
+    }
+}
+
 /// The app data dir in use.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDir {

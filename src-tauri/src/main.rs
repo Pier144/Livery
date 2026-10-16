@@ -9,5 +9,7 @@ fn main() {
         livery_lib::game::gameres::codec::worker_main();
         return;
     }
+    // Still single-threaded here: the only safe moment to change the environment.
+    livery_lib::startup::webview_data_into_data_dir();
     livery_lib::run()
 }

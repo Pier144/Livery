@@ -16,6 +16,9 @@
 //! **Pipeline** (as the author's `isnet.py`): Lanczos3 to 1024², `v/255 - mean` (std 1), NCHW;
 //! the first output plane min-max normalised, Lanczos3 back to the source size, alpha = mask ×
 //! source alpha with the source RGB untouched, cropped to the alpha > 20 box plus a 16 px margin.
+//! Then, when the background is about one colour, the semi-transparent edge pixels are un-mixed
+//! from it, so no fringe of the old background stays (opaque and transparent pixels keep the
+//! source's colour).
 //!
 //! **Session.** Kept for [`SESSION_IDLE`] after its last use (checked on use and by
 //! [`Cutout::drop_idle`]). One run at a time; [`Cutout::cancel`] terminates a run through its
@@ -134,13 +137,74 @@ pub fn with_margin(bbox: PixelRect, margin: u32, w: u32, h: u32) -> PixelRect {
 }
 
 /// The cut-out picture from the model's first output plane (`SIDE`²): masked, then cropped to
-/// the alpha box plus [`CROP_MARGIN`]. `None` when nothing is above [`ALPHA_THRESHOLD`].
+/// the alpha box plus [`CROP_MARGIN`], its edges freed of a uniform background
+/// ([`background_colour`], [`decontaminate`]). `None` when nothing is above [`ALPHA_THRESHOLD`].
 pub fn postprocess(source: &RgbaImage, plane: &[f32]) -> Option<(RgbaImage, PixelRect)> {
     let masked = apply_mask(source, &normalise_mask(plane), SIDE);
     let bbox = alpha_bbox(&masked, ALPHA_THRESHOLD)?;
     let crop = with_margin(bbox, CROP_MARGIN, masked.width(), masked.height());
-    let cut = imageops::crop_imm(&masked, crop.x, crop.y, crop.w, crop.h).to_image();
+    let background = background_colour(source, &masked);
+    let mut cut = imageops::crop_imm(&masked, crop.x, crop.y, crop.w, crop.h).to_image();
+    if let Some(background) = background {
+        decontaminate(&mut cut, background);
+    }
     Some((cut, crop))
+}
+
+/// Mask alpha below which a pixel counts as background.
+pub const BACKGROUND_ALPHA: u8 = 5;
+/// Largest per-channel standard deviation of a background still treated as one colour.
+pub const BACKGROUND_MAX_STD: f64 = 25.0;
+/// Least share of the picture the background must cover to be estimated (1/200).
+const BACKGROUND_MIN_SHARE: usize = 200;
+/// Alpha range (0–1, exclusive) that [`decontaminate`] un-mixes.
+pub const UNMIX_ALPHA: (f32, f32) = (0.05, 0.98);
+
+/// The background's colour when it is about one colour: the mean of the opaque source pixels
+/// whose mask alpha (in `masked`) is below [`BACKGROUND_ALPHA`], if each channel's standard
+/// deviation is below [`BACKGROUND_MAX_STD`] and they are at least 0.5% of the picture.
+pub fn background_colour(source: &RgbaImage, masked: &RgbaImage) -> Option<[f32; 3]> {
+    let (mut n, mut sum, mut sq) = (0usize, [0f64; 3], [0f64; 3]);
+    for (src, cut) in source.pixels().zip(masked.pixels()) {
+        if cut[3] < BACKGROUND_ALPHA && src[3] == 255 {
+            n += 1;
+            for c in 0..3 {
+                let v = f64::from(src[c]);
+                sum[c] += v;
+                sq[c] += v * v;
+            }
+        }
+    }
+    let pixels = (source.width() as usize) * (source.height() as usize);
+    if n == 0 || n * BACKGROUND_MIN_SHARE < pixels {
+        return None;
+    }
+    let mut mean = [0f32; 3];
+    for c in 0..3 {
+        let m = sum[c] / n as f64;
+        let std = (sq[c] / n as f64 - m * m).max(0.0).sqrt();
+        if std >= BACKGROUND_MAX_STD {
+            return None;
+        }
+        mean[c] = m as f32;
+    }
+    Some(mean)
+}
+
+/// Takes `background` out of the semi-transparent pixels (alpha strictly inside
+/// [`UNMIX_ALPHA`]): `fg = (c - (1 - a) · bg) / a`, clamped. Opaque and transparent pixels stay
+/// as they are (RGB under alpha 0 keeps the source's colour).
+pub fn decontaminate(picture: &mut RgbaImage, background: [f32; 3]) {
+    for px in picture.pixels_mut() {
+        let a = f32::from(px[3]) / 255.0;
+        if a <= UNMIX_ALPHA.0 || a >= UNMIX_ALPHA.1 {
+            continue;
+        }
+        for c in 0..3 {
+            let fg = (f32::from(px[c]) - (1.0 - a) * background[c]) / a;
+            px[c] = fg.round().clamp(0.0, 255.0) as u8;
+        }
+    }
 }
 
 // ── Loading the runtime ────────────────────────────────────────────────────
@@ -387,6 +451,8 @@ impl Cutout {
         if self.cancelled() {
             return Err(cancelled());
         }
+        // Run covers the scaling around the inference too (slow for large pictures).
+        progress(CutoutStep::Run);
         let input = Tensor::from_array(([1usize, 3, SIDE as usize, SIDE as usize], preprocess(source)))
             .map_err(|e| failed(e.to_string()))?;
         let options = Arc::new(RunOptions::new().map_err(|e| failed(e.to_string()))?);
@@ -396,7 +462,6 @@ impl Cutout {
         if self.cancelled() {
             return Err(cancelled());
         }
-        progress(CutoutStep::Run);
         let started = Instant::now();
         let (session, used) = guard.as_mut().expect("session made above");
         let plane = {

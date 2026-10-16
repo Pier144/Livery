@@ -867,7 +867,7 @@ fn env_path(name: &str, default: &str) -> PathBuf {
 #[ignore = "needs the downloaded ONNX Runtime zip and the isnet-anime model"]
 fn background_removal_cuts_out_an_anime_picture() {
     use image::{Rgba, RgbaImage};
-    use livery_lib::atelier::cutout::{alpha_bbox, ALPHA_THRESHOLD, CROP_MARGIN};
+    use livery_lib::atelier::cutout::{alpha_bbox, ALPHA_THRESHOLD, CROP_MARGIN, UNMIX_ALPHA};
     use livery_lib::atelier::models::{extract_runtime, pinned, ModelFiles};
     use livery_lib::atelier::CutoutState;
 
@@ -934,11 +934,24 @@ fn background_removal_cuts_out_an_anime_picture() {
 
     // Background transparent, subject opaque, colours as in the source.
     let (mut bg_px, mut bg_clear, mut fg_px, mut fg_solid) = (0u64, 0u64, 0u64, 0u64);
+    let (mut edges, mut raw_error, mut clean_error) = (0u64, 0u64, 0u64);
     for (x, y, px) in cut.enumerate_pixels() {
         let (sx, sy) = (crop.x + x, crop.y + y);
-        assert_eq!(px.0[..3], source.get_pixel(sx, sy).0[..3]);
         let inside = sx >= pad && sy >= pad && sx < subject.width() + pad && sy < subject.height() + pad;
         let a = if inside { subject.get_pixel(sx - pad, sy - pad)[3] } else { 0 };
+        // Edge pixels are un-mixed from the flat blue; the others keep the source's colour.
+        let alpha = f32::from(px[3]) / 255.0;
+        if alpha <= UNMIX_ALPHA.0 || alpha >= UNMIX_ALPHA.1 {
+            assert_eq!(px.0[..3], source.get_pixel(sx, sy).0[..3]);
+        } else if a >= 64 {
+            // Against the subject's true colour: the cleaned edge must be closer than the blend.
+            let truth = subject.get_pixel(sx - pad, sy - pad);
+            let raw = source.get_pixel(sx, sy);
+            let off = |p: &[u8]| (0..3).map(|c| u64::from(p[c].abs_diff(truth[c]))).sum::<u64>();
+            edges += 1;
+            raw_error += off(&raw.0);
+            clean_error += off(&px.0);
+        }
         if a == 0 {
             bg_px += 1;
             bg_clear += u64::from(px[3] < ALPHA_THRESHOLD);
@@ -947,7 +960,14 @@ fn background_removal_cuts_out_an_anime_picture() {
             fg_solid += u64::from(px[3] >= 150);
         }
     }
-    println!("background clear {bg_clear}/{bg_px}, subject solid {fg_solid}/{fg_px}");
+    let per = |e: u64| e as f64 / edges.max(1) as f64 / 3.0;
+    println!(
+        "background clear {bg_clear}/{bg_px}, subject solid {fg_solid}/{fg_px}; {edges} edge pixels off their true \
+         colour by {:.1} blended, {:.1} cleaned (mean per channel)",
+        per(raw_error),
+        per(clean_error)
+    );
+    assert!(clean_error < raw_error, "edges not cleaner: {clean_error} vs {raw_error}");
     assert!(bg_clear * 100 >= bg_px * 97, "background left: {bg_clear}/{bg_px}");
     assert!(fg_solid * 100 >= fg_px * 95, "subject lost: {fg_solid}/{fg_px}");
 
