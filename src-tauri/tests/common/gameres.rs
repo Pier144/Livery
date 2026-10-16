@@ -68,3 +68,276 @@ pub fn grp_cache(file: &[u8]) -> Vec<u8> {
     let full = u32::from_le_bytes(file[8..12].try_into().unwrap()) as usize;
     file[..16 + full].to_vec()
 }
+
+// ── DynModel ────────────────────────────────────────────────────────────────
+
+/// A vertex as the stride-16 layout stores it: POS SHORT4N (w = 32767), NORM E3DCOLOR (bytes
+/// B,G,R,A), TC0 SHORT2 (UV * 4096).
+#[derive(Debug, Clone, Copy)]
+pub struct TVertex {
+    pub pos: [i16; 3],
+    pub normal_bgra: [u8; 4],
+    pub uv: [i16; 2],
+}
+
+/// How a vdata's index buffer is stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ib {
+    /// Raw 16-bit indices (flag I16).
+    U16,
+    /// Raw 32-bit indices (flag I32).
+    U32,
+    /// 16-bit indices, meshoptimizer-packed (flags I16 | PACKED_IB).
+    Packed,
+}
+
+pub struct TVdata {
+    pub vertices: Vec<TVertex>,
+    pub indices: Vec<u32>,
+    pub ib: Ib,
+    /// The stride-20 layout: TC1 SHORT2 (written as zeros) before the stride-16 channels.
+    pub with_tc1: bool,
+    /// Replaces the vertex declaration ((VSDT code, usage, usage index) per channel); the vertex
+    /// bytes stay those of the layout above.
+    pub decl: Option<Vec<(u32, i32, i16)>>,
+}
+
+impl TVdata {
+    pub fn new(vertices: Vec<TVertex>, indices: Vec<u32>, ib: Ib) -> Self {
+        Self { vertices, indices, ib, with_tc1: false, decl: None }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TElem {
+    pub mat: u32,
+    pub vdata: u32,
+    pub si: u32,
+    pub numf: u32,
+    pub base_vertex: i32,
+}
+
+pub struct TRigid {
+    pub node_id: i32,
+    pub elems: Vec<TElem>,
+}
+
+pub struct TModel {
+    pub vdata: Vec<TVdata>,
+    /// LOD 0 first.
+    pub lods: Vec<Vec<TRigid>>,
+    /// (name, node id) in the order the names dump lists them (the game sorts them).
+    pub names: Vec<(&'static str, u16)>,
+    /// bpC254 (position offset) and bpC255 (position scale).
+    pub offset: [f32; 3],
+    pub scale: [f32; 3],
+    /// Tag of the vertex data block: 0 none, 1 zstd.
+    pub tag: u32,
+    /// Inline texture names (texCount != -1): the payload after `i32 sz`.
+    pub tex_str: Option<Vec<u8>>,
+}
+
+/// Where the matVdata header starts in a model built with no `tex_str`: after the five header
+/// ints and the block word. With `tag: 0` the header is stored as is, so its fields can be
+/// patched there: the vdata tab at +0x10, the first VdataHdr at +0x20.
+pub const MATVDATA_AT: usize = 24;
+
+/// A 16-byte PatchableTab.
+fn tab(out: &mut Vec<u8>, ofs: usize, count: usize) {
+    out.extend_from_slice(&(ofs as u32).to_le_bytes());
+    out.extend_from_slice(&(count as u32).to_le_bytes());
+    out.extend_from_slice(&[0u8; 8]);
+}
+
+/// meshoptimizer's index-sequence encoding (version 1, every index coded against `last[0]`).
+pub fn meshopt_encode(indices: &[u32]) -> Vec<u8> {
+    let mut out = vec![0xD1];
+    let mut last = 0u32;
+    for &idx in indices {
+        let d = idx.wrapping_sub(last) as i32;
+        let mut v = (((d << 1) ^ (d >> 31)) as u32) << 1;
+        last = idx;
+        loop {
+            let low = (v & 0x7F) as u8;
+            v >>= 7;
+            if v == 0 {
+                out.push(low);
+                break;
+            }
+            out.push(low | 0x80);
+        }
+    }
+    out.extend_from_slice(&[0; 4]);
+    out
+}
+
+/// The unpacked matVdata buffer and its header size: `mat` tab (empty), `vdata` tab, the
+/// 32-byte VdataHdrs, the vertex declarations, then each vdata's vertex and index buffers.
+fn matvdata(vdata: &[TVdata]) -> (Vec<u8>, usize) {
+    let mut h = Vec::new();
+    tab(&mut h, 0, 0);
+    tab(&mut h, 0x20, vdata.len());
+    let decls: Vec<Vec<(u32, i32, i16)>> = vdata
+        .iter()
+        .map(|v| {
+            v.decl.clone().unwrap_or_else(|| {
+                let mut d = Vec::new();
+                if v.with_tc1 {
+                    d.push((6, 3, 1));
+                }
+                d.extend([(10, 0, 0), (4, 1, 0), (6, 3, 0)]);
+                d
+            })
+        })
+        .collect();
+    let mut decl_at = 0x20 + 32 * vdata.len();
+    let mut buffers = Vec::new();
+    for (v, decl) in vdata.iter().zip(&decls) {
+        let stride: u32 = if v.with_tc1 { 20 } else { 16 };
+        let mut vb = Vec::new();
+        for vert in &v.vertices {
+            if v.with_tc1 {
+                vb.extend_from_slice(&[0u8; 4]);
+            }
+            for c in vert.pos.iter().chain(&[32767]) {
+                vb.extend_from_slice(&c.to_le_bytes());
+            }
+            vb.extend_from_slice(&vert.normal_bgra);
+            for c in vert.uv {
+                vb.extend_from_slice(&c.to_le_bytes());
+            }
+        }
+        let (flags, idx_size, ib): (u32, usize, Vec<u8>) = match v.ib {
+            Ib::U16 => (0x20, 2 * v.indices.len(), v.indices.iter().flat_map(|&i| (i as u16).to_le_bytes()).collect()),
+            Ib::U32 => (0x40, 4 * v.indices.len(), v.indices.iter().flat_map(|&i| i.to_le_bytes()).collect()),
+            Ib::Packed => (0x220, 2 * v.indices.len(), meshopt_encode(&v.indices)),
+        };
+        let packed = if v.ib == Ib::Packed { ib.len() as u32 } else { 0 };
+        h.extend_from_slice(&(v.vertices.len() as u32).to_le_bytes());
+        h.extend_from_slice(&(stride | ((packed & 0xFF_FFFF) << 8)).to_le_bytes());
+        h.extend_from_slice(&(idx_size as u32 | ((packed >> 24) << 28)).to_le_bytes());
+        h.extend_from_slice(&flags.to_le_bytes());
+        tab(&mut h, decl_at, decl.len());
+        decl_at += 12 * decl.len();
+        buffers.push((vb, ib));
+    }
+    for decl in &decls {
+        for &(code, usage, index) in decl {
+            h.extend_from_slice(&(code << 16).to_le_bytes());
+            h.extend_from_slice(&usage.to_le_bytes());
+            h.extend_from_slice(&index.to_le_bytes());
+            h.extend_from_slice(&0u16.to_le_bytes());
+        }
+    }
+    let hdr_sz = h.len();
+    for (vb, ib) in buffers {
+        h.extend_from_slice(&vb);
+        h.extend_from_slice(&ib);
+    }
+    (h, hdr_sz)
+}
+
+/// A DynModel resource, following the formats doc section 2 (see [`TModel`]): header ints,
+/// [TexStr], the matVdata block, the LODs dump, the names dump, then per LOD its scene dump and
+/// one ShaderMesh dump per rigid.
+pub fn dynmodel_bytes(m: &TModel) -> Vec<u8> {
+    let (raw, hdr_sz) = matvdata(&m.vdata);
+    let block = match m.tag {
+        0 => raw,
+        1 => zstd::bulk::compress(&raw, 3).unwrap(),
+        other => panic!("tag {other}"),
+    };
+
+    let mut scenes = Vec::new();
+    for rigids in &m.lods {
+        let meshes: Vec<Vec<u8>> = rigids
+            .iter()
+            .map(|r| {
+                let mut mesh = Vec::new();
+                tab(&mut mesh, 0x30, r.elems.len());
+                mesh.extend_from_slice(&[0u8; 16]); // stageEndElemIdx
+                mesh.extend_from_slice(&0x8000_0001u32.to_le_bytes()); // maxMatPass
+                mesh.extend_from_slice(&[0u8; 12]);
+                for e in &r.elems {
+                    for v in [0u64, u64::from(e.mat), u64::from(e.vdata)] {
+                        mesh.extend_from_slice(&v.to_le_bytes());
+                    }
+                    for v in [0i32, 0, 0, e.si as i32, e.numf as i32, e.base_vertex] {
+                        mesh.extend_from_slice(&v.to_le_bytes());
+                    }
+                }
+                mesh
+            })
+            .collect();
+        let mut scene = Vec::new();
+        tab(&mut scene, 0x20, rigids.len());
+        tab(&mut scene, 0, 0); // skins
+        for (r, mesh) in rigids.iter().zip(&meshes) {
+            scene.extend_from_slice(&(mesh.len() as u32).to_le_bytes());
+            scene.extend_from_slice(&[0u8; 4]);
+            scene.extend_from_slice(&[0u8; 16]); // bounding sphere
+            scene.extend_from_slice(&r.node_id.to_le_bytes());
+            scene.extend_from_slice(&0u32.to_le_bytes());
+        }
+        scenes.push((scene, meshes));
+    }
+
+    let mut lods = Vec::new();
+    tab(&mut lods, 0x48, m.lods.len());
+    lods.extend_from_slice(&[0u8; 24]); // bbox
+    for v in m.offset.iter().chain(&[0.0]).chain(&m.scale).chain(&[0.0]) {
+        lods.extend_from_slice(&v.to_le_bytes());
+    }
+    for (i, (scene, _)) in scenes.iter().enumerate() {
+        lods.extend_from_slice(&(scene.len() as u32).to_le_bytes());
+        lods.extend_from_slice(&[0u8; 4]);
+        lods.extend_from_slice(&(100.0f32 * (i + 1) as f32).to_le_bytes());
+        lods.extend_from_slice(&1.0f32.to_le_bytes());
+    }
+
+    let mut names = Vec::new();
+    let n = m.names.len();
+    tab(&mut names, 0x20, n);
+    tab(&mut names, 0x20 + 8 * n, n);
+    let mut strings_at = 0x20 + 8 * n + 2 * n;
+    for (name, _) in &m.names {
+        names.extend_from_slice(&(strings_at as u64).to_le_bytes());
+        strings_at += name.len() + 1;
+    }
+    for (_, id) in &m.names {
+        names.extend_from_slice(&id.to_le_bytes());
+    }
+    for (name, _) in &m.names {
+        names.extend_from_slice(name.as_bytes());
+        names.push(0);
+    }
+
+    let mut out = Vec::new();
+    out.extend_from_slice(&(lods.len() as i32).to_le_bytes());
+    let tex_count: i32 = if m.tex_str.is_some() { 1 } else { -1 };
+    out.extend_from_slice(&tex_count.to_le_bytes());
+    out.extend_from_slice(&(-1i32).to_le_bytes());
+    out.extend_from_slice(&(m.vdata.len() as i32).to_le_bytes());
+    out.extend_from_slice(&(0xC000_0000u32 | hdr_sz as u32).to_le_bytes());
+    if let Some(tex) = &m.tex_str {
+        out.extend_from_slice(&(tex.len() as i32).to_le_bytes());
+        out.extend_from_slice(tex);
+    }
+    out.extend_from_slice(&((m.tag << 30) | block.len() as u32).to_le_bytes());
+    out.extend_from_slice(&block);
+    out.extend_from_slice(&lods);
+    out.extend_from_slice(&(names.len() as i32).to_le_bytes());
+    out.extend_from_slice(&names);
+    for (scene, meshes) in scenes {
+        out.extend_from_slice(&scene);
+        for mesh in meshes {
+            out.extend_from_slice(&mesh);
+        }
+    }
+    out
+}
+
+/// Overwrites the `u32` at `at` (for damaging a built resource).
+pub fn patch_u32(bytes: &mut [u8], at: usize, v: u32) {
+    bytes[at..at + 4].copy_from_slice(&v.to_le_bytes());
+}

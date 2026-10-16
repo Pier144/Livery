@@ -9,6 +9,7 @@ use livery_lib::game::gameres::bytes::Reader;
 use livery_lib::game::gameres::codec::{
     check_kraken_family, decode_in_process, oodle, read_block, set_worker_exe, OodleWorker, MAX_VERTEX_DATA,
 };
+use livery_lib::game::gameres::dynmodel;
 use livery_lib::game::gameres::grp::{Grp, DYN_MODEL};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -325,4 +326,89 @@ fn worker_against_in_process_on_the_jumbo_streams() {
         oodle(src, *raw, MAX_VERTEX_DATA).unwrap();
     }
     println!("oodle() total (shared worker, already warm after the first): {} ms", started.elapsed().as_millis());
+}
+
+// ── DynModel, skeleton, materials, textures ─────────────────────────────────
+
+/// The Jumbo's LOD 0 as the Phase 0 spike measured it: 85 rigids, vdata 6 with 106,485 vertices,
+/// 114,725 vertices / 99,202 triangles once each element's referenced vertices are copied out.
+#[test]
+#[ignore = "reads the real War Thunder install"]
+fn the_jumbo_dynmodel_parses() {
+    set_worker_exe(worker_exe());
+    let bytes = jumbo_model();
+    let started = Instant::now();
+    let model = dynmodel::parse(&bytes).unwrap();
+    println!("DynModel parsed in {} ms", started.elapsed().as_millis());
+    assert_eq!(model.rigids.len(), 85);
+    assert_eq!(model.vdata.len(), 8);
+    assert_eq!(model.vdata[6].positions.len(), 106_485);
+    for (i, v) in model.vdata.iter().enumerate() {
+        println!(
+            "  vdata {i}: {} vertices, {} indices, packed {}",
+            v.positions.len(),
+            v.indices.len(),
+            v.packed_indices
+        );
+    }
+    println!("  {} node names", model.node_names.len());
+    assert_eq!(model.node_names.len(), 115);
+
+    let (mut vertices, mut triangles) = (0, 0);
+    for rigid in &model.rigids {
+        assert!(model.node_names.contains_key(&rigid.node_id), "node {}", rigid.node_id);
+        for elem in &rigid.elems {
+            let vdata = &model.vdata[elem.vdata as usize];
+            let used: std::collections::BTreeSet<usize> = elem.vertex_indices(vdata).collect();
+            vertices += used.len();
+            triangles += elem.numf as usize;
+            for &v in &used {
+                assert!(v < vdata.positions.len());
+            }
+        }
+    }
+    println!("LOD 0: {vertices} vertices, {triangles} triangles");
+    assert_eq!((vertices, triangles), (114_725, 99_202));
+}
+
+/// Every DynModel of the tank packs that isn't a damage or x-ray variant parses (all of them go
+/// through Oodle), so a layout or limit the reader refuses shows up here first.
+#[test]
+#[ignore = "reads the real War Thunder install; slow"]
+fn every_tank_dynmodel_parses() {
+    set_worker_exe(worker_exe());
+    let dir = game_root().join("content/base/res/tanks");
+    let started = Instant::now();
+    let (mut models, mut packed, mut failed) = (0, 0usize, Vec::new());
+    for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("grp") {
+            continue;
+        }
+        let file = std::fs::read(&path).unwrap();
+        let grp = Grp::parse(&file, Some(file.len())).unwrap();
+        for res in grp.resources.iter().filter(|r| r.class_id == DYN_MODEL) {
+            if res.name.ends_with("_dmg") || res.name.ends_with("_xray") || res.start == 0 {
+                continue;
+            }
+            models += 1;
+            match dynmodel::parse(&file[res.start..res.end]) {
+                Ok(m) => packed += m.vdata.iter().filter(|v| v.packed_indices).count(),
+                Err(e) => failed.push(format!("{}: {:?}", res.name, e.detail)),
+            }
+        }
+    }
+    println!(
+        "{models} models in {} s, {packed} packed index buffers among LOD 0's, {} failed",
+        started.elapsed().as_secs(),
+        failed.len()
+    );
+    for f in failed.iter().take(20) {
+        println!("  {f}");
+    }
+    assert!(models > 1000);
+    // 2026-10-16: one model (`9a35m2`) has FLOAT3 positions in LOD 0, which the reader refuses
+    // by design (the unpack constants apply to SHORT4N only); nothing else may fail.
+    assert!(failed.iter().all(|f| f.contains("vertex layout")), "{failed:?}");
+    assert!(failed.len() <= 5, "{failed:?}");
 }
