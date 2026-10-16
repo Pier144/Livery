@@ -1,7 +1,9 @@
 //! Atelier's gate on Settings → Game → Read data from the game, and its state on a folder that
 //! isn't a game (temp folders only; the real install is read by `atelier_real.rs`).
 
-use livery_lib::atelier::{atelier_game_root, AtelierState, ATELIER_NEEDS_GAME_DATA, INDEX_CACHE};
+use livery_lib::atelier::{
+    atelier_game_root, require_enabled, AtelierState, ATELIER_DISABLED, ATELIER_NEEDS_GAME_DATA, INDEX_CACHE,
+};
 use livery_lib::error::ErrorCode;
 use livery_lib::library::NO_GAME_FOLDER;
 use livery_lib::model::Settings;
@@ -18,14 +20,24 @@ fn temp(name: &str) -> PathBuf {
 #[test]
 fn atelier_needs_the_game_data_switch_and_a_game_folder() {
     let dir = temp("gate");
-    let on = Settings { game_path: Some(dir.to_string_lossy().into_owned()), ..Settings::default() };
+    let on =
+        Settings { game_path: Some(dir.to_string_lossy().into_owned()), atelier_enabled: true, ..Settings::default() };
     assert_eq!(atelier_game_root(&on).unwrap(), dir);
+
+    // Atelier itself off: every command that reads the game refuses first.
+    let disabled = Settings { atelier_enabled: false, ..on.clone() };
+    let e = atelier_game_root(&disabled).unwrap_err();
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, ATELIER_DISABLED));
+    let e = require_enabled(&disabled).unwrap_err();
+    assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, ATELIER_DISABLED));
+    assert!(require_enabled(&on).is_ok());
 
     let off = Settings { read_game_data: false, ..on.clone() };
     let e = atelier_game_root(&off).unwrap_err();
     assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, ATELIER_NEEDS_GAME_DATA));
 
-    let e = atelier_game_root(&Settings::default()).unwrap_err();
+    let no_folder = Settings { atelier_enabled: true, ..Settings::default() };
+    let e = atelier_game_root(&no_folder).unwrap_err();
     assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, NO_GAME_FOLDER));
     let _ = fs::remove_dir_all(&dir);
 }

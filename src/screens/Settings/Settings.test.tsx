@@ -742,6 +742,17 @@ describe('Settings · Experimental', () => {
 describe('Settings · Experimental · background removal files', () => {
   const READY: CutoutStatus = { runtime: true, model: true, bytes: 190 * MB, downloadBytes: 0, pendingRemoval: false };
 
+  it('is not shown, nor queried, while Atelier is off; turning it on shows the row', async () => {
+    cutout = READY;
+    const { user } = renderSettings('experimental');
+    expect(screen.getByRole('switch', { name: 'Atelier' })).not.toBeChecked();
+    expect(screen.queryByText('Background removal files')).not.toBeInTheDocument();
+    expect(calls('atelier_cutout_status')).toHaveLength(0);
+    await user.click(screen.getByRole('switch', { name: 'Atelier' }));
+    expect(await screen.findByText('190 MB on this PC (ONNX Runtime and the isnet-anime model).')).toBeInTheDocument();
+    expect(calls('atelier_cutout_status')).toHaveLength(1);
+  });
+
   it('says the files aren’t downloaded yet, with nothing to remove', async () => {
     cutout = { runtime: false, model: false, bytes: 0, downloadBytes: 225 * MB, pendingRemoval: false };
     renderSettings('experimental', { atelierEnabled: true });

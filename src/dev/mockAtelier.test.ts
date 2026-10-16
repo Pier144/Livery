@@ -96,6 +96,7 @@ beforeEach(async () => {
   configureMockBackend({ latency: [0, 0], timeScale: 0 });
   resetMockBackend();
   await onboard();
+  await call('set_settings', { patch: { atelierEnabled: true } });
 });
 
 describe('mock Atelier · model', () => {
@@ -321,8 +322,34 @@ describe('mock Atelier · apply', () => {
   });
 });
 
+describe('mock Atelier · gate', () => {
+  it('refuses the commands that read the game, projects, pictures and applies while Atelier is off', async () => {
+    const made = await create();
+    await call('set_settings', { patch: { atelierEnabled: false } });
+    for (const [cmd, args] of [
+      ['atelier_model', { vehicle: VEHICLE }],
+      ['atelier_template_texture', { vehicle: VEHICLE, slot: BODY }],
+      ['atelier_projects', {}],
+      ['atelier_project_create', { name: 'x', vehicle: VEHICLE }],
+      ['atelier_project_get', { id: made.id }],
+      ['atelier_project_open', { projectId: made.id }],
+      ['atelier_asset', { projectId: made.id, assetId: 'img-1' }],
+      ['atelier_apply_begin', { projectId: made.id, enabled: [BODY] }],
+      ['atelier_apply_commit', { applyId: 'a-1' }],
+    ] as const) {
+      expect(await rejection(call(cmd, args)), cmd).toMatchObject({ code: 'invalidInput', message: ATELIER_DISABLED });
+    }
+    // What Settings needs, the cancels and the font lists stay open.
+    await expect(call('atelier_cutout_status')).resolves.toBeTruthy();
+    await expect(call('atelier_cutout_remove')).resolves.toBeTruthy();
+    await expect(call('atelier_apply_cancel', { applyId: 'a-none' })).resolves.toBeNull();
+    await expect(call('atelier_fonts')).resolves.toBeTruthy();
+  });
+});
+
 describe('mock Atelier · start-up switch', () => {
   it('?atelier=1 turns Settings → Experimental → Atelier on', async () => {
+    resetMockBackend();
     expect((await call<Settings>('get_settings')).atelierEnabled).toBe(false);
     window.history.replaceState(null, '', '/?atelier=1');
     resetMockBackend();

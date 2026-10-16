@@ -114,6 +114,13 @@ impl AtelierState {
         &self.projects
     }
 
+    /// Drops the cached models and `dynModelDesc` (Atelier turned off): the memory goes back at
+    /// once; the next use reads them again.
+    pub fn forget(&self) {
+        self.models.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        *self.desc.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
     /// Stores RGBA8 pixels as a new asset of project `project_id` and remembers its id for
     /// [`Self::collect_assets`]. The PNG is encoded first; only the write holds the project
     /// store's lock.
@@ -209,9 +216,26 @@ impl AtelierState {
     }
 }
 
-/// The game folder Atelier reads: `invalidInput` ([`ATELIER_NEEDS_GAME_DATA`]) while reading the
-/// game's data is off, else `library::game_root`'s errors.
+/// `invalidInput` ([`ATELIER_DISABLED`]) while Settings → Experimental → Atelier is off.
+pub fn require_enabled(settings: &Settings) -> AppResult<()> {
+    if settings.atelier_enabled {
+        Ok(())
+    } else {
+        Err(AppError::new(ErrorCode::InvalidInput, ATELIER_DISABLED))
+    }
+}
+
+/// [`require_enabled`] with the app's settings: the first line of every command except the ones
+/// Settings needs to show and remove the background-removal files, the cancels and the font lists.
+fn atelier_on(app: &AppHandle) -> AppResult<()> {
+    require_enabled(&app.state::<SettingsStore>().get())
+}
+
+/// The game folder Atelier reads: `invalidInput` ([`ATELIER_DISABLED`]) while Atelier is off,
+/// then ([`ATELIER_NEEDS_GAME_DATA`]) while reading the game's data is off, else
+/// `library::game_root`'s errors.
 pub fn atelier_game_root(settings: &Settings) -> AppResult<PathBuf> {
+    require_enabled(settings)?;
     if !settings.read_game_data {
         return Err(AppError::new(ErrorCode::InvalidInput, ATELIER_NEEDS_GAME_DATA));
     }
@@ -291,12 +315,14 @@ fn slot_choices(model: &VehicleModel) -> Vec<AtelierSlotChoice> {
 
 #[tauri::command]
 pub async fn atelier_projects(app: AppHandle) -> AppResult<Vec<AtelierProjectSummary>> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().projects().list()).await
 }
 
 /// A new project for `vehicle`, with its slots read from the vehicle's model.
 #[tauri::command]
 pub async fn atelier_project_create(app: AppHandle, name: String, vehicle: String) -> AppResult<AtelierProject> {
+    atelier_on(&app)?;
     blocking(move || {
         // Name and vehicle code first: reading the model can take a while.
         project::check_new(&name, &vehicle)?;
@@ -310,16 +336,19 @@ pub async fn atelier_project_create(app: AppHandle, name: String, vehicle: Strin
 
 #[tauri::command]
 pub async fn atelier_project_get(app: AppHandle, id: String) -> AppResult<AtelierProject> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().projects().get(&id)).await
 }
 
 #[tauri::command]
 pub async fn atelier_project_save(app: AppHandle, project: AtelierProject) -> AppResult<AtelierProject> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().projects().save(&project, SystemTime::now())).await
 }
 
 #[tauri::command]
 pub async fn atelier_project_duplicate(app: AppHandle, id: String) -> AppResult<AtelierProject> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().projects().duplicate(&id, SystemTime::now())).await
 }
 
@@ -327,16 +356,19 @@ pub async fn atelier_project_duplicate(app: AppHandle, id: String) -> AppResult<
 /// closing `atelier_project_forget_deleted`.
 #[tauri::command]
 pub async fn atelier_project_delete(app: AppHandle, id: String) -> AppResult<()> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().projects().delete(&id)).await
 }
 
 #[tauri::command]
 pub async fn atelier_project_undo_delete(app: AppHandle, id: String) -> AppResult<()> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().projects().undo_delete(&id)).await
 }
 
 #[tauri::command]
 pub async fn atelier_project_forget_deleted(app: AppHandle, id: String) -> AppResult<()> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().projects().forget_deleted(&id)).await
 }
 
@@ -344,6 +376,7 @@ pub async fn atelier_project_forget_deleted(app: AppHandle, id: String) -> AppRe
 /// `x-project-id` header.
 #[tauri::command]
 pub async fn atelier_project_thumb(app: AppHandle, request: Request<'_>) -> AppResult<()> {
+    atelier_on(&app)?;
     let id = header(&request, "x-project-id")
         .map(str::to_owned)
         .ok_or_else(|| AppError::new(ErrorCode::NotFound, PROJECT_NOT_FOUND).with_detail("no x-project-id header"))?;
@@ -356,6 +389,7 @@ pub async fn atelier_project_thumb(app: AppHandle, request: Request<'_>) -> AppR
 /// A project's thumbnail (PNG bytes; empty when it has none).
 #[tauri::command]
 pub async fn atelier_project_thumb_get(app: AppHandle, id: String) -> AppResult<Response> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().projects().thumb(&id).map(Response::new)).await
 }
 
@@ -365,6 +399,7 @@ pub async fn atelier_project_thumb_get(app: AppHandle, id: String) -> AppResult<
 /// project's pictures no saved layer and nothing made in this process uses.
 #[tauri::command]
 pub async fn atelier_project_open(app: AppHandle, project_id: String) -> AppResult<()> {
+    atelier_on(&app)?;
     blocking(move || {
         let removed = app.state::<AtelierState>().collect_assets(&project_id)?;
         if removed > 0 {
@@ -378,6 +413,7 @@ pub async fn atelier_project_open(app: AppHandle, project_id: String) -> AppResu
 /// Imports the picture at `path` (a local absolute path the user picked) into the project.
 #[tauri::command]
 pub async fn atelier_import_image(app: AppHandle, project_id: String, path: String) -> AppResult<AssetRef> {
+    atelier_on(&app)?;
     blocking(move || app.state::<AtelierState>().import_asset(&project_id, Path::new(&path))).await
 }
 
@@ -385,6 +421,7 @@ pub async fn atelier_import_image(app: AppHandle, project_id: String, path: Stri
 /// (straight alpha).
 #[tauri::command]
 pub async fn atelier_asset(app: AppHandle, project_id: String, asset_id: String) -> AppResult<Response> {
+    atelier_on(&app)?;
     blocking(move || {
         let (w, h, rgba) = app.state::<AtelierState>().asset(&project_id, &asset_id)?;
         let mut out = Vec::with_capacity(8 + rgba.len());
@@ -400,6 +437,7 @@ pub async fn atelier_asset(app: AppHandle, project_id: String, asset_id: String)
 /// request body; headers `x-project-id`, `x-width`, `x-height` (sides up to 4096).
 #[tauri::command]
 pub async fn atelier_asset_put(app: AppHandle, request: Request<'_>) -> AppResult<AssetRef> {
+    atelier_on(&app)?;
     let project_id = header(&request, "x-project-id")
         .map(str::to_owned)
         .ok_or_else(|| AppError::new(ErrorCode::NotFound, PROJECT_NOT_FOUND).with_detail("no x-project-id header"))?;
@@ -532,9 +570,7 @@ pub async fn atelier_cutout_status(app: AppHandle) -> AppResult<CutoutStatus> {
 /// restart. Returns the status after.
 #[tauri::command]
 pub async fn atelier_cutout_download(app: AppHandle) -> AppResult<CutoutStatus> {
-    if !app.state::<SettingsStore>().get().atelier_enabled {
-        return Err(AppError::new(ErrorCode::InvalidInput, ATELIER_DISABLED));
-    }
+    atelier_on(&app)?;
     blocking(move || {
         let state = app.state::<CutoutState>();
         let _using = state.use_files();
@@ -581,9 +617,7 @@ pub async fn atelier_cutout_remove(app: AppHandle) -> AppResult<CutoutStatus> {
 /// picture sits in the source, in source pixels. Never touches the network.
 #[tauri::command]
 pub async fn atelier_cutout(app: AppHandle, project_id: String, asset_id: String) -> AppResult<CutoutResult> {
-    if !app.state::<SettingsStore>().get().atelier_enabled {
-        return Err(AppError::new(ErrorCode::InvalidInput, ATELIER_DISABLED));
-    }
+    atelier_on(&app)?;
     blocking(move || {
         // Each step is announced as it starts, Load before anything slow (reading the picture).
         let mut last = None;
@@ -626,6 +660,7 @@ fn progress(apply_id: &str, step: ApplyStep, pct: u8) -> ApplyProgress {
 /// saved yet). The textures follow with `atelier_apply_texture`, then `atelier_apply_commit`.
 #[tauri::command]
 pub async fn atelier_apply_begin(app: AppHandle, project_id: String, enabled: Vec<String>) -> AppResult<ApplyStarted> {
+    atelier_on(&app)?;
     blocking(move || {
         let library = GameLibrary::current(&app)?;
         let state = app.state::<AtelierState>();
@@ -643,6 +678,7 @@ pub async fn atelier_apply_begin(app: AppHandle, project_id: String, enabled: Ve
 /// `atelier://apply-progress` (encode, write).
 #[tauri::command]
 pub async fn atelier_apply_texture(app: AppHandle, request: Request<'_>) -> AppResult<()> {
+    atelier_on(&app)?;
     let apply_id = header(&request, "x-apply-id")
         .map(str::to_owned)
         .ok_or_else(|| AppError::new(ErrorCode::NotFound, APPLY_NOT_FOUND).with_detail("no x-apply-id header"))?;
@@ -684,6 +720,7 @@ pub async fn atelier_apply_texture(app: AppHandle, request: Request<'_>) -> AppR
 /// done (with the skin and backup ids) or error; the staging goes either way.
 #[tauri::command]
 pub async fn atelier_apply_commit(app: AppHandle, apply_id: String) -> AppResult<ApplyResult> {
+    atelier_on(&app)?;
     blocking(move || {
         let state = app.state::<AtelierState>();
         let job = state.applies.remove(&apply_id)?;

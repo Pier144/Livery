@@ -53,7 +53,7 @@ export function ExperimentalSection() {
             />
           )}
         </SettingRow>
-        <CutoutFilesRow />
+        {settings.atelierEnabled && <CutoutFilesRow />}
       </SettingGroup>
     </>
   );
@@ -63,7 +63,7 @@ export function ExperimentalSection() {
  * The background-removal files (ONNX Runtime and the isnet-anime model, downloaded on first use):
  * their size on this PC and Remove (asked first; not an undoable toast: they can be downloaded
  * again). Remove is off while a download or a cutout runs. A runtime that was in use this session
- * can only go when Livery restarts: the row says so.
+ * can only go when Livery restarts: the row says so. It shows (and queries) only while Atelier is on.
  */
 function CutoutFilesRow() {
   const { t } = useTranslation();

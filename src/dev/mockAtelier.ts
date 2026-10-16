@@ -577,7 +577,7 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
     };
   };
 
-  return {
+  const commands: Record<string, (args: Args) => unknown> = {
     atelier_model: (args) => {
       requireGame();
       const code = str('atelier_model', args, 'vehicle');
@@ -931,4 +931,26 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
       }
     },
   };
+
+  // Like `atelier_on` in Rust: with Atelier off every command refuses, but the ones Settings needs
+  // (the background-removal files' status and removal), the cancels and the font lists.
+  const ungated = new Set([
+    'atelier_cutout_status',
+    'atelier_cutout_remove',
+    'atelier_cutout_cancel',
+    'atelier_apply_cancel',
+    'atelier_fonts',
+    'atelier_font_file',
+  ]);
+  return Object.fromEntries(
+    Object.entries(commands).map(([name, run]) => [
+      name,
+      ungated.has(name)
+        ? run
+        : (args: Args) => {
+            if (!host.settings().atelierEnabled) fail('invalidInput', ATELIER_DISABLED);
+            return run(args);
+          },
+    ]),
+  );
 }
