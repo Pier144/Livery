@@ -26,6 +26,16 @@ interface Job {
   committing: boolean;
 }
 
+/** The 3D view (and its WebGL context) went away during the bake. */
+class ViewLostError extends Error {}
+
+/** A bake failed because the view is gone: the engine was disposed or its WebGL context lost. */
+function isViewLost(e: unknown, engine: Engine | null): boolean {
+  if (e instanceof ViewLostError) return true;
+  if (e instanceof Error && /^Baker: (the WebGL context is lost|disposed)/.test(e.message)) return true;
+  return engine?.scene.contextLost() === true;
+}
+
 /** Lets the progress render before a slot's bake blocks the main thread. */
 const yieldToPaint = () => new Promise<void>((resolve) => setTimeout(resolve, 30));
 
@@ -78,7 +88,9 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
         return;
       }
       const { model } = latest.current;
-      const project = useAtelierEditor.getState().project;
+      // What was just saved is what gets baked: the editor is locked while the apply runs, and
+      // the Baker is given these layers again before each slot.
+      const { project, layers } = useAtelierEditor.getState();
       if (current.aborted || !model || !project || project.id !== projectId) return;
       slots = enabledSlots(project, model);
       const highQuality = project.output.highQuality;
@@ -109,7 +121,8 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
         await yieldToPaint();
         if (current.aborted) return;
         const engine = latest.current.engine();
-        if (!engine) throw new Error('Atelier: the 3D view is gone');
+        if (!engine) throw new ViewLostError('Atelier: the 3D view is gone');
+        engine.baker.setLayers(layers, slots);
         const result = engine.baker.bakeForExport(slot, highQuality);
         downscaled ||= result.downscaled;
         baked += 1;
@@ -155,9 +168,21 @@ export function useApply({ projectId, model, engine, flush, onApplied }: UseAppl
       if (engine && !current.aborted) latest.current.onApplied?.(engine);
     } catch (e) {
       if (current.applyId && !current.committing) void call('atelier_apply_cancel', { applyId: current.applyId }).catch(() => {});
-      if (!current.aborted || current.committing) toast(errorText(toAppError(e), t));
+      if (!current.aborted || current.committing) {
+        toast(isViewLost(e, latest.current.engine()) ? t('atelier.apply.viewLost') : errorText(toAppError(e), t));
+      }
     } finally {
       unlisten?.();
+      // The Baker back on the editor's layers (the same ones, unless something slipped past the lock).
+      const engine = latest.current.engine();
+      const { project, layers } = useAtelierEditor.getState();
+      if (engine && project && latest.current.model) {
+        try {
+          engine.baker.setLayers(layers, enabledSlots(project, latest.current.model));
+        } catch {
+          // A lost context: the Baker re-bakes from its last layers once it comes back.
+        }
+      }
       if (job.current === current) job.current = null;
       show({ running: false });
     }

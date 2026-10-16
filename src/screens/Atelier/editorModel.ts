@@ -31,10 +31,30 @@ export function slotKind(texture: string): SlotKind | null {
   return m ? (m[1]!.toLowerCase() as SlotKind) : null;
 }
 
-/** A slot's friendly label: Body, Turret, Gun, or the texture name without `_c`. */
+/** Words of a texture name after a matched prefix, e.g. `m2hb` from `mg_m2hb`. */
+const rest = (name: string) => name.replace(/_+/g, ' ').trim();
+
+/**
+ * A slot's friendly label: Body, Turret, Gun for the vehicle's own textures; for shared ones a
+ * label where the name says what it is (`mg_*` machine gun, `net_*` net, `track*` track,
+ * `*barrel*` barrel) followed by the rest of the name; else the texture name without `_c`.
+ */
 export function slotLabel(texture: string, t: TFunction): string {
   const kind = slotKind(texture);
-  return kind ? t(`atelier.parts.${kind}`) : texture.replace(/_c$/i, '');
+  if (kind) return t(`atelier.parts.${kind}`);
+  const name = texture.replace(/_c$/i, '');
+  const lower = name.toLowerCase();
+  const labelled = (key: 'mg' | 'net' | 'track' | 'barrel', tail: string) => {
+    const words = rest(tail);
+    return words ? `${t(`atelier.parts.${key}`)} ${words}` : t(`atelier.parts.${key}`);
+  };
+  if (lower.startsWith('mg_')) return labelled('mg', name.slice(3));
+  if (lower === 'net' || lower.startsWith('net_')) return labelled('net', name.slice(3));
+  const track = /^tracks?(?:_|$)/i.exec(name);
+  if (track) return labelled('track', name.slice(track[0].length));
+  const barrel = /_?barrel_?/i.exec(name);
+  if (barrel) return labelled('barrel', `${name.slice(0, barrel.index)} ${name.slice(barrel.index + barrel[0].length)}`);
+  return name;
 }
 
 /** The textures the project paints: its enabled slots that the model has, in the model's order. */
@@ -43,12 +63,42 @@ export function enabledSlots(project: Pick<AtelierProject, 'slots'>, model: Vehi
   return model.header.slots.filter((s) => on.has(s.texture.toLowerCase())).map((s) => s.texture);
 }
 
-/** The project's slots as the Parts list shows them: the model's slots with the project's choice. */
-export function partRows(project: Pick<AtelierProject, 'slots'>, model: VehicleModelData): { texture: string; enabled: boolean; hq: boolean }[] {
+export interface PartRow {
+  texture: string;
+  enabled: boolean;
+  hq: boolean;
+  /** One of the vehicle's own textures (painted by default), not a shared one (machine gun, net…). */
+  main: boolean;
+}
+
+const MAIN_ORDER: Record<SlotKind, number> = { body: 0, turret: 1, gun: 2 };
+
+/**
+ * The project's slots as the Parts list shows them: the vehicle's own textures first (body,
+ * turret, gun, then any other by name), then the shared ones by name.
+ */
+export function partRows(project: Pick<AtelierProject, 'slots'>, model: VehicleModelData): PartRow[] {
   const chosen = new Map(project.slots.map((s) => [s.texture.toLowerCase(), s]));
-  return model.header.slots
+  const rows = model.header.slots
     .filter((s) => chosen.has(s.texture.toLowerCase()))
-    .map((s) => ({ texture: chosen.get(s.texture.toLowerCase())!.texture, enabled: chosen.get(s.texture.toLowerCase())!.enabled, hq: s.hq }));
+    .map((s) => {
+      const choice = chosen.get(s.texture.toLowerCase())!;
+      return { texture: choice.texture, enabled: choice.enabled, hq: s.hq, main: s.paintableByDefault };
+    });
+  const rank = (r: PartRow) => {
+    const kind = slotKind(r.texture);
+    return kind ? MAIN_ORDER[kind] : 3;
+  };
+  const byName = (a: PartRow, b: PartRow) => (a.texture.toLowerCase() < b.texture.toLowerCase() ? -1 : a.texture.toLowerCase() > b.texture.toLowerCase() ? 1 : 0);
+  return [
+    ...rows.filter((r) => r.main).sort((a, b) => rank(a) - rank(b) || byName(a, b)),
+    ...rows.filter((r) => !r.main).sort(byName),
+  ];
+}
+
+/** The project paints the body slot (High quality applies to it only). */
+export function bodyEnabled(project: Pick<AtelierProject, 'slots'>): boolean {
+  return project.slots.some((s) => s.enabled && isBodySlot(s.texture));
 }
 
 /** High quality is offered when the model has a body slot smaller than 4096. */
@@ -89,4 +139,66 @@ export function distance(a: readonly number[], b: readonly number[]): number {
   const dy = a[1]! - b[1]!;
   const dz = a[2]! - b[2]!;
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/**
+ * Keys typed into this element are text editing (the editor's Ctrl+Z / Ctrl+Y leave it alone):
+ * text fields, selects and editable content, but not sliders, colour wells or checkboxes.
+ */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement) return !['range', 'color', 'checkbox', 'radio', 'button'].includes(target.type);
+  const tag = target.tagName;
+  return tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true;
+}
+
+function hexToHsl(hex: string): [number, number, number] {
+  const v = parseInt(hex.slice(1), 16);
+  const r = ((v >> 16) & 255) / 255;
+  const g = ((v >> 8) & 255) / 255;
+  const b = (v & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return `#${[f(0), f(8), f(4)].map((x) => Math.round(Math.max(0, Math.min(1, x)) * 255).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Largest channel difference between two `#rrggbb` colours (0..255). */
+function colorDistance(a: string, b: string): number {
+  const x = parseInt(a.slice(1), 16);
+  const y = parseInt(b.slice(1), 16);
+  return Math.max(Math.abs(((x >> 16) & 255) - ((y >> 16) & 255)), Math.abs(((x >> 8) & 255) - ((y >> 8) & 255)), Math.abs((x & 255) - (y & 255)));
+}
+
+/** Smallest channel difference a new camo colour keeps from the others. */
+const MIN_COLOR_DISTANCE = 40;
+
+/**
+ * The colour "Add a colour" adds: the last one made lighter (or darker when it is already light),
+ * a little more saturated and turned 35° round the hue circle; turned further until it is clearly
+ * different from every colour already there. Deterministic.
+ */
+export function nextCamoColor(colors: readonly string[]): string {
+  const valid = colors.filter((c) => /^#[0-9a-f]{6}$/i.test(c));
+  const last = valid[valid.length - 1] ?? '#56603f';
+  const [h, s, l] = hexToHsl(last);
+  const lightness = l > 0.5 ? l - 0.24 : l + 0.24;
+  const saturation = Math.min(1, Math.max(0.25, s + 0.1));
+  let candidate = hslToHex((h + 35) % 360, saturation, lightness);
+  for (let step = 1; step < 12; step++) {
+    if (valid.every((c) => colorDistance(c, candidate) >= MIN_COLOR_DISTANCE)) return candidate;
+    candidate = hslToHex((h + 35 + step * 30) % 360, saturation, step % 2 === 0 ? lightness : 1 - lightness);
+  }
+  return candidate;
 }

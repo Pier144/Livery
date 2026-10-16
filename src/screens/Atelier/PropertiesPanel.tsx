@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { ChipDropdown } from '@/components/ui/ChipDropdown';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { PartGroup } from '@/types';
-import { BRUSH_MAX, BRUSH_MIN, MASK_ROW_ID, SCALE_MAX, SCALE_MIN, shuffledSeed } from './editorModel';
+import { BRUSH_MAX, BRUSH_MIN, MASK_ROW_ID, nextCamoColor, SCALE_MAX, SCALE_MIN, shuffledSeed } from './editorModel';
 import { PANEL_LABEL, useLayerName } from './LayersPanel';
 
 /** The brush as the panel edits it (`size` is a fraction of the model's radius). */
@@ -138,7 +138,7 @@ function BaseProperties({ base }: { base: BaseLayer }) {
             {camo && base.colors.length < MAX_CAMO_COLORS && (
               <button
                 type="button"
-                onClick={() => setBase({ colors: [...base.colors, base.colors[base.colors.length - 1] ?? DEFAULT_CAMO_COLOR] })}
+                onClick={() => setBase({ colors: [...base.colors, nextCamoColor(base.colors)] })}
                 aria-label={t('atelier.props.addColor')}
                 title={t('atelier.props.addColor')}
                 className="grid h-8 w-8 place-items-center rounded-ctl border border-dashed border-line-4 text-ink-3 hover:border-ink-4 hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120"
@@ -203,7 +203,7 @@ function ColorSwatch({ value, label, onInput, onCommit }: { value: string; label
       title={value}
       onChange={(e) => onInput(e.target.value)}
       onBlur={onCommit}
-      className="block h-8 w-8 cursor-pointer appearance-none rounded-ctl border border-line-3 bg-transparent p-0.5 hover:border-line-4 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-[4px] [&::-webkit-color-swatch]:border-0"
+      className="block h-8 w-8 cursor-pointer appearance-none rounded-ctl border border-line-3 bg-transparent p-0.5 hover:border-line-4 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-menu [&::-webkit-color-swatch]:border-0"
     />
   );
 }

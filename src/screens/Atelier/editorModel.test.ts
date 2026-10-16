@@ -12,6 +12,9 @@ import {
   shuffledSeed,
   slotKind,
   slotLabel,
+  bodyEnabled,
+  isTypingTarget,
+  nextCamoColor,
 } from './editorModel';
 
 const model = parseModelBuffer(encodeMockModel('v'));
@@ -72,5 +75,70 @@ describe('editor model', () => {
     expect(shuffledSeed(5, () => 0.5)).not.toBe(5);
     const values = [0, 0.25];
     expect(shuffledSeed(1, () => values.shift() ?? 0.9)).toBeGreaterThan(1);
+  });
+});
+
+describe('editor model (review round)', () => {
+  it('gives shared parts a friendly name when theirs says what they are', () => {
+    expect(slotLabel('mg_m2hb_c', t)).toBe('Machine gun m2hb');
+    expect(slotLabel('net_c', t)).toBe('Net');
+    expect(slotLabel('net_desert_c', t)).toBe('Net desert');
+    expect(slotLabel('track_t48_c', t)).toBe('Track t48');
+    expect(slotLabel('tracks_c', t)).toBe('Track');
+    expect(slotLabel('us_76mm_barrel_m1_c', t)).toBe('Barrel us 76mm m1');
+    expect(slotLabel('crate_c', t)).toBe('crate');
+    expect(slotLabel('mg_m2hb_c', i18n.getFixedT('it'))).toBe('Mitragliatrice m2hb');
+  });
+
+  it('puts the vehicle’s own parts first (body, turret, gun, then by name) and shared ones after, by name', () => {
+    const header = {
+      ...model.header,
+      slots: [
+        { texture: 'track_c', width: 64, height: 64, hq: true, paintableByDefault: false },
+        { texture: 'v_gun_c', width: 64, height: 64, hq: true, paintableByDefault: true },
+        { texture: 'mg_a_c', width: 64, height: 64, hq: true, paintableByDefault: false },
+        { texture: 'v_extra_c', width: 64, height: 64, hq: true, paintableByDefault: true },
+        { texture: 'v_body_c', width: 64, height: 64, hq: true, paintableByDefault: true },
+        { texture: 'v_turret_c', width: 64, height: 64, hq: true, paintableByDefault: true },
+      ],
+    };
+    const slots = header.slots.map((s) => ({ texture: s.texture, enabled: true }));
+    expect(partRows({ slots }, { ...model, header }).map((r) => [r.texture, r.main])).toEqual([
+      ['v_body_c', true],
+      ['v_turret_c', true],
+      ['v_gun_c', true],
+      ['v_extra_c', true],
+      ['mg_a_c', false],
+      ['track_c', false],
+    ]);
+  });
+
+  it('knows when the body is painted', () => {
+    expect(bodyEnabled({ slots: [{ texture: 'v_body_c', enabled: true }] })).toBe(true);
+    expect(bodyEnabled({ slots: [{ texture: 'v_body_c', enabled: false }, { texture: 'v_gun_c', enabled: true }] })).toBe(false);
+  });
+
+  it('adds a camo colour that differs clearly from every other, the same way each time', () => {
+    const dist = (a: string, b: string) => {
+      const x = parseInt(a.slice(1), 16);
+      const y = parseInt(b.slice(1), 16);
+      return Math.max(...[16, 8, 0].map((k) => Math.abs(((x >> k) & 255) - ((y >> k) & 255))));
+    };
+    for (const colors of [['#56603f', '#8a7a55'], ['#ffffff'], ['#000000', '#101010'], ['#56603f', '#56603f', '#56603f']]) {
+      const next = nextCamoColor(colors);
+      expect(next).toMatch(/^#[0-9a-f]{6}$/);
+      expect(nextCamoColor(colors)).toBe(next);
+      for (const c of colors) expect(dist(c, next)).toBeGreaterThanOrEqual(40);
+    }
+  });
+
+  it('treats text fields as typing, sliders, colour wells and checkboxes not', () => {
+    const input = (type: string) => Object.assign(document.createElement('input'), { type });
+    expect(isTypingTarget(input('text'))).toBe(true);
+    expect(isTypingTarget(document.createElement('textarea'))).toBe(true);
+    expect(isTypingTarget(input('range'))).toBe(false);
+    expect(isTypingTarget(input('color'))).toBe(false);
+    expect(isTypingTarget(input('checkbox'))).toBe(false);
+    expect(isTypingTarget(document.createElement('div'))).toBe(false);
   });
 });

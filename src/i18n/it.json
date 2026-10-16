@@ -417,9 +417,9 @@
     "gallery": {
       "views": "Viste",
       "view": {
-        "front": "Davanti",
+        "front": "Fronte",
         "side": "Lato",
-        "rear": "Dietro",
+        "rear": "Retro",
         "detail": "Dettaglio"
       },
       "image": "Immagine {{n}}",
@@ -1084,13 +1084,13 @@
     },
     "view": {
       "label": "Viste rapide",
-      "front": "Fronte",
+      "front": "Davanti",
       "side": "Lato",
-      "rear": "Retro",
+      "rear": "Dietro",
       "top": "Sopra",
       "canvas": "Vista 3D di {{vehicle}}",
-      "help": "Trascina per ruotare, col tasto destro per spostare, la rotellina per lo zoom.",
-      "brushHelp": "Trascina sul veicolo per proteggere una zona. Col tasto destro o Alt+trascina lo ruoti."
+      "help": "Trascina per ruotare, tasto destro per spostare, rotellina per lo zoom.",
+      "brushHelp": "Trascina sul veicolo per proteggere una zona. Per ruotarlo, trascina col tasto destro o con Alt."
     },
     "layers": {
       "title": "Livelli",
@@ -1107,9 +1107,15 @@
       "body": "Scafo",
       "turret": "Torretta",
       "gun": "Cannone",
+      "mg": "Mitragliatrice",
+      "net": "Rete",
+      "track": "Cingolo",
+      "barrel": "Canna",
+      "shared": "Parti condivise",
       "paint": "Dipingi {{part}}",
       "hq": "Scafo in alta qualità (4096)",
       "hqHelper": "Più nitido in gioco, più lento da applicare.",
+      "hqNeedsBody": "Attiva lo scafo per usare l’alta qualità.",
       "noHq": "Le texture in alta qualità del gioco non sono installate: Atelier lavora su quelle più piccole."
     },
     "props": {
@@ -1153,6 +1159,8 @@
       },
       "nothing": "Attiva almeno una parte per applicare.",
       "notReady": "La vista 3D si sta ancora caricando.",
+      "noView": "La vista 3D non è partita, quindi non si può elaborare nulla.",
+      "viewLost": "La vista 3D ha smesso di funzionare (forse il driver grafico si è riavviato). Non è stato applicato nulla: riprova.",
       "saveFailed": "Non è stato possibile salvare il progetto, quindi non è stato applicato nulla.",
       "installed": "Skin installata nel gioco.",
       "replaced": "Skin aggiornata nel gioco.",

@@ -316,10 +316,26 @@ export class EditorScene {
     };
   }
 
+  /** The camera as it is now (to restore it later with `setView`). */
+  view(): OrbitState {
+    return { ...this.orbit, target: [...this.orbit.target] as Vec3 };
+  }
+
+  /** Puts the camera back where `view()` found it (zoom kept within this model's limits). */
+  setView(o: OrbitState): void {
+    this.setOrbit({ ...o, target: [...o.target] as Vec3, radius: clamp(o.radius, this.framing * ZOOM_MIN, this.framing * ZOOM_MAX) });
+  }
+
+  /** The WebGL context is lost (nothing renders until the browser restores it). */
+  contextLost(): boolean {
+    return this.renderer.getContext().isContextLost();
+  }
+
   /**
-   * The current view rendered square at `size` px (transparent background), as PNG bytes. The
-   * picture is read back synchronously; only the PNG encoding is asynchronous, so the scene may be
-   * disposed right after the call.
+   * The model from the opening three-quarter view (front-left, a little from above, framed to the
+   * model), rendered off-screen square at `size` px with a transparent background, as PNG bytes.
+   * The camera the user moved isn't used. The picture is read back synchronously; only the PNG
+   * encoding is asynchronous, so the scene may be disposed right after the call.
    */
   thumbnailPng(size = 512): Promise<Uint8Array> {
     const target = new THREE.WebGLRenderTarget(size, size, {
@@ -328,21 +344,24 @@ export class EditorScene {
       type: THREE.UnsignedByteType,
       format: THREE.RGBAFormat,
     });
-    const camera = this.camera.clone();
-    camera.aspect = 1;
-    // A wide view keeps the whole vehicle when the editor's view is wider than tall.
-    if (this.width > this.height) camera.fov = FOV * Math.min(1.6, this.width / this.height) ** 0.5;
-    camera.updateProjectionMatrix();
     const pixels = new Uint8Array(size * size * 4);
     const previous = this.renderer.getRenderTarget();
+    const view = this.orbit;
+    // The scene's own camera (its headlight follows it), moved for the shot and put back.
+    this.placeCamera(defaultOrbit(this.center, framingDistance(this.boundingRadius, FOV, 1)));
+    this.camera.aspect = 1;
+    this.camera.updateProjectionMatrix();
     try {
       this.renderer.setRenderTarget(target);
       this.renderer.clear();
-      this.renderer.render(this.scene, camera);
+      this.renderer.render(this.scene, this.camera);
       this.renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
     } finally {
       this.renderer.setRenderTarget(previous);
       target.dispose();
+      this.camera.aspect = this.width / this.height;
+      this.camera.updateProjectionMatrix();
+      this.placeCamera(view);
     }
     return encodePng(toStraightTopDown(pixels, size, size), size, size);
   }
@@ -372,11 +391,15 @@ export class EditorScene {
 
   private setOrbit(o: OrbitState): void {
     this.orbit = o;
+    this.placeCamera(o);
+    this.requestRender();
+  }
+
+  private placeCamera(o: OrbitState): void {
     const [x, y, z] = orbitPosition(o);
     this.camera.position.set(x, y, z);
     this.camera.lookAt(o.target[0], o.target[1], o.target[2]);
     this.camera.updateMatrixWorld();
-    this.requestRender();
   }
 
   private fitToParent(): void {

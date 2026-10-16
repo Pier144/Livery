@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { resetAtelierEditor, useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
+import type { OrbitState } from '@/atelier/gl/scene';
 import { maskOf } from '@/atelier/project';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -14,7 +15,7 @@ import { useAtelierUi } from '@/store/atelier';
 import { toast } from '@/store/toasts';
 import type { AtelierProjectSummary } from '@/types';
 import { vehicleLabel } from '../Explore/exploreModel';
-import { BRUSH_DEFAULT, enabledSlots, HARDNESS_DEFAULT, MASK_ROW_ID } from './editorModel';
+import { BRUSH_DEFAULT, enabledSlots, HARDNESS_DEFAULT, isTypingTarget, MASK_ROW_ID } from './editorModel';
 import { EditorTopBar } from './EditorTopBar';
 import type { Engine } from './engine';
 import { LayersPanel } from './LayersPanel';
@@ -29,11 +30,8 @@ const THUMB_SIZE = 512;
 
 const GRID = 'grid min-h-0 flex-1 grid-cols-[232px_minmax(0,1fr)_272px] xl:grid-cols-[256px_minmax(0,1fr)_320px]';
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-}
+/** Each project's camera for this session, so coming back to its editor finds the view as it was left. */
+const savedViews = new Map<string, OrbitState>();
 
 /**
  * The Atelier editor of one project (spec §2 "Editor layout"): top bar, layers and parts on the
@@ -84,28 +82,47 @@ export function Editor({ id }: { id: string }) {
   }, [templateError, t]);
 
   const [engine, setEngine] = useState<Engine | null>(null);
+  const [viewFailed, setViewFailed] = useState(false);
   const engineRef = useRef<Engine | null>(null);
-  const onEngine = useCallback((e: Engine | null) => {
-    engineRef.current = e;
-    setEngine(e);
-  }, []);
+  const onEngine = useCallback(
+    (e: Engine | null) => {
+      engineRef.current = e;
+      const saved = savedViews.get(id);
+      if (e && saved) e.scene.setView(saved);
+      setEngine(e);
+    },
+    [id],
+  );
+  const onViewFailed = useCallback(() => setViewFailed(true), []);
+  const [showTemplate, setShowTemplate] = useState(false);
+  const showTemplateRef = useRef(showTemplate);
+  showTemplateRef.current = showTemplate;
 
   // Thumbnail: after an apply, and when leaving if something changed (or the project has none).
   const { mutateAsync: setThumb } = useSetThumb();
   const thumbRevision = useRef(useAtelierEditor.getState().revision);
   const sendThumb = useCallback(
     (e: Engine) => {
-      e.baker.upgrade();
+      // A lost context draws nothing: keep the thumbnail there is.
+      if (e.scene.contextLost()) return;
       thumbRevision.current = useAtelierEditor.getState().revision;
-      e.scene
-        .thumbnailPng(THUMB_SIZE)
-        .then((png) => setThumb({ id, png }))
-        .catch((err: unknown) => console.warn('Atelier: thumbnail not saved', err));
+      // The picture shows the paint, never the Template comparison.
+      const template = showTemplateRef.current;
+      if (template) e.baker.setShowTemplate(false);
+      let png: Promise<Uint8Array>;
+      try {
+        e.baker.upgrade();
+        png = e.scene.thumbnailPng(THUMB_SIZE);
+      } finally {
+        if (template) e.baker.setShowTemplate(true);
+      }
+      png.then((bytes) => setThumb({ id, png: bytes })).catch((err: unknown) => console.warn('Atelier: thumbnail not saved', err));
     },
     [id, setThumb],
   );
   const onBeforeDispose = useCallback(
     (e: Engine) => {
+      savedViews.set(id, e.scene.view());
       const hasThumb = qc.getQueryData<AtelierProjectSummary[]>(ATELIER_PROJECTS_KEY)?.find((p) => p.id === id)?.hasThumb;
       if (useAtelierEditor.getState().revision !== thumbRevision.current || hasThumb === false) sendThumb(e);
     },
@@ -123,19 +140,31 @@ export function Editor({ id }: { id: string }) {
     [id],
   );
 
-  // Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z: the editor's history (text fields keep their own).
+  // Editing is locked while an apply runs: what was saved is what gets baked.
+  const locked = apply.state.running;
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
+  const gridRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    gridRef.current?.toggleAttribute('inert', locked);
+  });
+
+  // Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z: the editor's history (text fields keep their own). Taken only
+  // when there is something to undo or redo, otherwise the window's toast Undo gets the key.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey || isTypingTarget(e.target) || e.defaultPrevented) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       const key = e.key.toLowerCase();
       const store = useAtelierEditor.getState();
-      if (key === 'z' && !e.shiftKey) {
+      const undo = key === 'z' && !e.shiftKey;
+      const redo = key === 'y' || (key === 'z' && e.shiftKey);
+      if (undo && store.past.length > 0 && !store.stroking) {
         e.preventDefault();
-        store.undo();
-      } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        if (!lockedRef.current) store.undo();
+      } else if (redo && store.future.length > 0 && !store.stroking) {
         e.preventDefault();
-        store.redo();
+        if (!lockedRef.current) store.redo();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -155,7 +184,6 @@ export function Editor({ id }: { id: string }) {
     [],
   );
 
-  const [showTemplate, setShowTemplate] = useState(false);
   const [brushUi, setBrushUi] = useState<BrushUi>({ size: BRUSH_DEFAULT, hardness: HARDNESS_DEFAULT, erase: false, part: 'all' });
   const onBrush = useCallback((patch: Partial<BrushUi>) => setBrushUi((b) => ({ ...b, ...patch })), []);
   const mask = useAtelierEditor((s) => maskOf(s.layers));
@@ -179,9 +207,11 @@ export function Editor({ id }: { id: string }) {
     ? null
     : enabledSlots(project, model.data).length === 0
       ? t('atelier.apply.nothing')
-      : engine === null
-        ? t('atelier.apply.notReady')
-        : null;
+      : viewFailed
+        ? t('atelier.apply.noView')
+        : engine === null
+          ? t('atelier.apply.notReady')
+          : null;
 
   return (
     <section aria-label={project.name} className="flex h-full min-h-0 flex-col">
@@ -193,8 +223,9 @@ export function Editor({ id }: { id: string }) {
         apply={apply.state}
         applyBlocked={blocked}
         onApply={() => void apply.start()}
+        locked={locked}
       />
-      <div className={GRID}>
+      <div ref={gridRef} aria-busy={locked || undefined} className={GRID}>
         <aside aria-label={t('atelier.editor.sidebar')} className="flex min-h-0 flex-col overflow-y-auto border-r border-line-2 bg-bg-1">
           <LayersPanel />
           <PartsList model={model.data} />
@@ -207,6 +238,7 @@ export function Editor({ id }: { id: string }) {
           brush={brush}
           onEngine={onEngine}
           onBeforeDispose={onBeforeDispose}
+          onFailed={onViewFailed}
         />
         <PropertiesPanel brush={brushUi} onBrush={onBrush} />
       </div>

@@ -1,7 +1,7 @@
 import { createContext } from 'react';
 import * as THREE from 'three';
 import { Baker, type TemplateImage } from '@/atelier/gl/baker';
-import { EditorScene, type QuickView, type SceneHit } from '@/atelier/gl/scene';
+import { EditorScene, type OrbitState, type QuickView, type SceneHit } from '@/atelier/gl/scene';
 import type { VehicleModelData } from '@/atelier/modelBuffer';
 import type { Vec3 } from '@/atelier/project';
 
@@ -22,6 +22,9 @@ export interface EngineScene {
   pixelRadius(radius: number, distance: number): number;
   raycast(x: number, y: number): SceneHit | null;
   thumbnailPng(size?: number): Promise<Uint8Array>;
+  view(): OrbitState;
+  setView(view: OrbitState): void;
+  contextLost(): boolean;
 }
 
 /** What the editor uses of the Baker. */
@@ -56,6 +59,7 @@ export const createEngine: EngineFactory = ({ canvas, model, templates }) => {
     baker?.dispose();
     scene?.dispose();
     renderer.dispose();
+    renderer.forceContextLoss();
     throw e;
   }
   const s = scene;

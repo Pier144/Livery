@@ -31,6 +31,8 @@ interface ViewportProps {
   onEngine: (engine: Engine | null) => void;
   /** Called right before the engine is disposed (the last chance to read the view, e.g. a thumbnail). */
   onBeforeDispose?: (engine: Engine) => void;
+  /** The engine couldn't start (no WebGL context): the view shows why. */
+  onFailed?: () => void;
 }
 
 type Drag = { kind: 'orbit' | 'pan'; x: number; y: number } | { kind: 'paint' };
@@ -48,7 +50,7 @@ const MAX_SAMPLES = 8;
  * left drag adds a Protected-areas stroke: raycasts run once per animation frame and a point is
  * added whenever the brush moved a third of its radius.
  */
-export function Viewport({ model, templates, label, showTemplate, brush, onEngine, onBeforeDispose }: ViewportProps) {
+export function Viewport({ model, templates, label, showTemplate, brush, onEngine, onBeforeDispose, onFailed }: ViewportProps) {
   const { t } = useTranslation();
   const factory = useContext(EngineContext);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -63,8 +65,10 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
   const frame = useRef<number | null>(null);
   const brushRef = useRef(brush);
   brushRef.current = brush;
-  const callbacks = useRef({ onEngine, onBeforeDispose });
-  callbacks.current = { onEngine, onBeforeDispose };
+  const callbacks = useRef({ onEngine, onBeforeDispose, onFailed });
+  callbacks.current = { onEngine, onBeforeDispose, onFailed };
+  const showTemplateRef = useRef(showTemplate);
+  showTemplateRef.current = showTemplate;
 
   // The engine lives as long as the model and templates; the store's layers and slots drive the bake.
   useEffect(() => {
@@ -81,9 +85,12 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
       console.error('Atelier: the 3D view could not start', e);
       canvas.remove();
       setFailed(true);
+      callbacks.current.onFailed?.();
       return;
     }
     engineRef.current = engine;
+    // A new engine starts showing the paint: give it the Template toggle as it is.
+    engine.baker.setShowTemplate(showTemplateRef.current);
     const sync = (s = useAtelierEditor.getState()) => {
       if (!s.project) return;
       engine.baker.setLayers(s.layers, enabledSlots(s.project, model));
@@ -112,7 +119,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
 
   useEffect(() => {
     engineRef.current?.baker.setShowTemplate(showTemplate);
-  }, [showTemplate, failed]);
+  }, [showTemplate]);
 
   // Leaving brush mode (another layer, the mask hidden) ends a stroke and hides the cursor.
   const brushOn = brush !== null;
@@ -251,8 +258,23 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
   const endDrag = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     if (!d) return;
+    if (d.kind === 'paint') {
+      // The way to where the button was released belongs to the stroke too.
+      pointer.current = local(e);
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = null;
+      trace();
+    }
     drag.current = null;
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (d.kind === 'paint') useAtelierEditor.getState().endStroke();
+  };
+
+  /** The pointer was taken away (another window, a touch cancel): the drag ends where it was. */
+  const onLostCapture = () => {
+    const d = drag.current;
+    if (!d) return;
+    drag.current = null;
     if (d.kind === 'paint') useAtelierEditor.getState().endStroke();
   };
 
@@ -296,7 +318,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
       <div
         ref={hostRef}
         tabIndex={0}
-        role="img"
+        role="application"
         aria-label={label}
         aria-describedby={helpId}
         className={cn(
@@ -307,6 +329,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onLostPointerCapture={onLostCapture}
         onPointerLeave={onPointerLeave}
         onContextMenu={(e) => e.preventDefault()}
         onKeyDown={onKeyDown}

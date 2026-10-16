@@ -117,6 +117,9 @@ function stubEngine() {
         distance: 3,
       })),
       thumbnailPng: vi.fn(async () => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+      view: vi.fn(() => ({ target: [0, 0, 0] as [number, number, number], radius: 4, theta: 0.5, phi: 1 })),
+      setView: vi.fn(),
+      contextLost: vi.fn(() => false),
     },
     baker: {
       setLayers: vi.fn(),
@@ -153,7 +156,7 @@ function renderEditor(p: AtelierProject = project()) {
 
 /** The editor once the model, templates and engine are in. */
 async function ready() {
-  await screen.findByRole('img', { name: /3D view of/ });
+  await screen.findByRole('application', { name: /3D view of/ });
   await waitFor(() => expect(engine.baker.setLayers).toHaveBeenCalled());
 }
 
@@ -234,7 +237,7 @@ describe('Atelier editor', () => {
     await ready();
     await user.click(screen.getByRole('button', { name: 'Protected areas' }));
     expect(screen.getByRole('radiogroup', { name: 'Tool' })).toBeInTheDocument();
-    const view = screen.getByRole('img', { name: /3D view of/ });
+    const view = screen.getByRole('application', { name: /3D view of/ });
     fireEvent.pointerDown(view, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
     fireEvent.pointerUp(view, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
     const mask = maskOf(useAtelierEditor.getState().layers)!;
@@ -253,7 +256,7 @@ describe('Atelier editor', () => {
     renderEditor();
     await ready();
     await user.click(screen.getByRole('button', { name: 'Protected areas' }));
-    const view = screen.getByRole('img', { name: /3D view of/ });
+    const view = screen.getByRole('application', { name: /3D view of/ });
     fireEvent.pointerDown(view, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
     fireEvent.pointerUp(view, { button: 0, pointerId: 1 });
     await user.click(screen.getByRole('button', { name: 'Hide Protected areas' }));
@@ -297,9 +300,17 @@ describe('Atelier editor', () => {
     const bar = screen.getByRole('progressbar', { name: 'Applying to the game' });
     expect(bar).toHaveAttribute('aria-valuenow', '95');
     expect(bar).toHaveAttribute('aria-valuetext', 'Installing');
-    expect(screen.queryByRole('button', { name: 'Apply to game' })).not.toBeInTheDocument();
+    // The same button, doing nothing while the apply runs (focus stays on it).
+    const button = screen.getByRole('button', { name: /Installing/ });
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    // The editor is locked: panels and view inert, undo ignored.
+    expect(screen.getByRole('application', { name: /3D view of/ }).closest('[inert]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Project name' })).toHaveAttribute('readonly');
     await act(async () => release({ skin: SKIN }));
-    expect(await screen.findByRole('button', { name: 'Apply to game' })).toBeEnabled();
+    expect(await screen.findByRole('button', { name: 'Apply to game' })).toBe(button);
+    expect(button.closest('[inert]')).toBeNull();
+    expect(document.querySelector('[inert]')).toBeNull();
   });
 
   it('a replace offers Undo, which restores the previous version; a downscaled bake says so', async () => {
@@ -358,4 +369,212 @@ describe('Atelier editor', () => {
     await user.type(name, '   {Enter}');
     expect(name).toHaveValue('Winter');
   });
+  it('does nothing when the project can’t be saved first', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    backend.call.mockImplementation(async (cmd, args) =>
+      cmd === 'atelier_project_save' ? Promise.reject({ code: 'io', message: 'Could not save the Atelier project' }) : answer(cmd, args),
+    );
+    // Something to save (the Base change), so the flush tries and fails.
+    await user.click(screen.getByRole('radio', { name: 'Camo' }));
+    await user.click(screen.getByRole('button', { name: 'Apply to game' }));
+    await waitFor(() => expect(toastTexts()).toContain('The project couldn’t be saved, so nothing was applied.'), { timeout: 3000 });
+    expect(calls('atelier_apply_begin')).toEqual([]);
+    expect(engine.baker.bakeForExport).not.toHaveBeenCalled();
+  });
+
+  it('a failed begin toasts the reason and has nothing to cancel', async () => {
+    const user = userEvent.setup();
+    begin = () => Promise.reject({ code: 'invalidInput', message: 'Turn on at least one part to apply' });
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Apply to game' }));
+    await waitFor(() => expect(toastTexts()).toHaveLength(1), { timeout: 3000 });
+    expect(calls('atelier_apply_cancel')).toEqual([]);
+    expect(engine.baker.bakeForExport).not.toHaveBeenCalled();
+  });
+
+  it('a bake that fails mid-way (the view lost) cancels the apply and says the view stopped', async () => {
+    const user = userEvent.setup();
+    engine.baker.bakeForExport.mockImplementation((slot: string) => {
+      if (slot.endsWith('_turret_c')) throw new Error('Baker: the WebGL context is lost');
+      return { rgba: new Uint8Array(MOCK_TEXTURE_SIZE * MOCK_TEXTURE_SIZE * 4), w: MOCK_TEXTURE_SIZE, h: MOCK_TEXTURE_SIZE, downscaled: false };
+    });
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Apply to game' }));
+    await waitFor(() => expect(calls('atelier_apply_cancel')).toEqual([{ applyId: 'a1' }]), { timeout: 3000 });
+    expect(backend.callRaw.mock.calls.filter(([c]) => c === 'atelier_apply_texture')).toHaveLength(1);
+    expect(calls('atelier_apply_commit')).toEqual([]);
+    expect(toastTexts()).toContain('The 3D view stopped working (the graphics driver may have restarted). Nothing was applied: try again.');
+  });
+
+  it('a failed commit toasts the reason without cancelling (the backend already ended the apply)', async () => {
+    const user = userEvent.setup();
+    commit = () => Promise.reject({ code: 'io', message: "The skin couldn't be applied to the game" });
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Apply to game' }));
+    await waitFor(() => expect(calls('atelier_apply_commit')).toHaveLength(1), { timeout: 3000 });
+    await waitFor(() => expect(toastTexts()).toHaveLength(1));
+    expect(calls('atelier_apply_cancel')).toEqual([]);
+    expect(useAtelierEditor.getState().project?.installedSkinId).toBeUndefined();
+    expect(await screen.findByRole('button', { name: 'Apply to game' })).toBeEnabled();
+  });
+
+  it('a double click applies once', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await user.dblClick(screen.getByRole('button', { name: 'Apply to game' }));
+    await waitFor(() => expect(calls('atelier_apply_commit')).toHaveLength(1), { timeout: 3000 });
+    expect(calls('atelier_apply_begin')).toHaveLength(1);
+  });
+
+  it('bakes the saved layers, with the Baker given them again before each slot', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('radio', { name: 'Camo' }));
+    await user.click(screen.getByRole('button', { name: 'Apply to game' }));
+    await waitFor(() => expect(calls('atelier_apply_commit')).toHaveLength(1), { timeout: 3000 });
+    const saved = stored.layers[0] as BaseLayer;
+    expect(saved.mode).toBe('camo');
+    const bakes = engine.baker.bakeForExport.mock.invocationCallOrder;
+    const sets = engine.baker.setLayers.mock.invocationCallOrder;
+    for (const at of bakes) {
+      const before = engine.baker.setLayers.mock.calls[sets.filter((n) => n < at).length - 1]!;
+      expect((before[0] as BaseLayer[])[0]).toMatchObject({ mode: 'camo', colors: saved.colors });
+    }
+  });
+
+  it('Ctrl+Z goes to the toast Undo when the editor has nothing to undo', async () => {
+    renderEditor(project({ layers: [{ id: 'b', kind: 'base', name: '', visible: true, mode: 'solid', colors: ['#56603f'], scale: 1, seed: 1 }] }));
+    await ready();
+    const undone = vi.fn();
+    act(() => {
+      useToasts.getState().push({ message: 'Deleted 1 skin', onUndo: undone });
+    });
+    const event = new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('Ctrl+Z on a slider still undoes the editor (sliders, colour wells and checkboxes aren’t text)', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('radio', { name: 'Camo' }));
+    const slider = screen.getByRole('slider', { name: 'Pattern size' });
+    slider.focus();
+    await user.keyboard('{Control>}z{/Control}');
+    expect((useAtelierEditor.getState().layers[0] as BaseLayer).mode).toBe('solid');
+  });
+
+  it('lists the vehicle’s own parts first and the shared ones under their heading, with friendly names', async () => {
+    const model = encodeMockModel(TIGER);
+    stored = project();
+    backend.call.mockImplementation(async (cmd, args) => {
+      if (cmd === 'atelier_model') return withSharedSlots(model);
+      if (cmd === 'atelier_template_texture') return Promise.reject({ code: 'notFound', message: "A texture of this vehicle isn't in the game's files" });
+      return answer(cmd, args);
+    });
+    renderEditor(
+      project({
+        slots: [
+          { texture: 'mg_m2hb_c', enabled: false },
+          { texture: SLOTS[2]!, enabled: true },
+          { texture: 'track_t48_c', enabled: false },
+          { texture: SLOTS[0]!, enabled: true },
+          { texture: SLOTS[1]!, enabled: true },
+        ],
+      }),
+    );
+    await screen.findByRole('application', { name: /3D view of/ });
+    const parts = screen.getByRole('region', { name: 'Parts' });
+    expect(within(parts).getAllByRole('switch').map((s) => s.getAttribute('aria-label') ?? '')).toEqual([
+      'Paint Body',
+      'Paint Turret',
+      'Paint Gun',
+      'Paint Machine gun m2hb',
+      'Paint Track t48',
+      '',
+    ]);
+    expect(within(parts).getByRole('heading', { name: 'Shared parts' })).toBeInTheDocument();
+  });
+
+  it('turns High quality off (with the reason) while the body isn’t painted', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    const hq = screen.getByRole('switch', { name: 'High quality body (4096)' });
+    expect(hq).toBeEnabled();
+    await user.click(screen.getByRole('switch', { name: 'Paint Body' }));
+    expect(hq).toBeDisabled();
+    expect(screen.getByText('Turn on the body to use high quality.')).toBeInTheDocument();
+  });
+
+  it('adds a camo colour clearly different from the others', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('radio', { name: 'Camo' }));
+    await user.click(screen.getByRole('button', { name: 'Add a colour' }));
+    const colors = (useAtelierEditor.getState().layers[0] as BaseLayer).colors;
+    expect(colors).toHaveLength(3);
+    expect(new Set(colors).size).toBe(3);
+  });
+
+  it('remembers the camera of each project for the session', async () => {
+    // A project no other test opened (the cameras are kept for the session).
+    const first = renderEditor(project({ id: 'p-camera' }));
+    await ready();
+    expect(engine.scene.setView).not.toHaveBeenCalled();
+    act(() => useAtelierUi.getState().close());
+    first.unmount();
+    engine = stubEngine();
+    renderEditor(project({ id: 'p-camera' }));
+    await ready();
+    expect(engine.scene.setView).toHaveBeenCalledWith({ target: [0, 0, 0], radius: 4, theta: 0.5, phi: 1 });
+  });
+
+  it('a thumbnail shows the paint even in Template mode, and none is taken with the context lost', async () => {
+    const user = userEvent.setup();
+    const first = renderEditor();
+    await ready();
+    await user.click(screen.getByRole('radio', { name: 'Template' }));
+    engine.baker.setShowTemplate.mockClear();
+    await user.click(screen.getByRole('button', { name: 'Apply to game' }));
+    await waitFor(() => expect(engine.scene.thumbnailPng).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(engine.baker.setShowTemplate.mock.calls).toEqual([[false], [true]]);
+    expect(engine.baker.setShowTemplate.mock.invocationCallOrder[0]!).toBeLessThan(engine.scene.thumbnailPng.mock.invocationCallOrder[0]!);
+    // Leaving with a change and a lost context: no thumbnail.
+    await user.click(screen.getByRole('radio', { name: 'Paint' }));
+    await user.click(screen.getByRole('radio', { name: 'Camo' }));
+    engine.scene.contextLost.mockReturnValue(true);
+    act(() => useAtelierUi.getState().close());
+    first.unmount();
+    expect(engine.scene.thumbnailPng).toHaveBeenCalledTimes(1);
+  });
 });
+
+/** The mock model with two shared slots (a machine gun and a track) added to its header, not painted by default. */
+function withSharedSlots(buf: ArrayBuffer): ArrayBuffer {
+  const view = new DataView(buf);
+  const len = view.getUint32(4, true);
+  const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, len)).trimEnd()) as { slots: unknown[] };
+  header.slots.push(
+    { texture: 'mg_m2hb_c', width: 64, height: 64, hq: true, paintableByDefault: false },
+    { texture: 'track_t48_c', width: 64, height: 64, hq: true, paintableByDefault: false },
+  );
+  const json = new TextEncoder().encode(JSON.stringify(header));
+  const padded = Math.ceil(json.length / 4) * 4;
+  const out = new Uint8Array(8 + padded + (buf.byteLength - 8 - len));
+  out.set(new Uint8Array(buf, 0, 4), 0);
+  new DataView(out.buffer).setUint32(4, padded, true);
+  out.fill(0x20, 8, 8 + padded);
+  out.set(json, 8);
+  out.set(new Uint8Array(buf, 8 + len), 8 + padded);
+  return out.buffer;
+}
