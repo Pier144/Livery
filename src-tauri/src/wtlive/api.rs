@@ -556,11 +556,17 @@ pub fn vehicle_tags(code: &str) -> Vec<String> {
     out
 }
 
-/// Whether a post is for the vehicle `code`: same vehicle, or one of its hashtags is one
-/// [`vehicle_tags`] gives (compared squashed).
+/// Whether a post is for the vehicle `code`: matched to that vehicle, or one of its hashtags is one
+/// [`vehicle_tags`] gives (compared squashed). The hashtag counts even when the post was matched to
+/// another vehicle: a pack names several vehicles and is matched to the first, and a national
+/// copy's skins (`i-15bis_china`) are matched to the original.
 pub fn is_for_vehicle(post: &Post, code: &str) -> bool {
-    if !post.skin.vehicle.code.is_empty() {
-        return post.skin.vehicle.code.eq_ignore_ascii_case(code.trim());
+    let code = code.trim();
+    if code.is_empty() {
+        return false;
+    }
+    if post.skin.vehicle.code.eq_ignore_ascii_case(code) {
+        return true;
     }
     let wanted: Vec<String> = vehicle_tags(code).iter().map(|t| squash(t)).collect();
     post.tags.iter().any(|t| wanted.contains(&squash(t)))

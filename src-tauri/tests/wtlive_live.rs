@@ -523,6 +523,23 @@ fn vehicle_top_keeps_three_for_the_vehicle() {
 }
 
 #[test]
+fn vehicle_top_keeps_a_post_carrying_the_vehicles_hashtag_whatever_it_was_matched_to() {
+    // A pack for several vehicles is matched to the first one it names (the Su-27 here), and a
+    // national copy's skins to the original; a hashtag of the asked vehicle still counts, as in
+    // Explore filtered by that vehicle.
+    let transport = FakeTransport::new(|_, _| {
+        Ok(feed_json(&[
+            fake(1, (7, "S"), &["su_27", "t_34_85"], 3),
+            fake(2, (7, "S"), &["su_27"], 2),
+            fake(3, (7, "S"), &["t3485"], 1),
+        ]))
+    });
+    let env = Env::new("top-pack", transport);
+    let top = env.client.vehicle_top("ussr_t_34_85").unwrap();
+    assert_eq!(top.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), ["1", "3"]);
+}
+
+#[test]
 fn vehicle_top_of_a_code_without_tags_asks_nothing() {
     let env = Env::new("top-no-tags", catalogue(1, |_| vec![]));
     for code in ["a", "#", " x ", "!?"] {
