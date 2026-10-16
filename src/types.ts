@@ -308,3 +308,48 @@ export interface FeedbackDiagnostics {
   /** The last lines of livery.log, oldest first. */
   logTail: string[];
 }
+
+// ── For you (lineups from the War Thunder profile) ───────────────────────────
+
+/**
+ * `game_lineups`: `off` (Settings → Game → Read data from the game is off: nothing read),
+ * `noProfile` (no War Thunder profile on this PC), `noLineups` (a profile without a usable lineup).
+ */
+export type LineupsStatus = 'ok' | 'off' | 'noProfile' | 'noLineups';
+/** The player's lineups (slotbar presets), read from War Thunder's profile file. */
+export interface Lineups {
+  status: LineupsStatus;
+  /** RFC 3339: when the game last wrote the profile file (serde sends `null` for none). */
+  savedAt?: string | null;
+  /** The vehicle selected in the hangar right now. */
+  current?: string | null;
+  currentNation?: Nation | null;
+  /** Game nation order; nations without a usable preset are left out. */
+  nations: NationLineups[];
+}
+export interface NationLineups {
+  nation: Nation;
+  /** File order. */
+  presets: Preset[];
+}
+/** One lineup (slotbar preset) of a nation. */
+export interface Preset {
+  /** The player's text, trimmed; empty → the UI shows "Preset N". */
+  name: string;
+  active: boolean;
+  /** Vehicle codes, file order, no empty or duplicate codes. */
+  vehicles: string[];
+}
+/** A new skin for For you, with the lineup vehicle it was matched to. */
+export interface ForYouSkin {
+  vehicle: string;
+  skin: WtLiveSkin;
+}
+/**
+ * `wtlive_for_you_new`: new skins, and how many vehicles from the start of the asked list were
+ * covered (the rest weren't checked: request cap or a failed later request).
+ */
+export interface ForYouNew {
+  items: ForYouSkin[];
+  checked: number;
+}

@@ -8,10 +8,12 @@ import {
   type DeleteResult,
   type DetectEvent,
   type FollowEntry,
+  type ForYouNew,
   type GameDetection,
   type HangarSkin,
   type InstallProgress,
   type InstallStarted,
+  type Lineups,
   type NetStatus,
   type QueueItem,
   type SearchResult,
@@ -1101,6 +1103,94 @@ describe('mock backend · following', () => {
     resetMockBackend();
     expect(await call('following_list')).toEqual([]);
     expect((await search()).total).toBe(16);
+  });
+});
+
+describe('mock backend · For you', () => {
+  const LINEUP = ['us_m1a2_sep', 'us_m4_t26', 'f_4e', 'germ_leopard_2a6', 'bf-109g-6', 'germ_pzkpfw_VI_ausf_b_tiger_IIH'];
+  const forYouNew = (vehicles: string[]) => call<ForYouNew>('wtlive_for_you_new', { vehicles });
+  const top = async (code: string) => (await call<WtLiveSkin[]>('wtlive_vehicle_top', { code })).map((s) => s.id);
+
+  it('game_lineups: no profile without a game folder, the seeded lineups with one, off when the game is not read', async () => {
+    expect(await call<Lineups>('game_lineups')).toEqual({ status: 'noProfile', nations: [] });
+    await onboard();
+    const lineups = await call<Lineups>('game_lineups');
+    expect(lineups).toMatchObject({ status: 'ok', current: 'us_m1a2_sep', currentNation: 'USA' });
+    expect(lineups.nations.map((n) => n.nation)).toEqual(['USA', 'GER', 'USSR', 'GBR', 'ITA']);
+    expect(lineups.nations[0]?.presets).toEqual([
+      { name: 'Army', active: true, vehicles: ['us_m1a2_sep', 'us_m4_t26'] },
+      { name: 'Air', active: false, vehicles: ['f_4e'] },
+    ]);
+    const saved = Date.parse(lineups.savedAt ?? '');
+    expect(saved).toBeLessThanOrEqual(Date.now());
+    expect(new Date(saved).getMinutes()).toBe(34);
+
+    await call('set_settings', { patch: { readGameData: false } });
+    expect(await call<Lineups>('game_lineups')).toEqual({ status: 'off', nations: [] });
+  });
+
+  it('game_lineups is local: it works offline and with browsing off', async () => {
+    await onboard();
+    await call('set_settings', { patch: { wtliveEnabled: false } });
+    localStorage.setItem('livery.mock.offline', '1');
+    try {
+      expect((await call<Lineups>('game_lineups')).status).toBe('ok');
+    } finally {
+      localStorage.removeItem('livery.mock.offline');
+    }
+  });
+
+  it('wtlive_vehicle_top: the 3 most downloaded visible posts of the code', async () => {
+    expect(await top('germ_leopard_2a6')).toEqual(['s4', 's14', 's11']);
+    expect(await top(' F_4E ')).toEqual(['s6', 's12']);
+    expect(await top('us_m4_t26')).toEqual([]);
+    expect(await top(' ')).toEqual([]);
+    await call('wtlive_set_hidden', { id: 's14', hidden: true });
+    expect(await top('germ_leopard_2a6')).toEqual(['s4', 's11']);
+  });
+
+  it('wtlive_for_you_new: posts of the asked codes since last seen, newest first; mark seen empties it', async () => {
+    const statuses: NetStatus[] = [];
+    mockListen<NetStatus>(EVENTS.netStatus, (s) => statuses.push(s));
+    const fresh = await forYouNew(LINEUP);
+    expect(fresh.checked).toBe(LINEUP.length);
+    expect(fresh.items.map((i) => [i.vehicle, i.skin.id, i.skin.isNew])).toEqual([
+      ['germ_leopard_2a6', 's14', true],
+      ['germ_leopard_2a6', 's11', true],
+    ]);
+    // Only the asked vehicles count.
+    expect(await forYouNew(['f_4e', 'su_27'])).toEqual({ items: [], checked: 2 });
+    expect(await forYouNew([])).toEqual({ items: [], checked: 0 });
+    await call('wtlive_set_hidden', { id: 's11', hidden: true });
+    expect((await forYouNew(LINEUP)).items.map((i) => i.skin.id)).toEqual(['s14']);
+
+    const before = await call<string>('for_you_seen');
+    const seen = await call<string>('for_you_mark_seen');
+    expect(Date.parse(seen)).toBeGreaterThan(Date.parse(before));
+    expect(await call<string>('for_you_seen')).toBe(seen);
+    expect(await forYouNew(LINEUP)).toEqual({ items: [], checked: LINEUP.length });
+    expect(statuses.every((s) => s.online)).toBe(true);
+  });
+
+  it('WT Live calls follow browsing off and offline; seen state is local', async () => {
+    await call('set_settings', { patch: { wtliveEnabled: false } });
+    const off = { code: 'unsupported', message: 'WT Live browsing is turned off in Settings' };
+    expect(await rejection(top('su_27'))).toEqual(off);
+    expect(await rejection(forYouNew(['su_27']))).toEqual(off);
+    expect(typeof (await call<string>('for_you_mark_seen'))).toBe('string');
+    await call('set_settings', { patch: { wtliveEnabled: true } });
+
+    localStorage.setItem('livery.mock.offline', '1');
+    try {
+      const network = { code: 'network', message: "WT Live can't be reached" };
+      expect(await rejection(top('su_27'))).toEqual(network);
+      expect(await rejection(forYouNew(['su_27']))).toEqual(network);
+      expect(typeof (await call<string>('for_you_seen'))).toBe('string');
+    } finally {
+      localStorage.removeItem('livery.mock.offline');
+    }
+    expect(await rejection(call('wtlive_vehicle_top', {}))).toMatchObject({ code: 'internal' });
+    expect(await rejection(call('wtlive_for_you_new', { vehicles: [1] }))).toMatchObject({ code: 'internal' });
   });
 });
 

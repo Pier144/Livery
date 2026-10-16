@@ -18,6 +18,7 @@ import {
   type ConflictPolicy,
   type FollowEntry,
   type FollowKind,
+  type ForYouNew,
   type HangarSkin,
   type InstallMode,
   type InstallStarted,
@@ -195,6 +196,55 @@ export function useMarkFollowingSeen() {
   });
 }
 
+// ── For you ──────────────────────────────────────────────────────────────────
+
+/**
+ * For you: the 3 most downloaded skins of one lineup vehicle (`wtlive_vehicle_top`, one WT Live
+ * request). Each row of the virtual list asks for its own, so only the rows on screen fetch.
+ */
+export function useVehicleTop(code: string, { enabled: wanted = true }: { enabled?: boolean } = {}) {
+  const enabled = useWtLiveEnabled();
+  return useQuery<WtLiveSkin[], AppError>({
+    queryKey: [...WTLIVE_KEY, 'vehicle-top', code],
+    queryFn: () => tracked(() => call<WtLiveSkin[]>('wtlive_vehicle_top', { code })),
+    enabled: wanted && enabled,
+    staleTime: 30 * 60_000,
+  });
+}
+
+/**
+ * New skins for the lineup vehicles (`vehicles` in display order) since For you was last seen.
+ * Up to 10 WT Live requests, so it is fetched only where `fetch` is true (the For you tab, once
+ * its rows have loaded); elsewhere (the "N new" pill) it only reads what that tab fetched.
+ */
+export function useForYouNew(vehicles: readonly string[], { fetch = true }: { fetch?: boolean } = {}) {
+  const enabled = useWtLiveEnabled();
+  return useQuery<ForYouNew, AppError>({
+    queryKey: [...WTLIVE_KEY, 'for-you-new', vehicles],
+    queryFn: () => tracked(() => call<ForYouNew>('wtlive_for_you_new', { vehicles })),
+    enabled: fetch && enabled && vehicles.length > 0,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Leaving the For you tab resets its "N new" (`for_you_mark_seen`, local). The cached answers keep
+ * how many vehicles were checked but hold nothing new any more, then they are invalidated.
+ */
+export function useMarkForYouSeen() {
+  const qc = useQueryClient();
+  return useMutation<string, AppError, void>({
+    mutationFn: () => call<string>('for_you_mark_seen'),
+    onSuccess: () => {
+      // Outside the tab the query doesn't refetch, so the pill must not keep the old count.
+      qc.setQueriesData<ForYouNew>({ queryKey: [...WTLIVE_KEY, 'for-you-new'] }, (old) =>
+        old ? { items: [], checked: old.checked } : old,
+      );
+      return qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'for-you-new'] });
+    },
+  });
+}
+
 /** Starts a download + install; progress arrives as `install://progress` (see src/store/installs.ts). */
 export function installFromWtLive(skinId: string, mode: InstallMode, conflict?: ConflictPolicy): Promise<InstallStarted> {
   return tracked(() => call<InstallStarted>('install_from_wtlive', conflict ? { skinId, mode, conflict } : { skinId, mode }));
@@ -235,14 +285,16 @@ export function useClearWtLiveCache() {
 }
 
 /**
- * The WT Live lists a hide or unhide changes: Explore's searches and Following's new skins (posts
- * stay: a hidden skin's detail still opens, e.g. from My Hangar).
+ * The WT Live lists a hide or unhide changes: Explore's searches, Following's new skins and For
+ * you's top and new skins (posts stay: a hidden skin's detail still opens, e.g. from My Hangar).
  */
 function invalidateWtLiveLists(qc: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'search-pages'] }),
     qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'search'] }),
     qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'following-new'] }),
+    qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'vehicle-top'] }),
+    qc.invalidateQueries({ queryKey: [...WTLIVE_KEY, 'for-you-new'] }),
   ]);
 }
 
@@ -256,6 +308,10 @@ function pruneHidden(qc: ReturnType<typeof useQueryClient>, id: string) {
     data ? { ...data, items: data.items.filter(keep) } : data,
   );
   qc.setQueriesData<WtLiveSkin[]>({ queryKey: [...WTLIVE_KEY, 'following-new'] }, (data) => data?.filter(keep));
+  qc.setQueriesData<WtLiveSkin[]>({ queryKey: [...WTLIVE_KEY, 'vehicle-top'] }, (data) => data?.filter(keep));
+  qc.setQueriesData<ForYouNew>({ queryKey: [...WTLIVE_KEY, 'for-you-new'] }, (data) =>
+    data ? { ...data, items: data.items.filter((i) => keep(i.skin)) } : data,
+  );
 }
 
 /**

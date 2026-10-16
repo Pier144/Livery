@@ -3,9 +3,9 @@ import type { ReactNode } from 'react';
 import { QueryClientProvider, type QueryKey } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/queries/client';
-import type { GameDetection } from '@/types';
+import type { GameDetection, Lineups } from '@/types';
 import { COLLECTIONS_KEY } from './collections';
-import { useSetGamePath } from './game';
+import { LINEUPS_KEY, useLineups, useSetGamePath } from './game';
 import { HANGAR_KEY } from './hangar';
 import { BACKUPS_KEY, DEFAULT_SETTINGS, SETTINGS_KEY } from './settings';
 
@@ -62,5 +62,30 @@ describe('useSetGamePath', () => {
     for (const queryKey of FOLDER_KEYS) {
       expect(client.getQueryState(queryKey)?.isInvalidated, JSON.stringify(queryKey)).toBe(false);
     }
+  });
+});
+
+describe('useLineups', () => {
+  const LINEUPS: Lineups = { status: 'ok', savedAt: '2026-10-16T08:34:00Z', current: 'su_27', currentNation: 'USSR', nations: [] };
+
+  it('reads only while enabled, keyed by Read data from the game', async () => {
+    backend.call.mockResolvedValue(LINEUPS);
+    const client = createQueryClient();
+    client.setQueryData(SETTINGS_KEY, DEFAULT_SETTINGS);
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result, rerender } = renderHook(({ enabled }) => useLineups({ enabled }), { wrapper, initialProps: { enabled: false } });
+    await act(() => new Promise((r) => setTimeout(r, 10)));
+    expect(backend.call).not.toHaveBeenCalled();
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data).toEqual(LINEUPS));
+    expect(backend.call).toHaveBeenCalledWith('game_lineups', undefined);
+    expect(client.getQueryData([...LINEUPS_KEY, true])).toEqual(LINEUPS);
+
+    // Switching the setting reads again under its own key.
+    backend.call.mockResolvedValue({ status: 'off', nations: [] } satisfies Lineups);
+    act(() => client.setQueryData(SETTINGS_KEY, { ...DEFAULT_SETTINGS, readGameData: false }));
+    await waitFor(() => expect(result.current.data?.status).toBe('off'));
+    expect(backend.call).toHaveBeenCalledTimes(2);
   });
 });

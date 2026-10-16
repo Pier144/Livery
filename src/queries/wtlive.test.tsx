@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/queries/client';
 import { useUi } from '@/store/ui';
 import { resetStores } from '@/test/render';
-import { EVENTS, type FollowEntry, type SearchParams, type SearchResult, type WtLiveSkin } from '@/types';
+import { EVENTS, type FollowEntry, type ForYouNew, type SearchParams, type SearchResult, type WtLiveSkin } from '@/types';
 import {
   FOLLOWING_KEY,
   WTLIVE_KEY,
@@ -13,10 +13,13 @@ import {
   isOfflineError,
   nextSearchPage,
   useFollowingNew,
+  useForYouNew,
   useMarkFollowingSeen,
+  useMarkForYouSeen,
   useNetStatusEvents,
   useSetFollow,
   useSetWtLiveHidden,
+  useVehicleTop,
   useWtLivePost,
   useWtLiveSearch,
   useWtLiveSearchPages,
@@ -118,6 +121,8 @@ describe('Browse WT Live off', () => {
         single: useWtLiveSearch({ sort: 'downloads', page: 0 }),
         post: useWtLivePost('s1'),
         fresh: useFollowingNew(entries),
+        top: useVehicleTop('su_27'),
+        forYou: useForYouNew(['su_27']),
       }),
       { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> },
     );
@@ -126,6 +131,8 @@ describe('Browse WT Live off', () => {
     expect(hooks.current.pages.fetchStatus).toBe('idle');
     expect(hooks.current.post.fetchStatus).toBe('idle');
     expect(hooks.current.fresh.fetchStatus).toBe('idle');
+    expect(hooks.current.top.fetchStatus).toBe('idle');
+    expect(hooks.current.forYou.fetchStatus).toBe('idle');
   });
 });
 
@@ -137,6 +144,10 @@ describe('useSetWtLiveHidden', () => {
     const freshKey = [...WTLIVE_KEY, 'following-new', ['su_27'], []];
     client.setQueryData(pagesKey, { pages: [found([item(1), item(2)])], pageParams: [0] });
     client.setQueryData(freshKey, [item(2), item(3)]);
+    const topKey = [...WTLIVE_KEY, 'vehicle-top', 'su_27'];
+    const forYouKey = [...WTLIVE_KEY, 'for-you-new', ['su_27']];
+    client.setQueryData(topKey, [item(1), item(2)]);
+    client.setQueryData<ForYouNew>(forYouKey, { items: [{ vehicle: 'su_27', skin: item(2) }], checked: 1 });
     client.setQueryData([...WTLIVE_KEY, 'post', 's2'], item(2));
     const { result: hook } = renderHook(() => useSetWtLiveHidden(), {
       wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
@@ -150,6 +161,11 @@ describe('useSetWtLiveHidden', () => {
     expect(client.getQueryData<WtLiveSkin[]>(freshKey)?.map((s) => s.id)).toEqual(['s3']);
     expect(client.getQueryState(pagesKey)?.isInvalidated).toBe(true);
     expect(client.getQueryState(freshKey)?.isInvalidated).toBe(true);
+    // For you's lists too.
+    expect(client.getQueryData<WtLiveSkin[]>(topKey)?.map((s) => s.id)).toEqual(['s1']);
+    expect(client.getQueryData<ForYouNew>(forYouKey)).toEqual({ items: [], checked: 1 });
+    expect(client.getQueryState(topKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(forYouKey)?.isInvalidated).toBe(true);
     // The post itself stays (an installed skin's detail still opens).
     expect(client.getQueryState([...WTLIVE_KEY, 'post', 's2'])?.isInvalidated).toBe(false);
   });
@@ -204,5 +220,63 @@ describe('useMarkFollowingSeen', () => {
     expect(client.getQueryData(FOLLOWING_KEY)).toEqual(seen);
     expect(client.getQueryState(freshKey)?.isInvalidated).toBe(true);
     expect(client.getQueryState([...WTLIVE_KEY, 'post', 's1'])?.isInvalidated, 'posts stay cached').toBe(false);
+  });
+});
+
+describe('For you', () => {
+  const clientWrapper =
+    (client: ReturnType<typeof createQueryClient>) =>
+    ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+
+  /** Settings already loaded, so the only calls are the hooks' own. */
+  const seeded = () => {
+    const client = createQueryClient();
+    client.setQueryData(SETTINGS_KEY, DEFAULT_SETTINGS);
+    return client;
+  };
+
+  it('useVehicleTop asks for one vehicle, only while enabled', async () => {
+    backend.call.mockResolvedValue([item(1)]);
+    const client = seeded();
+    const { result, rerender } = renderHook(({ enabled }) => useVehicleTop('su_27', { enabled }), {
+      wrapper: clientWrapper(client),
+      initialProps: { enabled: false },
+    });
+    await act(() => new Promise((r) => setTimeout(r, 10)));
+    expect(backend.call).not.toHaveBeenCalled();
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data).toEqual([item(1)]));
+    expect(backend.call).toHaveBeenCalledWith('wtlive_vehicle_top', { code: 'su_27' });
+    expect(client.getQueryData([...WTLIVE_KEY, 'vehicle-top', 'su_27'])).toEqual([item(1)]);
+  });
+
+  it('useForYouNew fetches where asked, reads the cache elsewhere, and never for no vehicles', async () => {
+    const answer: ForYouNew = { items: [{ vehicle: 'su_27', skin: item(9) }], checked: 2 };
+    backend.call.mockResolvedValue(answer);
+    const client = seeded();
+    const pill = renderHook(() => useForYouNew(['su_27', 'f_4e'], { fetch: false }), { wrapper: clientWrapper(client) });
+    renderHook(() => useForYouNew([]), { wrapper: clientWrapper(client) });
+    await act(() => new Promise((r) => setTimeout(r, 10)));
+    expect(backend.call).not.toHaveBeenCalled();
+
+    renderHook(() => useForYouNew(['su_27', 'f_4e']), { wrapper: clientWrapper(client) });
+    await waitFor(() => expect(pill.result.current.data).toEqual(answer));
+    expect(backend.call).toHaveBeenCalledTimes(1);
+    expect(backend.call).toHaveBeenCalledWith('wtlive_for_you_new', { vehicles: ['su_27', 'f_4e'] });
+  });
+
+  it('useMarkForYouSeen empties the cached new skins, keeps checked, and invalidates them', async () => {
+    backend.call.mockResolvedValue('2026-10-16T10:00:00Z');
+    const client = seeded();
+    const key = [...WTLIVE_KEY, 'for-you-new', ['su_27']];
+    client.setQueryData<ForYouNew>(key, { items: [{ vehicle: 'su_27', skin: item(9) }], checked: 1 });
+    client.setQueryData([...WTLIVE_KEY, 'vehicle-top', 'su_27'], [item(1)]);
+    const { result } = renderHook(() => useMarkForYouSeen(), { wrapper: clientWrapper(client) });
+
+    await act(() => result.current.mutateAsync());
+    expect(backend.call).toHaveBeenCalledWith('for_you_mark_seen', undefined);
+    expect(client.getQueryData(key)).toEqual({ items: [], checked: 1 });
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(client.getQueryState([...WTLIVE_KEY, 'vehicle-top', 'su_27'])?.isInvalidated, 'top skins stay').toBe(false);
   });
 });

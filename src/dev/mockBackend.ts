@@ -99,6 +99,18 @@
 // read_textures({ wtliveId }) reject `unsupported` "WT Live browsing is turned off in Settings"
 // (after their argument checks, before the offline switch) and emit no net://status.
 //
+// For you. `game_lineups` (local, works offline and with browsing off) answers `{ status: 'off' }`
+// while Settings → Game → Read data from the game is off, `noProfile` without a game folder, else
+// the seeded lineups (mockData `seedLineups`: USA Army active with the M1A2 SEP selected now, then
+// GER, USSR, GBR with an unnamed preset, ITA) saved today at 08:34. `wtlive_vehicle_top({ code })`
+// answers the code's visible posts by downloads, first 3 (a blank code: none).
+// `wtlive_for_you_new({ vehicles })` answers the visible posts of the asked codes posted after For
+// you was last seen, newest first, marked `isNew`, each with the asked code it matched (first in
+// list order), and `checked` = the list's length (the mock has no request cap). Last seen starts a
+// day before the newest seeded post, so Night Ops Matte and Baltic Winter (Leopard 2A6) are new;
+// `for_you_seen` reads it and `for_you_mark_seen` sets it to now (both local). Both WT Live calls
+// go through the same browsing-off, offline and net://status rules as the others.
+//
 // Start-up switches — a query parameter, or a localStorage key set to "1" (then reload):
 //   ?onboarded=1  livery.mock.onboarded  skip First run: onboarded, Steam game folder saved
 //   ?empty=1      livery.mock.empty      empty library, no collections, no backups, empty queue,
@@ -148,6 +160,8 @@ import {
   type InstallStarted,
   type InstallStep,
   type Language,
+  type Lineups,
+  type ForYouNew,
   type Nation,
   type NetStatus,
   type PostDescription,
@@ -178,6 +192,7 @@ import {
   seedDiskOnly,
   seedFollowing,
   seedHangar,
+  seedLineups,
   seedManyCatalog,
   seedManyHangar,
   seedQueue,
@@ -318,7 +333,12 @@ interface MockState extends RootLibrary {
   hidden: Set<string>;
   /** Size of the made-up WT Live cache (Settings → WT Live). */
   cacheBytes: number;
+  /** For you was last seen (`<appData>/for_you.json` in the real app), RFC 3339. */
+  forYouSeenAt: string;
 }
+
+/** Declared before `createState` runs at load. */
+const DAY_MS = 86_400_000;
 
 /** WT Live cache at start, and what each call that reaches WT Live adds to it. */
 const MOCK_CACHE_BYTES = 12_400_000;
@@ -351,9 +371,13 @@ function createState(): MockState {
     wtInstalling: new Set(),
     hidden: new Set(),
     cacheBytes: MOCK_CACHE_BYTES,
+    forYouSeenAt: '',
     triedBackups: new Map(),
     libraries: new Map(),
   };
+  // A day before the newest post, so a couple of posts are new on the first visit.
+  const newest = Math.max(...created.catalog.map((p) => Date.parse(p.postedAt)));
+  created.forYouSeenAt = stamp(newest - DAY_MS);
   if (onboarded) {
     created.libraryRoot = rootKey(MOCK_GAME.path);
     created.firstRoot = created.libraryRoot;
@@ -657,7 +681,6 @@ function setGamePath(args: Args): GameDetection {
 
 /** Seconds an ephemeral backup lives (`backup::EPHEMERAL_SECS`). */
 const EPHEMERAL_MS = 60_000;
-const DAY_MS = 86_400_000;
 
 function hasGameFolder(): boolean {
   return !!state.settings.gamePath?.trim();
@@ -1631,6 +1654,67 @@ function followingSet(args: Args): FollowEntry[] {
   return state.following;
 }
 
+// ── For you ─────────────────────────────────────────────────────────────────
+
+/** Today at 08:34 (yesterday's if that is still to come): when the mock profile was saved. */
+function profileSavedAt(): string {
+  const saved = new Date();
+  saved.setHours(8, 34, 0, 0);
+  if (saved.getTime() > Date.now()) saved.setTime(saved.getTime() - DAY_MS);
+  return stamp(saved.getTime());
+}
+
+/** `game_lineups`: off without reading, no profile without a game folder, else the seeded lineups. */
+function gameLineups(): Lineups {
+  if (!state.settings.readGameData) return { status: 'off', nations: [] };
+  if (!hasGameFolder()) return { status: 'noProfile', nations: [] };
+  return { status: 'ok', savedAt: profileSavedAt(), ...seedLineups() };
+}
+
+/** `wtlive_vehicle_top`: the code's 3 most downloaded visible posts. */
+function vehicleTop(args: Args): WtLiveSkin[] {
+  const code = str('wtlive_vehicle_top', args, 'code').trim().toLowerCase();
+  return reported(() => {
+    if (!code) {
+      // Nothing to ask WT Live; browsing off still refuses (`check_enabled`).
+      if (!state.settings.wtliveEnabled) fail('unsupported', 'WT Live browsing is turned off in Settings');
+      return [];
+    }
+    reachWtLive();
+    return state.catalog
+      .filter((s) => visible(s) && s.vehicle.code.toLowerCase() === code)
+      .sort(SORTS.downloads)
+      .slice(0, 3);
+  });
+}
+
+/** `wtlive_for_you_new`: posts of the asked codes since For you was last seen, newest first. */
+function forYouNew(args: Args): ForYouNew {
+  const vehicles = strList('wtlive_for_you_new', args, 'vehicles').map((v) => v.trim());
+  return reported(() => {
+    if (vehicles.every((v) => v === '')) {
+      if (!state.settings.wtliveEnabled) fail('unsupported', 'WT Live browsing is turned off in Settings');
+      return { items: [], checked: vehicles.length };
+    }
+    reachWtLive();
+    const since = Date.parse(state.forYouSeenAt);
+    const items = state.catalog
+      .filter((s) => visible(s) && Date.parse(s.postedAt) > since)
+      .sort(SORTS.newest)
+      .flatMap((s) => {
+        const vehicle = vehicles.find((v) => v !== '' && v.toLowerCase() === s.vehicle.code.toLowerCase());
+        return vehicle === undefined ? [] : [{ vehicle, skin: { ...s, isNew: true } }];
+      });
+    return { items, checked: vehicles.length };
+  });
+}
+
+/** For you counts as seen now (its "N new" resets); returns the stored time. Local. */
+function forYouMarkSeen(): string {
+  state.forYouSeenAt = stamp(Date.now());
+  return state.forYouSeenAt;
+}
+
 /** Everything followed counts as seen now (the Following tab's "N new" resets). */
 function followingMarkSeen(): FollowEntry[] {
   const now = stamp(Date.now());
@@ -1838,6 +1922,11 @@ const COMMANDS: Record<string, (args: Args) => unknown> = {
   following_list: () => state.following,
   following_set: followingSet,
   following_mark_seen: followingMarkSeen,
+  game_lineups: gameLineups,
+  wtlive_vehicle_top: vehicleTop,
+  wtlive_for_you_new: forYouNew,
+  for_you_seen: () => state.forYouSeenAt,
+  for_you_mark_seen: forYouMarkSeen,
   wtlive_storage: wtliveStorage,
   wtlive_clear_cache: () => {
     state.cacheBytes = 0;

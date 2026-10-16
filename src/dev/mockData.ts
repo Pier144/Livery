@@ -15,6 +15,7 @@ import type {
   FileEntry,
   FollowEntry,
   HangarSkin,
+  Lineups,
   TextureInfo,
   Vehicle,
   VehicleType,
@@ -848,4 +849,39 @@ export function seedFollowing(): FollowEntry[] {
     follow('author', skyhook.id, skyhook.name),
     follow('vehicle', 'spitfire_mk9c', vehicle('spitfire_mk9c').name),
   ];
+}
+
+// ── For you ─────────────────────────────────────────────────────────────────
+
+/**
+ * The player's lineups as `game_lineups` reads them from the profile (anonymized, shaped like the
+ * author's: an active and an inactive preset per nation for some). Nations in game order;
+ * `us_m4_t26` is not in the built-in vehicle list (its row shows the code, and WT Live has no
+ * skin for it); GER's second preset repeats the Leopard 2A6, which For you shows once.
+ */
+export function seedLineups(): Omit<Lineups, 'status' | 'savedAt'> {
+  return {
+    current: 'us_m1a2_sep',
+    currentNation: 'USA',
+    nations: [
+      {
+        nation: 'USA',
+        presets: [
+          { name: 'Army', active: true, vehicles: ['us_m1a2_sep', 'us_m4_t26'] },
+          { name: 'Air', active: false, vehicles: ['f_4e'] },
+        ],
+      },
+      {
+        nation: 'GER',
+        presets: [
+          { name: 'Heer', active: true, vehicles: ['germ_leopard_2a6', 'bf-109g-6'] },
+          { name: 'Grind', active: false, vehicles: ['germ_leopard_2a6', 'germ_pzkpfw_VI_ausf_b_tiger_IIH'] },
+        ],
+      },
+      { nation: 'USSR', presets: [{ name: 'Main', active: true, vehicles: ['ussr_t_34_85', 'su_27'] }] },
+      // A preset the player never named: the UI shows "Preset 1".
+      { nation: 'GBR', presets: [{ name: '', active: true, vehicles: ['spitfire_mk9c'] }] },
+      { nation: 'ITA', presets: [{ name: 'Ariete', active: true, vehicles: ['it_c1_ariete'] }] },
+    ],
+  };
 }

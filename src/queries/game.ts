@@ -1,9 +1,17 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { call, isTauri } from '@/lib/tauri';
-import { DETECT_EVENT, type AppError, type DetectEvent, type GameDetection, type GameSource, type HangarSkin } from '@/types';
+import {
+  DETECT_EVENT,
+  type AppError,
+  type DetectEvent,
+  type GameDetection,
+  type GameSource,
+  type HangarSkin,
+  type Lineups,
+} from '@/types';
 import { COLLECTIONS_KEY } from './collections';
 import { HANGAR_KEY } from './hangar';
-import { BACKUPS_KEY, SETTINGS_KEY } from './settings';
+import { BACKUPS_KEY, SETTINGS_KEY, useSettings } from './settings';
 
 /** What the plain-browser build (`pnpm dev`, no backend) reports: nothing found anywhere. */
 const BROWSER_EVENTS: DetectEvent[] = [
@@ -73,5 +81,25 @@ export function useImportSkins() {
   return useMutation<HangarSkin[], AppError, string[]>({
     mutationFn: (folders) => call<HangarSkin[]>('import_skins', { folders }),
     onSuccess: () => qc.invalidateQueries({ queryKey: HANGAR_KEY }),
+  });
+}
+
+export const LINEUPS_KEY = ['lineups'] as const;
+
+/**
+ * The player's lineups from the War Thunder profile (`game_lineups`, local data). Read only while
+ * `enabled` (the For you tab is open): on opening it and when the window regains focus meanwhile;
+ * elsewhere the hook only returns what is cached. Settings → Game → Read data from the game is in
+ * the key, so switching it reads again. The backend caches by path, size and modification time,
+ * so a refetch is cheap.
+ */
+export function useLineups({ enabled }: { enabled: boolean }) {
+  const readGameData = useSettings().data?.readGameData !== false;
+  return useQuery<Lineups, AppError>({
+    queryKey: [...LINEUPS_KEY, readGameData],
+    queryFn: () => call<Lineups>('game_lineups'),
+    enabled,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 }
