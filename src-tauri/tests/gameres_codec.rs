@@ -4,7 +4,7 @@
 
 use livery_lib::error::ErrorCode;
 use livery_lib::game::gameres::bytes::Reader;
-use livery_lib::game::gameres::codec::{oodle, read_block, zstd, MAX_TEXTURE_LEVEL};
+use livery_lib::game::gameres::codec::{check_kraken_family, oodle, read_block, zstd, MAX_TEXTURE_LEVEL};
 
 /// An IGenLoad block: `u32 L` (tag in the top two bits, payload size below), then the payload.
 fn block(tag: u32, payload: &[u8]) -> Vec<u8> {
@@ -116,17 +116,135 @@ fn oodle_garbage_is_a_parse_error_not_a_panic() {
     assert_parse(oodle(&[], 1024, 1 << 20));
 }
 
+// ── Only the Kraken family reaches the decoder ──────────────────────────────
+
+const BLOCK: usize = 0x40000;
+
+/// A block header (`0x8C`: magic 0xC with bit 7 "restart") with decoder type `ty`.
+fn header(ty: u8) -> Vec<u8> {
+    vec![0x8C, ty]
+}
+
+/// A block with a 3-byte quantum header announcing `payload.len()` compressed bytes.
+fn compressed_block(ty: u8, payload: &[u8]) -> Vec<u8> {
+    let mut out = header(ty);
+    out.extend_from_slice(&(payload.len() as u32 - 1).to_be_bytes()[1..]);
+    out.extend_from_slice(payload);
+    out
+}
+
 #[test]
-fn oodle_never_panics_on_damaged_input() {
-    // Release builds abort on panic, so a decoder that panics on bad input would take the whole
-    // app down: hammer it with noise that has plausible headers (debug build: overflow checks on).
-    let mut seed = 2024;
-    let headers: [&[u8]; 5] = [&[], &[0x8C, 0x0C], &[0x8C, 0x06], &[0x8C, 0x0A], &[0x8C, 0x0C, 0x00, 0x00, 0x80]];
-    for round in 0..3000usize {
-        let mut input = headers[round % headers.len()].to_vec();
-        let len = 1 + (noise(&mut seed, 1)[0] as usize) * (1 + round % 7);
-        input.extend(noise(&mut seed, len));
-        let raw_len = 1 + (round * 977) % 70_000;
-        let _ = oodle(&input, raw_len, 1 << 20);
+fn kraken_mermaid_and_leviathan_headers_pass_the_precheck() {
+    for ty in [0x06, 0x0A, 0x0C] {
+        let stream = compressed_block(ty, &[0xAA; 10]);
+        check_kraken_family(&stream, 1000).unwrap();
+        check_kraken_family(&stream, BLOCK).unwrap();
+    }
+    // An uncompressed block (bit 6 of byte 0) holds the block's bytes as they are.
+    let mut raw = vec![0xCC, 0x0C];
+    raw.extend_from_slice(&[7; 100]);
+    check_kraken_family(&raw, 100).unwrap();
+    assert_parse(check_kraken_family(&raw[..50], 100));
+    // A memset quantum: size field 0x3FFFF with bit 18 set, then the fill byte.
+    check_kraken_family(&[0x8C, 0x0C, 0x07, 0xFF, 0xFF, 0x55], 1000).unwrap();
+    assert_parse(check_kraken_family(&[0x8C, 0x0C, 0x07, 0xFF, 0xFF], 1000));
+    // Nothing to unpack, nothing to check.
+    check_kraken_family(&[], 0).unwrap();
+}
+
+#[test]
+fn a_passing_stream_reaches_the_decoder_which_then_judges_it() {
+    // The precheck lets a Leviathan header through; the (nonsense) payload fails in oozextract.
+    let e = oodle(&compressed_block(0x0C, &[0xAA; 10]), 1000, 1 << 20).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Parse);
+    assert!(e.detail.unwrap().starts_with("oodle: "));
+}
+
+#[test]
+fn bitknit_lzna_and_unknown_decoders_never_reach_oozextract() {
+    for ty in [0x00, 0x05, 0x07, 0x09, 0x0B, 0x0D, 0x7F] {
+        let stream = compressed_block(ty, &[0xAA; 10]);
+        for call in [check_kraken_family(&stream, 1000), oodle(&stream, 1000, 1 << 20).map(|_| ())] {
+            let e = call.unwrap_err();
+            assert_eq!(e.code, ErrorCode::Parse, "type {ty:#X}");
+            assert!(e.detail.unwrap().starts_with("oodle decoder"), "type {ty:#X}");
+        }
+    }
+}
+
+#[test]
+fn malformed_headers_are_parse_errors() {
+    let good = compressed_block(0x0C, &[1; 10]);
+    // Magic nibble, bits 4-5 of byte 0, checksum flag.
+    for (at, value) in [(0, 0x8D), (0, 0x9C), (0, 0xAC), (0, 0x00), (1, 0x8C)] {
+        let mut stream = good.clone();
+        stream[at] = value;
+        assert_parse(check_kraken_family(&stream, 1000));
+    }
+    // Cut inside the block header, the quantum header, and the compressed bytes.
+    for cut in [0, 1, 2, 3, 4, good.len() - 1] {
+        assert_parse(check_kraken_family(&good[..cut], 1000));
+    }
+    // Size field 0x3FFFF without the memset marker.
+    assert_parse(check_kraken_family(&[0x8C, 0x0C, 0x03, 0xFF, 0xFF, 0x00], 1000));
+    assert_parse(check_kraken_family(&[0x8C, 0x0C, 0x0B, 0xFF, 0xFF, 0x00], 1000));
+}
+
+#[test]
+fn the_blocks_must_cover_the_unpacked_length() {
+    let one = compressed_block(0x0C, &[1; 10]);
+    check_kraken_family(&one, BLOCK).unwrap();
+    // One block unpacks to 256 KiB at most: a longer output needs a second block.
+    assert_parse(check_kraken_family(&one, BLOCK + 1));
+    let two = [one.clone(), compressed_block(0x06, &[2; 20])].concat();
+    check_kraken_family(&two, BLOCK + 1).unwrap();
+    check_kraken_family(&two, 2 * BLOCK).unwrap();
+    assert_parse(check_kraken_family(&two, 2 * BLOCK + 1));
+    // The second block's header is checked too.
+    let mixed = [one, compressed_block(0x0B, &[2; 20])].concat();
+    assert_parse(check_kraken_family(&mixed, BLOCK + 1));
+    assert!(check_kraken_family(&mixed, BLOCK).is_ok(), "blocks past the unpacked length aren't read");
+}
+
+#[test]
+fn a_mutated_decoder_type_is_accepted_only_when_it_is_kraken_family() {
+    let base = [compressed_block(0x0C, &[0; 24]), compressed_block(0x06, &[0; 24])].concat();
+    let second = base.len() - 24 - 5;
+    for block in [0, second] {
+        for ty in 0..=255u8 {
+            let mut stream = base.clone();
+            stream[block + 1] = ty;
+            let ok = [0x06, 0x0A, 0x0C].contains(&ty);
+            let result = check_kraken_family(&stream, BLOCK + 1);
+            assert_eq!(result.is_ok(), ok, "block at {block}, type {ty:#04X}");
+            // What the precheck refuses never gets to oozextract; the rest may fail there.
+            if !ok {
+                assert_parse(oodle(&stream, BLOCK + 1, 1 << 20));
+            }
+        }
+    }
+}
+
+#[test]
+fn mutated_headers_never_panic() {
+    // Flip bytes in the headers of a two-block stream (the payload is zeros, so a stream that
+    // passes the precheck is also run through the decoder). Release builds abort on panic.
+    let base = [compressed_block(0x0C, &[0; 24]), compressed_block(0x06, &[0; 24])].concat();
+    let second = base.len() - 24 - 5;
+    let mut seed = 31;
+    for _ in 0..20_000 {
+        let mut stream = base.clone();
+        for _ in 0..1 + noise(&mut seed, 1)[0] % 3 {
+            let r = noise(&mut seed, 2);
+            let at = (r[0] as usize % 5) + if r[1] & 1 == 0 { 0 } else { second };
+            stream[at] ^= noise(&mut seed, 1)[0] | 1;
+        }
+        let raw_len = [1, 1000, BLOCK, BLOCK + 1, 2 * BLOCK][noise(&mut seed, 1)[0] as usize % 5];
+        if check_kraken_family(&stream, raw_len).is_ok() {
+            // Whatever passed has a first block a Kraken-family decoder would accept.
+            assert_eq!(stream[0] & 0x3F, 0x0C, "{stream:02X?}");
+            assert!([0x06, 0x0A, 0x0C].contains(&stream[1]), "{stream:02X?}");
+            let _ = oodle(&stream, raw_len, 1 << 20);
+        }
     }
 }

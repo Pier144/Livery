@@ -62,6 +62,7 @@ pub fn oodle(src: &[u8], raw_len: usize, max: usize) -> AppResult<Vec<u8>> {
     if raw_len > max {
         return Err(bad(format!("Oodle stream unpacks to {raw_len} bytes, over the {max} limit")));
     }
+    check_kraken_family(src, raw_len)?;
     let mut out = vec![0u8; raw_len];
     let written =
         oozextract::Extractor::new().read_from_slice(src, &mut out).map_err(|e| bad(format!("oodle: {e}")))?;
@@ -69,6 +70,57 @@ pub fn oodle(src: &[u8], raw_len: usize, max: usize) -> AppResult<Vec<u8>> {
         return Err(bad(format!("Oodle stream unpacked {written} of {raw_len} bytes")));
     }
     Ok(out)
+}
+
+/// Output bytes per Oodle block (each starts with its own header).
+const OODLE_BLOCK: usize = 0x40000;
+
+/// Walks the block and quantum headers of an Oodle stream that unpacks to `raw_len` bytes and
+/// rejects anything but the Kraken family (Kraken, Mermaid, Leviathan), which is all the game
+/// uses. `oozextract` also decodes BitKnit and LZNA, and those decoders panic on damaged input;
+/// with `panic = "abort"` that would take the app down, so they never get to run.
+///
+/// The layout is the one `oozextract` parses, so the walk and the decoder agree on where every
+/// block ends. Per block of 256 KiB of output:
+///
+/// ```text
+/// byte 0   low nibble 0xC (magic), bits 4-5 zero, bit 6 uncompressed, bit 7 restart decoder
+/// byte 1   low 7 bits decoder type (6 Kraken, 0xA Mermaid, 0xC Leviathan), bit 7 checksums
+/// then     uncompressed: the block's bytes; else a 3-byte big-endian quantum header:
+///          size = v & 0x3FFFF; size != 0x3FFFF: `size + 1` compressed bytes follow;
+///          else v >> 18 == 1: one byte (memset); anything else is invalid
+/// ```
+///
+/// Checksummed streams are refused too: `oozextract` doesn't read their checksum bytes.
+pub fn check_kraken_family(src: &[u8], raw_len: usize) -> AppResult<()> {
+    let mut cur = Reader::new(src);
+    let mut written = 0;
+    while written < raw_len {
+        let (b1, b2) = (cur.u8()?, cur.u8()?);
+        if b1 & 0xF != 0xC || (b1 >> 4) & 3 != 0 {
+            return Err(bad(format!("oodle block header {b1:02X} {b2:02X}")));
+        }
+        match b2 & 0x7F {
+            0x6 | 0xA | 0xC => {}
+            other => return Err(bad(format!("oodle decoder {other:#X} isn't Kraken, Mermaid or Leviathan"))),
+        }
+        if b2 & 0x80 != 0 {
+            return Err(bad("oodle stream with checksums"));
+        }
+        let block = (raw_len - written).min(OODLE_BLOCK);
+        if b1 & 0x40 != 0 {
+            cur.skip(block)?;
+        } else {
+            let quantum = u32::from_be_bytes([0, cur.u8()?, cur.u8()?, cur.u8()?]);
+            match quantum & 0x3FFFF {
+                0x3FFFF if quantum >> 18 == 1 => cur.skip(1)?,
+                0x3FFFF => return Err(bad(format!("oodle quantum header {quantum:#X}"))),
+                size => cur.skip(size as usize + 1)?,
+            }
+        }
+        written += block;
+    }
+    Ok(())
 }
 
 /// One zstd frame, at most `max` bytes.
