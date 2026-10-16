@@ -11,6 +11,7 @@
 
 pub mod binblk;
 pub mod catalog;
+pub mod profile;
 pub mod root;
 pub mod steam;
 pub mod vromfs;
