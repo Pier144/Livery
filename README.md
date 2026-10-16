@@ -27,6 +27,8 @@ them with one click, and keep your `UserSkins` folder tidy.
 
 - **Explore WT Live**: search, filter by nation, type, class and vehicle, follow authors and
   vehicles, and see what's new from them.
+- **For you**: skins for the vehicles in your War Thunder lineups, active lineup first, with the
+  most downloaded ones and what's new since your last look.
 - **Install with one click**, or **try a skin in the game first** and keep it only if you like it.
 - **Install from files**: drop a ZIP, 7z or RAR (or a folder) on the window, or let Livery watch
   your Downloads folder. Packs with several skins install every skin, each for its own vehicle.
@@ -81,8 +83,11 @@ folder; Livery doesn't change any other game file.
 
 **Reading the game's files.** To recognise which vehicle a skin is for, Livery reads the vehicle
 names from the game's own data files (read-only, on your PC; nothing is changed or sent anywhere).
-If you prefer it didn't, turn off Settings → Game → "Read the vehicle list from the game": Livery
-then uses a smaller built-in list and recognises fewer skins.
+For the For you tab it also reads your lineups from your War Thunder profile
+(`Documents\My Games\WarThunder\Saves\…\global.blk`): only the lineups and the selected
+vehicle, nothing else from that file, and nothing leaves your PC. If you prefer it didn't, turn off
+Settings → Game → "Read data from the game": Livery then uses a smaller built-in list, recognises
+fewer skins and has no suggestions in For you.
 
 ## Questions and problems
 
@@ -101,6 +106,7 @@ Livery è un gestore di skin per War Thunder, gratuito e non ufficiale (non affi
 Entertainment). Ti permette di:
 
 - sfogliare le skin di WT Live, installarle con un clic o provarle prima nel gioco;
+- vedere nella scheda "Per te" le skin dei veicoli delle tue formazioni di War Thunder;
 - installare skin da ZIP, 7z, RAR (con 7-Zip o WinRAR installato) o cartelle;
 - rinominare, disattivare e disinstallare le skin dall'Hangar, sempre con la possibilità di
   annullare;
