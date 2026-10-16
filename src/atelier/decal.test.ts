@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ModelHeader } from '@/types';
 import {
   DEFAULT_WIDTH_RATIO,
+  PARALLEL_EPSILON,
   boundingDiagonal,
   decalMatrix,
   defaultDecalSize,
@@ -60,6 +61,22 @@ describe('frameFromHit', () => {
     close(front.up, [0, 1, 0]);
     expect(frameFromHit([0, 0, 0], [0, 0, 0], rolled, SIZE)).toBeNull();
   });
+
+  it(`a nearly edge-on screen-up (within PARALLEL_EPSILON = ${PARALLEL_EPSILON}) falls back to the world axis`, () => {
+    // Screen-up 3° off the front face's normal (+z): sin 3° ≈ 0.052 < 0.08, so world +y.
+    const a = (3 * Math.PI) / 180;
+    const near = [1, 0, 0, 0, 0, Math.sin(a), Math.cos(a), 0, 0, 0, 0, 0, 0, 0, 3, 1];
+    close(frameFromHit([0, 0, 0.5], [0, 0, 1], near, SIZE)!.up, [0, 1, 0]);
+    // 10° off (sin ≈ 0.17): screen-up is kept.
+    const b = (10 * Math.PI) / 180;
+    const kept = frameFromHit([0, 0, 0.5], [0, 0, 1], [1, 0, 0, 0, 0, Math.sin(b), Math.cos(b), 0, 0, 0, 0, 0, 0, 0, 3, 1], SIZE)!;
+    close(kept.up, [0, 1, 0]);
+    // …but with the screen-up leaning sideways it follows the screen.
+    const side = frameFromHit([0, 0, 0.5], [0, 0, 1], [0, 0, 0, 0, Math.sin(b), 0, Math.cos(b), 0, 0, 0, 0, 0, 0, 0, 3, 1], SIZE)!;
+    close(side.up, [1, 0, 0]);
+    const nearSide = frameFromHit([0, 0, 0.5], [0, 0, 1], [0, 0, 0, 0, Math.sin(a), 0, Math.cos(a), 0, 0, 0, 0, 0, 0, 0, 3, 1], SIZE)!;
+    close(nearSide.up, [0, 1, 0]);
+  });
 });
 
 describe('decal space', () => {
@@ -114,7 +131,7 @@ describe('mirror', () => {
 
   it('the copy reads the right way round on the other side, without flipping the picture', () => {
     const original = frameFromHit([0.1, 0.2, 0.5], [0, 0, 1], lookAt([0.1, 0.5, 3], [0.1, 0.2, 0.5]), SIZE)!;
-    const copy = mirrorDecal(original, 2);
+    const copy = mirrorDecal(original, 2)!;
     close(copy.center, [0.1, 0.2, -0.5]);
     close(copy.normal, [0, 0, -1]);
     expect(screenX(original)).toBeGreaterThan(0);
@@ -133,10 +150,16 @@ describe('mirror', () => {
   it('works on a tilted side and across x', () => {
     const original = frameFromHit([0.5, 0, 0.3], [1, 0.2, 0.4], lookAt([3, 1, 2], [0.5, 0, 0.3]), SIZE)!;
     for (const axis of [0, 2]) {
-      const copy = mirrorDecal(original, axis);
+      const copy = mirrorDecal(original, axis)!;
       expect(screenX(copy)).toBeGreaterThan(0);
       expect(copy.center[axis]).toBeCloseTo(-original.center[axis]!);
     }
+  });
+
+  it('an axis other than 0, 1 or 2 gives no copy', () => {
+    const original = frameFromHit([0.1, 0.2, 0.5], [0, 0, 1], lookAt([0.1, 0.5, 3], [0.1, 0.2, 0.5]), SIZE)!;
+    for (const axis of [-1, 3, 1.5, Number.NaN]) expect(mirrorDecal(original, axis)).toBeNull();
+    expect(mirrorDecal(original, 1)?.center[1]).toBeCloseTo(-0.2);
   });
 });
 
@@ -186,24 +209,32 @@ describe('texelsPerUnit', () => {
   }
 
   const onA: Decal = { center: [0, 0, 0.5], normal: [0, 0, 1], up: [0, 1, 0], width: 0.2, height: 0.1, depth: 0.05, part: 'all', mirror: false };
+  /** The slots baked at their template size. */
+  const BODY_OUT = { width: 512, height: 256 };
+  const GUN_OUT = { width: 64, height: 64 };
+
+  it('uses the output size, not the template size (High quality bakes larger)', () => {
+    // 1024×512 output: twice the texels per unit of the 512×256 template.
+    expect(texelsPerUnit(model(), 0, { width: 1024, height: 512 }, onA)).toBeCloseTo(2 * Math.sqrt(32768));
+  });
 
   it('uses the triangles whose bounding sphere touches the box (sqrt of UV px area over world area)', () => {
     // Quad A: world area 1, UV area 0.25 × 512 × 256 px = 32768 px²: sqrt = 181.02.
-    expect(texelsPerUnit(model(), 0, onA)).toBeCloseTo(Math.sqrt(32768));
+    expect(texelsPerUnit(model(), 0, BODY_OUT, onA)).toBeCloseTo(Math.sqrt(32768));
   });
 
   it('a small decal in the middle of a big plate still finds it (the plate is large, its centroid outside the box)', () => {
     const corner: Decal = { ...onA, center: [0.4, 0.4, 0.5], width: 0.01, height: 0.01 };
-    expect(texelsPerUnit(model(), 0, corner)).toBeCloseTo(Math.sqrt(32768));
+    expect(texelsPerUnit(model(), 0, BODY_OUT, corner)).toBeCloseTo(Math.sqrt(32768));
   });
 
   it('limits to the decal part group and the slot, falls back to the hit triangle, null when nothing', () => {
-    expect(texelsPerUnit(model(), 1, onA)).toBeCloseTo(Math.sqrt((0.5 * 64 * 64) / 0.005));
-    expect(texelsPerUnit(model(), 1, { ...onA, part: 'hull' })).toBeNull();
+    expect(texelsPerUnit(model(), 1, GUN_OUT, onA)).toBeCloseTo(Math.sqrt((0.5 * 64 * 64) / 0.005));
+    expect(texelsPerUnit(model(), 1, GUN_OUT, { ...onA, part: 'hull' })).toBeNull();
     const far: Decal = { ...onA, center: [0, 0, -5] };
-    expect(texelsPerUnit(model(), 0, far)).toBeNull();
-    expect(texelsPerUnit(model(), 0, far, 2)).toBeCloseTo(Math.sqrt((0.5 * 512 * 256) / 1));
-    expect(texelsPerUnit(model(), 0, far, 99)).toBeNull();
-    expect(texelsPerUnit(model(), 7, onA)).toBeNull();
+    expect(texelsPerUnit(model(), 0, BODY_OUT, far)).toBeNull();
+    expect(texelsPerUnit(model(), 0, BODY_OUT, far, 2)).toBeCloseTo(Math.sqrt((0.5 * 512 * 256) / 1));
+    expect(texelsPerUnit(model(), 0, BODY_OUT, far, 99)).toBeNull();
+    expect(texelsPerUnit(model(), 7, GUN_OUT, onA)).toBeNull();
   });
 });

@@ -37,8 +37,12 @@ export const HISTORY_LIMIT = 100;
 /** What a Base edit may change. */
 export type BasePatch = Partial<Pick<BaseLayer, 'mode' | 'colors' | 'scale' | 'seed'>>;
 
-/** What `setLayerProps` may change on an image or text layer (fields of the other kind are ignored). */
+/** What `setLayerProps` may change on an image or text layer (fields of the other kind are dropped). */
 export type LayerPropsPatch = Partial<Omit<ImageLayer, 'id' | 'kind' | 'decal'> & Omit<TextLayer, 'id' | 'kind' | 'decal'>>;
+
+/** Fields only an image layer has, dropped from a text layer's patch; and the other way round. */
+const IMAGE_ONLY_PROPS = ['assetId', 'flipX', 'sourceAssetId', 'sourceOffset'] as const;
+const TEXT_ONLY_PROPS = ['text', 'font', 'color', 'outlineColor', 'outlineWidth', 'skew'] as const;
 
 /**
  * A new image or text layer waiting for its placement click (outside `layers`: no history, no
@@ -392,7 +396,9 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     setLayerProps: (id, patch, mergeKey) => {
       const layer = decalLayer(id);
       if (!layer) return;
-      const next = checkDecalLayer({ ...layer, ...patch, id: layer.id, kind: layer.kind, decal: layer.decal } as DecalLayer);
+      const own: Record<string, unknown> = { ...patch };
+      for (const key of layer.kind === 'text' ? IMAGE_ONLY_PROPS : TEXT_ONLY_PROPS) delete own[key];
+      const next = checkDecalLayer({ ...layer, ...own, id: layer.id, kind: layer.kind, decal: layer.decal } as DecalLayer);
       if (!next) return;
       change(replaced(get().layers, id, withTextWidth(next)), layerKey(id, mergeKey));
     },
@@ -400,14 +406,18 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     applyCutout: (layerId, asset, crop, sourceAsset) => {
       const layer = decalLayer(layerId);
       if (layer?.kind !== 'image' || sourceAsset.width <= 0 || sourceAsset.height <= 0 || crop.w <= 0 || crop.h <= 0) return;
-      // A cutout of a cutout: the crop is inside the current picture, which lies at the earlier offset in the original.
-      const before = layer.sourceAssetId ? layer.sourceOffset : undefined;
+      // A stale result (undo, another cutout or an edit since it started): the layer no longer shows its source.
+      if (layer.assetId !== sourceAsset.id) return;
+      // A cutout of a cutout: the crop is inside the current picture, which lies at the earlier offset in the
+      // original. Without a known offset, the current picture becomes the source.
+      const composed = layer.sourceAssetId !== undefined && layer.sourceOffset !== undefined;
+      const before = composed ? layer.sourceOffset : undefined;
       const sourceOffset: CropRect = { x: (before?.x ?? 0) + crop.x, y: (before?.y ?? 0) + crop.y, w: crop.w, h: crop.h };
       const refit = layer.decal ? toDecal(refitDecal(layer.decal, crop, sourceAsset, layer.flipX)) : null;
       const next: ImageLayer = {
         ...layer,
         assetId: asset.id,
-        sourceAssetId: layer.sourceAssetId ?? sourceAsset.id,
+        sourceAssetId: composed ? layer.sourceAssetId : sourceAsset.id,
         sourceOffset,
         decal: refit ?? layer.decal,
       };

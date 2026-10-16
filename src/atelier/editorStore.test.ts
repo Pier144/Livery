@@ -423,6 +423,46 @@ describe('editor store · image and text layers', () => {
     expect(layer<ImageLayer>('a')).not.toHaveProperty('sourceAssetId');
   });
 
+  it('applyCutout ignores a stale result: the layer no longer shows the picture that was cut', () => {
+    S().addDecalLayer(image('a'));
+    S().setLayerProps('a', { assetId: 'img-other' });
+    const past = S().past.length;
+    const revision = S().revision;
+    S().applyCutout('a', { id: 'img-cut', width: 10, height: 10 }, { x: 0, y: 0, w: 10, h: 10 }, { id: 'img-a', width: 400, height: 200 });
+    expect(layer<ImageLayer>('a')).toMatchObject({ assetId: 'img-other', decal: DECAL });
+    expect(layer<ImageLayer>('a')).not.toHaveProperty('sourceAssetId');
+    expect(S().past).toHaveLength(past);
+    expect(S().revision).toBe(revision);
+  });
+
+  it('applyCutout with a source but no offset makes the current picture the new source', () => {
+    S().addDecalLayer(image('a', { assetId: 'img-refined', sourceAssetId: 'img-orig' }));
+    S().applyCutout(
+      'a',
+      { id: 'img-cut', width: 100, height: 50 },
+      { x: 250, y: 20, w: 100, h: 50 },
+      { id: 'img-refined', width: 400, height: 200 },
+    );
+    expect(layer<ImageLayer>('a')).toMatchObject({
+      assetId: 'img-cut',
+      sourceAssetId: 'img-refined',
+      sourceOffset: { x: 250, y: 20, w: 100, h: 50 },
+    });
+  });
+
+  it('setLayerProps drops fields of the other kind', () => {
+    S().addDecalLayer({ ...newTextLayer('HI', DECAL), id: 't' });
+    S().setLayerProps('t', { flipX: true, assetId: 'img-x', sourceAssetId: 'img-y', color: '#00ff00' });
+    const t = layer<TextLayer>('t');
+    expect(t.color).toBe('#00ff00');
+    for (const key of ['flipX', 'assetId', 'sourceAssetId']) expect(t).not.toHaveProperty(key);
+    S().addDecalLayer(image('a'));
+    S().setLayerProps('a', { text: 'NO', font: { family: 'Arial', style: 'Bold' }, skew: 0.3, opacity: 0.5 });
+    const a = layer<ImageLayer>('a');
+    expect(a.opacity).toBe(0.5);
+    for (const key of ['text', 'font', 'skew']) expect(a).not.toHaveProperty(key);
+  });
+
   it('refitDecal mirrors the horizontal move of a flipped picture', () => {
     const moved = refitDecal(DECAL, { x: 250, y: 75, w: 100, h: 50 }, { width: 400, height: 200 }, true);
     // +100 px along u, flipped: along -right = (0,0,+1).

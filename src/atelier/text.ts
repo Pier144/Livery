@@ -74,7 +74,11 @@ export function textAspect(m: TextMetricsPx, layer: Pick<TextLayer, 'outlineWidt
   return layoutText(m, layer, 1).width;
 }
 
-/** The raster height for a decal `decalHeight` tall on a surface with `texelsPerUnit`: 2× the texel density, 64 to 4096 px. */
+/**
+ * The raster height for a decal `decalHeight` tall on a surface with `texelsPerUnit` (from
+ * decal.ts, measured at the slot's output size, so High quality gets a sharper raster): 2× the
+ * texel density, 64 to 4096 px.
+ */
 export function rasterHeightFor(texelsPerUnit: number | null, decalHeight: number): number {
   const px = texelsPerUnit && texelsPerUnit > 0 ? 2 * texelsPerUnit * decalHeight : MIN_RASTER_HEIGHT;
   return Math.round(Math.min(MAX_RASTER_SIDE, Math.max(MIN_RASTER_HEIGHT, px)));

@@ -26,8 +26,12 @@ import {
  * `|u|, |v|, |w| <= 0.5` and the picture is sampled at `(u + 0.5, 0.5 - v)` (top-left origin).
  */
 
-/** Below this length, a projected up is "nearly parallel" to the normal and the next fallback is tried. */
-const PARALLEL_EPSILON = 1e-3;
+/**
+ * Below this length (the sine of the angle, for a unit vector), a projected up is "nearly
+ * parallel" to the normal and the next fallback is tried: a view within about 4.6° of edge-on
+ * would give an up that jumps with every pixel, the world axis is steadier.
+ */
+export const PARALLEL_EPSILON = 0.08;
 /** A texel faces the decal when `dot(n, decal.normal) > FACING_MIN * |n|` (the shader's test). */
 export const FACING_MIN = 0.2;
 /** Default width: this fraction of the model's bounding-box diagonal. */
@@ -131,9 +135,11 @@ export function reflect(v: Vec3, axis: number): Vec3 {
  * The mirrored copy of a decal across the model's mirror plane (`ModelHeader.mirrorAxis = 0`):
  * centre, normal and up reflected; `right` is derived (`cross(up, normal)`), so the copy's frame
  * stays right-handed and the picture reads the right way round on the other side without being
- * flipped.
+ * flipped. Null when `axis` isn't 0, 1 or 2 (a header this version doesn't understand): callers
+ * then draw no mirrored copy.
  */
-export function mirrorDecal(decal: Decal, axis: number): Decal {
+export function mirrorDecal(decal: Decal, axis: number): Decal | null {
+  if (axis !== 0 && axis !== 1 && axis !== 2) return null;
   return { ...decal, center: reflect(decal.center, axis), normal: reflect(decal.normal, axis), up: reflect(decal.up, axis) };
 }
 
@@ -177,19 +183,21 @@ export function sphereTouchesBox(c: Vec3, r: number, decal: Decal): boolean {
 
 /**
  * Texels per model unit (linear) of slot `slot` around a decal, for the text's raster size:
- * `sqrt(Σ UV area × slot pixels / Σ world area)` over the slot's triangles whose bounding
+ * `sqrt(Σ UV area × output pixels / Σ world area)` over the slot's triangles whose bounding
  * sphere touches the decal's box (limited to the decal's part group), or over the hit triangle
- * (`hitTriangle`, an index into `indices / 3`) when none does. Null when nothing has area.
+ * (`hitTriangle`, an index into `indices / 3`) when none does. `output` is the size the slot is
+ * baked at, not the template's (High quality bakes the body at 4096). Null when nothing has area
+ * or the slot doesn't exist.
  */
 export function texelsPerUnit(
   model: Pick<VehicleModelData, 'header' | 'positions' | 'uvs' | 'indices'>,
   slot: number,
+  output: { width: number; height: number },
   decal: Decal,
   hitTriangle?: number,
 ): number | null {
-  const slotInfo = model.header.slots[slot];
-  if (!slotInfo) return null;
-  const pixels = slotInfo.width * slotInfo.height;
+  if (!model.header.slots[slot]) return null;
+  const pixels = output.width * output.height;
   const group = partGroupOf(decal.part);
   const pos = (i: number): Vec3 => [model.positions[i * 3] ?? 0, model.positions[i * 3 + 1] ?? 0, model.positions[i * 3 + 2] ?? 0];
   const areas = (t: number): [number, number] => {
