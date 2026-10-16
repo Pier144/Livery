@@ -25,8 +25,11 @@ import { SkinImage } from './SkinCard';
 const TOP = 3;
 /** Thumbnails stay small strips (16:9, at most 160 px wide), "All →" right after them. */
 const THUMB_COLUMNS = 'grid-cols-[repeat(3,minmax(0,160px))_auto]';
-/** Rows rendered above and below the viewport. */
-const OVERSCAN = 4;
+/**
+ * Rows rendered above and below the viewport. Each mounted row asks WT Live for its skins (one
+ * request a second for the whole app), so hidden rows would make the visible ones wait.
+ */
+const OVERSCAN = 1;
 /** Room around the rows for focus rings (the scroll area is pulled out by as much). */
 const FOCUS_ROOM = 4;
 /** `wtlive_for_you_new` waits for the visible rows' top skins, but never longer than this. */

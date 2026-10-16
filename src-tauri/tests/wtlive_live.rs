@@ -522,6 +522,33 @@ fn vehicle_top_keeps_three_for_the_vehicle() {
     assert_eq!(env.transport.requests().len(), 1, "a blank code asks nothing");
 }
 
+/// Makes every cached feed page `by` older.
+fn age_cached_pages(env: &Env, by: std::time::Duration) {
+    let pages = env.dir.join("cache").join("pages");
+    for entry in std::fs::read_dir(pages).unwrap().filter_map(Result::ok) {
+        let file = std::fs::File::options().write(true).open(entry.path()).unwrap();
+        file.set_modified(std::time::SystemTime::now() - by).unwrap();
+    }
+}
+
+#[test]
+fn vehicle_top_reuses_its_page_for_a_day() {
+    let transport = FakeTransport::new(|_, _| Ok(feed_json(&[fake(1, (7, "S"), &["t_34_85"], 1)])));
+    let env = Env::new("top-day", transport);
+    assert_eq!(env.client.vehicle_top("ussr_t_34_85").unwrap().len(), 1);
+    assert_eq!(env.transport.requests().len(), 1);
+
+    // Two hours later, in a new session: the most downloaded skins change slowly, nothing is asked.
+    age_cached_pages(&env, std::time::Duration::from_secs(2 * 3600));
+    assert_eq!(env.second_client().vehicle_top("ussr_t_34_85").unwrap().len(), 1);
+    assert_eq!(env.transport.requests().len(), 1);
+
+    // Past a day the page is asked again.
+    age_cached_pages(&env, std::time::Duration::from_secs(25 * 3600));
+    assert_eq!(env.second_client().vehicle_top("ussr_t_34_85").unwrap().len(), 1);
+    assert_eq!(env.transport.requests().len(), 2);
+}
+
 #[test]
 fn vehicle_top_keeps_a_post_carrying_the_vehicles_hashtag_whatever_it_was_matched_to() {
     // A pack for several vehicles is matched to the first one it names (the Su-27 here), and a

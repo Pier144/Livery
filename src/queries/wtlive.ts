@@ -212,7 +212,8 @@ export function useVehicleTop(code: string, { enabled: wanted = true }: { enable
 export const vehicleTopQuery = (code: string) => ({
   queryKey: [...WTLIVE_KEY, 'vehicle-top', code],
   queryFn: () => tracked(() => call<WtLiveSkin[]>('wtlive_vehicle_top', { code })),
-  staleTime: 30 * 60_000,
+  // The backend keeps a vehicle's most downloaded skins for a day (`TOP_TTL`); so does this.
+  staleTime: 24 * 3600_000,
 });
 
 /**

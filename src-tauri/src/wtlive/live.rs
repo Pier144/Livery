@@ -22,8 +22,9 @@
 //! first vehicle of its chunk it is for. Counts are a lower bound, as with Following.
 //!
 //! # Freshness
-//! Listings are cached for [`LISTING_TTL`], posts for [`POST_TTL`], author look-ups and
-//! archives for a day ([`cache::MAX_AGE`]). Nothing is fetched unless a command asks.
+//! Listings are cached for [`LISTING_TTL`], posts for [`POST_TTL`], author look-ups, archives
+//! and For you's most downloaded skins per vehicle ([`TOP_TTL`]) for a day ([`cache::MAX_AGE`]).
+//! Nothing is fetched unless a command asks.
 
 use super::api::{self, FoundUser, Post, TextQuery};
 use super::cache::{self, DiskCache, PART_MARK};
@@ -45,6 +46,9 @@ use std::time::{Duration, Instant};
 
 /// How long a listing page is reused.
 pub const LISTING_TTL: Duration = Duration::from_secs(30 * 60);
+/// How long For you reuses a vehicle's most downloaded skins: they change slowly, so a page is
+/// kept for the cache's full day (`cache::MAX_AGE`) instead of [`LISTING_TTL`].
+pub const TOP_TTL: Duration = cache::MAX_AGE;
 /// How long a post is reused.
 pub const POST_TTL: Duration = Duration::from_secs(6 * 3600);
 /// Skins a result page aims for.
@@ -270,10 +274,14 @@ impl LiveClient {
 
     /// One feed page, parsed: the installable posts and how many entries WT Live sent.
     pub fn feed_page(&self, feed: &Feed, page: u32) -> AppResult<(Vec<Post>, usize)> {
+        self.feed_page_within(feed, page, LISTING_TTL)
+    }
+
+    /// [`Self::feed_page`], reusing a cached page younger than `ttl`.
+    fn feed_page_within(&self, feed: &Feed, page: u32, ttl: Duration) -> AppResult<(Vec<Post>, usize)> {
         let (path, form) = feed.request(page);
         let key = format!("{}|{page}", feed.key());
-        let bytes =
-            self.fetch(&key, LISTING_TTL, || self.transport.post_form(path, &form), |b| api::parse_feed(b).is_ok())?;
+        let bytes = self.fetch(&key, ttl, || self.transport.post_form(path, &form), |b| api::parse_feed(b).is_ok())?;
         let raw_len = raw_list_len(&bytes);
         let posts = api::parse_feed(&bytes)?;
         self.remember_authors(&posts);
@@ -598,7 +606,7 @@ impl WtLiveClient for LiveClient {
             return Ok(Vec::new());
         }
         let feed = Feed::Regular { sort: "downloads", tags };
-        let (posts, _) = self.feed_page(&feed, 0)?;
+        let (posts, _) = self.feed_page_within(&feed, 0, TOP_TTL)?;
         Ok(posts
             .into_iter()
             .filter(|p| api::is_for_vehicle(p, code) && !self.hidden.contains(&p.skin.id))

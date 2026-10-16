@@ -214,7 +214,8 @@ describe('For you', () => {
       const scroller = await screen.findByRole('region', { name: LIST });
       Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 240 });
       fireEvent.scroll(scroller);
-      await user.click(await findThumb('Russian Knights Blue'));
+      // At 240 px (four 60 px rows down) the T-34-85 row is on screen.
+      await user.click(await findThumb("Winter '44 Whitewash"));
       expect(useUi.getState().screen).toBe('detail');
       first.unmount();
 
@@ -224,7 +225,7 @@ describe('For you', () => {
       await screen.findByRole('region', { name: LIST });
       await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 240 })));
       // The skin's thumbnail takes focus again.
-      await waitFor(() => expect(document.activeElement).toHaveAttribute('data-skin-id', 's9'));
+      await waitFor(() => expect(document.activeElement).toHaveAttribute('data-skin-id', 's2'));
       back.unmount();
 
       // Leaving for another screen (not a Skin detail) forgets the place.
