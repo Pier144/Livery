@@ -7,3 +7,5 @@
 *.tga binary
 # The game's CSV layout (CRLF, BOM) kept byte for byte
 src-tauri/tests/fixtures/game/*.csv -text
+# War Thunder profile fixtures (CRLF, like the game writes them) kept byte for byte
+src-tauri/tests/fixtures/profile/*.blk -text

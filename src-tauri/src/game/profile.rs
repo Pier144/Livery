@@ -8,9 +8,12 @@
 //! text with BLK's lexical rules and cuts out just those two blocks for `library::blk::parse`.
 //! Logs get counts only, and errors carry the file's path, never its content.
 
+use crate::error::{AppError, AppResult, ErrorCode};
 use crate::game::catalog::nation_of;
 use crate::library::blk;
-use crate::model::{Nation, NationLineups, Preset};
+use crate::model::{Lineups, LineupsStatus, Nation, NationLineups, Preset};
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
 /// Largest block [`find_block`] cuts out (the author's `slotbar_presets` is about 4 KB).
 pub const MAX_BLOCK_BYTES: usize = 64 * 1024;
@@ -225,4 +228,128 @@ pub fn parse_lineups(
         })
     });
     (current, current_nation, nations)
+}
+
+// ── Locating and reading the profile ───────────────────────────────────────
+
+/// The profile file's name, in `Saves\<uid>\production` and `Saves\last\production`.
+pub const GLOBAL_BLK: &str = "global.blk";
+
+/// `io` message: the profile file exists but can't be read.
+pub const LINEUPS_UNREADABLE: &str = "Livery couldn't read your War Thunder profile";
+
+/// `parse` message: the lineups block of the profile can't be read.
+pub const LINEUPS_UNPARSABLE: &str = "The lineups in your War Thunder profile can't be read";
+
+/// `raw` with every `%NAME%` that `env` knows replaced by its value, as Windows expands a
+/// `REG_EXPAND_SZ` value. Unknown names and a lone `%` are kept as written.
+pub fn expand_env(raw: &str, env: &dyn Fn(&str) -> Option<OsString>) -> String {
+    let mut out = String::new();
+    let mut rest = raw;
+    while let Some(start) = rest.find('%') {
+        let Some(len) = rest[start + 1..].find('%') else { break };
+        let name = &rest[start + 1..start + 1 + len];
+        out.push_str(&rest[..start]);
+        match if name.is_empty() { None } else { env(name) } {
+            Some(value) => out.push_str(&value.to_string_lossy()),
+            None => out.push_str(&rest[start..start + len + 2]),
+        }
+        rest = &rest[start + len + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The Documents folder: `personal` (the registry's `Personal` shell folder, which follows a
+/// folder moved to OneDrive) with its variables expanded, else `%USERPROFILE%\Documents`.
+pub fn documents_dir(personal: Option<&str>, env: &dyn Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    if let Some(raw) = personal.map(str::trim).filter(|p| !p.is_empty()) {
+        return Some(PathBuf::from(expand_env(raw, env)));
+    }
+    env("USERPROFILE").filter(|home| !home.is_empty()).map(|home| PathBuf::from(home).join("Documents"))
+}
+
+/// The last account's `global.blk` under `documents`: `Saves\<lastUid>\production`, else the
+/// copy in `Saves\last\production`. `None` when neither file exists.
+pub fn profile_file(documents: &Path) -> Option<PathBuf> {
+    let saves = documents.join("My Games").join("WarThunder").join("Saves");
+    let uid = std::fs::read_to_string(saves.join("last").join("lastUid")).ok();
+    // Digits only: the uid becomes a folder name.
+    let uid = uid.as_deref().map(str::trim).filter(|u| !u.is_empty() && u.bytes().all(|b| b.is_ascii_digit()));
+    uid.map(|u| saves.join(u).join("production").join(GLOBAL_BLK))
+        .into_iter()
+        .chain(std::iter::once(saves.join("last").join("production").join(GLOBAL_BLK)))
+        .find(|p| p.is_file())
+}
+
+/// The real Documents folder: the registry's `Personal` shell folder on Windows.
+pub fn system_documents_dir() -> Option<PathBuf> {
+    let env = |name: &str| std::env::var_os(name);
+    documents_dir(registry_personal().as_deref(), &env)
+}
+
+/// `HKCU\…\User Shell Folders\Personal`, unexpanded (a `REG_EXPAND_SZ`).
+#[cfg(windows)]
+fn registry_personal() -> Option<String> {
+    winreg::HKCU
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders")
+        .and_then(|k| k.get_value::<String, _>("Personal"))
+        .ok()
+}
+
+#[cfg(not(windows))]
+fn registry_personal() -> Option<String> {
+    None
+}
+
+/// The block called `name` out of `slice` (the text [`find_block`] cut out), `None` when it
+/// doesn't parse. The parser's error is dropped: its message may quote the file.
+fn parse_block(slice: &str, name: &str) -> Option<blk::Block> {
+    blk::parse(slice).ok()?.blocks.into_iter().find(|(n, _)| n == name).map(|(_, b)| b)
+}
+
+/// Reads the lineups of the profile at `path`: `ok`, or `noLineups` when the profile has no
+/// usable preset. A file that can't be read is an `io` error; lineups cut mid-write, too big
+/// or malformed are a `parse` error. Errors carry the path, never file content.
+pub fn read_lineups(path: &Path) -> AppResult<Lineups> {
+    let unreadable = |e: std::io::Error| {
+        AppError::new(ErrorCode::Io, LINEUPS_UNREADABLE).with_detail(format!("{}: {}", path.display(), e.kind()))
+    };
+    let unparsable = || AppError::new(ErrorCode::Parse, LINEUPS_UNPARSABLE).with_detail(path.display().to_string());
+    let meta = std::fs::metadata(path).map_err(unreadable)?;
+    let bytes = std::fs::read(path).map_err(unreadable)?;
+    let text = String::from_utf8_lossy(&bytes);
+
+    let presets = match find_block(&text, "slotbar_presets") {
+        Ok(Some(slice)) => parse_block(slice, "slotbar_presets").ok_or_else(|| {
+            tracing::warn!("lineups: the slotbar_presets block doesn't parse");
+            unparsable()
+        })?,
+        Ok(None) => {
+            tracing::info!("lineups: the profile has no slotbar_presets block");
+            return Ok(Lineups::empty(LineupsStatus::NoLineups));
+        }
+        Err(e) => {
+            tracing::warn!(error = ?e, "lineups: the slotbar_presets block can't be cut out");
+            return Err(unparsable());
+        }
+    };
+    // Optional: without it (or cut mid-write) the lineups are still usable.
+    let selected_air = match find_block(&text, "selectedAir") {
+        Ok(Some(slice)) => parse_block(slice, "selectedAir"),
+        _ => None,
+    };
+
+    let (current, current_nation, nations) = parse_lineups(&presets, selected_air.as_ref());
+    tracing::info!(
+        nations = nations.len(),
+        presets = nations.iter().map(|n| n.presets.len()).sum::<usize>(),
+        current = current.is_some(),
+        "lineups read from the profile"
+    );
+    if nations.is_empty() {
+        return Ok(Lineups::empty(LineupsStatus::NoLineups));
+    }
+    let saved_at = meta.modified().ok().map(crate::library::time::rfc3339_utc);
+    Ok(Lineups { status: LineupsStatus::Ok, saved_at, current, current_nation, nations })
 }

@@ -1,0 +1,32 @@
+version:i=1
+content{
+  // Synthetic, anonymized profile: the layout of War Thunder's global.blk, none of its data.
+  profile{
+    scoutTargetSuccess:i=0
+    lastHint:t="selectedAir{ is text here, not a block"
+    note:t='} slotbar_presets{ also text'
+    skins{
+      it_ab_41:t="x"
+      us_m4_t26:t="default"
+    }
+    /* slotbar_presets{ in a comment */
+    slotbar_presets{
+      presetsVersion:i=1
+      country_usa{
+        preset:t="0|1,2,3|us_m2a4,us_m3_stuart,us_m3_lee|Preselezione #1|tank_mode|"
+        preset:t="0|1,2,3,4|us_m4_t26,us_m18_hellcat,us_m4a3e2_sherman_jumbo,us_t1e1_90|Preselezione #2|tank_mode|5,6"
+        preset:t="1|7,8|p-47d,f6f-5|Air|air_mode|"
+        selected:i=1
+      }
+      country_ussr{
+        preset:t="2|9,10|ussr_t_34_1941,ussr_kv_1_zis_5,yak-7b|Preselezione #1|tank_mode|"
+      }
+      country_britain{
+        preset:t="3|11,12|uk_a13_mk2,uk_crusader_mk_2|Preselezione #1|tank_mode|"
+        preset:t="3|13|uk_churchill_vii|Heavy | slow|tank_mode|"
+      }
+    }
+    selectedAir{
+      current_model:t="us_m4_t26"
+      usa:t="us_m4_t26"
+      

@@ -1,0 +1,22 @@
+version:i=1
+content{
+  // Synthetic, anonymized profile: the layout of War Thunder's global.blk, none of its data.
+  profile{
+    scoutTargetSuccess:i=0
+    lastHint:t="selectedAir{ is text here, not a block"
+    note:t='} slotbar_presets{ also text'
+    skins{
+      it_ab_41:t="x"
+      us_m4_t26:t="default"
+    }
+    /* slotbar_presets{ in a comment */
+    selectedAir{
+      current_model:t="us_m4_t26"
+      usa:t="us_m4_t26"
+      britain:t="uk_crusader_mk_2"
+    }
+    options{
+      zoomSensitivity:r=0.5
+    }
+  }
+}
