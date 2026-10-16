@@ -7,7 +7,7 @@
 //!   only), a disk cache of at most a day ([`cache`]) and the posts the user hid ([`hidden`]).
 //!   The README's Privacy section is the posture it follows.
 //! - [`install`]: installs from WT Live, Try in game (Keep / Discard), textures before installing.
-//! - [`following`] keeps `<appData>/following.json`.
+//! - [`following`] keeps `<appData>/following.json`, [`for_you`] `<appData>/for_you.json`.
 //! - this file: the managed state [`WtLive`], the commands, and the plain functions behind them
 //!   (tested without Tauri in `tests/wtlive_*.rs` and `tests/following_*.rs`).
 //!
@@ -22,6 +22,7 @@ pub mod api;
 pub mod cache;
 pub mod client;
 pub mod following;
+pub mod for_you;
 pub mod hidden;
 pub mod install;
 pub mod live;
@@ -33,6 +34,7 @@ pub use client::{
     UNSUPPORTED_MESSAGE,
 };
 pub use following::{FollowingStore, FOLLOWING_FILE};
+pub use for_you::{ForYouStore, FOR_YOU_FILE};
 pub use live::LiveClient;
 
 use crate::archive::{QueueStore, PROGRESS_EVENT};
