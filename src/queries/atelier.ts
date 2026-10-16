@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { parseModelBuffer, type VehicleModelData } from '@/atelier/modelBuffer';
-import { call, callRaw, hasBackend } from '@/lib/tauri';
+import { errorText } from '@/lib/errors';
+import { call, callRaw, hasBackend, toAppError } from '@/lib/tauri';
 import { toast } from '@/store/toasts';
 import type { AppError, AtelierProject, AtelierProjectSummary } from '@/types';
 
@@ -91,10 +92,18 @@ export function useDeleteProject() {
       toast.undoable(
         t('atelier.toast.deleted', { name }),
         async () => {
-          await call('atelier_project_undo_delete', { id });
-          await qc.invalidateQueries({ queryKey: ATELIER_PROJECTS_KEY });
+          try {
+            await call('atelier_project_undo_delete', { id });
+          } catch (e) {
+            toast(errorText(toAppError(e), t));
+          } finally {
+            await qc.invalidateQueries({ queryKey: ATELIER_PROJECTS_KEY });
+          }
         },
-        () => call('atelier_project_forget_deleted', { id }),
+        async () => {
+          qc.removeQueries({ queryKey: thumbKey(id) });
+          await call('atelier_project_forget_deleted', { id });
+        },
       );
       return qc.invalidateQueries({ queryKey: ATELIER_PROJECTS_KEY });
     },
@@ -108,7 +117,7 @@ export function useDeleteProject() {
 export function useVehicleModel(vehicle: string | null) {
   return useQuery<VehicleModelData, AppError>({
     queryKey: vehicleModelKey(vehicle ?? ''),
-    queryFn: async () => parseModelBuffer(await call<ArrayBuffer>('atelier_model', { vehicle })),
+    queryFn: async () => parseModelBuffer(toArrayBuffer(await call<unknown>('atelier_model', { vehicle }))),
     enabled: vehicle !== null && hasBackend(),
     staleTime: Infinity,
   });
@@ -116,20 +125,32 @@ export function useVehicleModel(vehicle: string | null) {
 
 /** The original texture of one slot, RGBA8 rows top to bottom (its size is in the model's header). */
 export function useTemplateTexture(vehicle: string | null, slot: string | null) {
-  return useQuery<Uint8Array, AppError>({
+  return useQuery<Uint8Array<ArrayBuffer>, AppError>({
     queryKey: templateTextureKey(vehicle ?? '', slot ?? ''),
-    queryFn: async () => new Uint8Array(await call<ArrayBuffer>('atelier_template_texture', { vehicle, slot })),
+    queryFn: async () => new Uint8Array(toArrayBuffer(await call<unknown>('atelier_template_texture', { vehicle, slot }))),
     enabled: vehicle !== null && slot !== null && hasBackend(),
     staleTime: Infinity,
   });
 }
 
+/**
+ * The bytes of a binary command answer: an `ArrayBuffer` (`tauri::ipc::Response`, the mock), a
+ * `Uint8Array`, or a plain number array (Tauri's fallback when the response isn't sent raw).
+ * Anything else throws `Error('model buffer: unexpected payload')`.
+ */
+export function toArrayBuffer(x: unknown): ArrayBuffer {
+  if (x instanceof ArrayBuffer) return x;
+  if (x instanceof Uint8Array) return x.buffer.slice(x.byteOffset, x.byteOffset + x.byteLength) as ArrayBuffer;
+  if (Array.isArray(x) && x.every((b) => Number.isInteger(b) && b >= 0 && b <= 255)) return Uint8Array.from(x as number[]).buffer;
+  throw new Error('model buffer: unexpected payload');
+}
+
 /** A project's thumbnail (PNG bytes), `null` when it has none. */
 export function useThumb(id: string, enabled = true) {
-  return useQuery<Uint8Array | null, AppError>({
+  return useQuery<Uint8Array<ArrayBuffer> | null, AppError>({
     queryKey: thumbKey(id),
     queryFn: async () => {
-      const png = new Uint8Array(await call<ArrayBuffer>('atelier_project_thumb_get', { id }));
+      const png = new Uint8Array(toArrayBuffer(await call<unknown>('atelier_project_thumb_get', { id })));
       return png.length > 0 ? png : null;
     },
     enabled: enabled && hasBackend(),

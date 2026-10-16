@@ -113,7 +113,14 @@ describe('mock Atelier · projects', () => {
       code: 'invalidInput',
       message: 'A project name must be 1 to 80 characters long',
     });
+    // C1 control characters too (Rust's char::is_control).
+    expect(await rejection(create('Camo\u0085'))).toMatchObject({ message: 'A project name must be 1 to 80 characters long' });
     const p = await create();
+    const huge = [{ id: 'b', kind: 'base', blob: 'x'.repeat(8 * 1024 * 1024) }];
+    expect(await rejection(call('atelier_project_save', { project: { ...p, layers: huge } }))).toMatchObject({
+      code: 'invalidInput',
+      message: "This Atelier project can't be read",
+    });
     expect(await rejection(call('atelier_project_save', { project: { ...p, version: 2 } }))).toMatchObject({
       code: 'invalidInput',
       message: "This Atelier project can't be read",
@@ -244,6 +251,20 @@ describe('mock Atelier · apply', () => {
     expect(await rejection(call('atelier_project_create', { name: '', vehicle: VEHICLE }))).toMatchObject({
       message: 'A project name must be 1 to 80 characters long',
     });
+  });
+
+  it('a commit without a game folder fails at the last pct, before any install step', async () => {
+    const p = await create();
+    const ended = progressUntilEnd();
+    const { applyId } = await call<ApplyStarted>('atelier_apply_begin', { projectId: p.id, enabled: [BODY] });
+    await texture(applyId, BODY);
+    await call('set_settings', { patch: { gamePath: '' } });
+    expect(await rejection(call('atelier_apply_commit', { applyId }))).toMatchObject({ message: 'No game folder set' });
+    expect((await ended).map((e) => [e.step, e.pct])).toEqual([
+      ['encode', 0],
+      ['write', 45],
+      ['error', 45],
+    ]);
   });
 
   it('cancel ends the apply', async () => {

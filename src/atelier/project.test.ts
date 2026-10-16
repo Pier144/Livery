@@ -7,6 +7,8 @@ import {
   newBaseLayer,
   newMaskLayer,
   serializeLayers,
+  checkLayers,
+  partGroupOf,
   validateLayers,
   type MaskLayer,
   type Stroke,
@@ -72,7 +74,7 @@ describe('layers', () => {
       },
     ]);
     expect(base).toMatchObject({ kind: 'base', name: '', visible: true, mode: 'camo', colors: ['#abcdef', DEFAULT_CAMO_COLOR], scale: 1, seed: 2 });
-    expect((mask as MaskLayer).strokes).toEqual([stroke({ hardness: 1, part: 'all', dir: [0, 0, -1] })]);
+    expect((mask as MaskLayer).strokes).toEqual([stroke({ hardness: 1, part: 'wing', dir: [0, 0, -1] })]);
   });
 
   it('renews repeated ids and drops entries that are not layers', () => {
@@ -93,6 +95,41 @@ describe('layers', () => {
     expect(baseOf(layers)?.kind).toBe('base');
     expect(maskOf(layers)?.id).toBe('m');
     expect(maskOf(validateLayers([]))).toBeUndefined();
+  });
+
+  it('keeps unknown fields on known layers and strokes, and unknown parts as written', () => {
+    const json = [
+      { id: 'b', kind: 'base', name: 'Olive', visible: true, mode: 'camo', colors: ['#111111', '#222222'], scale: 2, seed: 3, finish: 'matte' },
+      {
+        id: 'm',
+        kind: 'mask',
+        name: '',
+        visible: true,
+        strokes: [{ erase: false, radius: 0.1, hardness: 0.5, part: 'wheels', dir: [0, 0, -1], points: [[0, 0, 0]], pressure: [0.4] }],
+        feather: 2,
+      },
+    ];
+    const { layers, repaired } = checkLayers(json);
+    expect(repaired).toBe(false);
+    expect(serializeLayers(layers)).toEqual(json);
+    expect(partGroupOf('wheels')).toBeNull();
+    expect(partGroupOf('all')).toBeNull();
+    expect(partGroupOf('turret')).toBe('turret');
+  });
+
+  it('flags only structural repairs', () => {
+    const base = { id: 'b', kind: 'base' };
+    const mask = { id: 'm', kind: 'mask', strokes: [] };
+    const image = { id: 'i', kind: 'image' };
+    expect(checkLayers([]).repaired).toBe(true);
+    expect(checkLayers([base, image, mask]).repaired).toBe(false);
+    // Defaults for missing fields alone don't count.
+    expect(checkLayers([{ id: 'b', kind: 'base', colors: 'x' }]).repaired).toBe(false);
+    expect(checkLayers([image, base]).repaired).toBe(true);
+    expect(checkLayers([base, mask, image]).repaired).toBe(true);
+    expect(checkLayers([base, mask, { ...mask, id: 'm2' }]).repaired).toBe(true);
+    expect(checkLayers([base, { ...base, id: 'b2' }]).repaired).toBe(true);
+    expect(checkLayers([base, { ...image, id: 'b' }]).repaired).toBe(true);
   });
 
   it('round-trips through JSON unchanged once valid', () => {

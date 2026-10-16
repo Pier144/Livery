@@ -11,6 +11,7 @@ import {
   ATELIER_PROJECTS_KEY,
   atelierProjectKey,
   thumbKey,
+  toArrayBuffer,
   useDeleteProject,
   useSaveProject,
   useSetThumb,
@@ -124,6 +125,40 @@ describe('Atelier queries', () => {
     act(() => useToasts.getState().dismiss(second!.id));
     expect(backend.call).toHaveBeenCalledWith('atelier_project_forget_deleted', { id: 'p-2' });
     expect(backend.call).not.toHaveBeenCalledWith('atelier_project_undo_delete', { id: 'p-2' });
+  });
+
+  it('a failed Undo of a delete shows the error and still refreshes the list; forgetting drops the thumbnail', async () => {
+    backend.call.mockImplementation(async (cmd) => {
+      if (cmd === 'atelier_project_undo_delete') throw { code: 'notFound', message: 'This Atelier project no longer exists' };
+      return null;
+    });
+    const { client, wrapper } = setup();
+    client.setQueryData(ATELIER_PROJECTS_KEY, []);
+    client.setQueryData(thumbKey('p-1'), new Uint8Array([1]));
+    client.setQueryData(thumbKey('p-2'), new Uint8Array([2]));
+    const { result } = renderHook(() => useDeleteProject(), { wrapper });
+    await act(() => result.current.mutateAsync({ id: 'p-1', name: 'Desert' }));
+    client.setQueryData(ATELIER_PROJECTS_KEY, []);
+    const [first] = useToasts.getState().toasts;
+    await act(() => useToasts.getState().undo(first!.id));
+    expect(useToasts.getState().toasts.map((t) => t.message)).toContain('This Atelier project no longer exists');
+    expect(client.getQueryState(ATELIER_PROJECTS_KEY)?.isInvalidated).toBe(true);
+
+    await act(() => result.current.mutateAsync({ id: 'p-2', name: 'Winter' }));
+    const deleted = useToasts.getState().toasts.find((t) => t.message === 'Deleted project “Winter”');
+    act(() => useToasts.getState().dismiss(deleted!.id));
+    expect(client.getQueryData(thumbKey('p-2'))).toBeUndefined();
+    expect(backend.call).toHaveBeenCalledWith('atelier_project_forget_deleted', { id: 'p-2' });
+  });
+
+  it('toArrayBuffer accepts the payloads Tauri may answer with', () => {
+    const buf = new Uint8Array([1, 2, 3]).buffer;
+    expect(toArrayBuffer(buf)).toBe(buf);
+    expect(new Uint8Array(toArrayBuffer(new Uint8Array([9, 1, 2, 3]).subarray(1)))).toEqual(new Uint8Array([1, 2, 3]));
+    expect(new Uint8Array(toArrayBuffer([1, 2, 3]))).toEqual(new Uint8Array([1, 2, 3]));
+    for (const bad of [null, 'x', [1, 300], { a: 1 }]) {
+      expect(() => toArrayBuffer(bad)).toThrow('model buffer: unexpected payload');
+    }
   });
 
   it('useSetThumb sends the PNG as a raw body and refreshes the thumbnail and the list', async () => {

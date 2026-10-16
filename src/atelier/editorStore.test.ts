@@ -81,6 +81,19 @@ describe('editor store', () => {
     expect(base()?.scale).toBe(1);
   });
 
+  it('endGesture ends a merge: two drags with the same key are two undo steps', () => {
+    S().setBase({ scale: 1.1 }, 'scale');
+    S().setBase({ scale: 1.2 }, 'scale');
+    S().endGesture();
+    S().setBase({ scale: 1.5 }, 'scale');
+    S().setBase({ scale: 1.6 }, 'scale');
+    expect(S().past).toHaveLength(2);
+    S().undo();
+    expect(base()?.scale).toBe(1.2);
+    S().undo();
+    expect(base()?.scale).toBe(1);
+  });
+
   it('a stroke being drawn is one undo step, and creates the mask pinned on top', () => {
     S().beginStroke(brush);
     S().extendStroke([0, 0, 0]);
@@ -95,13 +108,24 @@ describe('editor store', () => {
     expect(maskOf(S().layers)).toBeUndefined();
   });
 
-  it('a stroke that painted nothing leaves no trace and no undo step', () => {
+  it('a stroke that painted nothing leaves no trace: no undo step, redo kept, not dirty', () => {
     S().addStroke({ ...brush, points: [[0, 0, 0]] });
+    S().setBase({ seed: 4 });
+    S().undo();
+    S().markSaved(currentProject(S())!, S().revision);
+    const before = { future: S().future, revision: S().revision };
+    expect(S().dirty).toBe(false);
+    expect(before.future).toHaveLength(1);
     const past = S().past.length;
     S().beginStroke(brush);
     S().endStroke();
     expect(strokes()).toHaveLength(1);
     expect(S().past).toHaveLength(past);
+    expect(S().future).toBe(before.future);
+    expect(S().dirty).toBe(false);
+    expect(S().revision).toBe(before.revision);
+    S().redo();
+    expect(base()?.seed).toBe(4);
     S().extendStroke([1, 1, 1]);
     expect(strokes()[0]?.points).toHaveLength(1);
   });
@@ -159,6 +183,17 @@ describe('editor store', () => {
     expect(S().project?.installedSkinId).toBe('s-9');
     S().markSaved(saved, S().revision);
     expect(S().dirty).toBe(false);
+  });
+
+  it('loading a project whose layers carry unknown fields is clean, and saves them back', () => {
+    const layers = [
+      { id: 'b', kind: 'base', name: '', visible: true, mode: 'solid', colors: ['#56603f'], scale: 1, seed: 1, gloss: 0.4 },
+      { id: 'm', kind: 'mask', name: '', visible: true, strokes: [{ ...brush, part: 'wheels', points: [[0, 0, 0]], pressure: [1] }], tag: 'x' },
+    ];
+    resetAtelierEditor();
+    S().load({ ...PROJECT, layers });
+    expect(S().dirty).toBe(false);
+    expect(currentProject(S())?.layers).toEqual(layers);
   });
 
   it('currentProject serialises the layers into the project', () => {

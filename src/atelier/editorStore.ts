@@ -2,10 +2,10 @@ import { create } from 'zustand';
 import type { AtelierProject } from '@/types';
 import {
   baseOf,
+  checkLayers,
   maskOf,
   newMaskLayer,
   serializeLayers,
-  validateLayers,
   type BaseLayer,
   type Layer,
   type MaskLayer,
@@ -33,11 +33,19 @@ interface EditorState {
   revision: number;
   /** A stroke is being drawn (between beginStroke and endStroke). */
   stroking: boolean;
-  /** Edits sharing this key (one slider drag) make a single undo step; any other action ends it. */
+  /**
+   * Edits sharing this key make a single undo step (one slider drag, one colour picker session).
+   * The gesture ends with `endGesture()`, which callers call on pointer-up / change-commit / blur;
+   * any other action ends it too. Two drags with the same key are two steps.
+   */
   mergeKey: string | null;
+  /** What `beginStroke` replaced, put back when the stroke ends without a point. */
+  strokeBefore: { future: Layer[][]; dirty: boolean; revision: number } | null;
 
   load(project: AtelierProject): void;
   setBase(patch: BasePatch, mergeKey?: string): void;
+  /** Ends the current merged gesture (see `mergeKey`). */
+  endGesture(): void;
   addStroke(stroke: Stroke): void;
   beginStroke(stroke: Omit<Stroke, 'points'> & { points?: Vec3[] }): void;
   extendStroke(point: Vec3): void;
@@ -68,20 +76,12 @@ const initial = {
   revision: 0,
   stroking: false,
   mergeKey: null,
+  strokeBefore: null,
 };
 
 /** The project as `atelier_project_save` takes it (null when none is open). */
 export function currentProject(state: Pick<EditorState, 'project' | 'layers'>): AtelierProject | null {
   return state.project ? { ...state.project, layers: serializeLayers(state.layers) } : null;
-}
-
-/** JSON with object keys sorted, so two values compare equal whatever their key order. */
-function canonical(value: unknown): string {
-  return JSON.stringify(value, (_, v: unknown) =>
-    typeof v === 'object' && v !== null && !Array.isArray(v)
-      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
-      : v,
-  );
 }
 
 /** `past` with `layers` pushed, capped at HISTORY_LIMIT. */
@@ -118,9 +118,8 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     ...initial,
 
     load: (project) => {
-      const layers = validateLayers(project.layers);
-      // Repairs (a new project's Base) are saved like any change.
-      const repaired = canonical(serializeLayers(layers)) !== canonical(project.layers);
+      // Structural repairs (a new project's Base, misplaced layers, repeated ids) are saved like any change.
+      const { layers, repaired } = checkLayers(project.layers);
       set({ ...initial, project, layers, selectedId: layers[0]?.id ?? null, dirty: repaired, revision: repaired ? 1 : 0 });
     },
 
@@ -137,11 +136,17 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       commit(next, { mergeKey: mergeKey ?? null });
     },
 
+    endGesture: () => set({ mergeKey: null }),
+
     addStroke: (stroke) => commit(withMask(get().layers, (m) => ({ ...m, strokes: [...m.strokes, stroke] }))),
 
     beginStroke: (stroke) => {
+      const { future, dirty, revision } = get();
       const begun: Stroke = { ...stroke, points: stroke.points ?? [] };
-      commit(withMask(get().layers, (m) => ({ ...m, strokes: [...m.strokes, begun] })), { stroking: true });
+      commit(withMask(get().layers, (m) => ({ ...m, strokes: [...m.strokes, begun] })), {
+        stroking: true,
+        strokeBefore: { future, dirty, revision },
+      });
     },
 
     extendStroke: (point) => {
@@ -158,16 +163,23 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     },
 
     endStroke: () => {
-      const { stroking, layers, past } = get();
+      const { stroking, layers, past, strokeBefore } = get();
       if (!stroking) return;
       const mask = maskOf(layers);
       const last = mask?.strokes[mask.strokes.length - 1];
       if (last && last.points.length === 0) {
-        // Nothing was painted (the pointer missed the model): the stroke and its undo step go.
-        set({ layers: past[past.length - 1] ?? layers, past: past.slice(0, -1), stroking: false });
+        // Nothing was painted (the pointer missed the model): as if the stroke never began (no
+        // undo step, redo kept, dirty and revision as they were).
+        set({
+          layers: past[past.length - 1] ?? layers,
+          past: past.slice(0, -1),
+          stroking: false,
+          strokeBefore: null,
+          ...(strokeBefore ?? {}),
+        });
         return;
       }
-      set({ stroking: false });
+      set({ stroking: false, strokeBefore: null });
     },
 
     removeLastStroke: () => {

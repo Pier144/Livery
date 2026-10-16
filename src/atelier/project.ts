@@ -6,7 +6,8 @@ import type { PartGroup } from '@/types';
  * (a later Livery's image or text layers) is kept as it came and listed as unsupported.
  *
  * Layers run bottom to top: exactly one Base, always first; at most one mask, always last.
- * Colours are project data stored as `#rrggbb` strings (not UI styling).
+ * Colours are project data stored as `#rrggbb` strings (not UI styling). Fields this version
+ * doesn't know (written by a later Livery) are kept on every layer and stroke and saved back.
  */
 
 export type Vec3 = [number, number, number];
@@ -33,14 +34,17 @@ export interface BaseLayer extends LayerCommon {
   seed: number;
 }
 
-/** One brush stroke of the Protected areas, in model space (resolution-independent). */
+/**
+ * One brush stroke of the Protected areas, in model space (resolution-independent). `part` is
+ * kept as written: anything but `hull`, `turret` or `gun` means every part (`partGroupOf`).
+ */
 export interface Stroke {
   /** Erase gives the paint back where the stroke goes. */
   erase: boolean;
   radius: number;
   /** 0 (soft) to 1 (hard). */
   hardness: number;
-  part: PartFilter;
+  part: PartFilter | (string & {});
   /** Camera view direction when painted: only texels facing it are touched. */
   dir: Vec3;
   points: Vec3[];
@@ -68,7 +72,12 @@ export const MAX_CAMO_COLORS = 4;
 export const DEFAULT_DIR: Vec3 = [0, 0, -1];
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
-const PART_FILTERS: readonly PartFilter[] = ['all', 'hull', 'turret', 'gun'];
+const PART_GROUPS: readonly PartGroup[] = ['hull', 'turret', 'gun'];
+
+/** The group a stroke or decal is limited to, or null for every part (`all` or a kind this version doesn't know). */
+export function partGroupOf(part: string): PartGroup | null {
+  return PART_GROUPS.includes(part as PartGroup) ? (part as PartGroup) : null;
+}
 
 let counter = 0;
 
@@ -111,6 +120,7 @@ function toBase(raw: Record<string, unknown>): BaseLayer {
   if (colors.length === 0) colors.push(DEFAULT_BASE_COLOR);
   if (mode === 'camo' && colors.length < MIN_CAMO_COLORS) colors.push(DEFAULT_CAMO_COLOR);
   return {
+    ...raw,
     ...common(raw),
     kind: 'base',
     mode,
@@ -125,10 +135,11 @@ function toStroke(raw: unknown): Stroke | null {
   if (!isObject(raw) || !Array.isArray(raw.points) || !raw.points.every(isVec3) || raw.points.length === 0) return null;
   if (!isFiniteNumber(raw.radius) || raw.radius <= 0) return null;
   return {
+    ...raw,
     erase: raw.erase === true,
     radius: raw.radius,
     hardness: isFiniteNumber(raw.hardness) ? Math.min(1, Math.max(0, raw.hardness)) : 0.5,
-    part: PART_FILTERS.includes(raw.part as PartFilter) ? (raw.part as PartFilter) : 'all',
+    part: typeof raw.part === 'string' && raw.part.length > 0 ? raw.part : 'all',
     dir: isVec3(raw.dir) ? raw.dir : DEFAULT_DIR,
     points: raw.points,
   };
@@ -136,7 +147,7 @@ function toStroke(raw: unknown): Stroke | null {
 
 function toMask(raw: Record<string, unknown>): MaskLayer {
   const strokes = (Array.isArray(raw.strokes) ? raw.strokes : []).map(toStroke).filter((s): s is Stroke => s !== null);
-  return { ...common(raw), kind: 'mask', strokes };
+  return { ...raw, ...common(raw), kind: 'mask', strokes };
 }
 
 function toLayer(raw: unknown): Layer | null {
@@ -149,24 +160,37 @@ function toLayer(raw: unknown): Layer | null {
 /**
  * The layers of a project file, repaired: entries that aren't layers are dropped, fields that
  * don't check out get their defaults, a missing Base is added and the Base moved to the bottom,
- * only the first mask is kept and pinned at the top, and repeated ids are renewed.
+ * only the first Base and mask are kept, the mask pinned at the top, and repeated ids are renewed.
+ * `repaired` is true when one of those structural repairs changed what the project means (a
+ * Base added, layers moved or dropped as extra Base/mask, ids renewed): the project then needs
+ * saving. Field defaults and kept unknown fields alone don't count.
  */
-export function validateLayers(json: unknown): Layer[] {
+export function checkLayers(json: unknown): { layers: Layer[]; repaired: boolean } {
   const parsed = (Array.isArray(json) ? json : []).map(toLayer).filter((l): l is Layer => l !== null);
-  const base = parsed.find((l): l is BaseLayer => l.kind === 'base') ?? newBaseLayer();
-  const mask = parsed.find((l): l is MaskLayer => l.kind === 'mask');
+  const bases = parsed.filter((l): l is BaseLayer => l.kind === 'base');
+  const masks = parsed.filter((l): l is MaskLayer => l.kind === 'mask');
+  const base = bases[0] ?? newBaseLayer();
+  const mask = masks[0];
   const middle = parsed.filter((l) => l.kind === 'unsupported');
-  const layers: Layer[] = [base, ...middle, ...(mask ? [mask] : [])];
+  const ordered: Layer[] = [base, ...middle, ...(mask ? [mask] : [])];
+  let repaired = bases.length !== 1 || masks.length > 1 || parsed[0] !== base || (mask !== undefined && parsed[parsed.length - 1] !== mask);
   const seen = new Set<string>();
-  return layers.map((l) => {
+  const layers = ordered.map((l) => {
     if (!seen.has(l.id)) {
       seen.add(l.id);
       return l;
     }
+    repaired = true;
     const renewed = { ...l, id: newLayerId() };
     seen.add(renewed.id);
     return renewed;
   });
+  return { layers, repaired };
+}
+
+/** `checkLayers` without the repair flag. */
+export function validateLayers(json: unknown): Layer[] {
+  return checkLayers(json).layers;
 }
 
 /** The layers as `project.json` stores them (unsupported ones exactly as they came). */

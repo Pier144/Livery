@@ -2,7 +2,8 @@ import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { currentProject, useAtelierEditor } from '@/atelier/editorStore';
+import { currentProject, resetAtelierEditor, useAtelierEditor } from '@/atelier/editorStore';
+import { baseOf, type Layer } from '@/atelier/project';
 import { createQueryClient } from '@/queries/client';
 import { resetStores } from '@/test/render';
 import type { AtelierProject } from '@/types';
@@ -113,16 +114,62 @@ describe('useAutosave', () => {
     expect(S().dirty).toBe(true);
   });
 
-  it('flush saves at once, and leaving the editor saves what is pending', async () => {
-    const { result, unmount } = mount();
+  it('flush saves at once and says whether everything is saved', async () => {
+    const { result } = mount();
     act(() => S().setBase({ seed: 2 }));
-    await act(() => result.current.flush());
+    expect(await act(() => result.current.flush())).toBe(true);
     expect(saves()).toHaveLength(1);
     expect(S().dirty).toBe(false);
 
+    backend.call.mockRejectedValueOnce({ code: 'io', message: 'Could not save the Atelier project' });
     act(() => S().setBase({ seed: 3 }));
-    unmount();
+    expect(await act(() => result.current.flush())).toBe(false);
+    expect(S().dirty).toBe(true);
+
+    act(() => {
+      S().beginStroke({ erase: false, radius: 0.1, hardness: 0.5, part: 'all', dir: [0, 0, -1] });
+      S().extendStroke([0, 0, 0]);
+    });
+    expect(await act(() => result.current.flush())).toBe(false);
+    act(() => S().endStroke());
+    expect(await act(() => result.current.flush())).toBe(true);
+  });
+
+  it('an edit made during a slow save gets a second save', async () => {
+    let finish: () => void = () => {};
+    backend.call.mockImplementationOnce(
+      (_cmd, args) =>
+        new Promise((resolve) => {
+          finish = () => resolve(args?.project);
+        }),
+    );
+    mount();
+    act(() => S().setBase({ seed: 2 }));
+    act(() => vi.advanceTimersByTime(AUTOSAVE_MS));
+    await settle();
+    expect(saves()).toHaveLength(1);
+    act(() => S().setBase({ seed: 3 }));
+    act(() => vi.advanceTimersByTime(AUTOSAVE_MS));
+    await settle();
+    // One save at a time: the second waits for the first.
+    expect(saves()).toHaveLength(1);
+    expect(S().dirty).toBe(true);
+    await act(async () => finish());
     await settle();
     expect(saves()).toHaveLength(2);
+    expect(baseOf((saves()[1]?.[1]?.project as AtelierProject).layers as Layer[])?.seed).toBe(3);
+    expect(S().dirty).toBe(false);
+  });
+
+  it('leaving the editor saves a copy taken then, even when the store is reset right after', async () => {
+    const { unmount } = mount();
+    act(() => S().setBase({ seed: 7 }));
+    unmount();
+    resetAtelierEditor();
+    await settle();
+    expect(saves()).toHaveLength(1);
+    const sent = saves()[0]?.[1]?.project as AtelierProject;
+    expect(sent.id).toBe('p-1');
+    expect(baseOf(sent.layers as Layer[])?.seed).toBe(7);
   });
 });

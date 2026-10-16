@@ -59,6 +59,8 @@ export const APPLY_FAILED = "The skin couldn't be applied to the game";
 
 const MAX_NAME_CHARS = 80;
 const MAX_LAYERS = 500;
+/** `layers` serialised must stay below this. */
+const MAX_LAYERS_BYTES = 8 * 1024 * 1024;
 const MAX_THUMB_BYTES = 2 * 1024 * 1024;
 const MAX_APPLY_SIDE = 4096;
 /** `pct` reached when every texture is written; install takes the rest (apply.rs `TEXTURES_PCT`). */
@@ -265,6 +267,8 @@ interface MockApply {
   folder: string;
   enabled: string[];
   written: string[];
+  /** The last `pct` reported (a commit that fails before installing repeats it). */
+  lastPct: number;
 }
 
 export interface AtelierMockState {
@@ -346,7 +350,7 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
   const checkedName = (name: string): string => {
     const trimmed = name.trim();
     const chars = [...trimmed].length;
-    if (chars === 0 || chars > MAX_NAME_CHARS || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+    if (chars === 0 || chars > MAX_NAME_CHARS || /[\u0000-\u001f\u007f-\u009f]/.test(trimmed)) {
       fail('invalidInput', PROJECT_NAME_INVALID, `${chars} characters`);
     }
     return trimmed;
@@ -365,6 +369,8 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
     }
     if (!Array.isArray(p.layers)) invalid('layers is not an array');
     if (p.layers.length > MAX_LAYERS) invalid(`${p.layers.length} layers`);
+    const size = new TextEncoder().encode(JSON.stringify(p.layers)).length;
+    if (size >= MAX_LAYERS_BYTES) invalid(`layers of ${size} bytes`);
   };
 
   const summary = (p: AtelierProject): AtelierProjectSummary => ({
@@ -540,6 +546,7 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
         folder: mockFolderName(`${p.vehicle}_${p.name}`, p.vehicle),
         enabled: slots,
         written: [],
+        lastPct: 0,
       });
       return { applyId };
     },
@@ -564,11 +571,13 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
       if (at < 0) fail('invalidInput', APPLY_BAD_SLOT, slotHeader);
       const n = job.enabled.length;
       const pct = (half: number) => Math.floor((TEXTURES_PCT * half) / (2 * n));
-      progress(applyId, 'encode', pct(2 * at));
+      job.lastPct = pct(2 * at);
+      progress(applyId, 'encode', job.lastPct);
       await host.wait(ENCODE_MS);
       // Cancelled meanwhile: like Rust's check-in, the call fails.
       if (host.atelier().applies.get(applyId) !== job) fail('notFound', APPLY_NOT_FOUND, applyId);
-      progress(applyId, 'write', pct(2 * at + 1));
+      job.lastPct = pct(2 * at + 1);
+      progress(applyId, 'write', job.lastPct);
       const slot = job.enabled[at] ?? slotHeader;
       if (!job.written.includes(slot)) job.written.push(slot);
       return null;
@@ -579,10 +588,22 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
       const st = host.atelier();
       const job = st.applies.get(applyId) ?? fail('notFound', APPLY_NOT_FOUND, applyId);
       st.applies.delete(applyId);
+      const failed = (e: unknown, pct: number): never => {
+        const message = typeof e === 'object' && e !== null && 'message' in e ? String(e.message) : String(e);
+        progress(applyId, 'error', pct, { message });
+        throw e;
+      };
+      // No game folder (Rust: `GameLibrary::current`): the apply ends before its install step.
+      if (!host.hasGameFolder()) {
+        try {
+          fail('invalidInput', 'No game folder set');
+        } catch (e) {
+          failed(e, job.lastPct);
+        }
+      }
       const p = st.projects.get(job.projectId);
       progress(applyId, 'install', TEXTURES_PCT);
       try {
-        if (!host.hasGameFolder()) fail('invalidInput', 'No game folder set');
         if (!job.enabled.some((s) => job.written.includes(s))) fail('invalidInput', APPLY_NOTHING);
         const vehicle = vehicleOf(job.vehicle);
         const replaceId = p ? (p.installedSkinId ?? job.installedSkinId) : job.installedSkinId;
@@ -591,9 +612,7 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
         progress(applyId, 'done', 100, { skinId: skin.id, backupId });
         return backupId === undefined ? { skin } : { skin, backupId };
       } catch (e) {
-        const message = typeof e === 'object' && e !== null && 'message' in e ? String(e.message) : String(e);
-        progress(applyId, 'error', TEXTURES_PCT, { message });
-        throw e;
+        return failed(e, TEXTURES_PCT);
       }
     },
 
