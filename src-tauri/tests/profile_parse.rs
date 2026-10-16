@@ -166,3 +166,29 @@ fn without_selected_air_there_is_no_current_vehicle() {
     let parsed = lineups(TWO_NATIONS, Some(r#"selectedAir{ current_model:t="  " usa:t="" }"#));
     assert_eq!((parsed.0, parsed.1), (None, None), "a blank current_model counts as none");
 }
+
+#[test]
+fn two_blocks_of_one_country_are_merged_in_file_order() {
+    let text = r#"slotbar_presets{
+      country_usa{ preset:t="5|1|a|A|m|" preset:t="5|1|b|B|m|" selected:i=1 }
+      country_germany{ preset:t="5|1|g|G|m|" }
+      country_usa{ preset:t="5|1|c|C|m|" selected:i=0 }
+    }"#;
+    let parsed = lineups(text, None);
+    assert_eq!(nations(&parsed), [Nation::Usa, Nation::Ger]);
+    assert_eq!(
+        parsed.2[0].presets,
+        [preset("A", false, &["a"]), preset("B", true, &["b"]), preset("C", false, &["c"])],
+        "one active preset per nation: the first block's"
+    );
+}
+
+#[test]
+fn a_later_block_of_one_country_gives_the_active_preset_when_the_first_has_none() {
+    let text = r#"slotbar_presets{
+      country_usa{ preset:t="5|1||Empty|m|" preset:t="5|1|a|A|m|" }
+      country_usa{ preset:t="5|1|c|C|m|" }
+    }"#;
+    let parsed = lineups(text, None);
+    assert_eq!(parsed.2[0].presets, [preset("A", false, &["a"]), preset("C", true, &["c"])]);
+}

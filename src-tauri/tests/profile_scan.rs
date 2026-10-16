@@ -79,3 +79,22 @@ fn a_missing_block_is_none() {
     assert_eq!(find_block("a{ b{ } }", "slotbar_presets").unwrap(), None);
     assert_eq!(find_block("", "slotbar_presets").unwrap(), None);
 }
+
+#[test]
+fn a_tilde_before_a_line_break_still_ends_the_string() {
+    // As in `library::blk`: `~` can't escape a line break, so the string ends with the line.
+    assert_eq!(find_block("a:t=\"x~\nselectedAir{ n:i=1 }", "selectedAir").unwrap(), Some("selectedAir{ n:i=1 }"));
+    assert_eq!(find_block("a:t='x~\r\nselectedAir{ n:i=1 }", "selectedAir").unwrap(), Some("selectedAir{ n:i=1 }"));
+}
+
+#[test]
+fn text_cut_before_the_block_is_unterminated() {
+    // The game mid-write: the file ends inside an open block before the lineups were written.
+    assert_eq!(find_block("content{ profile{ x:i=1", "slotbar_presets"), Err(ScanError::Unterminated));
+    assert_eq!(find_block("content{ profile{ }\n", "slotbar_presets"), Err(ScanError::Unterminated));
+    // Braces in strings and comments don't count.
+    assert_eq!(find_block("a:t=\"{\" // {\n /* { */ b{ }", "slotbar_presets").unwrap(), None);
+    // Complete text without the block is simply none, even with a stray closing brace.
+    assert_eq!(find_block("content{ profile{ x:i=1 } }\r\n", "slotbar_presets").unwrap(), None);
+    assert_eq!(find_block("a{ } }", "slotbar_presets").unwrap(), None);
+}

@@ -200,3 +200,27 @@ fn a_selected_air_cut_mid_write_is_left_out() {
     assert_eq!((lineups.current, lineups.current_nation), (None, None));
     assert_eq!(lineups.nations.len(), 3);
 }
+
+#[test]
+fn a_file_cut_before_the_lineups_is_unparsable_not_empty() {
+    // Without lineups yet, but cut mid-write: not a fresh profile, so not `noLineups`.
+    let e = read_lineups(&fixture("global_cut_before_presets.blk")).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Parse);
+    assert_eq!(e.message, LINEUPS_UNPARSABLE);
+}
+
+#[test]
+fn a_selected_air_that_doesnt_parse_is_left_out() {
+    let dir = TempDir::new("bad-selected");
+    let text = concat!(
+        "content{ profile{\r\n",
+        "  slotbar_presets{ country_usa{ preset:t=\"0|1|us_m4_t26|A|m|\" } }\r\n",
+        "  selectedAir{ current_model:i=abc usa:t=\"us_m4_t26\" }\r\n",
+        "} }\r\n",
+    );
+    let path = dir.write("global.blk", text.as_bytes());
+    let lineups = read_lineups(&path).unwrap();
+    assert_eq!(lineups.status, LineupsStatus::Ok);
+    assert_eq!((lineups.current, lineups.current_nation), (None, None));
+    assert_eq!(lineups.nations.len(), 1);
+}

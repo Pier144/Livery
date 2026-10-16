@@ -136,3 +136,18 @@ fn an_unreadable_file_is_not_retried() {
     assert_eq!(store.lineups(true, located(&path)).unwrap_err().code, ErrorCode::Io);
     assert_eq!(store.reads(), 1);
 }
+
+#[test]
+fn a_file_cut_before_the_lineups_is_retried_not_cached_as_empty() {
+    let dir = TempDir::new("cut-before");
+    let path = dir.copy("global_cut_before_presets.blk", "global.blk");
+    let store = ProfileStore::new();
+    assert_eq!(store.lineups(true, located(&path)).unwrap_err().code, ErrorCode::Parse);
+    assert_eq!(store.reads(), 2, "one retry");
+
+    // A complete profile without lineups is a fresh one: `noLineups`, cached.
+    let fresh = dir.copy("global_no_presets.blk", "fresh.blk");
+    assert_eq!(store.lineups(true, located(&fresh)).unwrap().status, LineupsStatus::NoLineups);
+    assert_eq!(store.lineups(true, located(&fresh)).unwrap().status, LineupsStatus::NoLineups);
+    assert_eq!(store.reads(), 3);
+}

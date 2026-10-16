@@ -36,7 +36,8 @@ fn is_name_byte(b: u8) -> bool {
 
 /// Where the string or comment starting at `i` ends (the index after it), `Ok(None)` when none
 /// starts at `i`. Strings: `"…"` and `'…'` (single-line: a newline ends them), `"""…"""` and
-/// `'''…'''` (multi-line); `~` escapes the next character.
+/// `'''…'''` (multi-line); `~` escapes the next character, except a line break (as in
+/// `library::blk`, the line still ends the string).
 fn skip_trivia(b: &[u8], i: usize) -> Result<Option<usize>, ScanError> {
     let rest = &b[i..];
     if rest.starts_with(b"//") {
@@ -63,6 +64,7 @@ fn skip_trivia(b: &[u8], i: usize) -> Result<Option<usize>, ScanError> {
         let mut j = i + 1;
         while j < b.len() {
             match b[j] {
+                b'~' if matches!(b.get(j + 1), Some(b'\n' | b'\r')) => return Ok(Some(j + 1)),
                 b'~' => j += 2,
                 b'\n' => return Ok(Some(j)),
                 c if c == quote => return Ok(Some(j + 1)),
@@ -103,9 +105,12 @@ fn closing_brace(b: &[u8], open: usize, start: usize) -> Result<usize, ScanError
 
 /// The text of the first block called `name` (from its name to its closing brace), wherever it
 /// is nested. Names inside strings and comments don't count; `name` must be a whole token
-/// followed by `{` (whitespace between them is allowed).
+/// followed by `{` (whitespace between them is allowed). `Ok(None)` only for complete text: text
+/// that ends inside an open block (a file cut mid-write before the block) is `Unterminated`.
 pub fn find_block<'a>(text: &'a str, name: &str) -> Result<Option<&'a str>, ScanError> {
     let b = text.as_bytes();
+    // Blocks open around `i`. A stray `}` doesn't go below zero: the text isn't cut short.
+    let mut depth = 0usize;
     let mut i = 0;
     while i < b.len() {
         if let Some(next) = skip_trivia(b, i)? {
@@ -113,6 +118,11 @@ pub fn find_block<'a>(text: &'a str, name: &str) -> Result<Option<&'a str>, Scan
             continue;
         }
         if !is_name_byte(b[i]) {
+            match b[i] {
+                b'{' => depth += 1,
+                b'}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
             i += 1;
             continue;
         }
@@ -132,6 +142,9 @@ pub fn find_block<'a>(text: &'a str, name: &str) -> Result<Option<&'a str>, Scan
             let end = closing_brace(b, j, start)?;
             return Ok(Some(&text[start..=end]));
         }
+    }
+    if depth > 0 {
+        return Err(ScanError::Unterminated);
     }
     Ok(None)
 }
@@ -200,17 +213,27 @@ pub fn parse_lineups(
             Some(blk::Value::Int(i)) => usize::try_from(*i).ok().filter(|&i| i < raw.len()).unwrap_or(0),
             _ => 0,
         };
-        let presets: Vec<Preset> = raw
+        let mut presets: Vec<Preset> = raw
             .into_iter()
             .enumerate()
             .filter_map(|(i, p)| p.map(|(name, vehicles)| Preset { name, active: i == selected, vehicles }))
             .filter(|p| !p.vehicles.is_empty())
             .collect();
-        if !presets.is_empty() {
-            nations.push(NationLineups { nation, presets });
+        if presets.is_empty() {
+            continue;
+        }
+        // Two blocks of one country (not seen in real files) make one nation, in file order,
+        // with one active preset at most: the first block's that has one.
+        match nations.iter_mut().find(|n| n.nation == nation) {
+            Some(known) => {
+                if known.presets.iter().any(|p| p.active) {
+                    presets.iter_mut().for_each(|p| p.active = false);
+                }
+                known.presets.append(&mut presets);
+            }
+            None => nations.push(NationLineups { nation, presets }),
         }
     }
-    // Stable: two blocks of the same country (not seen in real files) keep their file order.
     nations.sort_by_key(|n| order_of(n.nation));
 
     let current = selected_air
@@ -253,8 +276,10 @@ pub fn expand_env(raw: &str, env: &dyn Fn(&str) -> Option<OsString>) -> String {
         let Some(len) = rest[start + 1..].find('%') else { break };
         let name = &rest[start + 1..start + 1 + len];
         out.push_str(&rest[..start]);
-        match if name.is_empty() { None } else { env(name) } {
+        let value = if name.is_empty() { None } else { env(name) };
+        match value {
             Some(value) => out.push_str(&value.to_string_lossy()),
+            // `%%` or an unknown name: kept as written.
             None => out.push_str(&rest[start..start + len + 2]),
         }
         rest = &rest[start + len + 2..];
