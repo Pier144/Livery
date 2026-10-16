@@ -131,20 +131,23 @@ export function NewProjectDialog({ onClose, onCreated }: { onClose: () => void; 
               <label id={`${vehicleId}-label`} htmlFor={vehicleId} className="text-meta font-medium text-ink-2">
                 {t('atelier.newProject.vehicle')}
               </label>
-              <VehiclePicker
-                id={vehicleId}
-                aria-labelledby={`${vehicleId}-label`}
-                value={vehicle}
-                onChange={(code) => {
-                  setVehicle(code);
-                  if (create.isError) reset();
-                }}
-                list={vehicles}
-                types={GROUND}
-                allowFreeText={false}
-                placeholder={t('atelier.newProject.vehiclePlaceholder')}
-                className="w-full"
-              />
+              {/* VehiclePicker has no disabled prop: a bare fieldset disables its field while creating, like the name. */}
+              <fieldset disabled={busy} className="contents">
+                <VehiclePicker
+                  id={vehicleId}
+                  aria-labelledby={`${vehicleId}-label`}
+                  value={vehicle}
+                  onChange={(code) => {
+                    setVehicle(code);
+                    if (create.isError) reset();
+                  }}
+                  list={vehicles}
+                  types={GROUND}
+                  allowFreeText={false}
+                  placeholder={t('atelier.newProject.vehiclePlaceholder')}
+                  className="w-full"
+                />
+              </fieldset>
               <p className="text-meta text-ink-4">
                 {t('atelier.newProject.vehicleHelper')}
               </p>

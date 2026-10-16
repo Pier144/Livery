@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/chrome/Toaster';
@@ -48,6 +48,8 @@ let projects: AtelierProject[];
 let trash: AtelierProject[];
 let clock: number;
 let failCreate: boolean;
+/** While set, `atelier_project_create` waits for it (the dialog stays in its creating state). */
+let createGate: Promise<void> | null;
 
 const stamp = () => new Date(Date.UTC(2026, 9, 16, 10, clock++)).toISOString();
 const summary = (p: AtelierProject): AtelierProjectSummary => ({ id: p.id, name: p.name, vehicle: p.vehicle, updatedAt: p.updatedAt, hasThumb: false });
@@ -61,6 +63,11 @@ function answer(cmd: string, args: Record<string, unknown> = {}): unknown {
       return byId(args.id);
     case 'atelier_project_create': {
       if (failCreate) return Promise.reject({ code: 'notFound', message: MODEL_NOT_FOUND, detail: String(args.vehicle) });
+      if (createGate) {
+        const gate = createGate;
+        createGate = null;
+        return gate.then(() => answer(cmd, args));
+      }
       const created = project(`p${projects.length + trash.length + 1}`, String(args.name), String(args.vehicle), stamp());
       projects.push(created);
       return created;
@@ -93,7 +100,10 @@ function answer(cmd: string, args: Record<string, unknown> = {}): unknown {
 
 const calls = (cmd: string) => backend.call.mock.calls.filter(([c]) => c === cmd).map(([, args]) => args);
 const toastTexts = () => useToasts.getState().toasts.map((t) => t.message);
-const card = (name: string) => screen.getByRole('group', { name });
+/** A project's card (its full-card button names it). */
+const card = (name: string) => screen.getByRole('button', { name }).parentElement as HTMLElement;
+const findCard = async (name: string) => (await screen.findByRole('button', { name })).parentElement as HTMLElement;
+const cardNames = () => [...document.querySelectorAll('[data-project-id] > [role="button"]')].map((el) => el.getAttribute('aria-label'));
 
 function renderAtelier(list: AtelierProject[] = [], settings: Partial<Settings> = {}) {
   projects = [...list];
@@ -112,6 +122,7 @@ beforeEach(() => {
   trash = [];
   clock = 30;
   failCreate = false;
+  createGate = null;
   backend.webgl = true;
   backend.call.mockReset();
   backend.call.mockImplementation(async (cmd, args) => answer(cmd, args));
@@ -128,8 +139,8 @@ describe('Atelier home', () => {
 
   it('lists the projects with their vehicle and last edit, newest first', async () => {
     renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z'), project('p2', 'Winter', T34, '2026-10-16T09:00:00Z')]);
-    const names = (await screen.findAllByRole('group')).map((el) => el.getAttribute('aria-label'));
-    expect(names).toEqual(['Winter', 'Desert']);
+    await findCard('Desert');
+    expect(cardNames()).toEqual(['Winter', 'Desert']);
     expect(screen.getByText('2 projects')).toBeInTheDocument();
     expect(within(card('Desert')).getByText('Tiger II (H)')).toBeInTheDocument();
     expect(within(card('Winter')).getByText('T-34-85')).toBeInTheDocument();
@@ -142,7 +153,7 @@ describe('Atelier home', () => {
     await user.click(await screen.findByRole('button', { name: 'Desert' }));
     expect(useAtelierUi.getState().openProjectId).toBe('p1');
     await user.click(await screen.findByRole('button', { name: 'Back to projects' }));
-    expect(await screen.findByRole('group', { name: 'Desert' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Desert' })).toBeInTheDocument();
   });
 
   it('creates a project on a listed ground vehicle, named after it, and opens it', async () => {
@@ -204,34 +215,98 @@ describe('Atelier home', () => {
 
     await waitFor(() => expect(toastTexts()).toContain('Renamed to “Sand”'));
     expect((calls('atelier_project_save')[0]?.project as AtelierProject).name).toBe('Sand');
-    expect(await screen.findByRole('group', { name: 'Sand' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Sand' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(await screen.findByRole('group', { name: 'Desert' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Desert' })).toBeInTheDocument();
     expect((calls('atelier_project_save')[1]?.project as AtelierProject).name).toBe('Desert');
+  });
+
+  it('disables both fields while the model is being read', async () => {
+    const user = userEvent.setup();
+    let release = () => {};
+    createGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderAtelier();
+    await screen.findByRole('heading', { name: 'Start your first skin' });
+    await user.click(screen.getByRole('button', { name: 'New project' }));
+    const dialog = screen.getByRole('dialog', { name: 'New project' });
+    await user.type(within(dialog).getByRole('combobox', { name: 'Vehicle' }), 'T-34');
+    await user.keyboard('{Enter}');
+    await user.click(within(dialog).getByRole('button', { name: 'Create' }));
+
+    expect(await within(dialog).findByText('Reading the model…')).toBeInTheDocument();
+    expect(within(dialog).getByRole('combobox', { name: 'Vehicle' })).toBeDisabled();
+    expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Create' })).toBeDisabled();
+
+    await act(async () => release());
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(calls('atelier_project_create')).toHaveLength(1);
+  });
+
+  it('Escape cancels a rename without saving, even when a blur follows', async () => {
+    const user = userEvent.setup();
+    renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z')]);
+    (await screen.findByRole('button', { name: 'Desert' })).focus();
+    await user.keyboard('{F2}');
+    const field = screen.getByRole('textbox', { name: 'New name for Desert' });
+    await user.clear(field);
+    await user.type(field, 'Sand');
+    // WebView2 blurs the field as it goes away: same batch as the Escape.
+    act(() => {
+      fireEvent.keyDown(field, { key: 'Escape' });
+      fireEvent.blur(field);
+    });
+
+    expect(await screen.findByRole('button', { name: 'Desert' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(calls('atelier_project_save')).toEqual([]);
+    expect(calls('atelier_project_get')).toEqual([]);
+  });
+
+  it('Enter saves a rename once, even when a blur follows', async () => {
+    const user = userEvent.setup();
+    renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z')]);
+    (await screen.findByRole('button', { name: 'Desert' })).focus();
+    await user.keyboard('{F2}');
+    const field = screen.getByRole('textbox', { name: 'New name for Desert' });
+    await user.clear(field);
+    await user.type(field, 'Sand');
+    act(() => {
+      fireEvent.keyDown(field, { key: 'Enter' });
+      fireEvent.blur(field);
+    });
+
+    expect(await screen.findByRole('button', { name: 'Sand' })).toBeInTheDocument();
+    // The field went away after the save: a late blur finds nothing to save.
+    fireEvent.blur(field);
+    await waitFor(() => expect(toastTexts()).toContain('Renamed to “Sand”'));
+    expect(calls('atelier_project_save')).toHaveLength(1);
   });
 
   it('duplicates from the card menu', async () => {
     const user = userEvent.setup();
     renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z')]);
-    await user.click(within(await screen.findByRole('group', { name: 'Desert' })).getByRole('button', { name: 'Project actions' }));
+    await user.click(within(await findCard('Desert')).getByRole('button', { name: 'Project actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
-    expect(await screen.findByRole('group', { name: 'Desert (2)' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Desert (2)' })).toBeInTheDocument();
     expect(calls('atelier_project_duplicate')).toEqual([{ id: 'p1' }]);
   });
 
   it('deletes from the card menu with an undoable toast, and Undo brings the project back', async () => {
     const user = userEvent.setup();
     renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z'), project('p2', 'Winter', T34, '2026-10-16T09:00:00Z')]);
-    await user.click(within(await screen.findByRole('group', { name: 'Desert' })).getByRole('button', { name: 'Project actions' }));
+    await user.click(within(await findCard('Desert')).getByRole('button', { name: 'Project actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
 
-    await waitFor(() => expect(screen.queryByRole('group', { name: 'Desert' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Desert' })).not.toBeInTheDocument());
     expect(calls('atelier_project_delete')).toEqual([{ id: 'p1' }]);
     expect(toastTexts()).toContain('Deleted project “Desert”');
 
     await user.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(await screen.findByRole('group', { name: 'Desert' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Desert' })).toBeInTheDocument();
     expect(calls('atelier_project_undo_delete')).toEqual([{ id: 'p1' }]);
     expect(calls('atelier_project_forget_deleted')).toEqual([]);
   });
@@ -248,7 +323,7 @@ describe('Atelier home', () => {
   it('has no serious axe violations (grid, menu and dialog)', async () => {
     const user = userEvent.setup();
     const { container } = renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z')]);
-    await screen.findByRole('group', { name: 'Desert' });
+    await screen.findByRole('button', { name: 'Desert' });
     expect(await seriousViolations(container)).toEqual([]);
     await user.click(screen.getByRole('button', { name: 'Project actions' }));
     expect(await seriousViolations(container)).toEqual([]);
