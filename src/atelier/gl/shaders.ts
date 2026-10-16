@@ -1,5 +1,5 @@
 import type { PartGroup } from '@/types';
-import { FACING_MIN } from '../decal';
+import { DECAL_FADE_END, DECAL_FADE_START, FACING_MIN } from '../decal';
 
 /**
  * GLSL of the Atelier bake (spec §2 "Bake", plan Task 20) and the TypeScript mirrors of its
@@ -21,10 +21,11 @@ import { FACING_MIN } from '../decal';
 /** Points per mask stamping draw (`uPoints[64]`). */
 export const BAKE_MAX_POINTS = 64;
 /**
- * A texel is stamped (or receives a decal) only when its normal faces the stroke or the decal:
- * `dot(n, −dir) > FACING_MIN · |n|`. One definition, in decal.ts, for the TS maths and the GLSL.
+ * A texel is stamped by a brush stroke only when its normal faces the stroke:
+ * `dot(n, −dir) > FACING_MIN · |n|`. Decals fade instead (`facingWeight`). One definition of
+ * each, in decal.ts, for the TS maths and the GLSL.
  */
-export { FACING_MIN };
+export { DECAL_FADE_END, DECAL_FADE_START, FACING_MIN };
 /** Hardness is capped below 1 so `smoothstep(inner, r, d)` never gets equal edges. */
 export const MAX_HARDNESS = 0.999;
 /** The part group as the shaders see it (`partGroup` attribute, `uParams.z`); −1 = every part. */
@@ -247,10 +248,11 @@ void main() {
 
 /**
  * The decal tests shared by the decal and footprint passes: `lvDecalSpace()` is the texel's
- * position in normalised decal space (`uDecal`, column-major, see `decalMatrix`); `lvDecalHit(d)`
- * holds when the texel's part group matches `uPart` (−1 = every part), its normal faces the
- * decal (`dot(n, decal normal) > FACING_MIN · |n|`, zero-length normals never do) and `d` lies
- * in the box `|u|, |v|, |w| <= 0.5`.
+ * position in normalised decal space (`uDecal`, column-major, see `decalMatrix`);
+ * `lvDecalWeight(d)` is how much of the decal the texel takes: 0 when its part group doesn't
+ * match `uPart` (−1 = every part) or `d` lies outside the box `|u|, |v|, |w| <= 0.5`, else the
+ * facing fade `smoothstep(DECAL_FADE_START, DECAL_FADE_END, dot(n, decal normal) / |n|)` (0 for a
+ * zero-length normal), the mirror of `facingWeight` in decal.ts.
  */
 const DECAL_TEST_GLSL = /* glsl */ `
 uniform mat4 uDecal;
@@ -264,11 +266,12 @@ vec3 lvDecalSpace() {
   return (uDecal * vec4(vPos, 1.0)).xyz;
 }
 
-bool lvDecalHit(vec3 d) {
-  if (uPart >= 0.0 && abs(vGroup - uPart) > 0.5) return false;
+float lvDecalWeight(vec3 d) {
+  if (uPart >= 0.0 && abs(vGroup - uPart) > 0.5) return 0.0;
+  if (any(greaterThan(abs(d), vec3(0.5)))) return 0.0;
   float normalLength = length(vNormal);
-  if (normalLength <= 0.0 || dot(vNormal, uDecalNormal) <= ${FACING_MIN.toFixed(2)} * normalLength) return false;
-  return all(lessThanEqual(abs(d), vec3(0.5)));
+  if (normalLength <= 0.0) return 0.0;
+  return smoothstep(${DECAL_FADE_START.toFixed(4)}, ${DECAL_FADE_END.toFixed(4)}, dot(vNormal, uDecalNormal) / normalLength);
 }
 `;
 
@@ -277,8 +280,9 @@ bool lvDecalHit(vec3 d) {
  * intermediate with blend `ONE, ONE_MINUS_SRC_ALPHA` on colour and alpha): the decal's picture,
  * premultiplied on upload (so mipmaps and filtering never pull the colour kept under alpha 0
  * into the edges), sampled at `(u + 0.5, 0.5 − v)` (top-left origin; `uFlipX` mirrors u) and
- * scaled by `uOpacity`. The picture is sampled before the (non-uniform) discard, so the implicit
- * derivatives that pick its mip level are defined on every GPU.
+ * scaled by `uOpacity` and by the facing fade (premultiplied, so colour and alpha alike). The
+ * picture is sampled before the (non-uniform) discard, so the implicit derivatives that pick its
+ * mip level are defined on every GPU.
  */
 export const DECAL_FRAGMENT = /* glsl */ `
 ${DECAL_TEST_GLSL}
@@ -290,8 +294,9 @@ void main() {
   vec3 d = lvDecalSpace();
   float u = uFlipX > 0.5 ? -d.x : d.x;
   vec4 color = texture2D(uDecalTex, vec2(u + 0.5, 0.5 - d.y));
-  if (!lvDecalHit(d)) discard;
-  gl_FragColor = color * uOpacity;
+  float weight = lvDecalWeight(d);
+  if (weight <= 0.0) discard;
+  gl_FragColor = color * (uOpacity * weight);
 }
 `;
 
@@ -346,7 +351,7 @@ uniform sampler2D uOverlap;
 uniform int uOverlapRatio;
 
 void main() {
-  if (!lvDecalHit(lvDecalSpace())) discard;
+  if (lvDecalWeight(lvDecalSpace()) <= 0.0) discard;
   ivec2 base = ivec2(gl_FragCoord.xy) * uOverlapRatio;
   float most = 0.0;
   for (int y = 0; y < 8; y++) {

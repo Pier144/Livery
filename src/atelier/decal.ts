@@ -32,8 +32,18 @@ import {
  * would give an up that jumps with every pixel, the world axis is steadier.
  */
 export const PARALLEL_EPSILON = 0.08;
-/** A texel faces the decal when `dot(n, decal.normal) > FACING_MIN * |n|` (the shader's test). */
+/**
+ * The Protected-areas brush (mask strokes) touches a texel only when `dot(n, −dir) > FACING_MIN · |n|`
+ * (a hard cut, about 78° off-axis). Decals don't use it: they fade (`facingWeight`).
+ */
 export const FACING_MIN = 0.2;
+/**
+ * Decals fade on steep surfaces: full strength where `cos θ = dot(n, decal normal) / |n|` is at
+ * least DECAL_FADE_END, nothing at or below DECAL_FADE_START (`smoothstep` between), so text and
+ * pictures don't streak along surfaces nearly parallel to the projection.
+ */
+export const DECAL_FADE_START = 0.35;
+export const DECAL_FADE_END = 0.65;
 /** Default width: this fraction of the model's bounding-box diagonal. */
 export const DEFAULT_WIDTH_RATIO = 0.25;
 
@@ -121,9 +131,21 @@ export function inBox(p: Vec3, decal: Decal): boolean {
   return toDecalSpace(p, decal).every((x) => Math.abs(x) <= 0.5);
 }
 
-/** A surface with normal `n` (any length) receives the decal: it faces the same way, not the opposite side. */
+/**
+ * How strongly a surface with normal `n` (any length) receives the decal, 0 to 1:
+ * `smoothstep(DECAL_FADE_START, DECAL_FADE_END, cos θ)` (the shader's weight, multiplying the
+ * decal's alpha); 0 for a zero-length normal or a surface facing away.
+ */
+export function facingWeight(n: Vec3, decal: Decal): number {
+  const len = length(n);
+  if (!(len > 0)) return 0;
+  const t = Math.min(1, Math.max(0, (dot(n, decal.normal) / len - DECAL_FADE_START) / (DECAL_FADE_END - DECAL_FADE_START)));
+  return t * t * (3 - 2 * t);
+}
+
+/** A surface with normal `n` receives any of the decal (`facingWeight > 0`). */
 export function facing(n: Vec3, decal: Decal): boolean {
-  return dot(n, decal.normal) > FACING_MIN * length(n);
+  return facingWeight(n, decal) > 0;
 }
 
 /** `v` reflected across the plane `axis = 0` (0 = x, 1 = y, 2 = z). */

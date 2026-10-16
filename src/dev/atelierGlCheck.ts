@@ -5,14 +5,16 @@
 //
 // It bakes the mock cube with an image decal (a 2400×1600 cutout: an opaque disc, red kept under
 // alpha 0 around it) on the +x/+z edge with Mirror on and the Base hidden, then compares the
-// export with the TypeScript reference of the shaders (`decalSampleUv`, the detail map), checks
+// export with the TypeScript reference of the shaders (`decalSample` with its facing fade,
+// `compositeTexel`, the detail map), does the same with a decal tilted so the +x face sits on the
+// fade (cos θ = 0.5: half alpha), checks
 // the preview's premultiplied edges, the full-size export pictures, the shared-texel check on a
 // cube whose −z face reuses the +z UVs, a text layer, and a WebGL context loss and restore.
 // Each check reports `ok` and the numbers behind it.
 
 import * as THREE from 'three';
 import { detailMap } from '@/atelier/detailMap';
-import { Baker, buildUnwrapped, decalCopies, decalSampleUv, type TemplateImage } from '@/atelier/gl/baker';
+import { Baker, buildUnwrapped, compositeTexel, decalContribution, decalCopies, decalSample, type Rgba, type TemplateImage } from '@/atelier/gl/baker';
 import { parseModelBuffer, type VehicleModelData } from '@/atelier/modelBuffer';
 import type { BaseLayer, Decal, ImageLayer, Layer, TextLayer, Vec3 } from '@/atelier/project';
 import { encodeMockModel, MOCK_TEXTURE_SIZE, mockTemplate } from './mockAtelier';
@@ -26,8 +28,11 @@ export interface GlCheck {
 const SIZE = MOCK_TEXTURE_SIZE;
 const PICTURE = { w: 2400, h: 1600, disc: { x: 1200, y: 800, r: 600 } };
 const DISC_RGB: Vec3 = [214, 92, 64];
-/** Picture pixels from the disc's edge treated as "edge" (mip blending reaches that far). */
-const EDGE_BAND = 60;
+/**
+ * Picture pixels from the disc's edge treated as "edge" and not compared: a bake texel spans about
+ * 40 picture pixels here (more on a tilted face), so trilinear mip blending reaches ~150 px.
+ */
+const EDGE_BAND = 160;
 const SQRT1_2 = Math.SQRT1_2;
 
 function cutoutPicture() {
@@ -48,6 +53,8 @@ function templatesOf(model: VehicleModelData): Map<string, TemplateImage> {
 
 const hiddenBase: BaseLayer = { id: 'base', kind: 'base', name: '', visible: false, mode: 'solid', colors: ['#3050a0'], scale: 1, seed: 1 };
 const edgeDecal: Decal = { center: [0.5, 0, 0.5], normal: [SQRT1_2, 0, SQRT1_2], up: [0, 1, 0], width: 0.7, height: 0.7, depth: 0.6, part: 'all', mirror: true };
+/** Tilted 60° from +x: the +x face takes half the decal (cos θ = 0.5), the +z face all of it. */
+const tiltedDecal: Decal = { ...edgeDecal, normal: [0.5, 0, Math.sqrt(3) / 2], mirror: false };
 const imageLayer: ImageLayer = { id: 'img', kind: 'image', name: '', visible: true, assetId: 'disc', decal: edgeDecal, opacity: 1, flipX: false };
 
 /** The texel's model-space position, normal and group from the unwrapped triangles (null: no triangle). */
@@ -116,45 +123,74 @@ export async function runAtelierGlCheck(): Promise<{ ok: boolean; checks: GlChec
 
       const detail = detailMap(templates.get(body)!.rgba, SIZE, SIZE);
       const locate = texelLocator(model, 0);
-      const copies = decalCopies(edgeDecal, model.header.mirrorAxis);
-      let compared = 0;
-      let maxErr = 0;
-      let transparentBad = 0;
-      let edgeMaxDev = 0;
-      const opaqueByCell = [0, 0, 0, 0, 0, 0];
-      for (let y = 0; y < SIZE; y++)
-        for (let x = 0; x < SIZE; x++) {
-          const texel = locate(x, y);
-          if (!texel) continue;
-          const o = (y * SIZE + x) * 4;
-          const px = out.rgba.subarray(o, o + 4);
-          let state: 'none' | 'inside' | 'outside' | 'edge' = 'none';
-          for (const d of copies) {
-            const uv = decalSampleUv(texel, d, false);
-            if (!uv) continue;
-            const dist = Math.hypot(uv[0] * PICTURE.w - PICTURE.disc.x, uv[1] * PICTURE.h - PICTURE.disc.y) - PICTURE.disc.r;
-            const here = dist < -EDGE_BAND ? 'inside' : dist > EDGE_BAND ? 'outside' : 'edge';
-            if (state === 'none' || here === 'inside' || (here === 'edge' && state === 'outside')) state = here;
+      const compare = (rgba: Uint8Array, decal: Decal) => {
+        const copies = decalCopies(decal, model.header.mirrorAxis);
+        const stats = { worst: null as unknown, compared: 0, maxErr: 0, transparentBad: 0, edgeMaxDev: 0, opaqueByCell: [0, 0, 0, 0, 0, 0], halfAlphaByCell: [0, 0, 0, 0, 0, 0] };
+        const disc: Rgba = [DISC_RGB[0] / 255, DISC_RGB[1] / 255, DISC_RGB[2] / 255, 1];
+        for (let y = 0; y < SIZE; y++)
+          for (let x = 0; x < SIZE; x++) {
+            const texel = locate(x, y);
+            if (!texel) continue;
+            const o = (y * SIZE + x) * 4;
+            const px = rgba.subarray(o, o + 4);
+            const det = detail[y * SIZE + x]!;
+            const cell = Math.floor(y / (SIZE / 2)) * 3 + Math.floor(x / (SIZE / 3));
+            // Contributions of the copies in draw order; a texel near the disc's edge (mip blending) isn't compared.
+            const contributions: Rgba[] = [];
+            let edge = false;
+            for (const d of copies) {
+              const sample = decalSample(texel, d, false);
+              if (!sample) continue;
+              const dist = Math.hypot(sample.uv[0] * PICTURE.w - PICTURE.disc.x, sample.uv[1] * PICTURE.h - PICTURE.disc.y) - PICTURE.disc.r;
+              if (Math.abs(dist) <= EDGE_BAND) edge = true;
+              else if (dist < 0) contributions.push(decalContribution(disc, 1, sample.weight));
+            }
+            if (edge) {
+              if (px[3]! >= 16 && px[3]! < 255) stats.edgeMaxDev = Math.max(stats.edgeMaxDev, ...DISC_RGB.map((v, i) => Math.abs(px[i]! / det - v)));
+              continue;
+            }
+            const ref = compositeTexel({ rgb: [0, 0, 0], alpha: 0 }, contributions, det, 0, false).map((v) => v * 255);
+            if (ref[3]! === 0) {
+              if (px[3] !== 0) stats.transparentBad++;
+              continue;
+            }
+            stats.compared++;
+            // Colour is stored premultiplied in 8 bits: compare it in premultiplied units (error × alpha).
+            const colourErr = Math.max(...[0, 1, 2].map((i) => (Math.abs(ref[i]! - px[i]!) * ref[3]!) / 255));
+            const err = Math.max(colourErr, Math.abs(ref[3]! - px[3]!));
+            if (err > stats.maxErr) stats.worst = { x, y, px: [...px], ref: ref.map((v) => +v.toFixed(1)) };
+            stats.maxErr = Math.max(stats.maxErr, err);
+            if (px[3] === 255) stats.opaqueByCell[cell]! += 1;
+            else if (Math.abs(px[3]! - 128) <= 3) stats.halfAlphaByCell[cell]! += 1;
           }
-          const det = detail[y * SIZE + x]!;
-          if (state === 'inside') {
-            compared++;
-            const err = Math.max(...DISC_RGB.map((v, i) => Math.abs(Math.min(255, v * det) - px[i]!)), Math.abs(255 - px[3]!));
-            maxErr = Math.max(maxErr, err);
-            opaqueByCell[Math.floor(y / (SIZE / 2)) * 3 + Math.floor(x / (SIZE / 3))]! += 1;
-          } else if (state !== 'edge') {
-            if (px[3] !== 0) transparentBad++;
-          } else if (px[3]! >= 16 && px[3]! < 255) {
-            edgeMaxDev = Math.max(edgeMaxDev, ...DISC_RGB.map((v, i) => Math.abs(px[i]! / det - v)));
-          }
-        }
-      add('export equals the TS reference inside the decal', compared > 1000 && maxErr <= 2, { compared, maxErr: +maxErr.toFixed(2) });
-      add('hidden Base: alpha only where the decal covers', transparentBad === 0, { transparentBad });
-      // Cells: 0 = +x, 2 = +z, 3 = −z (the mirrored copy).
-      add('decal crosses two faces, mirrored copy on the opposite face', opaqueByCell[0]! > 0 && opaqueByCell[2]! > 0 && opaqueByCell[3]! > 0 && opaqueByCell[1] === 0, {
-        opaqueByCell,
+        stats.maxErr = +stats.maxErr.toFixed(2);
+        stats.edgeMaxDev = +stats.edgeMaxDev.toFixed(1);
+        return stats;
+      };
+      const edge = compare(out.rgba, edgeDecal);
+      add('export equals the TS reference inside the decal', edge.compared > 1000 && edge.maxErr <= 2, { compared: edge.compared, maxErr: edge.maxErr });
+      add('hidden Base: alpha only where the decal covers', edge.transparentBad === 0, { transparentBad: edge.transparentBad });
+      // Cells: 0 = +x, 1 = −x, 2 = +z, 3 = −z (the mirrored copy).
+      const cells = edge.opaqueByCell;
+      add('decal crosses two faces, mirrored copy on the opposite face', cells[0]! > 0 && cells[2]! > 0 && cells[3]! > 0 && cells[1] === 0, { opaqueByCell: cells });
+      add('no halo at export edges (alpha ≥ 16)', edge.edgeMaxDev <= 16, { edgeMaxDev: edge.edgeMaxDev });
+
+      // The tilted decal: the +x face on the fade (half alpha), +z at full strength.
+      baker.setLayers([hiddenBase, { ...imageLayer, decal: tiltedDecal }], slots);
+      await baker.whenReady();
+      await baker.prepareExport(false);
+      const tilted = compare(baker.bakeForExport(body, false).rgba, tiltedDecal);
+      baker.endExport();
+      add('steep faces fade (cos θ = 0.5 gives half alpha)', tilted.maxErr <= 2 && tilted.halfAlphaByCell[0]! > 100 && tilted.opaqueByCell[2]! > 100 && tilted.opaqueByCell[0] === 0, {
+        compared: tilted.compared,
+        maxErr: tilted.maxErr,
+        worst: tilted.worst,
+        halfAlphaOnPlusX: tilted.halfAlphaByCell[0],
+        opaqueOnPlusZ: tilted.opaqueByCell[2],
+        opaqueOnPlusX: tilted.opaqueByCell[0],
       });
-      add('no halo at export edges (alpha ≥ 16)', edgeMaxDev <= 16, { edgeMaxDev: +edgeMaxDev.toFixed(1) });
+      baker.setLayers(layers, slots);
+      await baker.whenReady();
 
       const target = (baker as unknown as { slots: { paintSmall: THREE.WebGLRenderTarget | null }[] }).slots[0]!.paintSmall!;
       const pre = new Uint8Array(target.width * target.height * 4);

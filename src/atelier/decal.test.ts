@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelHeader } from '@/types';
 import {
+  DECAL_FADE_END,
+  DECAL_FADE_START,
   DEFAULT_WIDTH_RATIO,
   PARALLEL_EPSILON,
   boundingDiagonal,
   decalMatrix,
   defaultDecalSize,
   facing,
+  facingWeight,
   fromDecalSpace,
   frameFromHit,
   inBox,
@@ -108,9 +111,28 @@ describe('decal space', () => {
     expect(inBox([0.56, 0.1, 0.2], decal)).toBe(false);
     expect(inBox([0.5, 0.21, 0.2], decal)).toBe(false);
     expect(facing([2, 0, 0], decal)).toBe(true);
-    expect(facing([1, 4.8, 0], decal)).toBe(true);
-    expect(facing([1, 5, 0], decal)).toBe(false);
+    expect(facing([1, 1, 0], decal)).toBe(true);
+    // cos θ ≈ 0.2: steeper than the fade's start, no decal (the mask brush would still reach it).
+    expect(facing([1, 4.8, 0], decal)).toBe(false);
     expect(facing([-1, 0, 0], decal)).toBe(false);
+  });
+
+  it('facingWeight fades decals on steep surfaces', () => {
+    const at = (cos: number): Vec3 => [cos, Math.sqrt(1 - cos * cos), 0];
+    expect(facingWeight([3, 0, 0], decal)).toBe(1);
+    expect(facingWeight(at(DECAL_FADE_END), decal)).toBeCloseTo(1, 6);
+    expect(facingWeight(at(0.5), decal)).toBeCloseTo(0.5, 6);
+    expect(facingWeight(at(DECAL_FADE_START), decal)).toBeCloseTo(0, 6);
+    expect(facingWeight(at(0.3), decal)).toBe(0);
+    expect(facingWeight([0, 0, 0], decal)).toBe(0);
+    expect(facingWeight([-1, 0, 0], decal)).toBe(0);
+    // Monotonic between the edges.
+    let last = 0;
+    for (let c = DECAL_FADE_START; c <= DECAL_FADE_END; c += 0.01) {
+      const w = facingWeight(at(c), decal);
+      expect(w).toBeGreaterThanOrEqual(last - 1e-12);
+      last = w;
+    }
   });
 
   it('sphereTouchesBox', () => {

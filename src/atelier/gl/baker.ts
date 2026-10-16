@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { ModelSlot } from '@/types';
 import { detailMap } from '../detailMap';
 import { dilate, DILATE_PX } from '../dilate';
-import { decalMatrix, facing as decalFacing, mirrorDecal, toDecalSpace } from '../decal';
+import { decalMatrix, facingWeight, mirrorDecal, toDecalSpace } from '../decal';
 import type { VehicleModelData } from '../modelBuffer';
 import {
   baseOf,
@@ -536,16 +536,28 @@ export interface DecalTexel {
 
 /**
  * Mirror of `DECAL_FRAGMENT`'s tests: where the decal's picture is sampled for a texel (texture
- * coordinates, top-left origin), or null when the texel is of another part, doesn't face the
- * decal or lies outside its box.
+ * coordinates, top-left origin) and how much of it the texel takes (`weight`, the facing fade),
+ * or null when the texel is of another part, lies outside the box or takes none of it.
  */
-export function decalSampleUv(texel: DecalTexel, decal: Decal, flipX: boolean): [number, number] | null {
+export function decalSample(texel: DecalTexel, decal: Decal, flipX: boolean): { uv: [number, number]; weight: number } | null {
   const group = decalGroupIndex(decal);
   if (group >= 0 && group !== texel.group) return null;
-  if (!decalFacing(texel.normal, decal)) return null;
   const [u, v, w] = toDecalSpace(texel.pos, decal);
   if (Math.abs(u) > 0.5 || Math.abs(v) > 0.5 || Math.abs(w) > 0.5) return null;
-  return [(flipX ? -u : u) + 0.5, 0.5 - v];
+  const weight = facingWeight(texel.normal, decal);
+  if (weight <= 0) return null;
+  return { uv: [(flipX ? -u : u) + 0.5, 0.5 - v], weight };
+}
+
+/** `decalSample`'s texture coordinates only. */
+export function decalSampleUv(texel: DecalTexel, decal: Decal, flipX: boolean): [number, number] | null {
+  return decalSample(texel, decal, flipX)?.uv ?? null;
+}
+
+/** A decal's contribution to the composite: its premultiplied sample × opacity × facing weight. */
+export function decalContribution(sample: Rgba, opacity: number, weight: number): Rgba {
+  const k = opacity * weight;
+  return [sample[0] * k, sample[1] * k, sample[2] * k, sample[3] * k];
 }
 
 /** Premultiplied RGBA, 0..1. */
@@ -553,7 +565,8 @@ export type Rgba = [number, number, number, number];
 
 /**
  * Mirror of the three paint steps for one texel, in 0..1: the Base (`rgb`, alpha 0 or 1), the
- * decal samples in layer order (premultiplied, already × opacity) blended `ONE,
+ * decal contributions in layer order (`decalContribution`: premultiplied, × opacity × facing
+ * weight) blended `ONE,
  * ONE_MINUS_SRC_ALPHA`, then × detail and × (1 − mask). Premultiplied output for the preview,
  * straight for export. `quantise` rounds the intermediate to 8 bits after each step like the
  * RGBA8 target does.

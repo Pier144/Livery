@@ -20,6 +20,8 @@ import {
   applyStamp,
   Baker,
   compositeTexel,
+  decalContribution,
+  decalSample,
   densityTable,
   EXPORT_PICTURE_NOT_READY,
   slotDensity,
@@ -737,6 +739,20 @@ describe('decal maths (mirror of the decal shader)', () => {
     expect(decalSampleUv(texel([0.5, 0.5, 0], { normal: [0, 0, 0] }), DECAL, false)).toBeNull();
     expect(decalSampleUv(texel([0.5, 0.5, 0]), { ...DECAL, part: 'turret' }, false)).toBeNull();
     expect(decalSampleUv(texel([0.5, 0.5, 0], { group: 1 }), { ...DECAL, part: 'turret' }, false)).toEqual([0.5, 0.5]);
+  });
+
+  it('fades decals on steep surfaces instead of cutting them', () => {
+    const at = (cos: number) => texel([0.5, 0.5, 0], { normal: [Math.sqrt(1 - cos * cos), 0, cos] });
+    expect(decalSample(at(1), DECAL, false)!.weight).toBe(1);
+    expect(decalSample(at(0.5), DECAL, false)!.weight).toBeCloseTo(0.5, 6);
+    // About 78° off-axis (cos 0.2) the old hard cut still drew it; the fade gives nothing.
+    expect(decalSample(at(0.2), DECAL, false)).toBeNull();
+    // The weight scales the premultiplied contribution: half the alpha over a hidden Base.
+    const half = decalContribution([1, 0, 0, 1], 1, decalSample(at(0.5), DECAL, false)!.weight);
+    const out = compositeTexel({ rgb: [0, 0, 1], alpha: 0 }, [half], 1, 0, false);
+    expect(out[0]).toBeCloseTo(1, 6);
+    expect(out[3]).toBeCloseTo(0.5, 6);
+    expect(decalContribution([0.5, 0.25, 0, 0.5], 0.5, 0.5)).toEqual([0.125, 0.0625, 0, 0.125]);
   });
 
   it('adds the mirrored copy across the model plane', () => {
