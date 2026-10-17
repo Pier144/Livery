@@ -39,7 +39,8 @@ use tauri::{AppHandle, Manager};
 pub const NO_GAME_FOLDER: &str = "No game folder set";
 
 /// The saved game root, which must exist: `invalidInput` while none is saved, `notFound` when
-/// it can't be found (an unplugged drive).
+/// it can't be found (an unplugged drive). Livery's folder left inside its `UserSkins` by 0.5.1 or
+/// earlier is moved out first (see `layout::migrate_legacy_dir`), so every caller sees the new place.
 pub fn game_root(settings: &Settings) -> AppResult<PathBuf> {
     let Some(game_root) = saved_root(settings) else {
         return Err(AppError::new(ErrorCode::InvalidInput, NO_GAME_FOLDER));
@@ -48,6 +49,7 @@ pub fn game_root(settings: &Settings) -> AppResult<PathBuf> {
         return Err(AppError::new(ErrorCode::NotFound, "The game folder can't be found")
             .with_detail(root::display_path(&game_root)));
     }
+    layout::migrate_legacy_dir(&root::user_skins_dir(&game_root));
     Ok(game_root)
 }
 

@@ -4,6 +4,7 @@
 
 use livery_lib::archive::analyze::NO_BLK_ERROR;
 use livery_lib::archive::install::{ALREADY_INSTALLED, SKIPPED, USER_SKINS_GONE};
+use livery_lib::archive::partial_dir;
 use livery_lib::error::{AppError, AppResult, ErrorCode};
 use livery_lib::library::index::LibraryStore;
 use livery_lib::model::{
@@ -188,7 +189,7 @@ impl Env {
     }
 
     fn staging_is_empty(&self) -> bool {
-        let partial = self.user_skins.join(".livery").join("partial");
+        let partial = partial_dir(&self.user_skins);
         fs::read_dir(&partial).map_or(true, |mut d| d.next().is_none())
     }
 }

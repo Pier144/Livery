@@ -2,7 +2,7 @@
 //! and cleared from Settings → Backups.
 //!
 //! A backup is the skin folder itself, moved (a rename, so instant) to
-//! `UserSkins/.livery/backups/<backupId>/<folder>`, plus a `BackupRecord` in the library index
+//! `<gameRoot>/.livery/backups/<backupId>/<folder>`, plus a `BackupRecord` in the library index
 //! with the index entry as it was. With `settings.backups` off the backup is *ephemeral*: it only
 //! serves the Undo toast and is purged after a minute. Kept backups expire after
 //! `settings.backupDays`. Expired backups are purged at startup and at the start of every library

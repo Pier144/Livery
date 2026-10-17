@@ -136,8 +136,8 @@ fn an_unsafe_name_is_made_safe_and_stays_inside_user_skins() {
         assert_eq!(done.skin.folder, want, "{asked:?}");
         assert!(env.user_skins.join(&done.skin.folder).is_dir());
     }
-    // Nothing escaped: the game folder holds only UserSkins, the library only the data folder.
-    assert_eq!(names_in(env.user_skins.parent().unwrap()), ["UserSkins"]);
+    // Nothing escaped: the game folder holds only UserSkins and Livery's own folder.
+    assert_eq!(names_in(env.user_skins.parent().unwrap()), [".livery", "UserSkins"]);
 }
 
 #[test]

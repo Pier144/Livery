@@ -7,7 +7,7 @@
 //!   archives, capped sizes). RAR headers are read by `rar_headers` and the data decoded by the
 //!   7-Zip or WinRAR installed on the PC (`rar_tool`);
 //! - `analyze`: skin roots, vehicle, target folder, name clashes → a [`QueueItem`];
-//! - `install`: copy or unpack into `UserSkins/.livery/partial/<installId>/<folder>` (with the
+//! - `install`: copy or unpack into `<gameRoot>/.livery/partial/<installId>/<folder>` (with the
 //!   `.livery-partial` marker), verify, then one atomic rename into place inside a library
 //!   transaction (Replace backs the old version up first); Undo of a Replace;
 //! - `generated`: the same into-place step for a skin Livery made itself (Atelier), keeping the
@@ -59,13 +59,13 @@ use tauri::{AppHandle, Emitter, Manager};
 pub const PROGRESS_EVENT: &str = "install://progress";
 pub const QUEUE_ADDED_EVENT: &str = "queue://added";
 
-/// Sub-folder of `UserSkins/.livery` where installs are staged (and Undo parks what it removes).
+/// Sub-folder of `<gameRoot>/.livery` where installs are staged (and Undo parks what it removes).
 pub const PARTIAL_DIR: &str = "partial";
 
 /// `notFound` message for a queue id the store doesn't know (removed, or from another session).
 pub const NOT_IN_QUEUE: &str = "This item is no longer in the queue";
 
-/// `UserSkins/.livery/partial`.
+/// `<gameRoot>/.livery/partial`.
 pub fn partial_dir(user_skins: &Path) -> PathBuf {
     layout::livery_dir(user_skins).join(PARTIAL_DIR)
 }
@@ -187,7 +187,7 @@ impl QueueStore {
         (value, changed)
     }
 
-    /// Removes what interrupted installs left in `UserSkins/.livery/partial`, once per
+    /// Removes what interrupted installs left in `<gameRoot>/.livery/partial`, once per
     /// `UserSkins` folder and session, before this session stages anything there.
     pub fn ensure_partials_purged(&self, user_skins: &Path) {
         let mut purged = self.purged.lock().unwrap_or_else(|e| e.into_inner());

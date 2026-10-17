@@ -1,14 +1,17 @@
-//! Where Livery keeps skin folders inside `UserSkins`, and the file-system helpers the library
-//! operations share.
+//! Where Livery keeps skin folders, and the file-system helpers the library operations share.
 //!
 //! - active skin: `UserSkins/<folder>` (what the game loads);
-//! - inactive skin: `UserSkins/.livery/inactive/<folder>`;
-//! - backup: `UserSkins/.livery/backups/<backupId>/<folder>`.
+//! - inactive skin: `<gameRoot>/.livery/inactive/<folder>`;
+//! - backup: `<gameRoot>/.livery/backups/<backupId>/<folder>`.
+//!
+//! Livery's folder sits next to `UserSkins`, not inside it: the game looks for skins in every
+//! sub-folder of `UserSkins` (a backup at `UserSkins/.livery/backups/<id>/<folder>` showed up in
+//! its skin list as `.livery/backups/<id>`), so nothing Livery parks may live under it. Versions up
+//! to 0.5.1 kept the folder inside `UserSkins`; [`migrate_legacy_dir`] moves it out.
 //!
 //! Everything stays on the game's volume, so activating, deactivating, deleting and restoring are
-//! plain renames (instant and atomic). The game only reads `<vehicle>.blk` directly inside each
-//! `UserSkins/<folder>`, so it ignores `.livery`; the library scan skips `.`-prefixed folders too.
-//! Folder names are kept as they are, because the game shows the folder name as the skin name.
+//! plain renames (instant and atomic). The library scan skips `.`-prefixed folders. Folder names
+//! are kept as they are, because the game shows the folder name as the skin name.
 
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::model::HangarSkin;
@@ -16,7 +19,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// Livery's own folder inside `UserSkins`.
+/// Livery's own folder, next to `UserSkins` in the game folder (inside `UserSkins` up to 0.5.1).
 pub const LIVERY_DIR: &str = ".livery";
 /// Sub-folder of [`LIVERY_DIR`] holding inactive skins.
 pub const INACTIVE_DIR: &str = "inactive";
@@ -26,18 +29,79 @@ pub const BACKUPS_DIR: &str = "backups";
 /// How deep `copy_dir` follows sub-folders.
 const MAX_COPY_DEPTH: usize = 64;
 
+/// `<gameRoot>/.livery`, the sibling of `user_skins` (`UserSkins` is always `<gameRoot>/UserSkins`).
 pub fn livery_dir(user_skins: &Path) -> PathBuf {
+    user_skins.parent().unwrap_or(user_skins).join(LIVERY_DIR)
+}
+
+/// Where versions up to 0.5.1 kept [`livery_dir`]: `UserSkins/.livery`.
+pub fn legacy_livery_dir(user_skins: &Path) -> PathBuf {
     user_skins.join(LIVERY_DIR)
 }
 
-/// `UserSkins/.livery/inactive`.
+/// `<gameRoot>/.livery/inactive`.
 pub fn inactive_dir(user_skins: &Path) -> PathBuf {
     livery_dir(user_skins).join(INACTIVE_DIR)
 }
 
-/// `UserSkins/.livery/backups`.
+/// `<gameRoot>/.livery/backups`.
 pub fn backups_dir(user_skins: &Path) -> PathBuf {
     livery_dir(user_skins).join(BACKUPS_DIR)
+}
+
+/// Moves a `UserSkins/.livery` left by 0.5.1 or earlier to [`livery_dir`], so the game stops
+/// listing the backups and inactive skins in it. One rename when the new folder doesn't exist yet;
+/// otherwise each entry of each sub-folder (`inactive/<folder>`, `backups/<id>`, `partial/<id>`)
+/// moves on its own, and one whose name is taken at the new place stays (logged). The old folder
+/// goes once empty. Best effort and cheap when there is nothing to move (one metadata read), so it
+/// can run before every library command. Returns how many entries moved (the whole folder counts 1).
+pub fn migrate_legacy_dir(user_skins: &Path) -> usize {
+    let old = legacy_livery_dir(user_skins);
+    let new = livery_dir(user_skins);
+    if !old.is_dir() || old == new {
+        return 0;
+    }
+    if !occupied(&new) {
+        return match fs::rename(&old, &new) {
+            Ok(()) => {
+                tracing::info!("moved Livery's folder out of UserSkins");
+                1
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "could not move Livery's folder out of UserSkins");
+                0
+            }
+        };
+    }
+    let mut moved = 0;
+    let mut stayed = 0;
+    for sub in fs::read_dir(&old).into_iter().flatten().filter_map(Result::ok) {
+        let from_sub = sub.path();
+        if !from_sub.is_dir() {
+            continue;
+        }
+        let to_sub = new.join(sub.file_name());
+        if fs::create_dir_all(&to_sub).is_err() {
+            stayed += 1;
+            continue;
+        }
+        for entry in fs::read_dir(&from_sub).into_iter().flatten().filter_map(Result::ok) {
+            let to = to_sub.join(entry.file_name());
+            if !occupied(&to) && fs::rename(entry.path(), &to).is_ok() {
+                moved += 1;
+            } else {
+                stayed += 1;
+            }
+        }
+        let _ = fs::remove_dir(&from_sub);
+    }
+    let _ = fs::remove_dir(&old);
+    if stayed > 0 {
+        tracing::warn!(moved, stayed, "some of Livery's old folder inside UserSkins could not move");
+    } else {
+        tracing::info!(moved, "merged Livery's old folder from UserSkins");
+    }
+    moved
 }
 
 /// The folder that holds skins in the given state.

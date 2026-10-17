@@ -1,5 +1,5 @@
 //! Installing a skin Livery made itself (Atelier): a finished skin folder staged in
-//! `UserSkins/.livery/partial` goes into the library as one atomic step, either as a new skin or
+//! `<gameRoot>/.livery/partial` goes into the library as one atomic step, either as a new skin or
 //! over an existing one.
 //!
 //! - **New**: installs active, `Origin::Mine`, under the folder name made safe by

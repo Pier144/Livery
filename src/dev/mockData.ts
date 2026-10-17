@@ -301,7 +301,7 @@ export interface StoredBackup {
   backup: Backup;
   /** The index entry as it was (original id included). */
   skin: HangarSkin;
-  /** Whether the folder was in UserSkins (active) or in `.livery/inactive`. */
+  /** Whether the folder was in UserSkins (active) or in Livery's inactive folder (`.livery/inactive` next to it). */
   wasActive: boolean;
   /** Made while backups are off in Settings: only serves the Undo toast, never listed. */
   ephemeral: boolean;

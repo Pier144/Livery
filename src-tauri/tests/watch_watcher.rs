@@ -5,7 +5,8 @@
 //! changes → one event), then the polling thread itself: generations, restart and stop, and one
 //! run with a short interval.
 
-use livery_lib::library::layout::copy_dir;
+use livery_lib::archive::partial_dir;
+use livery_lib::library::layout::{copy_dir, inactive_dir};
 use livery_lib::model::Settings;
 use livery_lib::watch::snapshot::hangar_signature;
 use livery_lib::watch::{Host, Timing, WatchState, Watcher, POLL_INTERVAL};
@@ -326,7 +327,7 @@ fn user_skins_changes_give_one_event_once_they_hold_still() {
     assert!(driven.tick().is_empty());
 
     // An install staging in .livery/partial is invisible; its final rename is not.
-    let staging = setup.user_skins().join(".livery").join("partial").join("i-1").join("Desert");
+    let staging = partial_dir(&setup.user_skins()).join("i-1").join("Desert");
     fs::create_dir_all(staging.parent().unwrap()).unwrap();
     copy_dir(&fixture("Loose Textures"), &staging).unwrap();
     assert!(driven.tick().is_empty());
@@ -337,7 +338,7 @@ fn user_skins_changes_give_one_event_once_they_hold_still() {
     assert_eq!(driven.tick(), [Event::HangarChanged]);
 
     // Deactivating (a move into .livery/inactive) is a change too.
-    let inactive = setup.user_skins().join(".livery").join("inactive");
+    let inactive = inactive_dir(&setup.user_skins());
     fs::create_dir_all(&inactive).unwrap();
     fs::rename(setup.user_skins().join("Desert"), inactive.join("Desert")).unwrap();
     quiet(&setup.user_skins());

@@ -20,7 +20,7 @@ How the Windows installer is built, how to turn on code signing, and how a relea
 Other behaviour worth knowing:
 
 - **WebView2:** left at Tauri's default (`downloadBootstrapper`, silent). If the runtime is missing, which is rare on Windows 10 and doesn't happen on 11, the installer downloads it, so it needs a connection in that case.
-- **Uninstall** removes the program and offers a "delete app data" checkbox (`%APPDATA%\app.livery.desktop`: settings, following, library indexes). It never touches the game folder, so skins in `UserSkins` and the backups in `UserSkins\.livery\backups` stay.
+- **Uninstall** removes the program and offers a "delete app data" checkbox (`%APPDATA%\app.livery.desktop`: settings, following, library indexes). It never touches the game folder, so skins in `UserSkins` and the backups in `.livery\backups` (next to `UserSkins`; inside it up to 0.5.1) stay.
 - **Publisher:** not set, so Tauri uses the middle segment of the identifier: "livery", shown in Settings → Apps. It also names the registry key `HKCU\Software\livery\Livery`. Decide the publisher (and the identifier, `app.livery.desktop` today) **before the first public release**: changing either later splits upgrades from existing installs (the identifier also moves the app data folder).
 - **Updater:** on (see "Updates" below). `createUpdaterArtifacts: true` makes `tauri build` also write `<installer>.sig`, so **every build needs the updater signing key** in `TAURI_SIGNING_PRIVATE_KEY`.
 

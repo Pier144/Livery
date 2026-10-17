@@ -307,7 +307,10 @@ impl Env {
             let name = entry.unwrap().file_name().to_string_lossy().into_owned();
             assert!(["data", "downloads", "game"].contains(&name.as_str()), "unexpected {name}");
         }
-        assert_eq!(fs::read_dir(self.tmp.path().join("game")).unwrap().count(), 1, "only UserSkins in the game folder");
+        for entry in fs::read_dir(self.tmp.path().join("game")).unwrap() {
+            let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+            assert!(["UserSkins", ".livery"].contains(&name.as_str()), "unexpected {name} in the game folder");
+        }
     }
 }
 

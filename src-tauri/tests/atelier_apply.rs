@@ -1,4 +1,4 @@
-//! Atelier's apply on temp game and data folders: begin stages in `UserSkins/.livery/partial`,
+//! Atelier's apply on temp game and data folders: begin stages in `<gameRoot>/.livery/partial`,
 //! each painted slot becomes a DXT5 `.dds`, commit writes the `.blk` and installs the skin (a new
 //! one, or over the project's skin keeping its id); cancel and errors leave nothing behind.
 
@@ -197,7 +197,7 @@ fn commit_with_no_texture_installs_nothing() {
     assert_eq!((e.code, e.message.as_str()), (ErrorCode::InvalidInput, APPLY_NOTHING));
     assert!(!root.exists());
     assert!(env.store.all().is_empty());
-    assert_eq!(names_in(&env.user_skins), [".livery"]);
+    assert!(names_in(&env.user_skins).is_empty(), "nothing in UserSkins: Livery's staging is next to it");
 
     let e = err(apply::begin(&env.user_skins, &env.queue, &project, Vec::new()));
     assert_eq!(e.message, APPLY_NOTHING);

@@ -131,16 +131,16 @@ fn the_fingerprint_follows_skins_and_inactive_skins_but_not_livery_staging_or_ba
     assert_eq!(hangar_signature(&us).unwrap(), base, "nothing changed");
 
     // Livery's own churn: staging, backups, the .livery folder itself.
-    tmp.write("UserSkins/.livery/partial/i-1/Tiger 2/tiger.blk", b"x");
-    tmp.write("UserSkins/.livery/partial/i-1/.livery-partial", b"");
-    tmp.write("UserSkins/.livery/backups/b-1/Old/old.blk", b"x");
+    tmp.write(".livery/partial/i-1/Tiger 2/tiger.blk", b"x");
+    tmp.write(".livery/partial/i-1/.livery-partial", b"");
+    tmp.write(".livery/backups/b-1/Old/old.blk", b"x");
     assert_eq!(quiet(&us), base, "staging and backups are not part of it");
 
     tmp.write("UserSkins/Panther/panther.blk", b"x");
     let added = hangar_signature(&us).unwrap();
     assert_ne!(added, base, "a new skin folder");
 
-    tmp.write("UserSkins/.livery/inactive/Sherman/sherman.blk", b"x");
+    tmp.write(".livery/inactive/Sherman/sherman.blk", b"x");
     let deactivated = hangar_signature(&us).unwrap();
     assert_ne!(deactivated, added, "a skin in the inactive folder");
 

@@ -384,7 +384,7 @@ fn a_pack_installs_each_skin_as_its_own_item() {
 
     let installed = env.install(&phantom.id, None, None);
     assert!(installed.last().skin_id.is_some());
-    assert_eq!(names_in(&env.user_skins), [".livery", "Phantom Desert"]);
+    assert_eq!(names_in(&env.user_skins), ["Phantom Desert"]);
     let after = env.queue.get(&phantom.id).unwrap();
     assert_eq!(after.status, QueueStatus::Done);
     assert_eq!(after.vehicle.unwrap().code, "f_4e");

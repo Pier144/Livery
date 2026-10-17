@@ -5,7 +5,7 @@
 //! background thread ([`run`]), reporting `install://progress`:
 //!
 //! 1. **extract** 0–80 %: the root is copied into
-//!    `UserSkins/.livery/partial/<installId>/<folder>`, next to a `.livery-partial` marker;
+//!    `<gameRoot>/.livery/partial/<installId>/<folder>`, next to a `.livery-partial` marker;
 //! 2. **verify** 80–95 %: the marker goes, the copy is compared with the source (files and bytes)
 //!    and scanned like any skin in the library (vehicle, attention);
 //! 3. **done** 100 %: inside one library transaction the folder name is checked again, the
@@ -291,7 +291,7 @@ fn install(ctx: &Ctx, job: &InstallJob, source: &dyn SkinSource, reporter: &mut 
     commit(ctx, job, &staged.dir, staged.scanned.clone())
 }
 
-/// A skin copied into `UserSkins/.livery/partial/<installId>/<folder>`, verified and scanned,
+/// A skin copied into `<gameRoot>/.livery/partial/<installId>/<folder>`, verified and scanned,
 /// ready to be renamed into place. The staging goes when this is dropped.
 pub(crate) struct Staged {
     pub dir: PathBuf,
@@ -641,7 +641,7 @@ fn undo_error(e: io::Error) -> AppError {
     AppError::new(ErrorCode::Io, "Could not put the previous version back").with_detail(e.to_string())
 }
 
-/// Removes everything in `UserSkins/.livery/partial` (staging of installs that never finished,
+/// Removes everything in `<gameRoot>/.livery/partial` (staging of installs that never finished,
 /// versions an Undo parked). Best effort; returns how many entries went. Call only while nothing
 /// is being installed there (see `QueueStore::ensure_partials_purged`).
 pub fn purge_partials(user_skins: &Path) -> usize {

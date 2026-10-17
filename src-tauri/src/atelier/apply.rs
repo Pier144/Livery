@@ -1,5 +1,5 @@
 //! Apply to game: the frontend bakes each enabled slot and sends it here; each one is encoded to a
-//! DXT5 `.dds` in Livery's install staging (`UserSkins/.livery/partial/<applyId>/<folder>`) at
+//! DXT5 `.dds` in Livery's install staging (`<gameRoot>/.livery/partial/<applyId>/<folder>`) at
 //! once, so at most one painted texture is held in memory. Commit writes `<vehicle>.blk` and
 //! installs the folder through `archive::generated::install_generated` (a new skin, or over the
 //! project's skin keeping its id). Cancel, and every failed commit, removes the staging.

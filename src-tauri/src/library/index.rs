@@ -46,7 +46,7 @@ pub struct BackupRecord {
     /// listed.
     #[serde(default)]
     pub ephemeral: bool,
-    /// `<backupId>/<folder>`, relative to `UserSkins/.livery/backups`.
+    /// `<backupId>/<folder>`, relative to `<gameRoot>/.livery/backups`.
     pub dir: String,
 }
 

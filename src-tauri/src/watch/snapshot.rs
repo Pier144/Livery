@@ -83,8 +83,8 @@ pub fn holds_skin(path: &Path) -> bool {
 }
 
 /// A fingerprint of what the game and the hangar see in `UserSkins`: the names, kinds, sizes and
-/// modification times of its entries (Livery's own `.livery` folder aside) and of the entries of
-/// `.livery/inactive`, as one directory listing each reports them. Staging (`.livery/partial`)
+/// modification times of its entries (a `.livery` folder an older Livery left there aside) and of
+/// the entries of `<gameRoot>/.livery/inactive`, as one directory listing each reports them. Staging (`.livery/partial`)
 /// and backups are not part of it, so an install in progress changes nothing until its final
 /// rename. A missing `UserSkins` (or inactive folder) has a fingerprint of its own; any other
 /// read error is returned (the poll is skipped).

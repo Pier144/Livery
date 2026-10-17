@@ -50,7 +50,7 @@ pub fn scan_dir(user_skins: &Path) -> AppResult<Vec<HangarSkin>> {
     Ok(skins)
 }
 
-/// Every skin folder in Livery's inactive folder (`UserSkins/.livery/inactive`), like
+/// Every skin folder in Livery's inactive folder (`<gameRoot>/.livery/inactive`), like
 /// `scan_dir` but marked inactive.
 pub fn scan_inactive_dir(inactive: &Path) -> AppResult<Vec<HangarSkin>> {
     Ok(scan_dir(inactive)?.into_iter().map(mark_inactive).collect())
