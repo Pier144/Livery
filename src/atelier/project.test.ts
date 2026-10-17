@@ -11,11 +11,11 @@ import {
   MAX_TEXT_CHARS,
   MIN_DECAL_SIZE,
   baseOf,
-  checkDecalLayer,
+  checkPlacedLayer,
   decalLayers,
   decalRight,
   defaultDepth,
-  isDecalLayer,
+  isPictureLayer,
   maskOf,
   newBaseLayer,
   newImageLayer,
@@ -32,11 +32,40 @@ import {
   MIN_CAMO_WEIGHT,
   STRIPE_ANGLE_MAX,
   STRIPE_ANGLE_MIN,
+  DEFAULT_SHAPE_COLOR,
+  DEFAULT_SHAPE_STRIPE_ANGLE,
+  DEFAULT_STRIPE_WIDTH,
+  DEFAULT_REPEAT_GAP,
+  HAZARD_DARK,
+  MAX_CORNER,
+  MAX_INNER_RATIO,
+  MAX_PIECES,
+  MAX_REPEAT,
+  MAX_REPEAT_GAP,
+  MAX_SHAPE_POINTS,
+  MIN_INNER_RATIO,
+  MIN_SHAPE_POINTS,
+  SHAPE_KINDS,
+  SHAPE_STRIPE_ANGLE_MAX,
+  SHAPE_STRIPE_ANGLE_MIN,
+  STRIPE_WIDTH_MAX,
+  STRIPE_WIDTH_MIN,
+  checkPiece,
+  isPlacedLayer,
+  newFolder,
+  newHazardStripe,
+  newShapeLayer,
   type BaseLayer,
+  type FolderLayer,
   type ImageLayer,
+  type Layer,
   type MaskLayer,
+  type MergedLayer,
+  type Piece,
+  type ShapeLayer,
   type Stroke,
   type TextLayer,
+  type UnsupportedPiece,
   type Vec3,
 } from './project';
 
@@ -220,8 +249,8 @@ describe('image and text layers', () => {
     expect(layers.map((l) => `${l.kind}:${l.id}`)).toEqual(['base:b', 'text:t1', 'image:i1', 'image:i2', 'unsupported:u', 'mask:m']);
     expect(serializeLayers(layers)).toEqual(json);
     expect(decalLayers(layers).map((l) => l.id)).toEqual(['t1', 'i1', 'i2']);
-    expect(isDecalLayer(layers[1])).toBe(true);
-    expect(isDecalLayer(layers[4])).toBe(false);
+    expect(isPictureLayer(layers[1])).toBe(true);
+    expect(isPictureLayer(layers[4])).toBe(false);
   });
 
   it('moves misplaced ones between Base and mask (a structural repair)', () => {
@@ -317,11 +346,11 @@ describe('image and text layers', () => {
     expect(serializeLayers(layers)[1]).toEqual(raw);
   });
 
-  it('checkDecalLayer re-checks an edited layer', () => {
+  it('checkPlacedLayer re-checks an edited layer', () => {
     const [, txt] = validateLayers([BASE, text()]);
-    expect(checkDecalLayer({ ...(txt as TextLayer), skew: 4 })).toMatchObject({ skew: MAX_SKEW });
+    expect(checkPlacedLayer({ ...(txt as TextLayer), skew: 4 })).toMatchObject({ skew: MAX_SKEW });
     const [, img] = validateLayers([BASE, image()]);
-    expect(checkDecalLayer({ ...(img as ImageLayer), assetId: '' })).toBeNull();
+    expect(checkPlacedLayer({ ...(img as ImageLayer), assetId: '' })).toBeNull();
   });
 
   it('wear: kept above 0 (at most 1) on the Base, images and text; 0, negative or not a number is no field', () => {
@@ -336,7 +365,7 @@ describe('image and text layers', () => {
     // A layer without wear is saved without the field (older projects stay as they were).
     const [plain] = validateLayers([BASE]);
     expect(serializeLayers([plain!])[0]).not.toHaveProperty('wear');
-    expect(checkDecalLayer({ ...(txt as TextLayer), wear: 0 })).not.toHaveProperty('wear');
+    expect(checkPlacedLayer({ ...(txt as TextLayer), wear: 0 })).not.toHaveProperty('wear');
   });
 
   it('new image and text layers have their defaults', () => {
@@ -408,5 +437,342 @@ describe('normalizeWeights', () => {
     }
     expect(normalizeWeights([0.0001, 0.0001, 0.0001, 1])).toEqual([0.05, 0.05, 0.05, 0.85]);
     expect(normalizeWeights([1, 2])).toEqual([0.3333, 0.6667]);
+  });
+});
+
+const shape = (over: Record<string, unknown> = {}) => ({
+  id: 's',
+  kind: 'shape',
+  name: '',
+  visible: true,
+  shape: 'rect',
+  fill: { kind: 'solid', color: '#e8b600' },
+  outlineColor: '#000000',
+  outlineWidth: 0,
+  decal: decal(),
+  opacity: 1,
+  ...over,
+});
+const place = (over: Record<string, unknown> = {}) => ({ x: 0, y: 0, w: 0.5, h: 0.5, angle: 0, ...over });
+/** `layer` as a piece of a merged object: no decal, a place in the merged frame. */
+const piece = (layer: Record<string, unknown>, over: Record<string, unknown> = {}) => {
+  const rest = { ...layer };
+  delete rest.decal;
+  return { ...rest, place: place(over) };
+};
+const merged = (children: unknown, over: Record<string, unknown> = {}) => ({
+  id: 'g',
+  kind: 'merged',
+  name: '',
+  visible: true,
+  decal: decal(),
+  opacity: 1,
+  children,
+  ...over,
+});
+const folder = (children: unknown[], over: Record<string, unknown> = {}) => ({
+  id: 'f',
+  kind: 'folder',
+  name: 'Markings',
+  visible: true,
+  collapsed: false,
+  children,
+  ...over,
+});
+/** The single middle layer of `[BASE, raw]`, validated. */
+const one = <T extends Layer>(raw: unknown): T => validateLayers([BASE, raw])[1] as T;
+
+describe('shape layers', () => {
+  it('new shapes have their defaults and write no optional field', () => {
+    const s = newShapeLayer('star');
+    expect(s).toMatchObject({
+      kind: 'shape',
+      shape: 'star',
+      name: '',
+      visible: true,
+      fill: { kind: 'solid', color: DEFAULT_SHAPE_COLOR },
+      outlineColor: '#000000',
+      outlineWidth: 0,
+      decal: null,
+      opacity: 1,
+    });
+    for (const key of ['corner', 'points', 'innerRatio', 'repeat', 'wear']) expect(s).not.toHaveProperty(key);
+    const d = toDecal(decal())!;
+    expect(newShapeLayer('ellipse', d, 'Dot')).toMatchObject({ shape: 'ellipse', decal: d, name: 'Dot' });
+    expect(SHAPE_KINDS).toEqual(['rect', 'ellipse', 'star', 'polygon']);
+  });
+
+  it('the hazard stripe preset: a yellow and black striped rectangle', () => {
+    const h = newHazardStripe('Hazard stripe');
+    expect(h).toMatchObject({
+      kind: 'shape',
+      shape: 'rect',
+      name: 'Hazard stripe',
+      fill: { kind: 'stripes', colors: [DEFAULT_SHAPE_COLOR, HAZARD_DARK], angle: 45, stripeWidth: 0.08 },
+      decal: null,
+    });
+    expect(DEFAULT_SHAPE_STRIPE_ANGLE).toBe(45);
+    expect(DEFAULT_STRIPE_WIDTH).toBe(0.08);
+  });
+
+  it('a valid shape round-trips unchanged and clean', () => {
+    const json = [BASE, shape({ corner: 0.2, points: 7, innerRatio: 0.5, wear: 0.3 }), MASK];
+    const { layers, repaired } = checkLayers(json);
+    expect(repaired).toBe(false);
+    expect(serializeLayers(layers)).toEqual(json);
+  });
+
+  it('clamps corner, points, inner ratio, outline width and opacity', () => {
+    expect(one<ShapeLayer>(shape({ corner: 3 })).corner).toBe(MAX_CORNER);
+    expect(one<ShapeLayer>(shape({ corner: -1 })).corner).toBe(0);
+    expect(one<ShapeLayer>(shape({ points: 40 })).points).toBe(MAX_SHAPE_POINTS);
+    expect(one<ShapeLayer>(shape({ points: 1 })).points).toBe(MIN_SHAPE_POINTS);
+    expect(one<ShapeLayer>(shape({ points: 5.6 })).points).toBe(6);
+    expect(one<ShapeLayer>(shape({ innerRatio: 2 })).innerRatio).toBe(MAX_INNER_RATIO);
+    expect(one<ShapeLayer>(shape({ innerRatio: 0 })).innerRatio).toBe(MIN_INNER_RATIO);
+    expect(one<ShapeLayer>(shape({ outlineWidth: 99 })).outlineWidth).toBe(MAX_OUTLINE_WIDTH);
+    expect(one<ShapeLayer>(shape({ outlineWidth: -3 })).outlineWidth).toBe(0);
+    expect(one<ShapeLayer>(shape({ opacity: 4 })).opacity).toBe(1);
+    expect(one<ShapeLayer>(shape({ outlineColor: 'black' })).outlineColor).toBe('#000000');
+    for (const v of ['x', null, Number.NaN]) {
+      const s = one<ShapeLayer>(shape({ corner: v, points: v, innerRatio: v }));
+      for (const key of ['corner', 'points', 'innerRatio']) expect(s).not.toHaveProperty(key);
+    }
+  });
+
+  it('a bad fill becomes the solid default; stripes are clamped and lower-cased', () => {
+    for (const fill of [undefined, 'yellow', { kind: 'gradient' }, { kind: 'solid', color: 'red' }]) {
+      expect(one<ShapeLayer>(shape({ fill })).fill).toEqual({ kind: 'solid', color: DEFAULT_SHAPE_COLOR });
+    }
+    expect(one<ShapeLayer>(shape({ fill: { kind: 'solid', color: '#ABCDEF' } })).fill).toEqual({ kind: 'solid', color: '#abcdef' });
+    const s = one<ShapeLayer>(shape({ fill: { kind: 'stripes', colors: ['#AAAAAA', '#BBBBBB'], angle: 120, stripeWidth: 9 } }));
+    expect(s.fill).toEqual({ kind: 'stripes', colors: ['#aaaaaa', '#bbbbbb'], angle: SHAPE_STRIPE_ANGLE_MAX, stripeWidth: STRIPE_WIDTH_MAX });
+    const low = one<ShapeLayer>(shape({ fill: { kind: 'stripes', colors: ['#aaaaaa', '#bbbbbb'], angle: -120, stripeWidth: 0 } }));
+    expect(low.fill).toMatchObject({ angle: SHAPE_STRIPE_ANGLE_MIN, stripeWidth: STRIPE_WIDTH_MIN });
+    const bare = one<ShapeLayer>(shape({ fill: { kind: 'stripes', colors: 'x' } }));
+    expect(bare.fill).toEqual({ kind: 'stripes', colors: [DEFAULT_SHAPE_COLOR, HAZARD_DARK], angle: 45, stripeWidth: 0.08 });
+  });
+
+  it('keeps an unknown shape kind, unknown fields, and checks the decal', () => {
+    const s = one<ShapeLayer>(shape({ shape: 'heart', glow: 2, decal: decal({ width: 1e6 }) }));
+    expect(s).toMatchObject({ shape: 'heart', glow: 2 });
+    expect(s.decal?.width).toBe(MAX_DECAL_SIZE);
+    expect(one<ShapeLayer>(shape({ shape: 7 })).shape).toBe('rect');
+    expect(one<ShapeLayer>(shape({ decal: decal({ normal: [0, 0, 0] }) })).decal).toBeNull();
+  });
+
+  it('checkPlacedLayer re-checks an edited shape', () => {
+    const s = one<ShapeLayer>(shape());
+    expect(checkPlacedLayer({ ...s, outlineWidth: 50, points: 99 })).toMatchObject({ outlineWidth: MAX_OUTLINE_WIDTH, points: MAX_SHAPE_POINTS });
+  });
+});
+
+describe('repeat', () => {
+  const kinds = () => [image(), text(), shape(), merged([piece(shape({ id: 'p' }))])];
+
+  it('absent stays absent, on every placed kind', () => {
+    for (const raw of kinds()) expect(one(raw)).not.toHaveProperty('repeat');
+  });
+
+  it('is kept and checked on image, text, shape and merged layers', () => {
+    for (const raw of kinds()) {
+      const layer = one<ShapeLayer>({ ...raw, repeat: { count: 3, gap: 0.2, direction: 'column', alternate: '#FF0000' } });
+      expect(layer.repeat).toEqual({ count: 3, gap: 0.2, direction: 'column', alternate: '#ff0000' });
+    }
+  });
+
+  it('a count below 2 or not a number removes the field; the rest gets defaults or is clamped', () => {
+    for (const count of [1, 0, -4, 1.5, 'x', null, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(one({ ...shape(), repeat: { count, gap: 1, direction: 'row' } })).not.toHaveProperty('repeat');
+    }
+    for (const repeat of ['x', 3, null]) expect(one({ ...shape(), repeat })).not.toHaveProperty('repeat');
+    expect(one<ShapeLayer>({ ...shape(), repeat: { count: 500, gap: 99 } }).repeat).toEqual({ count: MAX_REPEAT, gap: MAX_REPEAT_GAP, direction: 'row' });
+    expect(one<ShapeLayer>({ ...shape(), repeat: { count: 4, gap: -1, direction: 'diagonal', alternate: 'red' } }).repeat).toEqual({
+      count: 4,
+      gap: 0,
+      direction: 'row',
+    });
+    expect(one<ShapeLayer>({ ...shape(), repeat: { count: 4, gap: 'wide' } }).repeat).toEqual({ count: 4, gap: DEFAULT_REPEAT_GAP, direction: 'row' });
+  });
+});
+
+describe('folders', () => {
+  it('keeps a folder with its children, saved back as it came', () => {
+    const json = [BASE, folder([image({ id: 'i1' }), text({ id: 't1' }), { id: 'u', kind: 'sticker', name: '', visible: true }]), MASK];
+    const { layers, repaired } = checkLayers(json);
+    expect(repaired).toBe(false);
+    const f = layers[1] as FolderLayer;
+    expect(f.kind).toBe('folder');
+    expect(f.children.map((c) => `${c.kind}:${c.id}`)).toEqual(['image:i1', 'text:t1', 'unsupported:u']);
+    expect(serializeLayers(layers)).toEqual(json);
+  });
+
+  it('collapsed defaults to false; missing children make an empty folder', () => {
+    const f = one<FolderLayer>({ id: 'f', kind: 'folder', collapsed: 'yes' });
+    expect(f).toMatchObject({ kind: 'folder', collapsed: false, children: [], name: '', visible: true });
+    expect(one<FolderLayer>(folder([], { collapsed: true })).collapsed).toBe(true);
+    expect(newFolder('Numbers')).toMatchObject({ kind: 'folder', name: 'Numbers', visible: true, collapsed: false, children: [] });
+  });
+
+  it('a folder inside a folder is moved out, right above its parent', () => {
+    const { layers, repaired } = checkLayers([
+      BASE,
+      image({ id: 'below' }),
+      folder([image({ id: 'a' }), folder([text({ id: 'tb' })], { id: 'inner' }), image({ id: 'c' })], { id: 'outer' }),
+      image({ id: 'above' }),
+    ]);
+    expect(repaired).toBe(true);
+    expect(layers.map((l) => l.id)).toEqual(['b', 'below', 'outer', 'inner', 'above']);
+    expect((layers[2] as FolderLayer).children.map((c) => c.id)).toEqual(['a', 'c']);
+    expect((layers[3] as FolderLayer).children.map((c) => c.id)).toEqual(['tb']);
+  });
+
+  it('a Base or mask inside a folder goes to its pinned place when the top level lacks one, else is dropped', () => {
+    const lifted = checkLayers([image({ id: 'i' }), folder([{ ...BASE, id: 'fb' }, image({ id: 'a' }), { ...MASK, id: 'fm' }])]);
+    expect(lifted.repaired).toBe(true);
+    expect(lifted.layers.map((l) => `${l.kind}:${l.id}`)).toEqual(['base:fb', 'image:i', 'folder:f', 'mask:fm']);
+    expect((lifted.layers[2] as FolderLayer).children.map((c) => c.id)).toEqual(['a']);
+    const dropped = checkLayers([BASE, folder([{ ...BASE, id: 'fb' }, { ...MASK, id: 'fm' }]), MASK]);
+    expect(dropped.repaired).toBe(true);
+    expect(dropped.layers.map((l) => l.id)).toEqual(['b', 'f', 'm']);
+    expect((dropped.layers[1] as FolderLayer).children).toEqual([]);
+  });
+
+  it('may hold merged objects and shapes', () => {
+    const f = one<FolderLayer>(folder([shape({ id: 's1' }), merged([piece(shape({ id: 'p' }))])]));
+    expect(f.children.map((c) => c.kind)).toEqual(['shape', 'merged']);
+  });
+});
+
+describe('merged objects', () => {
+  it('keeps valid pieces and round-trips unchanged', () => {
+    const json = [
+      BASE,
+      merged([
+        piece(shape({ id: 'p1' }), { x: -0.25, angle: 0.3 }),
+        piece(text({ id: 'p2' })),
+        piece(image({ id: 'p3' })),
+        { id: 'p4', kind: 'sticker', name: '', visible: true, place: place() },
+      ]),
+      MASK,
+    ];
+    const { layers, repaired } = checkLayers(json);
+    expect(repaired).toBe(false);
+    const m = layers[1] as MergedLayer;
+    expect(m.children.map((c) => `${c.kind}:${c.id}`)).toEqual(['shape:p1', 'text:p2', 'image:p3', 'unsupported:p4']);
+    expect(serializeLayers(layers)).toEqual(json);
+  });
+
+  it('drops a drawable piece whose place does not check out', () => {
+    for (const bad of [{ w: 0 }, { h: -1 }, { x: Number.NaN }, { angle: 'up' }, { y: undefined }]) {
+      const { layers, repaired } = checkLayers([BASE, merged([piece(shape({ id: 'ok' })), piece(shape({ id: 'bad' }), bad)])]);
+      expect(repaired).toBe(true);
+      expect((layers[1] as MergedLayer).children.map((c) => c.id)).toEqual(['ok']);
+    }
+    const noPlace = checkLayers([BASE, merged([piece(shape({ id: 'ok' })), { ...shape({ id: 'bad' }), place: 'here' }])]);
+    expect((noPlace.layers[1] as MergedLayer).children.map((c) => c.id)).toEqual(['ok']);
+  });
+
+  it('keeps an unknown piece kind as an unsupported piece, with its place only when valid', () => {
+    const m = one<MergedLayer>(
+      merged([
+        piece(shape({ id: 'ok' })),
+        { id: 'u1', kind: 'sticker', place: place({ x: 0.1 }) },
+        { id: 'u2', kind: 'sticker', place: { w: 0 } },
+        piece(image({ id: 'noasset', assetId: '' })),
+      ]),
+    );
+    const [, u1, u2, noAsset] = m.children as UnsupportedPiece[];
+    expect(u1).toMatchObject({ kind: 'unsupported', place: place({ x: 0.1 }) });
+    expect(u2?.kind).toBe('unsupported');
+    expect(u2).not.toHaveProperty('place');
+    expect(noAsset?.kind).toBe('unsupported');
+    expect(serializeLayers([m])[0]).toMatchObject({ children: [{}, { id: 'u1' }, { id: 'u2', place: { w: 0 } }, { id: 'noasset' }] });
+  });
+
+  it('drops folder, Base, mask and merged pieces', () => {
+    const { layers, repaired } = checkLayers([
+      BASE,
+      merged([
+        piece(shape({ id: 'ok' })),
+        { ...folder([]), place: place() },
+        { ...BASE, id: 'pb', place: place() },
+        { ...MASK, id: 'pm', place: place() },
+        { ...merged([piece(shape({ id: 'q' }))], { id: 'pg' }), place: place() },
+      ]),
+    ]);
+    expect(repaired).toBe(true);
+    expect((layers[1] as MergedLayer).children.map((c) => c.id)).toEqual(['ok']);
+  });
+
+  it('a merged object without a drawable piece is dropped', () => {
+    for (const children of [[], [{ id: 'u', kind: 'sticker', place: place() }], 'x', [piece(shape({ id: 'bad' }), { w: 0 })]]) {
+      const { layers, repaired } = checkLayers([BASE, merged(children), MASK]);
+      expect(repaired).toBe(true);
+      expect(layers.map((l) => l.id)).toEqual(['b', 'm']);
+    }
+  });
+
+  it('removes repeat and decal from pieces, and keeps at most MAX_PIECES', () => {
+    const m = one<MergedLayer>(merged([{ ...piece(shape({ id: 'p' })), repeat: { count: 3, gap: 1, direction: 'row' }, decal: decal() }]));
+    expect(m.children[0]).not.toHaveProperty('repeat');
+    expect(m.children[0]).not.toHaveProperty('decal');
+    const many = Array.from({ length: MAX_PIECES + 3 }, (_, i) => piece(shape({ id: `p${i}` })));
+    const { layers, repaired } = checkLayers([BASE, merged(many)]);
+    expect(repaired).toBe(true);
+    expect((layers[1] as MergedLayer).children).toHaveLength(MAX_PIECES);
+  });
+
+  it('checks the merged frame, opacity and the pieces fields', () => {
+    const m = one<MergedLayer>(merged([piece(shape({ id: 'p', outlineWidth: 99 }))], { opacity: -1, decal: 'x' }));
+    expect(m).toMatchObject({ opacity: 0, decal: null });
+    expect((m.children[0] as Piece & ShapeLayer).outlineWidth).toBe(MAX_OUTLINE_WIDTH);
+  });
+
+  it('checkPiece re-checks an edited piece; null when it no longer is one', () => {
+    const m = one<MergedLayer>(merged([piece(shape({ id: 'p' })), piece(image({ id: 'i' }))]));
+    const [s, img] = m.children as Piece[];
+    expect(checkPiece({ ...s!, opacity: 3 } as Piece)).toMatchObject({ opacity: 1, place: place() });
+    expect(checkPiece({ ...s!, place: { ...place(), w: 0 } } as Piece)).toBeNull();
+    expect(checkPiece({ ...img!, assetId: '' } as Piece)).toBeNull();
+    expect(checkPlacedLayer({ ...m, children: [] })).toBeNull();
+  });
+});
+
+describe('ids across the tree', () => {
+  it('renews a piece or folder child whose id is already used', () => {
+    const { layers, repaired } = checkLayers([
+      BASE,
+      merged([piece(shape({ id: 'x' }))]),
+      folder([image({ id: 'x' }), image({ id: 'f' })]),
+      image({ id: 'x' }),
+    ]);
+    expect(repaired).toBe(true);
+    expect(layers[3]?.id).toBe('x');
+    const ids: string[] = [];
+    for (const l of layers) {
+      ids.push(l.id);
+      if (l.kind === 'folder' || l.kind === 'merged') for (const c of l.children) ids.push(c.id);
+    }
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('isPlacedLayer and isPictureLayer', () => {
+  it('tell placed and picture layers apart', () => {
+    const layers = validateLayers([BASE, image(), text(), shape(), merged([piece(shape({ id: 'p' }))]), folder([]), { id: 'u', kind: 'sticker' }, MASK]);
+    expect(layers.map((l) => isPlacedLayer(l))).toEqual([false, true, true, true, true, false, false, false]);
+    expect(layers.map((l) => isPictureLayer(l))).toEqual([false, true, true, false, false, false, false, false]);
+    expect(isPlacedLayer(undefined)).toBe(false);
+  });
+});
+
+describe('older projects', () => {
+  it('a project without the new kinds checks out exactly as before', () => {
+    const json = [BASE, image({ id: 'i1' }), text({ id: 't1' }), { id: 'u', kind: 'sticker', name: '', visible: true }, MASK];
+    const { layers, repaired } = checkLayers(json);
+    expect(repaired).toBe(false);
+    expect(serializeLayers(layers)).toEqual(json);
+    expect(JSON.parse(JSON.stringify(serializeLayers(validateLayers(json))))).toEqual(json);
   });
 });

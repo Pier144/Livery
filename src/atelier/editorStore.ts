@@ -5,10 +5,10 @@ import {
   MIN_DECAL_SIZE,
   add,
   baseOf,
-  checkDecalLayer,
+  checkPlacedLayer,
   checkLayers,
   decalRight,
-  isDecalLayer,
+  isPictureLayer,
   maskOf,
   newImageLayer,
   newLayerId,
@@ -255,7 +255,7 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
 
   const decalLayer = (id: string): DecalLayer | undefined => {
     const layer = get().layers.find((l) => l.id === id);
-    return isDecalLayer(layer) ? layer : undefined;
+    return isPictureLayer(layer) ? layer : undefined;
   };
 
   /** A project setting change (saved, never undone). */
@@ -385,7 +385,7 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       const { layers } = get();
       const at = layers.findIndex((l) => l.id === id);
       const layer = layers[at];
-      if (!isDecalLayer(layer)) return;
+      if (!isPictureLayer(layer)) return;
       const copy: DecalLayer = { ...structuredClone(layer), id: newLayerId() };
       if (copy.decal) copy.decal = offsetDecal(copy.decal);
       commit(inserted(layers, at + 1, copy), { selectedId: copy.id });
@@ -423,7 +423,8 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       if (!layer) return;
       const own: Record<string, unknown> = { ...patch };
       for (const key of layer.kind === 'text' ? IMAGE_ONLY_PROPS : TEXT_ONLY_PROPS) delete own[key];
-      const next = checkDecalLayer({ ...layer, ...own, id: layer.id, kind: layer.kind, decal: layer.decal } as DecalLayer);
+      // An image or text layer checks out as one of the same kind (or not at all).
+      const next = checkPlacedLayer({ ...layer, ...own, id: layer.id, kind: layer.kind, decal: layer.decal } as DecalLayer) as DecalLayer | null;
       if (!next) return;
       change(replaced(get().layers, id, withTextWidth(next)), layerKey(id, mergeKey));
     },

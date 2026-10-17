@@ -6,7 +6,7 @@ import { useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import { QUICK_VIEWS, type QuickView } from '@/atelier/gl/scene';
 import type { VehicleModelData } from '@/atelier/modelBuffer';
-import { dot, isDecalLayer, maskOf, partGroupOf, type Decal, type DecalLayer, type PartFilter, type Vec3 } from '@/atelier/project';
+import { dot, isPictureLayer, maskOf, partGroupOf, type Decal, type DecalLayer, type PartFilter, type Vec3 } from '@/atelier/project';
 import { measureTextAspect } from '@/atelier/text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/lib/cn';
@@ -53,7 +53,7 @@ const WHEEL_GESTURE_MS = 400;
 /** The selected image or text layer when it is placed (its gizmo and keys apply), else null. */
 function selectedPlaced(s: ReturnType<typeof useAtelierEditor.getState>): (DecalLayer & { decal: Decal }) | null {
   const layer = s.layers.find((l) => l.id === s.selectedId);
-  return isDecalLayer(layer) && layer.decal ? (layer as DecalLayer & { decal: Decal }) : null;
+  return isPictureLayer(layer) && layer.decal ? (layer as DecalLayer & { decal: Decal }) : null;
 }
 
 /** Arrow keys turn the view this many pixels' worth; + and − zoom by this wheel delta. */
@@ -227,7 +227,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     const again = useDecalUi.getState().placingLayerId;
     const target = again ? store.layers.find((l) => l.id === again) : undefined;
     let aspect = store.pending?.aspect ?? 1;
-    if (!store.pending && isDecalLayer(target)) {
+    if (!store.pending && isPictureLayer(target)) {
       if (target.kind === 'image') {
         const size = assetSize(target.assetId);
         aspect = size ? size.width / size.height : 1;
@@ -239,7 +239,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     if (!decal) return false;
     let placed: string | null = null;
     if (store.pending) placed = store.placePending(decal);
-    else if (again && isDecalLayer(target)) {
+    else if (again && isPictureLayer(target)) {
       store.setDecal(again, decal);
       store.select(again);
       setPlacingLayer(null);

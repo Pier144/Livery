@@ -2,12 +2,13 @@ import type { CropRect, PartGroup } from '@/types';
 
 /**
  * The layer schema of an Atelier project (`AtelierProject.layers`, stored by Rust as opaque
- * JSON). This version knows the Base, image and text layers (projected decals) and the Protected
- * areas (mask); any other kind a project holds (a later Livery's layers) is kept as it came and
- * listed as unsupported.
+ * JSON). This version knows the Base, image, text and shape layers (projected decals), merged
+ * objects (several pieces sharing one frame), folders and the Protected areas (mask); any other
+ * kind a project holds (a later Livery's layers) is kept as it came and listed as unsupported.
  *
- * Layers run bottom to top: exactly one Base, always first; at most one mask, always last; image,
- * text and unsupported layers in between, in the order saved. Colours are project data stored as
+ * Layers run bottom to top: exactly one Base, always first; at most one mask, always last; placed,
+ * folder and unsupported layers in between, in the order saved. Folders sit only at the top level
+ * and hold placed and unsupported layers; merged objects hold pieces. Colours are project data stored as
  * `#rrggbb` strings (not UI styling). Fields this version doesn't know (written by a later
  * Livery) are kept on every layer, decal and stroke and saved back.
  */
@@ -166,6 +167,8 @@ export interface ImageLayer extends LayerCommon {
    * grows (`wear.ts`). Left out when 0, so older projects and files without it read as unworn.
    */
   wear?: number;
+  /** Copies in a row or column; absent = one copy. */
+  repeat?: Repeat;
 }
 
 export interface TextLayer extends LayerCommon {
@@ -190,6 +193,8 @@ export interface TextLayer extends LayerCommon {
    * grows (`wear.ts`). Left out when 0, so older projects and files without it read as unworn.
    */
   wear?: number;
+  /** Copies in a row or column; absent = one copy. */
+  repeat?: Repeat;
 }
 
 /** A layer kind this version can't edit: shown as unsupported and saved back exactly as it came. */
@@ -199,8 +204,102 @@ export interface UnsupportedLayer extends LayerCommon {
   original: Record<string, unknown> & { kind: string };
 }
 
+/** The stock shapes (`ShapeLayer.shape`). */
+export type ShapeKind = 'rect' | 'ellipse' | 'star' | 'polygon';
+export const SHAPE_KINDS: readonly ShapeKind[] = ['rect', 'ellipse', 'star', 'polygon'];
+
+/**
+ * How a shape is filled. Stripes alternate `colors[0]` and `colors[1]` at equal widths:
+ * `stripeWidth` in metres on the vehicle (stretching a band adds stripes instead of widening
+ * them), `angle` in degrees from the frame's vertical, positive leaning right.
+ */
+export type ShapeFill =
+  | { kind: 'solid'; color: string }
+  | { kind: 'stripes'; colors: [string, string]; angle: number; stripeWidth: number };
+
+/**
+ * Copies of a placed layer in a row (along the frame's right) or a column (downwards). The layer's
+ * `decal` is the first copy; copy i sits `i × (1 + gap)` copy widths (row) or heights (column)
+ * away, on the same plane.
+ */
+export interface Repeat {
+  /** 2 to MAX_REPEAT. */
+  count: number;
+  /** Space between copies, as a fraction of the copy's width (row) or height (column), 0 to MAX_REPEAT_GAP. */
+  gap: number;
+  direction: 'row' | 'column';
+  /** `#rrggbb` of every second copy (shapes with a solid fill only; kept but ignored elsewhere). */
+  alternate?: string;
+}
+
+/** A stock shape filling its frame (stars and polygons inscribed in the frame's ellipse, one vertex up). */
+export interface ShapeLayer extends LayerCommon {
+  kind: 'shape';
+  /** A kind this version doesn't know is kept as written and drawn as a rectangle. */
+  shape: ShapeKind | (string & {});
+  /** Rect only: corner radius, 0 to MAX_CORNER of the short side; absent = sharp. */
+  corner?: number;
+  /** Star points / polygon sides, MIN_SHAPE_POINTS to MAX_SHAPE_POINTS; absent = DEFAULT_STAR_POINTS / DEFAULT_POLYGON_SIDES. */
+  points?: number;
+  /** Star only: inner radius over outer, MIN_INNER_RATIO to MAX_INNER_RATIO; absent = DEFAULT_INNER_RATIO. */
+  innerRatio?: number;
+  fill: ShapeFill;
+  outlineColor: string;
+  /** Outline width in hundredths of the short side (0 to MAX_OUTLINE_WIDTH). */
+  outlineWidth: number;
+  /** Null as for images. */
+  decal: Decal | null;
+  opacity: number;
+  /** Wear as on images; left out when 0. */
+  wear?: number;
+  repeat?: Repeat;
+}
+
+/**
+ * Where a piece sits in its merged object's frame: centre `x, y` in fractions of the frame's
+ * width/height (-0.5..0.5 inside, may exceed slightly), size `w, h` in fractions, `angle` in
+ * radians counter-clockwise from the frame's up.
+ */
+export interface Place {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  angle: number;
+}
+
+/** What a merged object holds. */
+export type PieceLayer = ImageLayer | TextLayer | ShapeLayer;
+/** A piece of a merged object: the layer without its own frame, repeat, part or mirror. */
+export type Piece = (Omit<ImageLayer, 'decal' | 'repeat'> | Omit<TextLayer, 'decal' | 'repeat'> | Omit<ShapeLayer, 'decal' | 'repeat'>) & {
+  place: Place;
+};
+/** A piece of a kind this version doesn't know: saved back as it came, not drawn. */
+export type UnsupportedPiece = UnsupportedLayer & { place?: Place };
+
+/** Several pieces sharing one frame and projection ("Merged object"). */
+export interface MergedLayer extends LayerCommon {
+  kind: 'merged';
+  decal: Decal | null;
+  opacity: number;
+  repeat?: Repeat;
+  /** Bottom to top, 1 to MAX_PIECES, at least one of them drawable. */
+  children: (Piece | UnsupportedPiece)[];
+}
+
+/** A named group in the Layers panel (one level: never inside another folder). */
+export interface FolderLayer extends LayerCommon {
+  kind: 'folder';
+  collapsed: boolean;
+  /** Bottom to top. */
+  children: (PlacedLayer | UnsupportedLayer)[];
+}
+
+/** Pictures and text: what code that measures text or cuts out pictures handles. */
 export type DecalLayer = ImageLayer | TextLayer;
-export type Layer = BaseLayer | DecalLayer | MaskLayer | UnsupportedLayer;
+/** Everything that has a frame on the vehicle (`decal`). */
+export type PlacedLayer = ImageLayer | TextLayer | ShapeLayer | MergedLayer;
+export type Layer = BaseLayer | PlacedLayer | FolderLayer | MaskLayer | UnsupportedLayer;
 
 export const DEFAULT_BASE_COLOR = '#56603f';
 /** Second camo colour when a camo Base has only one. */
@@ -229,6 +328,37 @@ export const DEFAULT_TEXT_COLOR = '#ffffff';
 export const DEFAULT_OUTLINE_COLOR = '#000000';
 /** Every Windows install has it; `atelier_fonts` names styles like `Regular`, `Bold`, `Bold Italic`. */
 export const DEFAULT_FONT: FontRef = { family: 'Arial', style: 'Regular' };
+
+export const MAX_REPEAT = 50;
+export const MAX_REPEAT_GAP = 5;
+export const DEFAULT_REPEAT_GAP = 0.5;
+/** A copy's projection depth grows by this much per metre of distance from the first copy. */
+export const REPEAT_DEPTH_GROWTH = 0.35;
+export const MAX_PIECES = 50;
+/** Copies and pieces the bake draws at most. */
+export const MAX_DRAW_ITEMS = 400;
+/** Merging is refused when pieces face more than this many degrees apart. */
+export const MERGE_MAX_ANGLE_DEG = 35;
+export const MAX_SHAPE_POINTS = 12;
+export const MIN_SHAPE_POINTS = 3;
+export const DEFAULT_STAR_POINTS = 5;
+export const DEFAULT_POLYGON_SIDES = 6;
+export const MIN_INNER_RATIO = 0.15;
+export const MAX_INNER_RATIO = 0.9;
+export const DEFAULT_INNER_RATIO = 0.45;
+export const MAX_CORNER = 0.5;
+/** Stripe width of a striped shape, in metres on the vehicle. */
+export const STRIPE_WIDTH_MIN = 0.01;
+export const STRIPE_WIDTH_MAX = 1;
+export const DEFAULT_STRIPE_WIDTH = 0.08;
+export const SHAPE_STRIPE_ANGLE_MIN = -80;
+export const SHAPE_STRIPE_ANGLE_MAX = 80;
+export const DEFAULT_SHAPE_STRIPE_ANGLE = 45;
+/** A usable yellow, also the light colour of the hazard stripe. */
+export const DEFAULT_SHAPE_COLOR = '#e8b600';
+export const HAZARD_DARK = '#141414';
+/** The hazard stripe preset's frame, width over height. */
+export const HAZARD_ASPECT = 8;
 
 /** The default depth of a decal `width` wide. */
 export function defaultDepth(width: number): number {
@@ -284,13 +414,48 @@ export function newTextLayer(text: string, decal: Decal | null, font: FontRef = 
   };
 }
 
-export function isDecalLayer(layer: Layer | undefined | null): layer is DecalLayer {
+/** A new shape with the defaults (no corner, points or inner ratio written: absent means default). */
+export function newShapeLayer(shape: ShapeKind, decal: Decal | null = null, name = ''): ShapeLayer {
+  return {
+    id: newLayerId(),
+    kind: 'shape',
+    name,
+    visible: true,
+    shape,
+    fill: { kind: 'solid', color: DEFAULT_SHAPE_COLOR },
+    outlineColor: DEFAULT_OUTLINE_COLOR,
+    outlineWidth: 0,
+    decal,
+    opacity: 1,
+  };
+}
+
+/** The hazard stripe preset: a rectangle striped yellow and black at 45°, meant for a HAZARD_ASPECT frame. */
+export function newHazardStripe(name: string, decal: Decal | null = null): ShapeLayer {
+  return {
+    ...newShapeLayer('rect', decal, name),
+    fill: { kind: 'stripes', colors: [DEFAULT_SHAPE_COLOR, HAZARD_DARK], angle: DEFAULT_SHAPE_STRIPE_ANGLE, stripeWidth: DEFAULT_STRIPE_WIDTH },
+  };
+}
+
+export function newFolder(name: string, children: (PlacedLayer | UnsupportedLayer)[] = []): FolderLayer {
+  return { id: newLayerId(), kind: 'folder', name, visible: true, collapsed: false, children };
+}
+
+/** Image, text, shape and merged layers: everything with a frame on the vehicle. */
+export function isPlacedLayer(layer: Layer | undefined | null): layer is PlacedLayer {
+  const kind = layer?.kind;
+  return kind === 'image' || kind === 'text' || kind === 'shape' || kind === 'merged';
+}
+
+/** Image and text layers only. */
+export function isPictureLayer(layer: Layer | undefined | null): layer is DecalLayer {
   return layer?.kind === 'image' || layer?.kind === 'text';
 }
 
-/** The image and text layers, bottom to top. */
+/** The top-level image and text layers, bottom to top. */
 export function decalLayers(layers: readonly Layer[]): DecalLayer[] {
-  return layers.filter(isDecalLayer);
+  return layers.filter(isPictureLayer);
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -442,7 +607,7 @@ function toImage(raw: Record<string, unknown>): ImageLayer | null {
   };
   if (typeof raw.sourceAssetId !== 'string' || raw.sourceAssetId.length === 0) delete layer.sourceAssetId;
   if (!isRect(raw.sourceOffset)) delete layer.sourceOffset;
-  return withWear(layer, raw.wear);
+  return withRepeat(withWear(layer, raw.wear), raw.repeat);
 }
 
 function toFont(v: unknown): FontRef {
@@ -466,44 +631,252 @@ function toText(raw: Record<string, unknown>): TextLayer {
     decal: toDecal(raw.decal),
     opacity: clamped(raw.opacity, 0, 1, 1),
   };
-  return withWear(layer, raw.wear);
+  return withRepeat(withWear(layer, raw.wear), raw.repeat);
 }
 
-/** An image or text layer (from the store's edits) checked like a loaded one; null when it no longer is one. */
-export function checkDecalLayer(layer: DecalLayer): DecalLayer | null {
-  const raw = layer as unknown as Record<string, unknown>;
-  return layer.kind === 'image' ? toImage(raw) : layer.kind === 'text' ? toText(raw) : null;
+/** A repeat that checks out, or null (no repeat): a count below 2 or not a number means one copy. */
+function toRepeat(raw: unknown): Repeat | null {
+  if (!isObject(raw) || !isFiniteNumber(raw.count)) return null;
+  const count = Math.trunc(raw.count);
+  if (count < 2) return null;
+  const repeat: Repeat = {
+    ...raw,
+    count: Math.min(MAX_REPEAT, count),
+    gap: clamped(raw.gap, 0, MAX_REPEAT_GAP, DEFAULT_REPEAT_GAP),
+    direction: raw.direction === 'column' ? 'column' : 'row',
+  };
+  if (typeof raw.alternate === 'string' && HEX_COLOR.test(raw.alternate)) repeat.alternate = raw.alternate.toLowerCase();
+  else delete repeat.alternate;
+  return repeat;
 }
 
-function toLayer(raw: unknown): Layer | null {
+/** `layer` with its `repeat` read from `raw`, left out when it doesn't check out. */
+function withRepeat<T extends { repeat?: Repeat }>(layer: T, raw: unknown): T {
+  const repeat = toRepeat(raw);
+  if (repeat) layer.repeat = repeat;
+  else delete layer.repeat;
+  return layer;
+}
+
+const DEFAULT_FILL: ShapeFill = { kind: 'solid', color: DEFAULT_SHAPE_COLOR };
+
+function toFill(raw: unknown): ShapeFill {
+  if (!isObject(raw)) return { ...DEFAULT_FILL };
+  if (raw.kind === 'stripes') {
+    const colors = Array.isArray(raw.colors) ? raw.colors : [];
+    return {
+      ...raw,
+      kind: 'stripes',
+      colors: [color(colors[0], DEFAULT_SHAPE_COLOR), color(colors[1], HAZARD_DARK)],
+      angle: clamped(raw.angle, SHAPE_STRIPE_ANGLE_MIN, SHAPE_STRIPE_ANGLE_MAX, DEFAULT_SHAPE_STRIPE_ANGLE),
+      stripeWidth: clamped(raw.stripeWidth, STRIPE_WIDTH_MIN, STRIPE_WIDTH_MAX, DEFAULT_STRIPE_WIDTH),
+    };
+  }
+  // A solid fill needs its colour; anything else (a fill kind this version doesn't know) is the default.
+  if (raw.kind === 'solid' && typeof raw.color === 'string' && HEX_COLOR.test(raw.color)) return { ...raw, kind: 'solid', color: raw.color.toLowerCase() };
+  return { ...DEFAULT_FILL };
+}
+
+function toShape(raw: Record<string, unknown>): ShapeLayer {
+  const layer: ShapeLayer = {
+    ...raw,
+    ...common(raw),
+    kind: 'shape',
+    shape: typeof raw.shape === 'string' && raw.shape.length > 0 ? raw.shape : 'rect',
+    fill: toFill(raw.fill),
+    outlineColor: color(raw.outlineColor, DEFAULT_OUTLINE_COLOR),
+    outlineWidth: clamped(raw.outlineWidth, 0, MAX_OUTLINE_WIDTH, 0),
+    decal: toDecal(raw.decal),
+    opacity: clamped(raw.opacity, 0, 1, 1),
+  };
+  // Kept whatever the shape, so switching kinds back and forth keeps the user's settings.
+  delete layer.corner;
+  delete layer.points;
+  delete layer.innerRatio;
+  if (isFiniteNumber(raw.corner)) layer.corner = clamp(raw.corner, 0, MAX_CORNER);
+  if (isFiniteNumber(raw.points)) layer.points = clamp(Math.round(raw.points), MIN_SHAPE_POINTS, MAX_SHAPE_POINTS);
+  if (isFiniteNumber(raw.innerRatio)) layer.innerRatio = clamp(raw.innerRatio, MIN_INNER_RATIO, MAX_INNER_RATIO);
+  return withRepeat(withWear(layer, raw.wear), raw.repeat);
+}
+
+/** A place that checks out (finite numbers, positive size), or null. */
+function toPlace(raw: unknown): Place | null {
+  if (!isObject(raw)) return null;
+  const { x, y, w, h, angle } = raw;
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(w) || !isFiniteNumber(h) || !isFiniteNumber(angle)) return null;
+  if (w <= 0 || h <= 0) return null;
+  return { ...raw, x, y, w, h, angle };
+}
+
+/** Tracks the structural repairs of one `checkLayers` run. */
+interface Repairs {
+  repaired: boolean;
+}
+
+const unsupported = (raw: Record<string, unknown> & { kind: string }): UnsupportedLayer => ({ ...common(raw), kind: 'unsupported', original: raw });
+
+/**
+ * A piece that checks out, an unsupported piece (a kind this version doesn't know, or an image
+ * without its asset, with its place when valid), or null: dropped (not a layer; a Base, mask,
+ * folder or merged object; a drawable piece without a valid place).
+ */
+function toPiece(raw: unknown, repairs: Repairs): Piece | UnsupportedPiece | null {
   if (!isObject(raw) || typeof raw.kind !== 'string' || raw.kind.length === 0) return null;
-  if (raw.kind === 'base') return toBase(raw);
-  if (raw.kind === 'mask') return toMask(raw);
-  if (raw.kind === 'text') return toText(raw);
+  const kind = raw.kind;
+  if (kind === 'base' || kind === 'mask' || kind === 'folder' || kind === 'merged') {
+    repairs.repaired = true;
+    return null;
+  }
+  const place = toPlace(raw.place);
+  const layer: PieceLayer | null = kind === 'image' ? toImage(raw) : kind === 'text' ? toText(raw) : kind === 'shape' ? toShape(raw) : null;
+  if (!layer) {
+    const piece: UnsupportedPiece = unsupported(raw as UnsupportedLayer['original']);
+    if (place) piece.place = place;
+    return piece;
+  }
+  if (!place) {
+    repairs.repaired = true;
+    return null;
+  }
+  // The merged object's frame, repeat, part and mirror apply: the piece has none of its own.
+  const piece = { ...layer, place } as Partial<PieceLayer> & { place: Place };
+  delete piece.decal;
+  delete piece.repeat;
+  return piece as Piece;
+}
+
+/** A merged object that checks out, or null (dropped) when no drawable piece is left. */
+function toMerged(raw: Record<string, unknown>, repairs: Repairs): MergedLayer | null {
+  const children = (Array.isArray(raw.children) ? raw.children : [])
+    .map((c) => toPiece(c, repairs))
+    .filter((c): c is Piece | UnsupportedPiece => c !== null);
+  if (children.length > MAX_PIECES) {
+    repairs.repaired = true;
+    children.length = MAX_PIECES;
+  }
+  if (!children.some((c) => c.kind !== 'unsupported')) {
+    repairs.repaired = true;
+    return null;
+  }
+  const layer: MergedLayer = {
+    ...raw,
+    ...common(raw),
+    kind: 'merged',
+    decal: toDecal(raw.decal),
+    opacity: clamped(raw.opacity, 0, 1, 1),
+    children,
+  };
+  return withRepeat(layer, raw.repeat);
+}
+
+/**
+ * A folder with its children checked. Children that don't belong in a folder (folders, a Base, a
+ * mask) are still in `children` here: `checkLayers` moves them out.
+ */
+function toFolder(raw: Record<string, unknown>, repairs: Repairs): Omit<FolderLayer, 'children'> & { children: Layer[] } {
+  const children = (Array.isArray(raw.children) ? raw.children : []).map((c) => toLayer(c, repairs)).filter((l): l is Layer => l !== null);
+  return { ...raw, ...common(raw), kind: 'folder', collapsed: raw.collapsed === true, children };
+}
+
+/** A placed layer (from the store's edits) checked like a loaded one; null when it no longer is one. */
+export function checkPlacedLayer(layer: PlacedLayer): PlacedLayer | null {
+  const raw = layer as unknown as Record<string, unknown>;
+  const repairs: Repairs = { repaired: false };
+  switch (layer.kind) {
+    case 'image':
+      return toImage(raw);
+    case 'text':
+      return toText(raw);
+    case 'shape':
+      return toShape(raw);
+    case 'merged':
+      return toMerged(raw, repairs);
+    default:
+      return null;
+  }
+}
+
+/** A piece (from the store's edits) checked like a loaded one; null when it no longer is a drawable piece. */
+export function checkPiece(piece: Piece): Piece | null {
+  const checked = toPiece(piece, { repaired: false });
+  return checked && checked.kind !== 'unsupported' ? checked : null;
+}
+
+function toLayer(raw: unknown, repairs: Repairs): Layer | null {
+  if (!isObject(raw) || typeof raw.kind !== 'string' || raw.kind.length === 0) return null;
+  switch (raw.kind) {
+    case 'base':
+      return toBase(raw);
+    case 'mask':
+      return toMask(raw);
+    case 'text':
+      return toText(raw);
+    case 'shape':
+      return toShape(raw);
+    case 'merged':
+      return toMerged(raw, repairs);
+    case 'folder':
+      // Nested content is sorted out by `checkLayers`.
+      return toFolder(raw, repairs) as unknown as FolderLayer;
+  }
   const image = raw.kind === 'image' ? toImage(raw) : null;
   if (image) return image;
-  return { ...common(raw), kind: 'unsupported', original: raw as UnsupportedLayer['original'] };
+  return unsupported(raw as UnsupportedLayer['original']);
+}
+
+/**
+ * A top-level folder made to hold only placed and unsupported layers: its own layers first, then
+ * what was nested and is moved out (folders right above it, each flattened the same way; a Base
+ * or mask set aside in `pinned`).
+ */
+function flattenFolder(folder: FolderLayer, pinned: Layer[], repairs: Repairs): Layer[] {
+  const kept: (PlacedLayer | UnsupportedLayer)[] = [];
+  const lifted: Layer[] = [];
+  for (const child of folder.children as Layer[]) {
+    if (child.kind === 'folder') lifted.push(...flattenFolder(child, pinned, repairs));
+    else if (child.kind === 'base' || child.kind === 'mask') pinned.push(child);
+    else {
+      kept.push(child);
+      continue;
+    }
+    repairs.repaired = true;
+  }
+  return [{ ...folder, children: kept }, ...lifted];
 }
 
 /**
  * The layers of a project file, repaired: entries that aren't layers are dropped, fields that
  * don't check out get their defaults, a missing Base is added and the Base moved to the bottom,
- * only the first Base and mask are kept, the mask pinned at the top, and repeated ids are renewed.
+ * only the first Base and mask are kept, the mask pinned at the top, and repeated ids are renewed
+ * (across the whole tree: folder children and merged pieces included, top-level layers keeping
+ * theirs). Folders inside a folder are moved out right above it; a Base or mask inside a folder
+ * goes to its pinned place when the top level has none, otherwise it is dropped. Merged objects
+ * lose pieces that can't be pieces, and are dropped when no drawable piece is left.
  * `repaired` is true when one of those structural repairs changed what the project means (a
- * Base added, layers moved or dropped as extra Base/mask, ids renewed): the project then needs
- * saving. Field defaults and kept unknown fields alone don't count.
+ * Base added, layers moved or dropped, ids renewed): the project then needs saving. Field
+ * defaults and kept unknown fields alone don't count.
  */
 export function checkLayers(json: unknown): { layers: Layer[]; repaired: boolean } {
-  const parsed = (Array.isArray(json) ? json : []).map(toLayer).filter((l): l is Layer => l !== null);
-  const bases = parsed.filter((l): l is BaseLayer => l.kind === 'base');
-  const masks = parsed.filter((l): l is MaskLayer => l.kind === 'mask');
+  const repairs: Repairs = { repaired: false };
+  const parsed = (Array.isArray(json) ? json : []).map((raw) => toLayer(raw, repairs)).filter((l): l is Layer => l !== null);
+  // Base and mask layers found in folders queue up behind the top-level ones.
+  const pinned: Layer[] = [];
+  const flat = parsed.flatMap((l) => (l.kind === 'folder' ? flattenFolder(l, pinned, repairs) : [l]));
+  const all = [...flat, ...pinned];
+  const bases = all.filter((l): l is BaseLayer => l.kind === 'base');
+  const masks = all.filter((l): l is MaskLayer => l.kind === 'mask');
   const base = bases[0] ?? newBaseLayer();
   const mask = masks[0];
-  const middle = parsed.filter((l) => l.kind !== 'base' && l.kind !== 'mask');
+  const middle = flat.filter((l) => l.kind !== 'base' && l.kind !== 'mask');
   const ordered: Layer[] = [base, ...middle, ...(mask ? [mask] : [])];
-  let repaired = bases.length !== 1 || masks.length > 1 || parsed[0] !== base || (mask !== undefined && parsed[parsed.length - 1] !== mask);
+  let repaired =
+    repairs.repaired ||
+    bases.length !== 1 ||
+    masks.length > 1 ||
+    parsed[0] !== base ||
+    (mask !== undefined && parsed[parsed.length - 1] !== mask);
   const seen = new Set<string>();
-  const layers = ordered.map((l) => {
+  const unique = <T extends LayerCommon>(l: T): T => {
     if (!seen.has(l.id)) {
       seen.add(l.id);
       return l;
@@ -512,6 +885,14 @@ export function checkLayers(json: unknown): { layers: Layer[]; repaired: boolean
     const renewed = { ...l, id: newLayerId() };
     seen.add(renewed.id);
     return renewed;
+  };
+  const uniquePieces = (l: MergedLayer): MergedLayer => ({ ...l, children: l.children.map(unique) });
+  // Top-level ids first, so a nested layer repeating one is the one renewed.
+  const layers = ordered.map(unique).map((l) => {
+    if (l.kind === 'merged') return uniquePieces(l);
+    if (l.kind !== 'folder') return l;
+    const children = l.children.map(unique);
+    return { ...l, children: children.map((c) => (c.kind === 'merged' ? uniquePieces(c) : c)) };
   });
   return { layers, repaired };
 }
@@ -521,9 +902,21 @@ export function validateLayers(json: unknown): Layer[] {
   return checkLayers(json).layers;
 }
 
-/** The layers as `project.json` stores them (unsupported ones exactly as they came). */
+function serializePiece(p: Piece | UnsupportedPiece): unknown {
+  if (p.kind !== 'unsupported') return p;
+  return { ...p.original, id: p.id, name: p.name, visible: p.visible, ...(p.place ? { place: p.place } : {}) };
+}
+
+function serializeLayer(l: Layer): unknown {
+  if (l.kind === 'unsupported') return { ...l.original, id: l.id, name: l.name, visible: l.visible };
+  if (l.kind === 'folder') return { ...l, children: l.children.map(serializeLayer) };
+  if (l.kind === 'merged') return { ...l, children: l.children.map(serializePiece) };
+  return l;
+}
+
+/** The layers as `project.json` stores them (unsupported layers and pieces exactly as they came). */
 export function serializeLayers(layers: readonly Layer[]): unknown[] {
-  return layers.map((l) => (l.kind === 'unsupported' ? { ...l.original, id: l.id, name: l.name, visible: l.visible } : l));
+  return layers.map(serializeLayer);
 }
 
 /** The Base (always first after `validateLayers`). */

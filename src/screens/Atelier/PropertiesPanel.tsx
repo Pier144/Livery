@@ -13,7 +13,7 @@ import {
   maskOf,
   MAX_CAMO_COLORS,
   MIN_CAMO_COLORS,
-  isDecalLayer,
+  isPictureLayer,
   type BaseLayer,
   type BaseMode,
   type Decal,
@@ -76,7 +76,7 @@ export function PropertiesPanel({ brush, onBrush, checkShared, onRemoveBackgroun
   if (maskSelected) {
     title = nameOf(mask, 'mask');
     body = <MaskProperties brush={brush} onBrush={onBrush} hidden={mask !== undefined && !mask.visible} strokes={mask?.strokes.length ?? 0} />;
-  } else if (isDecalLayer(selected)) {
+  } else if (isPictureLayer(selected)) {
     title = nameOf(selected, selected.kind);
     body = <DecalProperties layer={selected} checkShared={checkShared} onRemoveBackground={onRemoveBackground} onRefineEdge={onRefineEdge} />;
   } else if (selected?.kind === 'unsupported') {

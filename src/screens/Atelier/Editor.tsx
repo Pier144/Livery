@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { resetAtelierEditor, useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import type { OrbitState } from '@/atelier/gl/scene';
-import { isDecalLayer, maskOf, type Decal, type TextLayer } from '@/atelier/project';
+import { isPictureLayer, maskOf, type Decal, type TextLayer } from '@/atelier/project';
 import { fontStatus, loadFont } from '@/atelier/text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -330,7 +330,7 @@ export function Editor({ id }: { id: string }) {
   const checkShared = useCallback((layerId: string, decal?: Decal): Promise<boolean> => {
     const state = useAtelierEditor.getState();
     const layer = state.layers.find((l) => l.id === layerId);
-    const target = decal ?? (isDecalLayer(layer) ? layer.decal : null);
+    const target = decal ?? (isPictureLayer(layer) ? layer.decal : null);
     const e = engineRef.current;
     if (!target || !e) return Promise.resolve(false);
     const slots = state.project?.slots;
@@ -357,7 +357,7 @@ export function Editor({ id }: { id: string }) {
     const run = (s: ReturnType<typeof useAtelierEditor.getState>) => {
       if (s.mergeKey !== null || s.stroking) return;
       const layer = s.layers.find((l) => l.id === s.selectedId);
-      if (isDecalLayer(layer) && layer.decal) void checkShared(layer.id);
+      if (isPictureLayer(layer) && layer.decal) void checkShared(layer.id);
     };
     run(useAtelierEditor.getState());
     return useAtelierEditor.subscribe((s, prev) => {

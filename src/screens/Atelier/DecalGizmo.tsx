@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState, type PointerEvent } from 'react';
 import { useAtelierEditor } from '@/atelier/editorStore';
-import { decalRight, dot, isDecalLayer, partGroupOf, type Decal, type DecalLayer, type Vec3 } from '@/atelier/project';
+import { decalRight, dot, isPictureLayer, partGroupOf, type Decal, type DecalLayer, type Vec3 } from '@/atelier/project';
 import { decalCorners, rotateDecal, scaleDecal, slideOnto } from './decalOps';
 import { snapLevel, snapMove, unitsPerPixel, type SnapGuide } from './decalSnap';
 import { useDecalUi } from './decalUi';
@@ -36,15 +36,15 @@ const mid = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y)
 /** The selected decal's current state (the store's, not the props', during a drag). */
 function liveDecal(id: string): Decal | null {
   const layer = useAtelierEditor.getState().layers.find((l) => l.id === id);
-  return isDecalLayer(layer) ? layer.decal : null;
+  return isPictureLayer(layer) ? layer.decal : null;
 }
 
 /** The other placed image and text decals, which a moved decal aligns with. */
 function otherDecals(id: string): Decal[] {
   return useAtelierEditor
     .getState()
-    .layers.filter((l) => l.id !== id && isDecalLayer(l))
-    .flatMap((l) => (isDecalLayer(l) && l.decal ? [l.decal] : []));
+    .layers.filter((l) => l.id !== id && isPictureLayer(l))
+    .flatMap((l) => (isPictureLayer(l) && l.decal ? [l.decal] : []));
 }
 
 /**

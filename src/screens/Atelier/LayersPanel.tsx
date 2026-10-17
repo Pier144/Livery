@@ -2,7 +2,7 @@ import { Eye, EyeOff, GripVertical, Image as ImageIcon, MoreHorizontal, PaintBuc
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtelierEditor } from '@/atelier/editorStore';
-import { DEFAULT_FONT, isDecalLayer, type FontRef, type Layer } from '@/atelier/project';
+import { DEFAULT_FONT, isPictureLayer, type FontRef, type Layer } from '@/atelier/project';
 import { fontStatus, measureTextAspect } from '@/atelier/text';
 import { Menu } from '@/components/ui/Menu';
 import { cn } from '@/lib/cn';
@@ -182,7 +182,7 @@ export function LayersPanel() {
   const selected = selectedId === MASK_ROW_ID && mask ? mask.id : selectedId;
 
   const warning = (layer: Layer | undefined): string | null => {
-    if (!isDecalLayer(layer)) return null;
+    if (!isPictureLayer(layer)) return null;
     if (layer.decal === null) return t('atelier.layers.notPlaced');
     if (layer.kind === 'image' && missingAssets[layer.assetId]) return t('atelier.layers.missingPicture');
     if (layer.kind === 'text' && fontStatus(layer.font) === 'missing') return t('atelier.layers.missingFont', { font: `${layer.font.family} ${layer.font.style}` });
@@ -332,7 +332,7 @@ export function LayersPanel() {
                   onOpenChange={(open) => setMenuOpen(open ? row.id : null)}
                   menuWidthClass="min-w-[150px]"
                   items={[
-                    ...(isDecalLayer(row.layer) ? [{ value: 'duplicate', label: t('atelier.layers.duplicate') }] : []),
+                    ...(isPictureLayer(row.layer) ? [{ value: 'duplicate', label: t('atelier.layers.duplicate') }] : []),
                     { value: 'delete', label: t('atelier.layers.delete') },
                   ]}
                   onSelect={(action) => {
