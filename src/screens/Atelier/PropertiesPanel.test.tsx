@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAtelierEditor } from '@/atelier/editorStore';
@@ -17,6 +17,7 @@ import {
   type MergedLayer,
   type Piece,
   type ShapeLayer,
+  type UnsupportedLayer,
 } from '@/atelier/project';
 import { useToasts } from '@/store/toasts';
 import { renderWithProviders, resetStores } from '@/test/render';
@@ -24,6 +25,7 @@ import type { AtelierProject } from '@/types';
 import { resetDecalUi } from './decalUi';
 import { PropertiesPanel } from './PropertiesPanel';
 import { repeatCap } from './RepeatSection';
+import { useSelectionActions } from './selectionActions';
 
 const S = () => useAtelierEditor.getState();
 const toastTexts = () => useToasts.getState().toasts.map((t) => t.message);
@@ -284,5 +286,55 @@ describe('Atelier Properties panel', () => {
     expect(screen.getByRole('slider', { name: 'Slant' })).toBeInTheDocument();
     expect(screen.getByRole('slider', { name: 'Depth' })).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Repeat' })).toBeInTheDocument();
+  });
+
+  it('leaving a size field unchanged keeps the exact size (no rounding, no undo step)', async () => {
+    const user = userEvent.setup();
+    load([base(), shape('s', { ...at(0.3, 0.5), width: 0.12345 })], 's');
+    renderPanel();
+    const width = screen.getByRole('textbox', { name: 'Width' });
+    expect(width).toHaveValue('12.3');
+    await user.click(width);
+    await user.tab();
+    await user.click(width);
+    await user.keyboard('{Enter}');
+    expect(shapeOf('s').decal?.width).toBe(0.12345);
+    expect(S().past).toHaveLength(0);
+    // After Enter the field follows the frame again, focus or not.
+    await user.clear(width);
+    await user.type(width, '30{Enter}');
+    act(() => S().undo());
+    expect(width).toHaveValue('12.3');
+  });
+
+  it('the copies cap counts layers past the budget; the hint shows only at the cap', () => {
+    const full = (id: string, count: number): ShapeLayer => ({ ...shape(id), repeat: { count, gap: 0.5, direction: 'row' } });
+    // 360 boxes drawn, then a 50-copy layer the budget leaves out: it still counts, so nothing is
+    // left for the selected layer, which keeps the 2 copies it may have.
+    const others = [...Array.from({ length: 7 }, (_, i) => full(`r${i}`, 50)), full('r7', 10), full('x', 50)];
+    const selected = full('s', 3);
+    expect(repeatCap([base(), ...others, selected], selected, 2)).toBe(2);
+
+    const some = [...Array.from({ length: 7 }, (_, i) => full(`r${i}`, 50)), full('r7', 30)];
+    load([base(), ...some, full('s', 3)], 's');
+    renderPanel();
+    // 380 + 3 boxes: the cap is 20 copies, 3 are shown, no hint yet.
+    expect(screen.getByRole('slider', { name: 'Copies' })).toHaveAttribute('max', '20');
+    expect(screen.queryByText('The project can’t draw more copies')).toBeNull();
+    fireEvent.change(screen.getByRole('slider', { name: 'Copies' }), { target: { value: '20' } });
+    expect(screen.getByText('The project can’t draw more copies')).toBeInTheDocument();
+  });
+
+  it('Put in folder never makes an empty folder: a refusal says why', () => {
+    const unsupported: UnsupportedLayer = { id: 'u', kind: 'unsupported', name: '', visible: true, original: { kind: 'sticker' } };
+    load([base(), image('a', 'logo', at(0.3, 0.5)), unsupported], 'a');
+    const { result } = renderHook(() => useSelectionActions());
+    let id: string | null = 'x';
+    act(() => {
+      id = result.current.putInFolder(['a', 'u']);
+    });
+    expect(id).toBeNull();
+    expect(S().layers.some((l) => l.kind === 'folder')).toBe(false);
+    expect(toastTexts()).toContain('Only image, text, shape and merged layers can go in a folder');
   });
 });

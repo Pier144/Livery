@@ -1171,6 +1171,7 @@
       "mergeUnplaced": "Placez d’abord sur le véhicule tous les calques sélectionnés",
       "noFolderInFolder": "Un dossier ne peut pas aller dans un autre dossier",
       "alreadyInFolder": "Ces calques sont déjà dans un dossier",
+      "folderOnlyLayers": "Seuls les calques image, texte, forme et objets fusionnés peuvent aller dans un dossier",
       "truncated": "Trop de copies : certains calques ne sont pas dessinés"
     },
     "shape": {

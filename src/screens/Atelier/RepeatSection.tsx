@@ -22,7 +22,8 @@ function boxesPerCopy(layer: PlacedLayer): number {
  * most MAX_REPEAT, at least 2. For a drawn layer this is its count plus what is still free.
  */
 export function repeatCap(layers: readonly Layer[], layer: PlacedLayer, mirrorAxis: number): number {
-  const plan = drawGroups(layers, mirrorAxis);
+  // No budget: layers past it are counted too (they are what the budget leaves out).
+  const plan = drawGroups(layers, mirrorAxis, Infinity);
   // The layer's own groups: `id`, `id:alt` (alternate colour), `id/pieceId` (merged pieces).
   const own = plan.groups
     .filter((g) => g.id === layer.id || g.id.startsWith(`${layer.id}:`) || g.id.startsWith(`${layer.id}/`))
@@ -67,7 +68,7 @@ export function RepeatSection({ layer, mirrorAxis }: { layer: PlacedLayer; mirro
             max={Math.max(cap, repeat.count)}
             step={1}
             format={(v) => String(Math.round(v))}
-            hint={cap < MAX_REPEAT ? t('atelier.props.copiesLimit') : undefined}
+            hint={repeat.count >= cap && cap < MAX_REPEAT ? t('atelier.props.copiesLimit') : undefined}
             onChange={(count) => setRepeat({ ...repeat, count: Math.round(count) }, 'repeat-count')}
             onCommit={endGesture}
           />

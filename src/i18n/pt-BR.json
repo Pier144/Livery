@@ -1171,6 +1171,7 @@
       "mergeUnplaced": "Primeiro posicione no veículo todas as camadas selecionadas",
       "noFolderInFolder": "Uma pasta não pode ficar dentro de outra pasta",
       "alreadyInFolder": "Essas camadas já estão em uma pasta",
+      "folderOnlyLayers": "Só camadas de imagem, texto, forma e objetos mesclados podem ir para uma pasta",
       "truncated": "Cópias demais: algumas camadas não são desenhadas"
     },
     "shape": {

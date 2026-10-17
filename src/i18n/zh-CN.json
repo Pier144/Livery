@@ -1079,6 +1079,7 @@
       "mergeUnplaced": "请先把所有选中的图层放置到载具上",
       "noFolderInFolder": "文件夹不能放进另一个文件夹",
       "alreadyInFolder": "这些图层已在文件夹中",
+      "folderOnlyLayers": "只有图片、文字、形状图层和合并对象可以放入文件夹",
       "truncated": "副本过多：部分图层未绘制"
     },
     "shape": {

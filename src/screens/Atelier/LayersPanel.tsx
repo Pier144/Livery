@@ -1,17 +1,16 @@
 import { FolderPlus, TriangleAlert } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtelierEditor, type DeletedEntry } from '@/atelier/editorStore';
+import { useAtelierEditor } from '@/atelier/editorStore';
 import { findLayer, type TreeItem } from '@/atelier/layerTree';
-import type { MergeRefusal } from '@/atelier/merge';
-import { MAX_PIECES, isPlacedLayer, type Layer } from '@/atelier/project';
+import { isPlacedLayer, type Layer } from '@/atelier/project';
 import { fontStatus } from '@/atelier/text';
 import type { MenuItem } from '@/components/ui/Menu';
-import { toast } from '@/store/toasts';
 import { AddButtons } from './AddButtons';
 import { useDecalUi } from './decalUi';
 import { MASK_ROW_ID } from './editorModel';
-import { LayerRow, SelectionBar, buildRows, folderBlockKey, type DropEdge, type GripHandlers, type RowModel } from './LayerRows';
+import { LayerRow, SelectionBar, buildRows, type DropEdge, type GripHandlers, type RowModel } from './LayerRows';
+import { useSelectionActions } from './selectionActions';
 
 export const PANEL_LABEL = 'font-mono text-mono-label uppercase leading-[normal] text-ink-4';
 
@@ -67,14 +66,6 @@ interface Drop {
   index: number;
 }
 
-const REFUSAL_KEYS: Record<MergeRefusal, `atelier.merge.${MergeRefusal}`> = {
-  count: 'atelier.merge.count',
-  unplaced: 'atelier.merge.unplaced',
-  angle: 'atelier.merge.angle',
-  pieces: 'atelier.merge.pieces',
-  container: 'atelier.merge.container',
-};
-
 /**
  * The layers, top to bottom: Protected areas (always listed: the first stroke creates the layer),
  * the top-level items in stacking order (folders with their children, merged objects with their
@@ -95,6 +86,7 @@ export function LayersPanel() {
   const truncated = useDecalUi((s) => s.drawTruncated);
   useDecalUi((s) => s.fontsVersion);
   const nameOf = useLayerName();
+  const actions = useSelectionActions();
   const [editing, setEditing] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -116,55 +108,10 @@ export function LayersPanel() {
     return null;
   };
 
-  /** "Folder N", N one more than the folders there are. */
-  const nextFolderName = () => t('atelier.layers.folderName', { number: folders.length + 1 });
-
-  /**
-   * Deletes these items as one undo step with an undoable toast. Undo uses the editor's own undo
-   * when nothing changed since (redo keeps working), else puts every item back where it was.
-   */
-  const deleteWithToast = (ids: string[], message: string) => {
-    const store = useAtelierEditor.getState();
-    const projectId = store.project?.id;
-    const entries: DeletedEntry[] = store.deleteLayers(ids);
-    if (entries.length === 0) return;
-    const after = useAtelierEditor.getState().layers;
-    toast.undoable(message, () => {
-      const now = useAtelierEditor.getState();
-      // Another project open now (or none): the layers belong to the one they were deleted from.
-      if (!projectId || now.project?.id !== projectId) return;
-      if (entries.every((e) => findLayer(now.layers, e.layer.id))) return;
-      // Still the layers the delete left: the editor's own undo.
-      if (now.layers === after && now.past.length > 0) now.undo();
-      else now.restoreLayers(entries);
-    });
-  };
-
   /** A new folder, renamed right away; with `ids`, holding them (refused with the reason when they can't go in). */
   const newFolder = (ids?: string[]) => {
-    const store = useAtelierEditor.getState();
-    const name = nextFolderName();
-    const id = ids && ids.length > 0 ? store.createFolder(name, ids) : store.createFolder(name);
+    const id = actions.putInFolder(ids);
     if (id) setEditing(id);
-    else if (ids && ids.length > 0) toast(t(folderBlockKey(store.layers, ids) ?? 'atelier.layers.alreadyInFolder'));
-  };
-
-  const merge = () => {
-    const ids = useAtelierEditor.getState().selectedIds;
-    const result = useAtelierEditor.getState().mergeLayers(ids);
-    if (!result.ok) {
-      toast(t(REFUSAL_KEYS[result.reason], { max: MAX_PIECES }));
-      return;
-    }
-    const done = t('atelier.merge.done', { count: ids.length });
-    const { part, mirror } = result.reset;
-    const note = part && mirror ? t('atelier.merge.resetBoth') : part ? t('atelier.merge.resetPart') : mirror ? t('atelier.merge.resetMirror') : null;
-    toast(note ? t('atelier.merge.withNote', { done, note }) : done);
-  };
-
-  const separate = (id: string) => {
-    const result = useAtelierEditor.getState().separate(id);
-    if (result.ok && result.droppedRepeat) toast(t('atelier.layers.separatedRepeat'));
   };
 
   const menuFor = (row: RowModel): MenuItem[] | null => {
@@ -192,11 +139,11 @@ export function LayersPanel() {
   const onMenuSelect = (row: RowModel, name: string, action: string) => {
     const store = useAtelierEditor.getState();
     if (action === 'duplicate') store.duplicateLayer(row.id);
-    else if (action === 'separate') separate(row.id);
-    else if (action === 'delete') deleteWithToast([row.id], t('atelier.layers.deleted', { name }));
+    else if (action === 'separate') actions.separate(row.id);
+    else if (action === 'delete') actions.deleteOne(row.id, name);
     else if (action === 'rename') setEditing(row.id);
     else if (action === 'dissolve') store.dissolveFolder(row.id);
-    else if (action === 'delete-folder') deleteWithToast([row.id], t('atelier.layers.deletedFolder', { name }));
+    else if (action === 'delete-folder') actions.deleteFolder(row.id, name);
     else if (action === 'into-new') newFolder([row.id]);
     else if (action === 'out' && row.parentId !== null) {
       // Right above its folder.
@@ -372,7 +319,7 @@ export function LayersPanel() {
           {t('atelier.layers.truncated')}
         </p>
       )}
-      {multi && <SelectionBar ids={selectedIds} onMerge={merge} onPutInFolder={() => newFolder(selectedIds)} onDelete={() => deleteWithToast(selectedIds, t('atelier.layers.deletedCount', { count: selectedIds.length }))} />}
+      {multi && <SelectionBar ids={selectedIds} onMerge={() => actions.merge(selectedIds)} onPutInFolder={() => newFolder(selectedIds)} onDelete={() => actions.deleteMany(selectedIds)} />}
       {movableCount > 1 && (
         <p id="atelier-layers-hint" className="text-meta text-ink-4">
           {t('atelier.layers.reorderHint')}

@@ -288,6 +288,8 @@ function SizeField({ layerId, axis, value, label }: { layerId: string; axis: 'wi
   }, [value, layerId]);
 
   const apply = () => {
+    // Left as shown: the rounded centimetres must not overwrite the exact size.
+    if (draft.trim() === cmText(value)) return;
     const cm = Number(draft.trim().replace(',', '.'));
     if (!Number.isFinite(cm) || cm <= 0) {
       setDraft(cmText(value));
@@ -318,6 +320,8 @@ function SizeField({ layerId, axis, value, label }: { layerId: string; axis: 'wi
             if (e.key === 'Enter') {
               e.preventDefault();
               apply();
+              // Applied: the field follows the frame again (undo, the gizmo) while it keeps focus.
+              editing.current = false;
             } else if (e.key === 'Escape') {
               e.preventDefault();
               e.stopPropagation();

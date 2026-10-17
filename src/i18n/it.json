@@ -1171,6 +1171,7 @@
       "mergeUnplaced": "Prima posiziona sul veicolo tutti i livelli selezionati",
       "noFolderInFolder": "Una cartella non può stare dentro un’altra cartella",
       "alreadyInFolder": "Questi livelli sono già in una cartella",
+      "folderOnlyLayers": "Solo livelli immagine, testo, forma e oggetti uniti possono andare in una cartella",
       "truncated": "Troppe copie: alcuni livelli non vengono disegnati"
     },
     "shape": {

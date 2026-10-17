@@ -24,11 +24,12 @@ import {
 import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtelierEditor } from '@/atelier/editorStore';
-import { findLayer, type TreeItem } from '@/atelier/layerTree';
-import { isPlacedLayer, type Layer } from '@/atelier/project';
+import type { TreeItem } from '@/atelier/layerTree';
+import type { Layer } from '@/atelier/project';
 import { Menu, type MenuItem } from '@/components/ui/Menu';
 import { cn } from '@/lib/cn';
 import { MASK_ROW_ID } from './editorModel';
+import { selectionBlocks } from './selectionActions';
 
 /** One row of the Layers panel. */
 export interface RowModel {
@@ -115,14 +116,6 @@ const INDENT = ['pl-0.5', 'pl-indent-1', 'pl-indent-2', 'pl-indent-3'];
 /** The panel's small buttons (Add bar, multi-select bar); callers add their width and padding (`flex-1 px-2`). */
 export const BAR_BUTTON =
   'flex h-ctl min-w-0 items-center justify-center gap-1.5 rounded-ctl border border-line-3 bg-bg-4 text-meta font-medium text-ink-1 hover:border-line-4 disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:hover:border-line-3 motion-safe:transition-colors motion-safe:duration-120';
-
-/** Why these items can't go into a new folder together (a folder among them, or already in one), or null. */
-export function folderBlockKey(layers: readonly Layer[], ids: readonly string[]): 'atelier.layers.noFolderInFolder' | 'atelier.layers.alreadyInFolder' | null {
-  const founds = ids.map((id) => findLayer(layers, id));
-  if (founds.some((f) => f?.layer.kind === 'folder')) return 'atelier.layers.noFolderInFolder';
-  if (founds.some((f) => f !== null && f.parentId !== null)) return 'atelier.layers.alreadyInFolder';
-  return null;
-}
 
 /** Where a drag would drop relative to this row. */
 export type DropEdge = 'above' | 'below' | 'into';
@@ -352,12 +345,7 @@ export function RenameInput({ initial, label, onDone }: { initial: string; label
 export function SelectionBar({ ids, onMerge, onPutInFolder, onDelete }: { ids: string[]; onMerge: () => void; onPutInFolder: () => void; onDelete: () => void }) {
   const { t } = useTranslation();
   const layers = useAtelierEditor((s) => s.layers);
-  const founds = ids.map((id) => findLayer(layers, id));
-  const hasFolder = founds.some((f) => f?.layer.kind === 'folder');
-  const unplaced = founds.some((f) => !f || !isPlacedLayer(f.layer as Layer) || !('decal' in f.layer) || f.layer.decal === null);
-  const mergeBlock = hasFolder ? t('atelier.layers.mergeNoFolders') : unplaced ? t('atelier.layers.mergeUnplaced') : null;
-  const folderKey = folderBlockKey(layers, ids);
-  const folderBlock = folderKey ? t(folderKey) : null;
+  const { merge: mergeBlock, folder: folderBlock } = selectionBlocks(layers, ids, t);
   // Icons only: three worded buttons don't fit the 232 px panel in every language. The names are
   // the labels, a reason the button can't act is its title.
   const button = cn(BAR_BUTTON, 'flex-1 px-2');

@@ -1125,6 +1125,7 @@
       "mergeUnplaced": "Place every selected layer on the vehicle first",
       "noFolderInFolder": "A folder can’t go inside another folder",
       "alreadyInFolder": "These layers are already in a folder",
+      "folderOnlyLayers": "Only image, text, shape and merged layers can go in a folder",
       "truncated": "Too many copies: some layers aren’t drawn"
     },
     "shape": {

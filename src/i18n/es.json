@@ -1171,6 +1171,7 @@
       "mergeUnplaced": "Primero coloca en el vehículo todas las capas seleccionadas",
       "noFolderInFolder": "Una carpeta no puede ir dentro de otra carpeta",
       "alreadyInFolder": "Estas capas ya están en una carpeta",
+      "folderOnlyLayers": "Solo las capas de imagen, texto, forma y objetos unidos pueden ir en una carpeta",
       "truncated": "Demasiadas copias: algunas capas no se dibujan"
     },
     "shape": {

@@ -1217,6 +1217,7 @@
       "mergeUnplaced": "Najpierw umieść na pojeździe wszystkie zaznaczone warstwy",
       "noFolderInFolder": "Folder nie może znaleźć się w innym folderze",
       "alreadyInFolder": "Te warstwy są już w folderze",
+      "folderOnlyLayers": "Do folderu mogą trafić tylko warstwy obrazu, tekstu, kształtu i scalone obiekty",
       "truncated": "Za dużo kopii: część warstw nie jest rysowana"
     },
     "shape": {

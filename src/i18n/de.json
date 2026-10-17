@@ -1125,6 +1125,7 @@
       "mergeUnplaced": "Zuerst alle gewählten Ebenen auf dem Fahrzeug platzieren",
       "noFolderInFolder": "Ein Ordner kann nicht in einem anderen Ordner liegen",
       "alreadyInFolder": "Diese Ebenen liegen schon in einem Ordner",
+      "folderOnlyLayers": "Nur Bild-, Text-, Form- und zusammengeführte Ebenen können in einen Ordner",
       "truncated": "Zu viele Kopien: einige Ebenen werden nicht gezeichnet"
     },
     "shape": {
