@@ -1,10 +1,12 @@
-import { Eye, EyeOff, GripVertical, Image as ImageIcon, MoreHorizontal, PaintBucket, Plus, ShieldCheck, TriangleAlert, Type } from 'lucide-react';
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { ChevronDown, Circle, Construction, FolderPlus, Hexagon, Plus, Square, Star, TriangleAlert } from 'lucide-react';
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtelierEditor } from '@/atelier/editorStore';
-import { DEFAULT_FONT, isPictureLayer, type FontRef, type Layer } from '@/atelier/project';
+import { useAtelierEditor, type DeletedEntry } from '@/atelier/editorStore';
+import { findLayer, type TreeItem } from '@/atelier/layerTree';
+import type { MergeRefusal } from '@/atelier/merge';
+import { DEFAULT_FONT, HAZARD_ASPECT, MAX_PIECES, isPlacedLayer, type FontRef, type Layer, type ShapeKind } from '@/atelier/project';
 import { fontStatus, measureTextAspect } from '@/atelier/text';
-import { Menu } from '@/components/ui/Menu';
+import { Menu, type MenuItem } from '@/components/ui/Menu';
 import { cn } from '@/lib/cn';
 import { errorText } from '@/lib/errors';
 import { baseName } from '@/lib/format';
@@ -14,34 +16,50 @@ import { toast } from '@/store/toasts';
 import type { AssetRef } from '@/types';
 import { noteAssetSize, useDecalUi } from './decalUi';
 import { MASK_ROW_ID } from './editorModel';
+import { BAR_BUTTON, LayerRow, SelectionBar, buildRows, type DropEdge, type GripHandlers, type RowModel } from './LayerRows';
 
 export const PANEL_LABEL = 'font-mono text-mono-label uppercase leading-[normal] text-ink-4';
 
 /** Pictures Add image offers (the backend imports the same). */
 export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tga'];
 
-interface Row {
-  id: string;
-  kind: Layer['kind'];
-  /** The layer, or undefined for the Protected areas row before the first stroke. */
-  layer: Layer | undefined;
-  /** Index in the store's `layers` (bottom to top); -1 for the Protected areas row before the first stroke. */
-  index: number;
-}
+/** What a layer's name is read from: any item of the tree (shapes add their kind, text layers their text). */
+type Named = Pick<TreeItem, 'kind' | 'name'>;
 
-/** A layer's shown name: the user's, else its text (text layers), else its kind's label. */
+/**
+ * A layer's shown name: the user's, else its text (text layers), else its kind's label (shapes:
+ * the shape's; folders "Folder", merged objects "Merged object").
+ */
 export function useLayerName() {
   const { t } = useTranslation();
-  return (layer: Pick<Layer, 'kind' | 'name'> | undefined, kind: Layer['kind']): string => {
+  return (layer: Named | undefined, kind: TreeItem['kind']): string => {
     if (layer?.name) return layer.name;
-    if (kind === 'base') return t('atelier.layers.base');
-    if (kind === 'mask') return t('atelier.layers.mask');
-    if (kind === 'image') return t('atelier.layers.image');
-    if (kind === 'text') {
-      const text = layer && 'text' in layer && typeof layer.text === 'string' ? layer.text.trim() : '';
-      return text || t('atelier.layers.text');
+    switch (kind) {
+      case 'base':
+        return t('atelier.layers.base');
+      case 'mask':
+        return t('atelier.layers.mask');
+      case 'image':
+        return t('atelier.layers.image');
+      case 'text': {
+        const text = layer && 'text' in layer && typeof layer.text === 'string' ? layer.text.trim() : '';
+        return text || t('atelier.layers.text');
+      }
+      case 'shape': {
+        const shape = layer && 'shape' in layer ? layer.shape : undefined;
+        if (shape === 'rect') return t('atelier.shape.rect');
+        if (shape === 'ellipse') return t('atelier.shape.ellipse');
+        if (shape === 'star') return t('atelier.shape.star');
+        if (shape === 'polygon') return t('atelier.shape.polygon');
+        return t('atelier.layers.shape');
+      }
+      case 'folder':
+        return t('atelier.layers.folder');
+      case 'merged':
+        return t('atelier.layers.merged');
+      default:
+        return t('atelier.layers.unsupported');
     }
-    return t('atelier.layers.unsupported');
   };
 }
 
@@ -59,10 +77,17 @@ function startFont(fonts: readonly FontRef[] | undefined): FontRef {
   return { family: pick.family, style: pick.style };
 }
 
+const SHAPE_ITEMS: { shape: ShapeKind; Icon: typeof Square }[] = [
+  { shape: 'rect', Icon: Square },
+  { shape: 'ellipse', Icon: Circle },
+  { shape: 'star', Icon: Star },
+  { shape: 'polygon', Icon: Hexagon },
+];
+
 /**
- * Add image and Add text: the new layer waits for its placement click on the model. Add image
- * picks a picture with the system dialog (in the dev mock, a file input: the mock's import
- * makes its own picture from the name), imports it into the project's assets and waits.
+ * Add image, Add text and Add shape: the new layer waits for its placement click on the model.
+ * Add image picks a picture with the system dialog (in the dev mock, a file input: the mock's
+ * import makes its own picture from the name), imports it into the project's assets and waits.
  */
 function AddButtons() {
   const { t } = useTranslation();
@@ -109,8 +134,25 @@ function AddButtons() {
     useAtelierEditor.getState().beginPlacement({ kind: 'text', text, font, aspect });
   };
 
-  const button =
-    'flex h-ctl min-w-0 flex-1 items-center justify-center gap-1.5 rounded-ctl border border-line-3 bg-bg-4 px-2 text-meta font-medium text-ink-1 hover:border-line-4 disabled:opacity-50 motion-safe:transition-colors motion-safe:duration-120';
+  const addShape = (value: string) => {
+    const begin = useAtelierEditor.getState().beginPlacement;
+    if (value === 'hazard') begin({ kind: 'shape', shape: 'rect', hazard: true, name: t('atelier.shape.hazard'), aspect: HAZARD_ASPECT });
+    else begin({ kind: 'shape', shape: value as ShapeKind, aspect: 1 });
+  };
+
+  const shapeLabel = (shape: ShapeKind) => t(`atelier.shape.${shape}`);
+  const itemLabel = (Icon: typeof Square, text: string) => (
+    <span className="flex items-center gap-2">
+      <Icon size={14} strokeWidth={1.75} aria-hidden className="flex-none text-ink-4" />
+      {text}
+    </span>
+  );
+  // The Menu has no divider: Hazard stripe, a preset, simply comes last.
+  const shapeItems: MenuItem[] = [
+    ...SHAPE_ITEMS.map(({ shape, Icon }) => ({ value: shape, label: itemLabel(Icon, shapeLabel(shape)), textValue: shapeLabel(shape) })),
+    { value: 'hazard', label: itemLabel(Construction, t('atelier.shape.hazard')), textValue: t('atelier.shape.hazard') },
+  ];
+
   return (
     <div className="flex gap-1.5">
       {/* Short visible labels (the panel is narrow in every language); the names say "Add …". */}
@@ -121,15 +163,30 @@ function AddButtons() {
         aria-busy={importing || undefined}
         aria-label={t('atelier.layers.addImage')}
         title={t('atelier.layers.addImage')}
-        className={button}
+        className={BAR_BUTTON}
       >
         <Plus size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
         <span className="truncate">{t('atelier.layers.image')}</span>
       </button>
-      <button type="button" onClick={addText} disabled={!projectId} aria-label={t('atelier.layers.addText')} title={t('atelier.layers.addText')} className={button}>
+      <button type="button" onClick={addText} disabled={!projectId} aria-label={t('atelier.layers.addText')} title={t('atelier.layers.addText')} className={BAR_BUTTON}>
         <Plus size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
         <span className="truncate">{t('atelier.layers.text')}</span>
       </button>
+      <Menu
+        className="min-w-0 flex-1"
+        label={t('atelier.layers.addShape')}
+        align="end"
+        menuWidthClass="min-w-[150px]"
+        items={shapeItems}
+        onSelect={addShape}
+        renderTrigger={(props) => (
+          <button {...props} disabled={!projectId} aria-label={t('atelier.layers.addShape')} title={t('atelier.layers.addShape')} className={cn(BAR_BUTTON, 'w-full')}>
+            <Plus size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
+            <span className="truncate">{t('atelier.layers.shape')}</span>
+            <ChevronDown size={14} strokeWidth={1.75} aria-hidden className="-mr-0.5 flex-none text-ink-4" />
+          </button>
+        )}
+      />
       {/* The browser has no file paths: `pnpm dev:mock` only (dropped from the production build). */}
       {import.meta.env.VITE_MOCK_BACKEND === '1' && !isTauri() && (
         <input
@@ -150,267 +207,311 @@ function AddButtons() {
   );
 }
 
+/** Where a dragged row would land: the row the marker shows on, and the container and index for `moveInto`. */
+interface Drop {
+  rowId: string;
+  edge: DropEdge;
+  parentId: string | null;
+  index: number;
+}
+
+const REFUSAL_KEYS: Record<MergeRefusal, `atelier.merge.${MergeRefusal}`> = {
+  count: 'atelier.merge.count',
+  unplaced: 'atelier.merge.unplaced',
+  angle: 'atelier.merge.angle',
+  pieces: 'atelier.merge.pieces',
+  container: 'atelier.merge.container',
+};
+
 /**
  * The layers, top to bottom: Protected areas (always listed: the first stroke creates the layer),
- * the image, text and unsupported layers in stacking order, and the Base. Click selects, the eye
- * hides, double-click (or F2) renames; image and text layers have a menu (Duplicate, Delete) and
- * reorder by dragging their grip or with Alt+↑ / Alt+↓ (between the Base and the mask). A
+ * the top-level items in stacking order (folders with their children, merged objects with their
+ * pieces when expanded) and the Base. Click selects (Ctrl adds or removes, Shift selects a range,
+ * in one container), the eye hides, double-click (or F2) renames; layers and folders have a menu
+ * and reorder by dragging their grip (onto a folder row: into it) or with Alt+↑ / Alt+↓ within
+ * their container. With several layers selected a bar offers Merge, Put in folder and Delete. A
  * picture that can't be read, a missing font or a placement that didn't load shows a warning.
  */
 export function LayersPanel() {
   const { t } = useTranslation();
   const layers = useAtelierEditor((s) => s.layers);
   const selectedId = useAtelierEditor((s) => s.selectedId);
-  const select = useAtelierEditor((s) => s.select);
+  const selectedIds = useAtelierEditor((s) => s.selectedIds);
   const toggleVisible = useAtelierEditor((s) => s.toggleLayerVisible);
   const rename = useAtelierEditor((s) => s.renameLayer);
   const missingAssets = useDecalUi((s) => s.missingAssets);
+  const truncated = useDecalUi((s) => s.drawTruncated);
   useDecalUi((s) => s.fontsVersion);
   const nameOf = useLayerName();
   const [editing, setEditing] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
-  const [dragging, setDragging] = useState<{ id: string; over: number } | null>(null);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const [dragging, setDragging] = useState<{ id: string; drop: Drop | null } | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
+  const rows = buildRows(layers, expanded);
   const mask = layers.find((l) => l.kind === 'mask');
-  const middle = layers.map((l, index) => ({ l, index })).filter(({ l }) => l.kind !== 'base' && l.kind !== 'mask');
-  const rows: Row[] = [
-    mask ? { id: mask.id, kind: 'mask', layer: mask, index: layers.indexOf(mask) } : { id: MASK_ROW_ID, kind: 'mask', layer: undefined, index: -1 },
-    ...middle.reverse().map(({ l, index }) => ({ id: l.id, kind: l.kind, layer: l, index })),
-    ...layers.filter((l) => l.kind === 'base').map((l) => ({ id: l.id, kind: l.kind, layer: l, index: layers.indexOf(l) })),
-  ];
   const selected = selectedId === MASK_ROW_ID && mask ? mask.id : selectedId;
+  const multi = selectedIds.length >= 2;
+  const movableCount = rows.filter((r) => r.movable).length;
+  const folders = layers.filter((l) => l.kind === 'folder');
 
-  const warning = (layer: Layer | undefined): string | null => {
-    if (!isPictureLayer(layer)) return null;
-    if (layer.decal === null) return t('atelier.layers.notPlaced');
-    if (layer.kind === 'image' && missingAssets[layer.assetId]) return t('atelier.layers.missingPicture');
-    if (layer.kind === 'text' && fontStatus(layer.font) === 'missing') return t('atelier.layers.missingFont', { font: `${layer.font.family} ${layer.font.style}` });
+  const warning = (item: TreeItem | undefined): string | null => {
+    if (!item) return null;
+    if (isPlacedLayer(item as Layer) && 'decal' in item && item.decal === null) return t('atelier.layers.notPlaced');
+    if (item.kind === 'image' && missingAssets[item.assetId]) return t('atelier.layers.missingPicture');
+    if (item.kind === 'text' && fontStatus(item.font) === 'missing') return t('atelier.layers.missingFont', { font: `${item.font.family} ${item.font.style}` });
     return null;
   };
 
-  const deleteWithToast = (layer: Layer) => {
+  /** "Folder N", N one more than the folders there are. */
+  const nextFolderName = () => t('atelier.layers.folderName', { number: folders.length + 1 });
+
+  /**
+   * Deletes these items as one undo step with an undoable toast. Undo uses the editor's own undo
+   * when nothing changed since (redo keeps working), else puts every item back where it was.
+   */
+  const deleteWithToast = (ids: string[], message: string) => {
     const store = useAtelierEditor.getState();
     const projectId = store.project?.id;
-    const index = store.layers.findIndex((l) => l.id === layer.id);
-    store.deleteLayer(layer.id);
+    const entries: DeletedEntry[] = store.deleteLayers(ids);
+    if (entries.length === 0) return;
     const revision = useAtelierEditor.getState().revision;
-    const name = nameOf(layer, layer.kind);
-    toast.undoable(t('atelier.layers.deleted', { name }), () => {
+    toast.undoable(message, () => {
       const now = useAtelierEditor.getState();
-      // Another project open now (or none): the layer belongs to the one it was deleted from.
+      // Another project open now (or none): the layers belong to the one they were deleted from.
       if (!projectId || now.project?.id !== projectId) return;
-      if (now.layers.some((l) => l.id === layer.id)) return;
-      // Nothing else changed since: the editor's own undo (redo keeps working); else put it back.
+      if (entries.every((e) => findLayer(now.layers, e.layer.id))) return;
       if (now.revision === revision && now.past.length > 0) now.undo();
-      else now.restoreLayer(layer, index);
+      else now.restoreLayers(entries);
     });
   };
 
-  /** The store index a dragged row lands at for a pointer at `clientY` (rows are top to bottom). */
-  const dropIndex = (clientY: number): number | null => {
-    const items = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[data-layer-index]') ?? []);
-    let best: number | null = null;
-    let bestDist = Infinity;
-    for (const item of items) {
-      const rect = item.getBoundingClientRect();
-      const d = Math.abs(clientY - (rect.top + rect.height / 2));
-      if (d < bestDist) {
-        bestDist = d;
-        best = Number(item.dataset.layerIndex);
-      }
-    }
-    return best;
+  const newFolder = (ids?: string[]) => {
+    const store = useAtelierEditor.getState();
+    const name = nextFolderName();
+    // Layers that can't go into a new folder (a folder among them, or already in one): an empty folder.
+    const id = (ids && ids.length > 0 ? store.createFolder(name, ids) : null) ?? store.createFolder(name);
+    if (id) setEditing(id);
   };
 
-  const gripHandlers = (row: Row) => ({
+  const merge = () => {
+    const ids = useAtelierEditor.getState().selectedIds;
+    const result = useAtelierEditor.getState().mergeLayers(ids);
+    if (!result.ok) {
+      toast(t(REFUSAL_KEYS[result.reason], { max: MAX_PIECES }));
+      return;
+    }
+    const done = t('atelier.merge.done', { count: ids.length });
+    const { part, mirror } = result.reset;
+    const note = part && mirror ? t('atelier.merge.resetBoth') : part ? t('atelier.merge.resetPart') : mirror ? t('atelier.merge.resetMirror') : null;
+    toast(note ? t('atelier.merge.withNote', { done, note }) : done);
+  };
+
+  const separate = (id: string) => {
+    const result = useAtelierEditor.getState().separate(id);
+    if (result.ok && result.droppedRepeat) toast(t('atelier.layers.separatedRepeat'));
+  };
+
+  const menuFor = (row: RowModel): MenuItem[] | null => {
+    const { item } = row;
+    if (!row.movable || !item) return null;
+    if (item.kind === 'folder') {
+      return [
+        { value: 'rename', label: t('atelier.layers.rename') },
+        { value: 'dissolve', label: t('atelier.layers.dissolve') },
+        { value: 'delete-folder', label: t('atelier.layers.deleteFolder') },
+      ];
+    }
+    const items: MenuItem[] = [];
+    if (isPlacedLayer(item as Layer)) items.push({ value: 'duplicate', label: t('atelier.layers.duplicate') });
+    if (item.kind === 'merged') items.push({ value: 'separate', label: t('atelier.layers.separate') });
+    for (const folder of folders) {
+      if (folder.id !== row.parentId) items.push({ value: `into:${folder.id}`, label: t('atelier.layers.putIn', { name: nameOf(folder, 'folder') }) });
+    }
+    if (row.parentId === null) items.push({ value: 'into-new', label: t('atelier.layers.putInNew') });
+    else items.push({ value: 'out', label: t('atelier.layers.moveOut') });
+    items.push({ value: 'delete', label: t('atelier.layers.delete') });
+    return items;
+  };
+
+  const onMenuSelect = (row: RowModel, name: string, action: string) => {
+    const store = useAtelierEditor.getState();
+    if (action === 'duplicate') store.duplicateLayer(row.id);
+    else if (action === 'separate') separate(row.id);
+    else if (action === 'delete') deleteWithToast([row.id], t('atelier.layers.deleted', { name }));
+    else if (action === 'rename') setEditing(row.id);
+    else if (action === 'dissolve') store.dissolveFolder(row.id);
+    else if (action === 'delete-folder') deleteWithToast([row.id], t('atelier.layers.deletedFolder', { name }));
+    else if (action === 'into-new') newFolder([row.id]);
+    else if (action === 'out' && row.parentId !== null) {
+      // Right above its folder.
+      const folder = findLayer(store.layers, row.parentId);
+      if (folder) store.moveInto(row.id, null, folder.index + 1);
+    } else if (action.startsWith('into:')) {
+      const folderId = action.slice('into:'.length);
+      const folder = findLayer(store.layers, folderId)?.layer;
+      // At the top of the folder.
+      if (folder?.kind === 'folder') store.moveInto(row.id, folderId, folder.children.length);
+    }
+  };
+
+  /** Where a row dragged to `clientY` lands: on a folder's middle, into it; else between rows, in that row's container. */
+  const dropAt = (clientY: number, dragged: RowModel): Drop | null => {
+    const draggingFolder = dragged.kind === 'folder';
+    let best: { el: HTMLElement; rect: DOMRect; dist: number } | null = null;
+    for (const el of listRef.current?.querySelectorAll<HTMLElement>('[data-drop]') ?? []) {
+      const parent = el.dataset.parent ?? '';
+      // A folder only lands at the top level, and never among its own children.
+      if (draggingFolder && parent !== '') continue;
+      if (parent === dragged.id) continue;
+      const rect = el.getBoundingClientRect();
+      const dist = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+      if (!best || dist < best.dist) best = { el, rect, dist };
+    }
+    if (!best) return null;
+    const { el, rect } = best;
+    const rowId = el.dataset.row ?? '';
+    const parentId = el.dataset.parent || null;
+    const index = Number(el.dataset.index);
+    const isFolder = el.dataset.drop === 'folder';
+    const count = Number(el.dataset.count ?? 0);
+    const at = rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5;
+    if (isFolder && !draggingFolder && at > 0.25 && at < 0.75) return { rowId, edge: 'into', parentId: rowId, index: count };
+    // Rows are top to bottom, the stack bottom to top: above a row is one index higher.
+    if (at < 0.5) return { rowId, edge: 'above', parentId, index: index + 1 };
+    // Under an open folder's row is the top of its children.
+    if (isFolder && !draggingFolder && el.dataset.open === 'true' && count > 0) return { rowId, edge: 'below', parentId: rowId, index: count };
+    return { rowId, edge: 'below', parentId, index };
+  };
+
+  const gripHandlers = (row: RowModel): GripHandlers => ({
     onPointerDown: (e: PointerEvent<HTMLSpanElement>) => {
       if (e.button !== 0) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture?.(e.pointerId);
-      setDragging({ id: row.id, over: row.index });
+      setDragging({ id: row.id, drop: null });
     },
     onPointerMove: (e: PointerEvent<HTMLSpanElement>) => {
       if (dragging?.id !== row.id) return;
-      const over = dropIndex(e.clientY);
-      if (over !== null && over !== dragging.over) setDragging({ id: row.id, over });
+      const drop = dropAt(e.clientY, row);
+      const same = drop && dragging.drop && drop.rowId === dragging.drop.rowId && drop.edge === dragging.drop.edge;
+      if (!same) setDragging({ id: row.id, drop });
     },
     onPointerUp: (e: PointerEvent<HTMLSpanElement>) => {
       if (dragging?.id !== row.id) return;
       if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-      if (dragging.over !== row.index) useAtelierEditor.getState().moveLayer(row.id, dragging.over);
+      const { drop } = dragging;
       setDragging(null);
+      // `moveInto` takes the index in the target's terms before the move, within a container too.
+      if (drop && drop.rowId !== row.id) useAtelierEditor.getState().moveInto(row.id, drop.parentId, drop.index);
     },
     onPointerCancel: () => setDragging(null),
   });
 
+  const onRowClick = (row: RowModel, e: MouseEvent<HTMLButtonElement>) => {
+    const store = useAtelierEditor.getState();
+    if (!row.piece && (e.ctrlKey || e.metaKey)) store.toggleSelect(row.id);
+    else if (!row.piece && e.shiftKey) store.selectRange(row.id);
+    else store.select(row.id);
+  };
+
+  const toggleExpanded = (row: RowModel) => {
+    if (row.kind === 'folder') {
+      useAtelierEditor.getState().toggleCollapsed(row.id);
+      return;
+    }
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(row.id)) next.delete(row.id);
+      else next.add(row.id);
+      return next;
+    });
+  };
+
+  const onListKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
+    // Escape in the panel goes back to a single selection (a waiting placement keeps its own Escape).
+    if (e.key !== 'Escape' || !multi || useAtelierEditor.getState().pending) return;
+    e.preventDefault();
+    e.stopPropagation();
+    useAtelierEditor.getState().select(selectedId);
+  };
+
   return (
     <section aria-labelledby="atelier-layers-title" className="flex flex-col gap-2 px-4 pb-4 pt-4.5">
-      <h2 id="atelier-layers-title" className={PANEL_LABEL}>
-        {t('atelier.layers.title')}
-      </h2>
+      <div className="flex h-5 items-center justify-between gap-2">
+        <h2 id="atelier-layers-title" className={PANEL_LABEL}>
+          {t('atelier.layers.title')}
+        </h2>
+        <button
+          type="button"
+          onClick={() => newFolder(multi ? selectedIds : undefined)}
+          disabled={layers.length === 0}
+          aria-label={t('atelier.layers.newFolder')}
+          title={t('atelier.layers.newFolder')}
+          className="-mr-1 grid h-6 w-6 flex-none place-items-center rounded-tag text-ink-4 enabled:hover:text-ink-1 disabled:opacity-50"
+        >
+          <FolderPlus size={14} strokeWidth={1.75} aria-hidden />
+        </button>
+      </div>
       <AddButtons />
-      <ul ref={listRef} className="flex flex-col gap-0.5" aria-describedby={middle.length > 1 ? 'atelier-layers-hint' : undefined}>
+      <ul ref={listRef} onKeyDown={onListKeyDown} className="flex flex-col gap-0.5" aria-describedby={movableCount > 1 ? 'atelier-layers-hint' : undefined}>
         {rows.map((row) => {
-          const name = nameOf(row.layer, row.kind);
-          const isSelected = row.id === selected;
-          const hidden = row.layer !== undefined && !row.layer.visible;
-          const movable = row.layer !== undefined && row.kind !== 'base' && row.kind !== 'mask';
-          const warn = warning(row.layer);
-          const Icon =
-            row.kind === 'base' ? PaintBucket : row.kind === 'mask' ? ShieldCheck : row.kind === 'image' ? ImageIcon : row.kind === 'text' ? Type : TriangleAlert;
+          const { item } = row;
+          const name = nameOf(item, row.kind);
+          const defaultName = nameOf(item ? { ...item, name: '' } : undefined, row.kind);
+          const isSelected = row.id === selected || selectedIds.includes(row.id);
+          const container = row.kind === 'folder' || row.kind === 'merged';
+          const open = row.kind === 'folder' ? item?.kind === 'folder' && !item.collapsed : expanded.has(row.id);
           const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-            if (e.key === 'F2' && row.layer) {
+            if (e.key === 'F2' && item) {
               e.preventDefault();
               setEditing(row.id);
-            } else if (movable && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+            } else if (row.movable && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
               e.preventDefault();
-              // Up the list is up the stack.
+              // Up the list is up the stack (within the row's container).
               useAtelierEditor.getState().moveLayer(row.id, row.index + (e.key === 'ArrowUp' ? 1 : -1));
             }
           };
-          const dropTarget = dragging !== null && dragging.id !== row.id && dragging.over === row.index;
           return (
-            <li
+            <LayerRow
               key={row.id}
-              data-layer-index={movable ? row.index : undefined}
-              className={cn(
-                'group flex h-[34px] items-center gap-1 rounded-ctl border pl-0.5 pr-1 motion-safe:transition-colors motion-safe:duration-120',
-                isSelected ? 'border-line-4 bg-bg-4' : 'border-transparent hover:bg-bg-hover',
-                dropTarget && 'border-amber-60',
-                dragging?.id === row.id && 'opacity-60',
-              )}
-            >
-              {movable && (
-                <span
-                  aria-hidden
-                  title={t('atelier.layers.dragHint')}
-                  className="grid h-6 w-4 flex-none cursor-grab touch-none place-items-center text-ink-5 opacity-0 hover:text-ink-2 group-hover:opacity-100"
-                  {...gripHandlers(row)}
-                >
-                  <GripVertical size={14} strokeWidth={1.75} />
-                </span>
-              )}
-              {editing === row.id && row.layer ? (
-                <RenameInput
-                  initial={row.layer.name || name}
-                  label={t('atelier.layers.renameLabel', { name })}
-                  onDone={(next) => {
-                    setEditing(null);
-                    if (next !== null && row.layer) rename(row.id, next === nameOf(undefined, row.kind) ? '' : next);
-                  }}
-                />
-              ) : (
-                <button
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => select(row.id)}
-                  onDoubleClick={() => row.layer && setEditing(row.id)}
-                  onKeyDown={onKeyDown}
-                  title={row.layer ? t('atelier.layers.renameHint') : undefined}
-                  aria-describedby={warn ? `atelier-layer-warn-${row.id}` : undefined}
-                  className={cn(
-                    'flex h-full min-w-0 flex-1 items-center gap-2 rounded-ctl px-2 text-left text-body focus-visible:-outline-offset-2',
-                    isSelected ? 'text-ink-1' : 'text-ink-2',
-                    hidden && 'text-ink-4',
-                  )}
-                >
-                  <Icon size={14} strokeWidth={1.75} aria-hidden className={cn('flex-none', isSelected ? 'text-amber' : 'text-ink-4')} />
-                  <span className="min-w-0 truncate">{name}</span>
-                </button>
-              )}
-              {warn && (
-                <span id={`atelier-layer-warn-${row.id}`} role="img" aria-label={warn} title={warn} className="grid h-6 w-5 flex-none place-items-center text-amber">
-                  <TriangleAlert size={14} strokeWidth={1.75} aria-hidden />
-                </span>
-              )}
-              {movable && row.layer && (
-                <Menu
-                  label={t('atelier.layers.actions', { name })}
-                  align="end"
-                  open={menuOpen === row.id}
-                  onOpenChange={(open) => setMenuOpen(open ? row.id : null)}
-                  menuWidthClass="min-w-[150px]"
-                  items={[
-                    ...(isPictureLayer(row.layer) ? [{ value: 'duplicate', label: t('atelier.layers.duplicate') }] : []),
-                    { value: 'delete', label: t('atelier.layers.delete') },
-                  ]}
-                  onSelect={(action) => {
-                    const layer = row.layer;
-                    if (!layer) return;
-                    if (action === 'duplicate') useAtelierEditor.getState().duplicateLayer(layer.id);
-                    else if (action === 'delete') deleteWithToast(layer);
-                  }}
-                  renderTrigger={(props) => (
-                    <button
-                      {...props}
-                      aria-label={t('atelier.layers.actions', { name })}
-                      title={t('atelier.layers.actions', { name })}
-                      className={cn(
-                        'grid h-6 w-6 flex-none place-items-center rounded-tag text-ink-4 hover:text-ink-1',
-                        !isSelected && menuOpen !== row.id && 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
-                      )}
-                    >
-                      <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
-                    </button>
-                  )}
-                />
-              )}
-              <button
-                type="button"
-                disabled={!row.layer}
-                onClick={() => row.layer && toggleVisible(row.id)}
-                aria-label={hidden ? t('atelier.layers.show', { name }) : t('atelier.layers.hide', { name })}
-                title={hidden ? t('atelier.layers.show', { name }) : t('atelier.layers.hide', { name })}
-                className={cn(
-                  'grid h-6 w-6 flex-none place-items-center rounded-tag text-ink-4 enabled:hover:text-ink-1 disabled:opacity-0',
-                  !hidden && !isSelected && 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
-                )}
-              >
-                {hidden ? <EyeOff size={14} strokeWidth={1.75} aria-hidden /> : <Eye size={14} strokeWidth={1.75} aria-hidden />}
-              </button>
-            </li>
+              row={row}
+              name={name}
+              defaultName={defaultName}
+              selected={isSelected}
+              warning={warning(item)}
+              editing={editing === row.id}
+              onEditingChange={(on) => setEditing(on ? row.id : null)}
+              onRename={(next) => rename(row.id, next)}
+              onClick={(e) => onRowClick(row, e)}
+              onKeyDown={onKeyDown}
+              onToggleVisible={() => toggleVisible(row.id)}
+              expanded={container ? open : undefined}
+              onToggleExpanded={container ? () => toggleExpanded(row) : undefined}
+              menuItems={menuFor(row)}
+              menuOpen={menuOpen === row.id}
+              onMenuOpenChange={(on) => setMenuOpen(on ? row.id : null)}
+              onMenuSelect={(action) => onMenuSelect(row, name, action)}
+              grip={row.movable ? gripHandlers(row) : null}
+              dragging={dragging?.id === row.id}
+              drop={dragging && dragging.id !== row.id && dragging.drop?.rowId === row.id ? dragging.drop.edge : null}
+            />
           );
         })}
       </ul>
-      {middle.length > 1 && (
+      {truncated && (
+        <p role="status" className="flex items-start gap-1.5 text-meta text-amber">
+          <TriangleAlert size={14} strokeWidth={1.75} aria-hidden className="mt-px flex-none" />
+          {t('atelier.layers.truncated')}
+        </p>
+      )}
+      {multi && <SelectionBar ids={selectedIds} onMerge={merge} onPutInFolder={() => newFolder(selectedIds)} onDelete={() => deleteWithToast(selectedIds, t('atelier.layers.deletedCount', { count: selectedIds.length }))} />}
+      {movableCount > 1 && (
         <p id="atelier-layers-hint" className="text-meta text-ink-4">
           {t('atelier.layers.reorderHint')}
         </p>
       )}
     </section>
-  );
-}
-
-function RenameInput({ initial, label, onDone }: { initial: string; label: string; onDone: (name: string | null) => void }) {
-  const [value, setValue] = useState(initial);
-  const done = useRef(false);
-  const finish = (name: string | null) => {
-    if (done.current) return;
-    done.current = true;
-    onDone(name);
-  };
-  return (
-    <input
-      // Rename starts on a deliberate double-click or F2: focusing the field is what the user asked for.
-      autoFocus
-      value={value}
-      maxLength={60}
-      aria-label={label}
-      onChange={(e) => setValue(e.target.value)}
-      onFocus={(e) => e.currentTarget.select()}
-      onBlur={() => finish(value.trim() || null)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          finish(value.trim() || null);
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          e.stopPropagation();
-          finish(null);
-        }
-      }}
-      className="h-[28px] min-w-0 flex-1 rounded-ctl border border-line-4 bg-bg-input px-2 text-body text-ink-1 outline-none"
-    />
   );
 }
