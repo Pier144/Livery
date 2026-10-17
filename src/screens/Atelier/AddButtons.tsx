@@ -109,8 +109,8 @@ export function AddButtons() {
   ];
 
   return (
-    <div className="flex gap-1.5">
-      {/* Short visible labels (the panel is narrow in every language); the names say "Add …". */}
+    <div className="grid grid-cols-2 gap-1.5">
+      {/* Short visible labels (the panel is narrow in every language); the names say "Add …". Shape gets its own row, so "Immagine" still fits. */}
       <button
         type="button"
         onClick={() => void addImage()}
@@ -118,26 +118,26 @@ export function AddButtons() {
         aria-busy={importing || undefined}
         aria-label={t('atelier.layers.addImage')}
         title={t('atelier.layers.addImage')}
-        className={cn(BAR_BUTTON, 'flex-1 px-2')}
+        className={cn(BAR_BUTTON, 'min-w-0 px-2')}
       >
         <Plus size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
         <span className="truncate">{t('atelier.layers.image')}</span>
       </button>
-      <button type="button" onClick={addText} disabled={!projectId} aria-label={t('atelier.layers.addText')} title={t('atelier.layers.addText')} className={cn(BAR_BUTTON, 'flex-1 px-2')}>
+      <button type="button" onClick={addText} disabled={!projectId} aria-label={t('atelier.layers.addText')} title={t('atelier.layers.addText')} className={cn(BAR_BUTTON, 'min-w-0 px-2')}>
         <Plus size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
         <span className="truncate">{t('atelier.layers.text')}</span>
       </button>
       <Menu
-        className="flex-none"
+        className="col-span-2 flex"
         label={t('atelier.layers.addShape')}
-        align="end"
+        align="start"
         menuWidthClass="min-w-[150px]"
         items={shapeItems}
         onSelect={addShape}
         renderTrigger={(props) => (
-          // Icon only: Image and Text keep their words in the narrow panel; the name says "Add shape".
-          <button {...props} disabled={!projectId} aria-label={t('atelier.layers.addShape')} title={t('atelier.layers.addShape')} className={cn(BAR_BUTTON, 'flex-none gap-0.5 px-1.5')}>
+          <button {...props} disabled={!projectId} aria-label={t('atelier.layers.addShape')} title={t('atelier.layers.addShape')} className={cn(BAR_BUTTON, 'w-full px-2')}>
             <Shapes size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
+            <span className="truncate">{t('atelier.layers.shape')}</span>
             <ChevronDown size={14} strokeWidth={1.75} aria-hidden className="flex-none text-ink-4" />
           </button>
         )}
