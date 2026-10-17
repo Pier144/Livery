@@ -1166,7 +1166,7 @@
       "selected_many": "{{count, number}} livelli selezionati",
       "selected_other": "{{count, number}} livelli selezionati",
       "merge": "Unisci",
-      "putInFolder": "In cartella",
+      "putInFolder": "Metti in cartella",
       "mergeNoFolders": "Le cartelle non si possono unire: seleziona solo livelli",
       "mergeUnplaced": "Prima posiziona sul veicolo tutti i livelli selezionati",
       "noFolderInFolder": "Una cartella non può stare dentro un’altra cartella",
@@ -1178,7 +1178,7 @@
       "ellipse": "Ellisse",
       "star": "Stella",
       "polygon": "Poligono",
-      "hazard": "Striscia di pericolo"
+      "hazard": "Strisce di pericolo"
     },
     "merge": {
       "done_one": "{{count, number}} livello unito",

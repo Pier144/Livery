@@ -1166,7 +1166,7 @@
       "selected_many": "{{count, number}} camadas selecionadas",
       "selected_other": "{{count, number}} camadas selecionadas",
       "merge": "Mesclar",
-      "putInFolder": "Na pasta",
+      "putInFolder": "Mover para uma pasta",
       "mergeNoFolders": "Pastas não podem ser mescladas: selecione só camadas",
       "mergeUnplaced": "Primeiro posicione no veículo todas as camadas selecionadas",
       "noFolderInFolder": "Uma pasta não pode ficar dentro de outra pasta",

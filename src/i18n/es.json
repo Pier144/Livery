@@ -1166,7 +1166,7 @@
       "selected_many": "{{count, number}} capas seleccionadas",
       "selected_other": "{{count, number}} capas seleccionadas",
       "merge": "Combinar",
-      "putInFolder": "A carpeta",
+      "putInFolder": "Mover a una carpeta",
       "mergeNoFolders": "Las carpetas no se pueden combinar: selecciona solo capas",
       "mergeUnplaced": "Primero coloca en el vehículo todas las capas seleccionadas",
       "noFolderInFolder": "Una carpeta no puede ir dentro de otra carpeta",

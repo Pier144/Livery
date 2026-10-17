@@ -1212,7 +1212,7 @@
       "selected_many": "Zaznaczono {{count, number}} warstw",
       "selected_other": "Zaznaczono {{count, number}} warstwy",
       "merge": "Połącz",
-      "putInFolder": "Do folderu",
+      "putInFolder": "Przenieś do folderu",
       "mergeNoFolders": "Folderów nie można łączyć: zaznacz tylko warstwy",
       "mergeUnplaced": "Najpierw umieść na pojeździe wszystkie zaznaczone warstwy",
       "noFolderInFolder": "Folder nie może znaleźć się w innym folderze",

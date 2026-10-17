@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   Folder,
+  FolderInput,
   FolderOpen,
   GripVertical,
   Hexagon,
@@ -15,6 +16,7 @@ import {
   ShieldCheck,
   Square,
   Star,
+  Trash2,
   TriangleAlert,
   Type,
   type LucideIcon,
@@ -108,11 +110,19 @@ function rowIcon(row: RowModel): LucideIcon {
 }
 
 /** Left padding per nesting level (16 px each); a piece, which has no grip, is pushed one more level to line up. */
-const INDENT = ['pl-0.5', 'pl-4.5', 'pl-[34px]', 'pl-[50px]'];
+const INDENT = ['pl-0.5', 'pl-indent-1', 'pl-indent-2', 'pl-indent-3'];
 
-/** The panel's small buttons (Add bar, multi-select bar). */
+/** The panel's small buttons (Add bar, multi-select bar); callers add their width and padding (`flex-1 px-2`). */
 export const BAR_BUTTON =
-  'flex h-ctl min-w-0 flex-1 items-center justify-center gap-1.5 rounded-ctl border border-line-3 bg-bg-4 px-2 text-meta font-medium text-ink-1 hover:border-line-4 disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:hover:border-line-3 motion-safe:transition-colors motion-safe:duration-120';
+  'flex h-ctl min-w-0 items-center justify-center gap-1.5 rounded-ctl border border-line-3 bg-bg-4 text-meta font-medium text-ink-1 hover:border-line-4 disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:hover:border-line-3 motion-safe:transition-colors motion-safe:duration-120';
+
+/** Why these items can't go into a new folder together (a folder among them, or already in one), or null. */
+export function folderBlockKey(layers: readonly Layer[], ids: readonly string[]): 'atelier.layers.noFolderInFolder' | 'atelier.layers.alreadyInFolder' | null {
+  const founds = ids.map((id) => findLayer(layers, id));
+  if (founds.some((f) => f?.layer.kind === 'folder')) return 'atelier.layers.noFolderInFolder';
+  if (founds.some((f) => f !== null && f.parentId !== null)) return 'atelier.layers.alreadyInFolder';
+  return null;
+}
 
 /** Where a drag would drop relative to this row. */
 export type DropEdge = 'above' | 'below' | 'into';
@@ -345,9 +355,12 @@ export function SelectionBar({ ids, onMerge, onPutInFolder, onDelete }: { ids: s
   const founds = ids.map((id) => findLayer(layers, id));
   const hasFolder = founds.some((f) => f?.layer.kind === 'folder');
   const unplaced = founds.some((f) => !f || !isPlacedLayer(f.layer as Layer) || !('decal' in f.layer) || f.layer.decal === null);
-  const inFolder = founds.some((f) => f !== null && f.parentId !== null);
   const mergeBlock = hasFolder ? t('atelier.layers.mergeNoFolders') : unplaced ? t('atelier.layers.mergeUnplaced') : null;
-  const folderBlock = hasFolder ? t('atelier.layers.noFolderInFolder') : inFolder ? t('atelier.layers.alreadyInFolder') : null;
+  const folderKey = folderBlockKey(layers, ids);
+  const folderBlock = folderKey ? t(folderKey) : null;
+  // Icons only: three worded buttons don't fit the 232 px panel in every language. The names are
+  // the labels, a reason the button can't act is its title.
+  const button = cn(BAR_BUTTON, 'flex-1 px-2');
   return (
     <div role="group" aria-labelledby="atelier-layers-selection" className="flex flex-col gap-1.5 border-t border-line-2 pt-2">
       <p id="atelier-layers-selection" className="text-meta text-ink-3">
@@ -355,20 +368,28 @@ export function SelectionBar({ ids, onMerge, onPutInFolder, onDelete }: { ids: s
       </p>
       <div className="flex gap-1.5">
         {/* aria-disabled keeps the reason reachable: the button stays focusable and shows its title. */}
-        <button type="button" aria-disabled={mergeBlock !== null || undefined} title={mergeBlock ?? t('atelier.layers.merge')} onClick={() => mergeBlock === null && onMerge()} className={BAR_BUTTON}>
-          <span className="truncate">{t('atelier.layers.merge')}</span>
+        <button
+          type="button"
+          aria-label={t('atelier.layers.merge')}
+          aria-disabled={mergeBlock !== null || undefined}
+          title={mergeBlock ?? t('atelier.layers.merge')}
+          onClick={() => mergeBlock === null && onMerge()}
+          className={button}
+        >
+          <Combine size={14} strokeWidth={1.75} aria-hidden />
         </button>
         <button
           type="button"
+          aria-label={t('atelier.layers.putInFolder')}
           aria-disabled={folderBlock !== null || undefined}
           title={folderBlock ?? t('atelier.layers.putInFolder')}
           onClick={() => folderBlock === null && onPutInFolder()}
-          className={BAR_BUTTON}
+          className={button}
         >
-          <span className="truncate">{t('atelier.layers.putInFolder')}</span>
+          <FolderInput size={14} strokeWidth={1.75} aria-hidden />
         </button>
-        <button type="button" title={t('atelier.layers.delete')} onClick={onDelete} className={BAR_BUTTON}>
-          <span className="truncate">{t('atelier.layers.delete')}</span>
+        <button type="button" aria-label={t('atelier.layers.delete')} title={t('atelier.layers.delete')} onClick={onDelete} className={button}>
+          <Trash2 size={14} strokeWidth={1.75} aria-hidden />
         </button>
       </div>
     </div>

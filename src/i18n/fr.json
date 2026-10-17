@@ -1166,7 +1166,7 @@
       "selected_many": "{{count, number}} calques sélectionnés",
       "selected_other": "{{count, number}} calques sélectionnés",
       "merge": "Fusionner",
-      "putInFolder": "En dossier",
+      "putInFolder": "Mettre dans un dossier",
       "mergeNoFolders": "Les dossiers ne se fusionnent pas : sélectionnez seulement des calques",
       "mergeUnplaced": "Placez d’abord sur le véhicule tous les calques sélectionnés",
       "noFolderInFolder": "Un dossier ne peut pas aller dans un autre dossier",

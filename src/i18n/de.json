@@ -1120,7 +1120,7 @@
       "selected_one": "{{count, number}} Ebene ausgewählt",
       "selected_other": "{{count, number}} Ebenen ausgewählt",
       "merge": "Verbinden",
-      "putInFolder": "In Ordner",
+      "putInFolder": "In Ordner verschieben",
       "mergeNoFolders": "Ordner lassen sich nicht verbinden: nur Ebenen auswählen",
       "mergeUnplaced": "Zuerst alle gewählten Ebenen auf dem Fahrzeug platzieren",
       "noFolderInFolder": "Ein Ordner kann nicht in einem anderen Ordner liegen",

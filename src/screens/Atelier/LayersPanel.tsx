@@ -1,27 +1,19 @@
-import { ChevronDown, Circle, Construction, FolderPlus, Hexagon, Plus, Square, Star, TriangleAlert } from 'lucide-react';
+import { FolderPlus, TriangleAlert } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtelierEditor, type DeletedEntry } from '@/atelier/editorStore';
 import { findLayer, type TreeItem } from '@/atelier/layerTree';
 import type { MergeRefusal } from '@/atelier/merge';
-import { DEFAULT_FONT, HAZARD_ASPECT, MAX_PIECES, isPlacedLayer, type FontRef, type Layer, type ShapeKind } from '@/atelier/project';
-import { fontStatus, measureTextAspect } from '@/atelier/text';
-import { Menu, type MenuItem } from '@/components/ui/Menu';
-import { cn } from '@/lib/cn';
-import { errorText } from '@/lib/errors';
-import { baseName } from '@/lib/format';
-import { isTauri, toAppError } from '@/lib/tauri';
-import { importImage, useFonts } from '@/queries/atelier';
+import { MAX_PIECES, isPlacedLayer, type Layer } from '@/atelier/project';
+import { fontStatus } from '@/atelier/text';
+import type { MenuItem } from '@/components/ui/Menu';
 import { toast } from '@/store/toasts';
-import type { AssetRef } from '@/types';
-import { noteAssetSize, useDecalUi } from './decalUi';
+import { AddButtons } from './AddButtons';
+import { useDecalUi } from './decalUi';
 import { MASK_ROW_ID } from './editorModel';
-import { BAR_BUTTON, LayerRow, SelectionBar, buildRows, type DropEdge, type GripHandlers, type RowModel } from './LayerRows';
+import { LayerRow, SelectionBar, buildRows, folderBlockKey, type DropEdge, type GripHandlers, type RowModel } from './LayerRows';
 
 export const PANEL_LABEL = 'font-mono text-mono-label uppercase leading-[normal] text-ink-4';
-
-/** Pictures Add image offers (the backend imports the same). */
-export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tga'];
 
 /** What a layer's name is read from: any item of the tree (shapes add their kind, text layers their text). */
 type Named = Pick<TreeItem, 'kind' | 'name'>;
@@ -63,153 +55,13 @@ export function useLayerName() {
   };
 }
 
-/** The file name without its extension (a new picture layer's name). */
-function pictureName(path: string): string {
-  return baseName(path).replace(/\.[^.]+$/, '');
-}
-
-/** The font a new text layer starts with: Arial when installed, else the first one listed. */
-function startFont(fonts: readonly FontRef[] | undefined): FontRef {
-  if (!fonts || fonts.length === 0) return DEFAULT_FONT;
-  const arial = fonts.find((f) => f.family === DEFAULT_FONT.family && f.style === DEFAULT_FONT.style);
-  const regular = fonts.find((f) => f.style === 'Regular');
-  const pick = arial ?? regular ?? fonts[0]!;
-  return { family: pick.family, style: pick.style };
-}
-
-const SHAPE_ITEMS: { shape: ShapeKind; Icon: typeof Square }[] = [
-  { shape: 'rect', Icon: Square },
-  { shape: 'ellipse', Icon: Circle },
-  { shape: 'star', Icon: Star },
-  { shape: 'polygon', Icon: Hexagon },
-];
-
 /**
- * Add image, Add text and Add shape: the new layer waits for its placement click on the model.
- * Add image picks a picture with the system dialog (in the dev mock, a file input: the mock's
- * import makes its own picture from the name), imports it into the project's assets and waits.
+ * Where a dragged row would land: the row it was dropped on, the row the marker shows on (under an
+ * expanded group: its last visible row), and the container and index for `moveInto`.
  */
-function AddButtons() {
-  const { t } = useTranslation();
-  const projectId = useAtelierEditor((s) => s.project?.id ?? null);
-  const fonts = useFonts();
-  const [importing, setImporting] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const startImage = (asset: AssetRef, name: string) => {
-    noteAssetSize(asset.id, asset.width, asset.height);
-    useAtelierEditor.getState().beginPlacement({ kind: 'image', assetId: asset.id, aspect: asset.width / asset.height, name });
-  };
-
-  const importPath = async (path: string) => {
-    if (!projectId) return;
-    setImporting(true);
-    try {
-      startImage(await importImage(projectId, path), pictureName(path));
-    } catch (e) {
-      toast(errorText(toAppError(e), t));
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const addImage = async () => {
-    if (!isTauri()) {
-      fileRef.current?.click();
-      return;
-    }
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const picked = await open({ multiple: false, title: t('atelier.layers.addImage'), filters: [{ name: t('atelier.layers.imageFilter'), extensions: IMAGE_EXTENSIONS }] });
-      if (typeof picked === 'string') await importPath(picked);
-    } catch (e) {
-      toast(errorText(toAppError(e), t));
-    }
-  };
-
-  const addText = () => {
-    const text = t('atelier.text.default');
-    const font = startFont(fonts.data);
-    const aspect = measureTextAspect({ text, font, outlineWidth: 0, skew: 0 }) ?? text.length * 0.6;
-    useAtelierEditor.getState().beginPlacement({ kind: 'text', text, font, aspect });
-  };
-
-  const addShape = (value: string) => {
-    const begin = useAtelierEditor.getState().beginPlacement;
-    if (value === 'hazard') begin({ kind: 'shape', shape: 'rect', hazard: true, name: t('atelier.shape.hazard'), aspect: HAZARD_ASPECT });
-    else begin({ kind: 'shape', shape: value as ShapeKind, aspect: 1 });
-  };
-
-  const shapeLabel = (shape: ShapeKind) => t(`atelier.shape.${shape}`);
-  const itemLabel = (Icon: typeof Square, text: string) => (
-    <span className="flex items-center gap-2">
-      <Icon size={14} strokeWidth={1.75} aria-hidden className="flex-none text-ink-4" />
-      {text}
-    </span>
-  );
-  // The Menu has no divider: Hazard stripe, a preset, simply comes last.
-  const shapeItems: MenuItem[] = [
-    ...SHAPE_ITEMS.map(({ shape, Icon }) => ({ value: shape, label: itemLabel(Icon, shapeLabel(shape)), textValue: shapeLabel(shape) })),
-    { value: 'hazard', label: itemLabel(Construction, t('atelier.shape.hazard')), textValue: t('atelier.shape.hazard') },
-  ];
-
-  return (
-    <div className="flex gap-1.5">
-      {/* Short visible labels (the panel is narrow in every language); the names say "Add …". */}
-      <button
-        type="button"
-        onClick={() => void addImage()}
-        disabled={!projectId || importing}
-        aria-busy={importing || undefined}
-        aria-label={t('atelier.layers.addImage')}
-        title={t('atelier.layers.addImage')}
-        className={BAR_BUTTON}
-      >
-        <Plus size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
-        <span className="truncate">{t('atelier.layers.image')}</span>
-      </button>
-      <button type="button" onClick={addText} disabled={!projectId} aria-label={t('atelier.layers.addText')} title={t('atelier.layers.addText')} className={BAR_BUTTON}>
-        <Plus size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
-        <span className="truncate">{t('atelier.layers.text')}</span>
-      </button>
-      <Menu
-        className="min-w-0 flex-1"
-        label={t('atelier.layers.addShape')}
-        align="end"
-        menuWidthClass="min-w-[150px]"
-        items={shapeItems}
-        onSelect={addShape}
-        renderTrigger={(props) => (
-          <button {...props} disabled={!projectId} aria-label={t('atelier.layers.addShape')} title={t('atelier.layers.addShape')} className={cn(BAR_BUTTON, 'w-full')}>
-            <Plus size={14} strokeWidth={1.75} aria-hidden className="flex-none" />
-            <span className="truncate">{t('atelier.layers.shape')}</span>
-            <ChevronDown size={14} strokeWidth={1.75} aria-hidden className="-mr-0.5 flex-none text-ink-4" />
-          </button>
-        )}
-      />
-      {/* The browser has no file paths: `pnpm dev:mock` only (dropped from the production build). */}
-      {import.meta.env.VITE_MOCK_BACKEND === '1' && !isTauri() && (
-        <input
-          ref={fileRef}
-          type="file"
-          hidden
-          tabIndex={-1}
-          aria-hidden
-          accept={IMAGE_EXTENSIONS.map((e) => `.${e}`).join(',')}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (file) void importPath(`C:/Users/mock/Pictures/${file.name}`);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/** Where a dragged row would land: the row the marker shows on, and the container and index for `moveInto`. */
 interface Drop {
   rowId: string;
+  markerId: string;
   edge: DropEdge;
   parentId: string | null;
   index: number;
@@ -276,23 +128,25 @@ export function LayersPanel() {
     const projectId = store.project?.id;
     const entries: DeletedEntry[] = store.deleteLayers(ids);
     if (entries.length === 0) return;
-    const revision = useAtelierEditor.getState().revision;
+    const after = useAtelierEditor.getState().layers;
     toast.undoable(message, () => {
       const now = useAtelierEditor.getState();
       // Another project open now (or none): the layers belong to the one they were deleted from.
       if (!projectId || now.project?.id !== projectId) return;
       if (entries.every((e) => findLayer(now.layers, e.layer.id))) return;
-      if (now.revision === revision && now.past.length > 0) now.undo();
+      // Still the layers the delete left: the editor's own undo.
+      if (now.layers === after && now.past.length > 0) now.undo();
       else now.restoreLayers(entries);
     });
   };
 
+  /** A new folder, renamed right away; with `ids`, holding them (refused with the reason when they can't go in). */
   const newFolder = (ids?: string[]) => {
     const store = useAtelierEditor.getState();
     const name = nextFolderName();
-    // Layers that can't go into a new folder (a folder among them, or already in one): an empty folder.
-    const id = (ids && ids.length > 0 ? store.createFolder(name, ids) : null) ?? store.createFolder(name);
+    const id = ids && ids.length > 0 ? store.createFolder(name, ids) : store.createFolder(name);
     if (id) setEditing(id);
+    else if (ids && ids.length > 0) toast(t(folderBlockKey(store.layers, ids) ?? 'atelier.layers.alreadyInFolder'));
   };
 
   const merge = () => {
@@ -329,8 +183,8 @@ export function LayersPanel() {
     for (const folder of folders) {
       if (folder.id !== row.parentId) items.push({ value: `into:${folder.id}`, label: t('atelier.layers.putIn', { name: nameOf(folder, 'folder') }) });
     }
-    if (row.parentId === null) items.push({ value: 'into-new', label: t('atelier.layers.putInNew') });
-    else items.push({ value: 'out', label: t('atelier.layers.moveOut') });
+    if (row.parentId !== null) items.push({ value: 'out', label: t('atelier.layers.moveOut') });
+    else if (isPlacedLayer(item as Layer)) items.push({ value: 'into-new', label: t('atelier.layers.putInNew') });
     items.push({ value: 'delete', label: t('atelier.layers.delete') });
     return items;
   };
@@ -377,12 +231,23 @@ export function LayersPanel() {
     const isFolder = el.dataset.drop === 'folder';
     const count = Number(el.dataset.count ?? 0);
     const at = rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5;
-    if (isFolder && !draggingFolder && at > 0.25 && at < 0.75) return { rowId, edge: 'into', parentId: rowId, index: count };
+    const drop = (edge: DropEdge, parent: string | null, i: number, markerId = rowId): Drop => ({ rowId, markerId, edge, parentId: parent, index: i });
+    if (isFolder && !draggingFolder && at > 0.25 && at < 0.75) return drop('into', rowId, count);
     // Rows are top to bottom, the stack bottom to top: above a row is one index higher.
-    if (at < 0.5) return { rowId, edge: 'above', parentId, index: index + 1 };
+    if (at < 0.5) return drop('above', parentId, index + 1);
     // Under an open folder's row is the top of its children.
-    if (isFolder && !draggingFolder && el.dataset.open === 'true' && count > 0) return { rowId, edge: 'below', parentId: rowId, index: count };
-    return { rowId, edge: 'below', parentId, index };
+    if (isFolder && !draggingFolder && el.dataset.open === 'true' && count > 0) return drop('below', rowId, count);
+    // Under the whole group otherwise: the marker goes on its last visible row.
+    return drop('below', parentId, index, lastRowOf(rowId));
+  };
+
+  /** The last row shown for this row's group (an open folder's last child, an expanded merged object's last piece), else the row. */
+  const lastRowOf = (id: string): string => {
+    const start = rows.findIndex((r) => r.id === id);
+    if (start < 0) return id;
+    let end = start;
+    while (rows[end + 1] && rows[end + 1]!.depth > rows[start]!.depth) end++;
+    return rows[end]!.id;
   };
 
   const gripHandlers = (row: RowModel): GripHandlers => ({
@@ -395,7 +260,8 @@ export function LayersPanel() {
     onPointerMove: (e: PointerEvent<HTMLSpanElement>) => {
       if (dragging?.id !== row.id) return;
       const drop = dropAt(e.clientY, row);
-      const same = drop && dragging.drop && drop.rowId === dragging.drop.rowId && drop.edge === dragging.drop.edge;
+      const was = dragging.drop;
+      const same = drop && was && drop.markerId === was.markerId && drop.edge === was.edge && drop.parentId === was.parentId && drop.index === was.index;
       if (!same) setDragging({ id: row.id, drop });
     },
     onPointerUp: (e: PointerEvent<HTMLSpanElement>) => {
@@ -429,7 +295,7 @@ export function LayersPanel() {
     });
   };
 
-  const onListKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
+  const onPanelKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     // Escape in the panel goes back to a single selection (a waiting placement keeps its own Escape).
     if (e.key !== 'Escape' || !multi || useAtelierEditor.getState().pending) return;
     e.preventDefault();
@@ -438,7 +304,7 @@ export function LayersPanel() {
   };
 
   return (
-    <section aria-labelledby="atelier-layers-title" className="flex flex-col gap-2 px-4 pb-4 pt-4.5">
+    <section aria-labelledby="atelier-layers-title" onKeyDown={onPanelKeyDown} className="flex flex-col gap-2 px-4 pb-4 pt-4.5">
       <div className="flex h-5 items-center justify-between gap-2">
         <h2 id="atelier-layers-title" className={PANEL_LABEL}>
           {t('atelier.layers.title')}
@@ -455,7 +321,7 @@ export function LayersPanel() {
         </button>
       </div>
       <AddButtons />
-      <ul ref={listRef} onKeyDown={onListKeyDown} className="flex flex-col gap-0.5" aria-describedby={movableCount > 1 ? 'atelier-layers-hint' : undefined}>
+      <ul ref={listRef} className="flex flex-col gap-0.5" aria-describedby={movableCount > 1 ? 'atelier-layers-hint' : undefined}>
         {rows.map((row) => {
           const { item } = row;
           const name = nameOf(item, row.kind);
@@ -495,7 +361,7 @@ export function LayersPanel() {
               onMenuSelect={(action) => onMenuSelect(row, name, action)}
               grip={row.movable ? gripHandlers(row) : null}
               dragging={dragging?.id === row.id}
-              drop={dragging && dragging.id !== row.id && dragging.drop?.rowId === row.id ? dragging.drop.edge : null}
+              drop={dragging && dragging.id !== row.id && dragging.drop?.markerId === row.id ? dragging.drop.edge : null}
             />
           );
         })}

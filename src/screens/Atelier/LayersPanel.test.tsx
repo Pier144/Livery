@@ -221,31 +221,113 @@ describe('Atelier Layers panel', () => {
     expect(S().layers.map((l) => l.id)).toEqual(['b', 'f', 'a']);
   });
 
-  it('dragging a layer onto a folder row puts it at the top of the folder', () => {
-    load([base(), image('a', 'logo', at(0.3, 0.5)), folder()]);
-    renderWithProviders(<LayersPanel />);
-    // Rows 34 px tall, top to bottom in list order.
+  /** Rows 34 px tall, top to bottom in list order; the rows' ids. */
+  function mockRows(): string[] {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const items = Array.from(this.parentElement?.children ?? []);
       const i = Math.max(0, items.indexOf(this));
       return { top: i * 34, bottom: i * 34 + 34, height: 34, left: 0, right: 200, width: 200, x: 0, y: i * 34, toJSON: () => ({}) } as DOMRect;
     });
-    const rows = Array.from(document.querySelectorAll<HTMLElement>('li[data-row]'));
+    return Array.from(document.querySelectorAll<HTMLElement>('li[data-row]')).map((r) => r.dataset.row!);
+  }
+
+  const rowEl = (id: string) => document.querySelector<HTMLElement>(`li[data-row="${id}"]`)!;
+
+  /** Drags the row's grip to `clientY`; `during` runs before the drop (the marker is showing). */
+  function drag(id: string, clientY: number, during?: () => void) {
+    const grip = rowEl(id).querySelector<HTMLElement>('[title="Drag to reorder"]')!;
+    const fire = (type: string, y: number) => act(() => void grip.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, pointerId: 1, clientY: y })));
+    fire('pointerdown', grip.getBoundingClientRect().top);
+    fire('pointermove', clientY);
+    during?.();
+    fire('pointerup', clientY);
+  }
+
+  it('dragging a layer onto a folder row puts it at the top of the folder', () => {
+    load([base(), image('a', 'logo', at(0.3, 0.5)), folder()]);
+    renderWithProviders(<LayersPanel />);
     // Protected areas, Folder 1, child, logo, Base.
-    expect(rows.map((r) => r.dataset.row)).toEqual(['mask:new', 'f', 'c', 'a', 'b']);
-    const grip = rows[3]!.querySelector<HTMLElement>('[title="Drag to reorder"]')!;
-    const folderMiddle = 34 + 17;
-    act(() => {
-      grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, clientY: 3 * 34 + 17 }));
-    });
-    act(() => {
-      grip.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 1, clientY: folderMiddle }));
-    });
-    expect(rows[1]).toHaveClass('border-amber-60');
-    act(() => {
-      grip.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, clientY: folderMiddle }));
-    });
+    expect(mockRows()).toEqual(['mask:new', 'f', 'c', 'a', 'b']);
+    drag('a', 34 + 17, () => expect(rowEl('f')).toHaveClass('border-amber-60'));
     expect((findLayer(S().layers, 'f')!.layer as FolderLayer).children.map((c) => c.id)).toEqual(['c', 'a']);
+  });
+
+  it('dropping above a row higher in the same list moves the layer there', () => {
+    load([base(), image('x', 'x', at(0.3, 0.5)), image('y', 'y', at(0.3, 0.3)), image('z', 'z', at(0.3, 0.1))]);
+    renderWithProviders(<LayersPanel />);
+    expect(mockRows()).toEqual(['mask:new', 'z', 'y', 'x', 'b']);
+    // The upper half of z's row: above z, the top of the stack.
+    drag('x', 34 + 5, () => expect(rowEl('z')).toHaveClass('border-t-amber-60'));
+    expect(S().layers.map((l) => l.id)).toEqual(['b', 'y', 'z', 'x']);
+  });
+
+  it('dropping between a folder’s rows puts the layer in the folder there', () => {
+    load([base(), folder([image('c1', 'c1', at(0.6, 0.2)), image('c2', 'c2', at(0.6, 0.4))]), image('a', 'logo', at(0.3, 0.5))]);
+    renderWithProviders(<LayersPanel />);
+    expect(mockRows()).toEqual(['mask:new', 'a', 'f', 'c2', 'c1', 'b']);
+    // The lower half of c2's row: between c2 and c1.
+    drag('a', 3 * 34 + 30, () => expect(rowEl('c2')).toHaveClass('border-b-amber-60'));
+    expect(S().layers.map((l) => l.id)).toEqual(['b', 'f']);
+    expect((findLayer(S().layers, 'f')!.layer as FolderLayer).children.map((c) => c.id)).toEqual(['c1', 'a', 'c2']);
+  });
+
+  it('under an expanded merged object the marker shows on its last piece', async () => {
+    const user = userEvent.setup();
+    load([base(), image('a', 'logo', at(0.3, 0.5)), image('d', 'badge', at(0.3, 0.1)), image('e', 'top', at(0.6, 0.1))]);
+    renderWithProviders(<LayersPanel />);
+    act(() => void S().mergeLayers(['a', 'd']));
+    const merged = S().layers[1]!.id;
+    await user.click(panel().getByRole('button', { name: 'Expand Merged object' }));
+    expect(mockRows()).toEqual(['mask:new', 'e', merged, 'd', 'a', 'b']);
+    drag('e', 2 * 34 + 30, () => {
+      expect(rowEl('a')).toHaveClass('border-b-amber-60');
+      expect(rowEl(merged)).not.toHaveClass('border-b-amber-60');
+    });
+    expect(S().layers.map((l) => l.id)).toEqual(['b', 'e', merged]);
+  });
+
+  it('Shift+click selects the range in one list; Escape in the panel goes back to one', async () => {
+    const user = userEvent.setup();
+    load([base(), image('a', 'logo', at(0.3, 0.5)), image('d', 'badge', at(0.3, 0.1)), image('e', 'top', at(0.6, 0.1))]);
+    renderWithProviders(<LayersPanel />);
+    await user.click(panel().getByRole('button', { name: 'logo' }));
+    await user.keyboard('{Shift>}');
+    await user.click(panel().getByRole('button', { name: 'top' }));
+    await user.keyboard('{/Shift}');
+    expect(S().selectedIds).toEqual(['a', 'd', 'e']);
+    expect(panel().getByRole('group', { name: '3 layers selected' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(S().selectedIds).toEqual([]);
+    expect(S().selectedId).toBe('a');
+    expect(panel().queryByRole('group', { name: /selected/ })).toBeNull();
+  });
+
+  it('New folder with a folder in the selection says why instead of making an empty folder', async () => {
+    const user = userEvent.setup();
+    load([base(), image('a', 'logo', at(0.3, 0.5)), folder()]);
+    renderWithProviders(<LayersPanel />);
+    act(() => {
+      S().select('a');
+      S().toggleSelect('f');
+    });
+    await user.click(panel().getByRole('button', { name: 'New folder' }));
+    expect(S().layers.filter((l) => l.kind === 'folder')).toHaveLength(1);
+    expect(toastTexts()).toContain('A folder can’t go inside another folder');
+  });
+
+  it('the delete toast’s Undo uses the editor’s undo while the layers are unchanged', async () => {
+    const user = userEvent.setup();
+    load([base(), image('a', 'logo', at(0.3, 0.5))]);
+    renderWithProviders(<LayersPanel />);
+    await user.click(panel().getByRole('button', { name: 'logo actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    // A project setting changes the revision, not the layers.
+    act(() => S().setName('Renamed'));
+    const shown = useToasts.getState().toasts.find((t) => t.message === 'Deleted layer “logo”');
+    await act(() => useToasts.getState().undo(shown!.id));
+    expect(S().layers.map((l) => l.id)).toEqual(['b', 'a']);
+    // The editor's undo: redo can delete it again.
+    expect(S().future).toHaveLength(1);
   });
 
   it('Alt+↓ moves a folder within the top level', async () => {

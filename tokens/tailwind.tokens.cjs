@@ -28,7 +28,7 @@ module.exports = {
     'mono-label': ['10px', { lineHeight: '1.2', letterSpacing: '0.08em' }],
     brand: ['12px', { letterSpacing: '0.14em', fontWeight: '600' }],
   },
-  spacing: { 4.5: '18px', 5.5: '22px', 7: '28px', 'titlebar': '38px', 'sidebar': '216px', 'sidebar-c': '56px', 'ctl': '28px', 'nav': '34px', 'btn': '30px', 'btn-lg': '36px' },
+  spacing: { 4.5: '18px', 5.5: '22px', 7: '28px', 'titlebar': '38px', 'sidebar': '216px', 'sidebar-c': '56px', 'ctl': '28px', 'nav': '34px', 'btn': '30px', 'btn-lg': '36px', 'indent-1': '18px', 'indent-2': '34px', 'indent-3': '50px' },
   borderRadius: { tag: '3px', menu: '4px', ctl: '6px', card: '8px', pill: '9px', dialog: '10px' },
   boxShadow: {
     menu: '0 12px 32px rgba(0,0,0,.5)',

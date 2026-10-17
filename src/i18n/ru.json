@@ -1212,7 +1212,7 @@
       "selected_many": "Выбрано {{count, number}} слоёв",
       "selected_other": "Выбрано {{count, number}} слоя",
       "merge": "Объединить",
-      "putInFolder": "В папку",
+      "putInFolder": "Переместить в папку",
       "mergeNoFolders": "Папки нельзя объединять: выберите только слои",
       "mergeUnplaced": "Сначала разместите на технике все выбранные слои",
       "noFolderInFolder": "Папку нельзя поместить в другую папку",
