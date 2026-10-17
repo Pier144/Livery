@@ -93,10 +93,5 @@ export function wheelDepth(depth: number, deltaY: number): number {
   return Math.min(MAX_DEPTH_UI, Math.max(MIN_DEPTH_UI, next));
 }
 
-/** The four corners of the decal on its plane: top-left, top-right, bottom-right, bottom-left (picture order). */
-export function decalCorners(decal: Decal): [Vec3, Vec3, Vec3, Vec3] {
-  const r = scale(decalRight(decal), decal.width / 2);
-  const u = scale(decal.up, decal.height / 2);
-  const c = decal.center;
-  return [add(sub(c, r), u), add(add(c, r), u), sub(add(c, r), u), sub(sub(c, r), u)];
-}
+/** Re-exported from `@/atelier/decal` (the merge maths uses it too), so existing imports keep working. */
+export { decalCorners } from '@/atelier/decal';

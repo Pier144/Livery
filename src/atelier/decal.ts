@@ -2,6 +2,7 @@ import type { VehicleModelData } from './modelBuffer';
 import {
   MAX_DECAL_SIZE,
   MIN_DECAL_SIZE,
+  add,
   cross,
   decalRight,
   defaultDepth,
@@ -53,6 +54,15 @@ function onPlane(v: Vec3, n: Vec3): Vec3 | null {
   return length(p) < PARALLEL_EPSILON * Math.max(1, length(v)) ? null : normalize(p);
 }
 
+/**
+ * A frame's up on the plane with unit normal `n`: `preferred` projected onto it, or world +y, then
+ * +x when that is nearly parallel to the normal (`frameFromHit`'s fallbacks). Null only for a
+ * degenerate normal.
+ */
+export function upOnPlane(preferred: Vec3, n: Vec3): Vec3 | null {
+  return onPlane(preferred, n) ?? onPlane([0, 1, 0], n) ?? onPlane([1, 0, 0], n);
+}
+
 const clampSize = (s: number) => Math.min(MAX_DECAL_SIZE, Math.max(MIN_DECAL_SIZE, s));
 
 export interface DecalSize {
@@ -78,7 +88,7 @@ export function frameFromHit(
   const n = normalize(normal);
   if (!n || !point.every(Number.isFinite)) return null;
   const screenUp: Vec3 = [cameraMatrixWorld[4] ?? 0, cameraMatrixWorld[5] ?? 0, cameraMatrixWorld[6] ?? 0];
-  const up = onPlane(screenUp, n) ?? onPlane([0, 1, 0], n) ?? onPlane([1, 0, 0], n);
+  const up = upOnPlane(screenUp, n);
   if (!up) return null;
   const width = clampSize(size.width);
   return {
@@ -124,6 +134,14 @@ export function fromDecalSpace(uvw: Vec3, decal: Decal): Vec3 {
   return [0, 1, 2].map(
     (i) => decal.center[i]! + right[i]! * uvw[0] * decal.width + decal.up[i]! * uvw[1] * decal.height + decal.normal[i]! * uvw[2] * decal.depth,
   ) as Vec3;
+}
+
+/** The four corners of the decal on its plane: top-left, top-right, bottom-right, bottom-left (picture order). */
+export function decalCorners(decal: Decal): [Vec3, Vec3, Vec3, Vec3] {
+  const r = scale(decalRight(decal), decal.width / 2);
+  const u = scale(decal.up, decal.height / 2);
+  const c = decal.center;
+  return [add(sub(c, r), u), add(add(c, r), u), sub(add(c, r), u), sub(sub(c, r), u)];
 }
 
 /** The point is inside the decal's box (edges included). */
