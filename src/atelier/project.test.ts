@@ -12,7 +12,6 @@ import {
   MIN_DECAL_SIZE,
   baseOf,
   checkPlacedLayer,
-  decalLayers,
   decalRight,
   defaultDepth,
   isPictureLayer,
@@ -248,7 +247,6 @@ describe('image and text layers', () => {
     expect(repaired).toBe(false);
     expect(layers.map((l) => `${l.kind}:${l.id}`)).toEqual(['base:b', 'text:t1', 'image:i1', 'image:i2', 'unsupported:u', 'mask:m']);
     expect(serializeLayers(layers)).toEqual(json);
-    expect(decalLayers(layers).map((l) => l.id)).toEqual(['t1', 'i1', 'i2']);
     expect(isPictureLayer(layers[1])).toBe(true);
     expect(isPictureLayer(layers[4])).toBe(false);
   });

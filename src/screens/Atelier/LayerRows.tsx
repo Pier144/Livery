@@ -25,7 +25,7 @@ import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEven
 import { useTranslation } from 'react-i18next';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import type { TreeItem } from '@/atelier/layerTree';
-import type { Layer } from '@/atelier/project';
+import { maskOf, type Layer } from '@/atelier/project';
 import { Menu, type MenuItem } from '@/components/ui/Menu';
 import { cn } from '@/lib/cn';
 import { MASK_ROW_ID } from './editorModel';
@@ -58,7 +58,7 @@ export interface RowModel {
  * children and an expanded merged object's pieces under it, indented), then the Base.
  */
 export function buildRows(layers: readonly Layer[], expanded: ReadonlySet<string>): RowModel[] {
-  const mask = layers.find((l) => l.kind === 'mask');
+  const mask = maskOf(layers);
   const rows: RowModel[] = [
     mask
       ? { id: mask.id, kind: 'mask', item: mask, parentId: null, index: layers.indexOf(mask), depth: 0, movable: false, piece: false, count: 0, inHidden: false }

@@ -46,6 +46,7 @@ import {
   allLayers,
   childrenOf,
   findLayer,
+  framedLayerOf,
   insertLayers,
   isPiece,
   mapLayers,
@@ -378,13 +379,6 @@ function withMask(layers: Layer[], change: (mask: MaskLayer) => MaskLayer): Laye
   return layers.map((l) => (l === mask ? change(mask) : l));
 }
 
-/** The found item when it is a placed layer with a frame of its own (top level or folder child; not a piece). */
-function framedOf(found: Found | null): PlacedLayer | null {
-  if (!found || isPiece(found)) return null;
-  const layer = found.layer as Layer;
-  return isPlacedLayer(layer) ? layer : null;
-}
-
 /** Whether the found item may be part of a multi-selection: a placed layer or a folder, not a piece. */
 function multiSelectable(found: Found | null): found is Found {
   return !!found && !isPiece(found) && (found.layer.kind === 'folder' || isPlacedLayer(found.layer as Layer));
@@ -429,8 +423,13 @@ function mergeSources(layer: PlacedLayer & { decal: Decal }): MergeSource[] {
     const source = { ...layer } as Partial<PieceLayer>;
     delete source.decal;
     delete source.repeat;
+    // A solid shape's alternate colour fills every second copy (as `plainGroups` draws it).
+    const alternate = layer.kind === 'shape' && layer.fill.kind === 'solid' ? layer.repeat?.alternate : undefined;
     // The first copy keeps the layer's id (as Separate gives it back), the others get new ones.
-    return copies.map((box, i) => ({ item: { ...source, id: i === 0 ? layer.id : newLayerId() } as Omit<Piece, 'place'>, box }));
+    return copies.map((box, i) => {
+      const fill = alternate !== undefined && i % 2 === 1 ? { fill: { kind: 'solid' as const, color: alternate } } : {};
+      return { item: { ...source, ...fill, id: i === 0 ? layer.id : newLayerId() } as Omit<Piece, 'place'>, box };
+    });
   }
   const out: MergeSource[] = [];
   copies.forEach((frame, i) => {
@@ -713,7 +712,7 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     },
 
     setDecal: (id, patch, mergeKey) => {
-      const layer = framedOf(find(id));
+      const layer = framedLayerOf(get().layers, id);
       if (!layer) return;
       const decal = toDecal({ ...(layer.decal ?? {}), ...patch });
       if (!decal) return;
@@ -745,7 +744,7 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     },
 
     applyCutout: (layerId, asset, crop, sourceAsset) => {
-      const layer = framedOf(find(layerId));
+      const layer = framedLayerOf(get().layers, layerId);
       if (layer?.kind !== 'image' || sourceAsset.width <= 0 || sourceAsset.height <= 0 || crop.w <= 0 || crop.h <= 0) return;
       // A stale result (undo, another cutout or an edit since it started): the layer no longer shows its source.
       if (layer.assetId !== sourceAsset.id) return;
@@ -939,7 +938,7 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       ) {
         return { ok: false, reason: 'container' };
       }
-      const placed = founds.map((f) => framedOf(f));
+      const placed = unique.map((id) => framedLayerOf(layers, id));
       if (!placed.every((l): l is PlacedLayer & { decal: Decal } => l !== null && l.decal !== null)) return { ok: false, reason: 'unplaced' };
       // Bottom to top in the container.
       const order = founds.map((f, i) => ({ found: f, layer: placed[i]! })).sort((a, b) => a.found.index - b.found.index);

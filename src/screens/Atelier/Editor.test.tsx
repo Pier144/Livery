@@ -893,6 +893,20 @@ describe('Atelier editor · images and text', () => {
     expect(mirror).toHaveAttribute('aria-checked', 'true');
   });
 
+  it('checks the shared texels under every repeat copy, not only the first', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    const id = await placeImage(user);
+    const first = decalLayer(id).decal!;
+    await waitFor(() => expect(engine.baker.decalTouchesSharedTexels).toHaveBeenLastCalledWith(first));
+    act(() => S().setLayerProps(id, { repeat: { count: 3, gap: 0, direction: 'row' } }));
+    // The row's envelope: three copies side by side, centred on the middle one.
+    await waitFor(() =>
+      expect(engine.baker.decalTouchesSharedTexels).toHaveBeenLastCalledWith(expect.objectContaining({ width: first.width * 3, height: first.height })),
+    );
+  });
+
   it('duplicates, deletes (toast Undo) and reorders layers, each undoable', async () => {
     const user = userEvent.setup();
     renderEditor();

@@ -3,7 +3,7 @@ import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEven
 import { useTranslation } from 'react-i18next';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import { findLayer, type TreeItem } from '@/atelier/layerTree';
-import { isPlacedLayer, type Layer } from '@/atelier/project';
+import { isPlacedLayer, maskOf, type Layer } from '@/atelier/project';
 import { fontStatus } from '@/atelier/text';
 import type { MenuItem } from '@/components/ui/Menu';
 import { AddButtons } from './AddButtons';
@@ -94,7 +94,7 @@ export function LayersPanel() {
   const listRef = useRef<HTMLUListElement>(null);
 
   const rows = buildRows(layers, expanded);
-  const mask = layers.find((l) => l.kind === 'mask');
+  const mask = maskOf(layers);
   const selected = selectedId === MASK_ROW_ID && mask ? mask.id : selectedId;
   const multi = selectedIds.length >= 2;
   const movableCount = rows.filter((r) => r.movable).length;

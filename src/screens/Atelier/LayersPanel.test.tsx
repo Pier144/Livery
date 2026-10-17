@@ -80,7 +80,10 @@ describe('Atelier Layers panel', () => {
     expect(input).toHaveFocus();
     await user.keyboard('Decals{Enter}');
     expect(S().layers.find((l) => l.kind === 'folder')?.name).toBe('Decals');
-    // The next one counts the folders there are.
+    // The next one takes the first free number: "Folder 1" is free again after the rename.
+    await user.click(panel().getByRole('button', { name: 'New folder' }));
+    expect(panel().getByRole('textbox', { name: 'New name for Folder 1' })).toBeInTheDocument();
+    await user.keyboard('{Enter}');
     await user.click(panel().getByRole('button', { name: 'New folder' }));
     expect(panel().getByRole('textbox', { name: 'New name for Folder 2' })).toBeInTheDocument();
   });

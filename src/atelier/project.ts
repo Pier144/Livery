@@ -453,11 +453,6 @@ export function isPictureLayer(layer: Layer | undefined | null): layer is DecalL
   return layer?.kind === 'image' || layer?.kind === 'text';
 }
 
-/** The top-level image and text layers, bottom to top. */
-export function decalLayers(layers: readonly Layer[]): DecalLayer[] {
-  return layers.filter(isPictureLayer);
-}
-
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isVec3 = (v: unknown): v is Vec3 => Array.isArray(v) && v.length === 3 && v.every(isFiniteNumber);

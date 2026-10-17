@@ -290,6 +290,19 @@ export function framedLayers(layers: readonly Layer[]): PlacedLayer[] {
   return out;
 }
 
+/**
+ * The placed layer `id` with a frame of its own (top level or in a folder; never a merged object's
+ * piece), or null: what the gizmo, the keys, the shared-texel check, the picture dialogs and the
+ * store's frame edits act on.
+ */
+export function framedLayerOf(layers: readonly Layer[], id: string | null): PlacedLayer | null {
+  if (id === null) return null;
+  const found = findLayer(layers, id);
+  if (!found || isPiece(found)) return null;
+  const layer = found.layer as Layer;
+  return isPlacedLayer(layer) ? layer : null;
+}
+
 /** Every text layer or text piece (for fonts). */
 export function textLayers(layers: readonly Layer[]): (TextLayer | TextPiece)[] {
   return allLayers(layers).filter((item): item is TextLayer | TextPiece => item.kind === 'text');

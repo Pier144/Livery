@@ -10,13 +10,10 @@ import {
   scale,
   sub,
   HAZARD_ASPECT,
-  isPlacedLayer,
   type Decal,
-  type Layer,
   type PlacedLayer,
   type Vec3,
 } from '@/atelier/project';
-import { findLayer, isPiece } from '@/atelier/layerTree';
 
 /**
  * Pure edits of a placed decal, shared by the gizmo (mouse) and the viewport's keys: slide along
@@ -121,17 +118,8 @@ export function axisScale(from: ScreenPoint, to: ScreenPoint, axis: ScreenPoint)
   return along(to) / Math.max(1, along(from));
 }
 
-/**
- * The placed layer `id` with a frame of its own (top level or in a folder; never a merged object's
- * piece), or null: what the gizmo, the keys, the shared-texel check and the picture dialogs act on.
- */
-export function framedLayerOf(layers: readonly Layer[], id: string | null): PlacedLayer | null {
-  if (id === null) return null;
-  const found = findLayer(layers, id);
-  if (!found || isPiece(found)) return null;
-  const layer = found.layer as Layer;
-  return isPlacedLayer(layer) ? layer : null;
-}
+/** Re-exported from `@/atelier/layerTree` (the store uses it too), so existing imports keep working. */
+export { framedLayerOf } from '@/atelier/layerTree';
 
 /**
  * The aspect (width over height) a shape or merged object is placed again with: a striped shape

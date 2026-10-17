@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { resetAtelierEditor, useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import type { OrbitState } from '@/atelier/gl/scene';
-import { textLayers } from '@/atelier/layerTree';
-import { maskOf, type Decal, type Layer } from '@/atelier/project';
+import { framedLayerOf, textLayers } from '@/atelier/layerTree';
+import { envelopeOf } from '@/atelier/merge';
+import { maskOf, type Decal, type Layer, type Repeat } from '@/atelier/project';
 import { fontStatus, loadFont } from '@/atelier/text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -18,7 +19,6 @@ import { toast } from '@/store/toasts';
 import type { AppError, AtelierProject, AtelierProjectSummary } from '@/types';
 import { vehicleLabel } from '../Explore/exploreModel';
 import { CutoutDownloadDialog } from './CutoutDownloadDialog';
-import { framedLayerOf } from './decalOps';
 import { bumpFonts, resetDecalUi, setPlacingLayer, setShared, useDecalUi } from './decalUi';
 import { BRUSH_DEFAULT, enabledSlots, HARDNESS_DEFAULT, isTypingTarget, MASK_ROW_ID } from './editorModel';
 import { EditorTopBar } from './EditorTopBar';
@@ -328,19 +328,23 @@ export function Editor({ id }: { id: string }) {
 
   /**
    * Whether a layer's decal lands on texels more than one triangle draws (Mirror is then offered
-   * off), remembered per layer. Asked again only when the decal or the painted slots changed.
+   * off), remembered per layer. Asked again only when the decal, its repeat or the painted slots
+   * changed.
    */
-  const sharedChecks = useRef(new Map<string, { decal: Decal; slots: unknown; result: Promise<boolean> }>());
+  const sharedChecks = useRef(new Map<string, { decal: Decal; repeat: Repeat | undefined; slots: unknown; result: Promise<boolean> }>());
   const checkShared = useCallback((layerId: string, decal?: Decal): Promise<boolean> => {
     const state = useAtelierEditor.getState();
     // Any framed layer, top level or in a folder (a merged object: its frame).
-    const target = decal ?? framedLayerOf(state.layers, layerId)?.decal ?? null;
+    const layer = framedLayerOf(state.layers, layerId);
+    const target = decal ?? layer?.decal ?? null;
+    const repeat = layer?.repeat;
     const e = engineRef.current;
     if (!target || !e) return Promise.resolve(false);
     const slots = state.project?.slots;
     const last = sharedChecks.current.get(layerId);
-    if (last && last.decal === target && last.slots === slots) return last.result;
-    const result = e.baker.decalTouchesSharedTexels(target).then(
+    if (last && last.decal === target && last.repeat === repeat && last.slots === slots) return last.result;
+    // Every repeat copy is checked: the envelope covers the whole row or column.
+    const result = e.baker.decalTouchesSharedTexels(envelopeOf(target, repeat)).then(
       (shared) => {
         setShared(layerId, shared);
         return shared;
@@ -351,7 +355,7 @@ export function Editor({ id }: { id: string }) {
         return false;
       },
     );
-    sharedChecks.current.set(layerId, { decal: target, slots, result });
+    sharedChecks.current.set(layerId, { decal: target, repeat, slots, result });
     return result;
   }, []);
   // The selected decal is checked when it gets selected, when a gesture ends, after undo / redo

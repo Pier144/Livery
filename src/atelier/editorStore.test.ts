@@ -987,6 +987,18 @@ describe('editor store · merge and separate', () => {
     expect(children[1]!.place.y - children[0]!.place.y).toBeCloseTo(-DECAL.height / merged.decal!.height);
   });
 
+  it("a solid shape's alternate colour stays on every second copy", () => {
+    S().setLayerProps('c', { fill: { kind: 'solid', color: '#112233' }, repeat: { count: 3, gap: 0, direction: 'row', alternate: '#aabbcc' } });
+    const result = S().mergeLayers(['c', 'a']);
+    if (!result.ok) throw new Error('refused');
+    const pieces = (item<MergedLayer>(result.id).children as Piece[]).filter((c) => c.kind === 'shape');
+    expect(pieces.map((p) => p.kind === 'shape' && p.fill)).toEqual([
+      { kind: 'solid', color: '#112233' },
+      { kind: 'solid', color: '#aabbcc' },
+      { kind: 'solid', color: '#112233' },
+    ]);
+  });
+
   it('a merged object in the selection is flattened', () => {
     const first = S().mergeLayers(['a', 'b']);
     if (!first.ok) throw new Error('refused');

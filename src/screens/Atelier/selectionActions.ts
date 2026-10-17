@@ -66,6 +66,19 @@ export function selectionBlocks(layers: readonly Layer[], ids: readonly string[]
   };
 }
 
+/**
+ * The name of a new folder: `label(N)` ("Folder N" in the current language) for the first N ≥ 1
+ * no existing folder is called, so a name freed by a delete or a rename is used again and none
+ * repeats.
+ */
+export function nextFolderName(layers: readonly Layer[], label: (n: number) => string): string {
+  const taken = new Set(layers.filter((l) => l.kind === 'folder').map((l) => l.name));
+  for (let n = 1; ; n++) {
+    const name = label(n);
+    if (!taken.has(name)) return name;
+  }
+}
+
 /** The selection actions with their toasts, in the current language. */
 export function useSelectionActions() {
   const { t } = useTranslation();
@@ -88,7 +101,7 @@ export function useSelectionActions() {
      */
     putInFolder: (ids?: string[]): string | null => {
       const store = useAtelierEditor.getState();
-      const name = t('atelier.layers.folderName', { number: store.layers.filter((l) => l.kind === 'folder').length + 1 });
+      const name = nextFolderName(store.layers, (number) => t('atelier.layers.folderName', { number }));
       if (!ids || ids.length === 0) return store.createFolder(name);
       const id = store.createFolder(name, ids);
       if (id === null) toast(selectionBlocks(store.layers, ids, t).folder ?? t('atelier.layers.folderOnlyLayers'));
