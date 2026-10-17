@@ -189,6 +189,18 @@ function BaseProperties({ base }: { base: BaseLayer }) {
           </Field>
         </>
       )}
+
+      <Slider
+        label={t('atelier.props.wear')}
+        value={base.wear ?? 0}
+        min={0}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        hint={t('atelier.props.wearHintBase')}
+        onChange={(wear) => setBase({ wear }, 'wear')}
+        onCommit={endGesture}
+      />
     </>
   );
 }

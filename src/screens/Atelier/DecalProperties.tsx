@@ -75,6 +75,17 @@ export function DecalProperties({ layer, checkShared, onRemoveBackground, onRefi
         onCommit={endGesture}
       />
       <Slider
+        label={t('atelier.props.wear')}
+        value={layer.wear ?? 0}
+        min={0}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        hint={t('atelier.props.wearHintDecal')}
+        onChange={(wear) => setLayerProps(layer.id, { wear }, 'wear')}
+        onCommit={endGesture}
+      />
+      <Slider
         label={t('atelier.props.depth')}
         value={Math.min(MAX_DEPTH_UI, Math.max(MIN_DEPTH_UI, decal.depth))}
         min={MIN_DEPTH_UI}

@@ -101,6 +101,16 @@ describe('editor store', () => {
     expect(base()?.scale).toBe(1);
   });
 
+  it('Base wear: set, clamped to 1, and back to 0 drops the field', () => {
+    S().setBase({ wear: 0.3 }, 'wear');
+    expect(base()?.wear).toBe(0.3);
+    S().setBase({ wear: 2 }, 'wear');
+    expect(base()?.wear).toBe(1);
+    S().setBase({ wear: 0 }, 'wear');
+    expect(base()).not.toHaveProperty('wear');
+    expect(S().past).toHaveLength(1);
+  });
+
   it('endGesture ends a merge: two drags with the same key are two undo steps', () => {
     S().setBase({ scale: 1.1 }, 'scale');
     S().setBase({ scale: 1.2 }, 'scale');

@@ -504,6 +504,29 @@ describe('Atelier editor', () => {
     expect((useAtelierEditor.getState().layers[0] as BaseLayer).mode).toBe('solid');
   });
 
+  it('Wear on the Base and on a decal: a slider each, one undo step per drag, 0 leaves no field', async () => {
+    const user = userEvent.setup();
+    decalAnswers();
+    renderEditor();
+    await ready();
+    const wear = screen.getByRole('slider', { name: 'Wear' });
+    expect(wear).toHaveAttribute('aria-valuetext', '0%');
+    expect(screen.getByText('Paint chips off along the edges first, showing bare metal. More wear reaches the flat surfaces too.')).toBeInTheDocument();
+    fireEvent.change(wear, { target: { value: '0.4' } });
+    fireEvent.change(wear, { target: { value: '0.6' } });
+    fireEvent.pointerUp(wear);
+    expect((useAtelierEditor.getState().layers[0] as BaseLayer).wear).toBe(0.6);
+    expect(useAtelierEditor.getState().past).toHaveLength(1);
+    fireEvent.change(wear, { target: { value: '0' } });
+    expect(useAtelierEditor.getState().layers[0]).not.toHaveProperty('wear');
+
+    const id = await placeImage(user);
+    const decalWear = screen.getByRole('slider', { name: 'Wear' });
+    expect(screen.getByText('Chips off along the edges first, showing the paint underneath.')).toBeInTheDocument();
+    fireEvent.change(decalWear, { target: { value: '0.35' } });
+    expect(decalLayer(id).wear).toBe(0.35);
+  });
+
   it('lists the vehicle’s own parts first and the shared ones under their heading, with friendly names', async () => {
     const model = encodeMockModel(TIGER);
     stored = project();

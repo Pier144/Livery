@@ -73,6 +73,11 @@ export interface BaseLayer extends LayerCommon {
   /** Camo pattern scale (model units per noise cell, relative). */
   scale: number;
   seed: number;
+  /**
+   * Wear, 0 to 1: chipped paint along the model's sharp edges, spreading to flat surfaces as it
+   * grows (`wear.ts`). Left out when 0, so older projects and files without it read as unworn.
+   */
+  wear?: number;
 }
 
 /**
@@ -138,6 +143,11 @@ export interface ImageLayer extends LayerCommon {
   sourceAssetId?: string;
   /** Where `assetId` lies inside `sourceAssetId` (the cutout's crop), in source pixels. */
   sourceOffset?: CropRect;
+  /**
+   * Wear, 0 to 1: chipped paint along the model's sharp edges, spreading to flat surfaces as it
+   * grows (`wear.ts`). Left out when 0, so older projects and files without it read as unworn.
+   */
+  wear?: number;
 }
 
 export interface TextLayer extends LayerCommon {
@@ -157,6 +167,11 @@ export interface TextLayer extends LayerCommon {
    */
   decal: Decal | null;
   opacity: number;
+  /**
+   * Wear, 0 to 1: chipped paint along the model's sharp edges, spreading to flat surfaces as it
+   * grows (`wear.ts`). Left out when 0, so older projects and files without it read as unworn.
+   */
+  wear?: number;
 }
 
 /** A layer kind this version can't edit: shown as unsupported and saved back exactly as it came. */
@@ -273,7 +288,7 @@ function toBase(raw: Record<string, unknown>): BaseLayer {
     .slice(0, MAX_CAMO_COLORS);
   if (colors.length === 0) colors.push(DEFAULT_BASE_COLOR);
   if (mode === 'camo' && colors.length < MIN_CAMO_COLORS) colors.push(DEFAULT_CAMO_COLOR);
-  return {
+  const base: BaseLayer = {
     ...raw,
     ...common(raw),
     kind: 'base',
@@ -282,6 +297,7 @@ function toBase(raw: Record<string, unknown>): BaseLayer {
     scale: isFiniteNumber(raw.scale) && raw.scale > 0 ? raw.scale : 1,
     seed: isFiniteNumber(raw.seed) ? Math.trunc(raw.seed) : 1,
   };
+  return withWear(base, raw.wear);
 }
 
 /** A stroke that checks out, or null (dropped). */
@@ -305,6 +321,13 @@ function toMask(raw: Record<string, unknown>): MaskLayer {
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** `layer` with its `wear` read from `raw`: kept only above 0 (at most 1), otherwise left out. */
+function withWear<T extends { wear?: number }>(layer: T, raw: unknown): T {
+  if (isFiniteNumber(raw) && raw > 0) layer.wear = Math.min(1, raw);
+  else delete layer.wear;
+  return layer;
+}
 const clamped = (v: unknown, lo: number, hi: number, fallback: number) => (isFiniteNumber(v) ? clamp(v, lo, hi) : fallback);
 const color = (v: unknown, fallback: string) => (typeof v === 'string' && HEX_COLOR.test(v) ? v.toLowerCase() : fallback);
 
@@ -352,7 +375,7 @@ function toImage(raw: Record<string, unknown>): ImageLayer | null {
   };
   if (typeof raw.sourceAssetId !== 'string' || raw.sourceAssetId.length === 0) delete layer.sourceAssetId;
   if (!isRect(raw.sourceOffset)) delete layer.sourceOffset;
-  return layer;
+  return withWear(layer, raw.wear);
 }
 
 function toFont(v: unknown): FontRef {
@@ -363,7 +386,7 @@ function toFont(v: unknown): FontRef {
 }
 
 function toText(raw: Record<string, unknown>): TextLayer {
-  return {
+  const layer: TextLayer = {
     ...raw,
     ...common(raw),
     kind: 'text',
@@ -376,6 +399,7 @@ function toText(raw: Record<string, unknown>): TextLayer {
     decal: toDecal(raw.decal),
     opacity: clamped(raw.opacity, 0, 1, 1),
   };
+  return withWear(layer, raw.wear);
 }
 
 /** An image or text layer (from the store's edits) checked like a loaded one; null when it no longer is one. */

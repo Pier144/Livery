@@ -50,6 +50,46 @@ export const CAMO_THRESHOLDS: Record<number, readonly [number, number, number]> 
   4: [0.404, 0.5, 0.596],
 };
 
+/**
+ * Wear (chipped paint, `wear` on the Base, images and text). A texel's wear field is
+ * `chipNoise(pos / WEAR_CELL) + WEAR_EDGE_BOOST · (1 − smoothstep(0, WEAR_EDGE_WIDTH, d))`, with
+ * `d` its distance to the nearest sharp convex edge of the model (`wear.ts`); the paint is chipped
+ * where the field reaches `wearThreshold(amount)`. Low amounts only reach the edges, high ones the
+ * flat surfaces too. One field for every layer, so a decal's chips fall on the Base's.
+ */
+/** Model units (metres) per noise cell of the chips. */
+export const WEAR_CELL = 0.028;
+/** How far from a sharp edge (metres) the edge still adds to the field. */
+export const WEAR_EDGE_WIDTH = 0.06;
+/** What a sharp edge adds to the field. */
+export const WEAR_EDGE_BOOST = 0.5;
+/** Field threshold at the smallest wear (only the edges' highest noise reaches it) and at full wear. */
+export const WEAR_THRESHOLD_MIN_WEAR = 0.82 + WEAR_EDGE_BOOST;
+export const WEAR_THRESHOLD_FULL_WEAR = 0.5;
+/**
+ * Weights, frequencies and offsets of the value-noise octaves of the chips (the high ones give
+ * them ragged rims instead of round blobs).
+ */
+export const WEAR_OCTAVE_WEIGHTS: readonly number[] = [0.42, 0.28, 0.18, 0.12];
+export const WEAR_OCTAVE_FREQUENCIES: readonly number[] = [1, 2.13, 4.37, 9.1];
+export const WEAR_OCTAVE_OFFSET: readonly number[] = [0, 3.9, 47.1, 12.3];
+/** Seed of the chips' noise (fixed: the chips don't move when colours or the camo seed change). */
+export const WEAR_SEED = 0x2545f491;
+/** Under the Base's chips: bare steel, with rust specks. */
+export const WEAR_METAL = '#3a3936';
+export const WEAR_RUST = '#5a3420';
+/** Model units per noise cell of the rust specks inside the chips, and the noise band they fill. */
+export const WEAR_RUST_CELL = 0.05;
+export const WEAR_RUST_FROM = 0.5;
+export const WEAR_RUST_TO = 0.68;
+/** Width (in field units) of the darker rim around the Base's chips, and how much it darkens. */
+export const WEAR_RIM = 0.06;
+export const WEAR_RIM_DARKEN = 0.35;
+/** Distance written for edges that aren't sharp (never near). */
+export const WEAR_FAR = 1e4;
+/** The threshold uniform without wear: no field reaches it, and the shaders skip the noise. */
+export const WEAR_NONE = 1e6;
+
 // ---------------------------------------------------------------- TypeScript mirrors
 
 /** lowbias32 integer hash (Chris Wellons), the same in GLSL (`lvHash`). */
@@ -110,6 +150,42 @@ export function brushWeight(d: number, radius: number, hardness: number): number
   return 1 - t * t * (3 - 2 * t);
 }
 
+/** The chips' noise at `p` (already divided by WEAR_CELL): the octaves of value noise, in [0, 1). */
+export function chipNoise(px: number, py: number, pz: number): number {
+  let n = 0;
+  for (let i = 0; i < WEAR_OCTAVE_WEIGHTS.length; i++) {
+    const f = WEAR_OCTAVE_FREQUENCIES[i]!;
+    const o = WEAR_OCTAVE_OFFSET[i]!;
+    n += WEAR_OCTAVE_WEIGHTS[i]! * valueNoise(px * f + o, py * f + o, pz * f + o, (WEAR_SEED + i * CAMO_SEED_STEP) >>> 0);
+  }
+  return n;
+}
+
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/** The wear field of a texel at model position `p`, `edgeDistance` metres from the nearest sharp edge. */
+export function wearField(p: readonly [number, number, number], edgeDistance: number): number {
+  const edge = 1 - smoothstep(0, WEAR_EDGE_WIDTH, edgeDistance);
+  return chipNoise(p[0] / WEAR_CELL, p[1] / WEAR_CELL, p[2] / WEAR_CELL) + WEAR_EDGE_BOOST * edge;
+}
+
+/** The field a texel needs to be chipped at `amount` (0..1); above every field at 0 (nothing chips). */
+export function wearThreshold(amount: number): number {
+  if (!(amount > 0)) return Infinity;
+  const a = Math.min(1, amount);
+  return WEAR_THRESHOLD_MIN_WEAR + (WEAR_THRESHOLD_FULL_WEAR - WEAR_THRESHOLD_MIN_WEAR) * a;
+}
+
+/** How chipped a texel is (0..1): the field against the threshold, `aa` field units of anti-aliasing. */
+export function chipAmount(field: number, amount: number, aa = 0): number {
+  const t = wearThreshold(amount);
+  if (!Number.isFinite(t)) return 0;
+  return aa > 0 ? smoothstep(t - aa, t + aa, field) : field >= t ? 1 : 0;
+}
+
 // ---------------------------------------------------------------- GLSL
 
 const NOISE_GLSL = /* glsl */ `
@@ -154,6 +230,43 @@ float lvCamoNoise(vec3 p, uint seed) {
 }
 `;
 
+const glslFloat = (v: number) => (Number.isInteger(v) ? v.toFixed(1) : String(v));
+
+/**
+ * Wear, shared by the base and decal passes: `lvEdgeDistance()` is the texel's distance to the
+ * nearest sharp convex edge of its triangle (`vBary` · per-edge heights `vEdgeH`, negative for
+ * edges that aren't sharp); `lvWearField()` and `lvChip(threshold)` mirror `wearField` and
+ * `chipAmount` (anti-aliased over the field's screen derivative, taken before any discard).
+ */
+const WEAR_GLSL = /* glsl */ `
+varying vec3 vBary;
+varying vec3 vEdgeH;
+
+float lvEdgeDistance() {
+  vec3 d = mix(vec3(${glslFloat(WEAR_FAR)}), vBary * vEdgeH, step(0.0, vEdgeH));
+  return min(min(d.x, d.y), d.z);
+}
+
+float lvChipNoise(vec3 p) {
+  float n = 0.0;
+${WEAR_OCTAVE_WEIGHTS.map(
+  (w, i) =>
+    `  n += ${glslFloat(w)} * lvValueNoise(p * ${glslFloat(WEAR_OCTAVE_FREQUENCIES[i]!)} + vec3(${glslFloat(WEAR_OCTAVE_OFFSET[i]!)}), ${(WEAR_SEED + i * CAMO_SEED_STEP) >>> 0}u);`,
+).join('\n')}
+  return n;
+}
+
+float lvWearField() {
+  float edge = 1.0 - smoothstep(0.0, ${glslFloat(WEAR_EDGE_WIDTH)}, lvEdgeDistance());
+  return lvChipNoise(vPos / ${glslFloat(WEAR_CELL)}) + ${glslFloat(WEAR_EDGE_BOOST)} * edge;
+}
+
+float lvChip(float field, float threshold) {
+  float aa = max(fwidth(field), 1e-4);
+  return smoothstep(threshold - aa, threshold + aa, field);
+}
+`;
+
 /**
  * Unwrapped vertex shader shared by every bake pass. Attributes: `position` (model space),
  * `normal`, `uv` (raw UVs shifted into 0..1 per triangle on the CPU), `partGroup` (0 hull,
@@ -164,17 +277,23 @@ float lvCamoNoise(vec3 p, uint seed) {
 export const BAKE_VERTEX = /* glsl */ `
 attribute float partGroup;
 attribute vec4 triSphere;
+attribute vec3 edgeBary;
+attribute vec3 edgeH;
 uniform vec4 uSphere;
 varying vec3 vPos;
 varying vec3 vNormal;
 varying float vGroup;
 varying vec2 vUv;
+varying vec3 vBary;
+varying vec3 vEdgeH;
 
 void main() {
   vPos = position;
   vNormal = normal;
   vGroup = partGroup;
   vUv = uv;
+  vBary = edgeBary;
+  vEdgeH = edgeH;
   gl_Position = vec4(uv * 2.0 - 1.0, 0.0, 1.0);
 #ifdef LV_BATCH_CULL
   if (distance(triSphere.xyz, uSphere.xyz) > uSphere.w + triSphere.w) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -223,17 +342,22 @@ void main() {
  * Paint, step 1 (base pass, into the scratch intermediate, premultiplied): the Base (solid
  * `uColors[0]`, or camo: `lvCamoNoise(vPos · uFrequency, seed)` split by `uThresholds` into
  * `uColors[0..3]`) as `(rgb · a, a)` with `a = uBaseAlpha` (0 when the Base is hidden: the game's
- * texture shows wherever no decal covers).
+ * texture shows wherever no decal covers). With wear (`uWearThreshold` finite), `wearBaseColor`:
+ * a darker rim around the chips, and bare metal (rust in patches) inside them.
  */
 export const BASE_FRAGMENT = /* glsl */ `
 ${NOISE_GLSL}
+varying vec3 vPos;
+${WEAR_GLSL}
 uniform int uMode;
 uniform vec3 uColors[4];
 uniform vec3 uThresholds;
 uniform float uFrequency;
 uniform int uSeed;
 uniform float uBaseAlpha;
-varying vec3 vPos;
+uniform float uWearThreshold;
+uniform vec3 uWearMetal;
+uniform vec3 uWearRust;
 
 void main() {
   vec3 color = uColors[0];
@@ -241,6 +365,15 @@ void main() {
     float n = lvCamoNoise(vPos * uFrequency, uint(uSeed));
     int index = int(step(uThresholds.x, n) + step(uThresholds.y, n) + step(uThresholds.z, n));
     color = uColors[index];
+  }
+  // A uniform branch: the field's derivatives stay defined.
+  if (uWearThreshold < ${glslFloat(WEAR_NONE)}) {
+    float field = lvWearField();
+    float chip = lvChip(field, uWearThreshold);
+    float rim = clamp(smoothstep(uWearThreshold - ${glslFloat(WEAR_RIM)}, uWearThreshold, field) - chip, 0.0, 1.0);
+    float rust = smoothstep(${glslFloat(WEAR_RUST_FROM)}, ${glslFloat(WEAR_RUST_TO)}, lvValueNoise(vPos / ${glslFloat(WEAR_RUST_CELL)}, ${WEAR_SEED >>> 0}u));
+    vec3 metal = mix(uWearMetal, uWearRust, rust);
+    color = mix(color * (1.0 - ${glslFloat(WEAR_RIM_DARKEN)} * rim), metal, chip);
   }
   gl_FragColor = vec4(color * uBaseAlpha, uBaseAlpha);
 }
@@ -285,18 +418,23 @@ float lvDecalWeight(vec3 d) {
  * mip level are defined on every GPU.
  */
 export const DECAL_FRAGMENT = /* glsl */ `
+${NOISE_GLSL}
 ${DECAL_TEST_GLSL}
+${WEAR_GLSL}
 uniform sampler2D uDecalTex;
 uniform float uOpacity;
 uniform float uFlipX;
+uniform float uWearThreshold;
 
 void main() {
   vec3 d = lvDecalSpace();
   float u = uFlipX > 0.5 ? -d.x : d.x;
   vec4 color = texture2D(uDecalTex, vec2(u + 0.5, 0.5 - d.y));
+  // Before the discard, so the field's derivatives are defined.
+  float chip = uWearThreshold < ${glslFloat(WEAR_NONE)} ? lvChip(lvWearField(), uWearThreshold) : 0.0;
   float weight = lvDecalWeight(d);
   if (weight <= 0.0) discard;
-  gl_FragColor = color * (uOpacity * weight);
+  gl_FragColor = color * (uOpacity * weight * (1.0 - chip));
 }
 `;
 

@@ -35,7 +35,7 @@ import { measureTextAspect } from './text';
 export const HISTORY_LIMIT = 100;
 
 /** What a Base edit may change. */
-export type BasePatch = Partial<Pick<BaseLayer, 'mode' | 'colors' | 'scale' | 'seed'>>;
+export type BasePatch = Partial<Pick<BaseLayer, 'mode' | 'colors' | 'scale' | 'seed' | 'wear'>>;
 
 /** What `setLayerProps` may change on an image or text layer (fields of the other kind are dropped). */
 export type LayerPropsPatch = Partial<Omit<ImageLayer, 'id' | 'kind' | 'decal'> & Omit<TextLayer, 'id' | 'kind' | 'decal'>>;
@@ -275,8 +275,12 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       const { layers } = get();
       const base = baseOf(layers);
       if (!base) return;
+      const next: BaseLayer = { ...base, ...patch };
+      // No wear is no field, as in a loaded project.
+      if (!(next.wear !== undefined && next.wear > 0)) delete next.wear;
+      else next.wear = Math.min(1, next.wear);
       change(
-        layers.map((l) => (l === base ? { ...base, ...patch } : l)),
+        layers.map((l) => (l === base ? next : l)),
         mergeKey,
       );
     },

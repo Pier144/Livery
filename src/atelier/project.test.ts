@@ -317,6 +317,21 @@ describe('image and text layers', () => {
     expect(checkDecalLayer({ ...(img as ImageLayer), assetId: '' })).toBeNull();
   });
 
+  it('wear: kept above 0 (at most 1) on the Base, images and text; 0, negative or not a number is no field', () => {
+    const [b, img, txt] = validateLayers([{ ...BASE, wear: 0.4 }, { ...image(), wear: 7 }, { ...text(), wear: 0.25 }]);
+    expect(b).toMatchObject({ wear: 0.4 });
+    expect(img).toMatchObject({ wear: 1 });
+    expect(txt).toMatchObject({ wear: 0.25 });
+    for (const wear of [0, -1, 'x', null, Number.NaN]) {
+      const [b2, img2, txt2] = validateLayers([{ ...BASE, wear }, { ...image(), wear }, { ...text(), wear }]);
+      for (const layer of [b2, img2, txt2]) expect(layer).not.toHaveProperty('wear');
+    }
+    // A layer without wear is saved without the field (older projects stay as they were).
+    const [plain] = validateLayers([BASE]);
+    expect(serializeLayers([plain!])[0]).not.toHaveProperty('wear');
+    expect(checkDecalLayer({ ...(txt as TextLayer), wear: 0 })).not.toHaveProperty('wear');
+  });
+
   it('new image and text layers have their defaults', () => {
     const d = toDecal(decal())!;
     expect(newImageLayer('img-1', d, 'Bust')).toMatchObject({

@@ -174,6 +174,19 @@ describe('buildUnwrapped', () => {
     expect([...body.spheres.subarray(4, 8)]).toEqual([...body.spheres.subarray(0, 4)]);
   });
 
+  it('gives each vertex its corner as barycentric coordinates and the sharp-edge heights of its triangle', () => {
+    // Triangle 0 (hull A): one sharp edge; triangle 1 (hull B): none; triangle 2 (turret): two, copied with the wrap copy.
+    const heights = new Float32Array([0.5, -1, -1, -1, -1, -1, 0.25, 0.75, -1]);
+    const body = buildUnwrapped(model(), 0, heights);
+    expect([...body.bary.subarray(0, 9)]).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    expect([...body.edgeHeights.subarray(0, 9)]).toEqual([0.5, -1, -1, 0.5, -1, -1, 0.5, -1, -1]);
+    expect([...body.edgeHeights.subarray(9, 18)]).toEqual(Array(9).fill(-1));
+    const turret = buildUnwrapped(model(), 1, heights);
+    expect([...turret.edgeHeights]).toEqual(Array(6).fill([0.25, 0.75, -1]).flat());
+    // Without heights no edge is sharp.
+    expect([...buildUnwrapped(model(), 0).edgeHeights].every((v) => v === -1)).toBe(true);
+  });
+
   it('skips triangles with non-finite UVs', () => {
     const m = model();
     m.uvs[0] = Number.NaN;

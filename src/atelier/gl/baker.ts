@@ -40,6 +40,7 @@ import {
   PREVIEW_MAP_FRAGMENT,
   PREVIEW_UNIFORMS,
 } from './shaders';
+import { WEAR_METAL_RGB, WEAR_RUST_RGB, sharpEdgeHeights, wearUniform } from './wear';
 
 /**
  * The GPU bake of an Atelier project (spec §2 "Bake", plan Task 20), on three.js.
@@ -227,6 +228,10 @@ export interface UnwrappedGeometry {
   groups: Float32Array;
   /** Per vertex: its triangle's centroid (xyz) and bounding radius (w), for batch culling. */
   spheres: Float32Array;
+  /** Per vertex: its corner of the triangle as barycentric coordinates (1,0,0), (0,1,0) or (0,0,1). */
+  bary: Float32Array;
+  /** Per vertex: its triangle's three sharp-edge heights (`sharpEdgeHeights`, −1 = not sharp). */
+  edgeHeights: Float32Array;
   vertexCount: number;
 }
 
@@ -240,9 +245,10 @@ function tilesSpanned(max: number): number {
  * shifted per triangle by `−floor(min u)`, `−floor(min v)`. A triangle still crossing the
  * 1.0 edge after the shift is drawn a second time one tile back (and a fourth time when it
  * crosses both), so the texels past the edge (which the game wraps to the other side) are baked.
- * Triangles with non-finite UVs are skipped.
+ * Triangles with non-finite UVs are skipped. `heights` (`sharpEdgeHeights` of the model) gives
+ * each triangle its sharp edges for wear; without it no edge is sharp.
  */
-export function buildUnwrapped(model: VehicleModelData, slotIndex: number): UnwrappedGeometry {
+export function buildUnwrapped(model: VehicleModelData, slotIndex: number, heights?: Float32Array): UnwrappedGeometry {
   const { positions: P, normals: N, uvs: T, indices, header } = model;
   const parts = header.parts.filter((p) => p.slot === slotIndex);
 
@@ -272,6 +278,8 @@ export function buildUnwrapped(model: VehicleModelData, slotIndex: number): Unwr
   const uvs = new Float32Array(vertexCount * 2);
   const groups = new Float32Array(vertexCount);
   const spheres = new Float32Array(vertexCount * 4);
+  const bary = new Float32Array(vertexCount * 3);
+  const edgeHeights = new Float32Array(vertexCount * 3).fill(-1);
   let out = 0;
   const corner = [0, 0, 0];
   for (const part of parts) {
@@ -303,9 +311,13 @@ export function buildUnwrapped(model: VehicleModelData, slotIndex: number): Unwr
         const dz = P[i * 3 + 2]! - cz;
         radius = Math.max(radius, Math.sqrt(dx * dx + dy * dy + dz * dz));
       }
+      const triangle = k / 3;
       for (let tu = 0; tu < tilesU; tu++) {
         for (let tv = 0; tv < tilesV; tv++) {
-          for (const i of corner) {
+          for (let n = 0; n < 3; n++) {
+            const i = corner[n]!;
+            bary[out * 3 + n] = 1;
+            if (heights) edgeHeights.set(heights.subarray(triangle * 3, triangle * 3 + 3), out * 3);
             positions[out * 3] = P[i * 3]!;
             positions[out * 3 + 1] = P[i * 3 + 1]!;
             positions[out * 3 + 2] = P[i * 3 + 2]!;
@@ -325,7 +337,7 @@ export function buildUnwrapped(model: VehicleModelData, slotIndex: number): Unwr
       }
     }
   }
-  return { positions, normals, uvs, groups, spheres, vertexCount };
+  return { positions, normals, uvs, groups, spheres, bary, edgeHeights, vertexCount };
 }
 
 /** `[start, count]` of each stamping batch covering points `from..to` (at most 64 each). */
@@ -784,6 +796,8 @@ function makeDataTexture(data: Uint8Array, w: number, h: number): THREE.DataText
 export class Baker {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly model: VehicleModelData;
+  /** The model's sharp edges for wear (`sharpEdgeHeights`), found when the first slot's geometry is built. */
+  private edgeHeights: Float32Array | null = null;
   private readonly options: BakerOptions;
   private readonly slots: SlotState[];
   private readonly byTexture = new Map<string, SlotState>();
@@ -862,6 +876,9 @@ export class Baker {
       uFrequency: { value: 1 },
       uSeed: { value: 1 },
       uBaseAlpha: { value: 0 },
+      uWearThreshold: { value: wearUniform(undefined) },
+      uWearMetal: { value: new THREE.Vector3(...WEAR_METAL_RGB) },
+      uWearRust: { value: new THREE.Vector3(...WEAR_RUST_RGB) },
     });
     const decalUniforms = () => ({
       uDecal: { value: new THREE.Matrix4() },
@@ -870,7 +887,7 @@ export class Baker {
     });
     this.decalMaterial = bakeMaterial(
       DECAL_FRAGMENT,
-      { ...decalUniforms(), uDecalTex: { value: null }, uOpacity: { value: 1 }, uFlipX: { value: 0 } },
+      { ...decalUniforms(), uDecalTex: { value: null }, uOpacity: { value: 1 }, uFlipX: { value: 0 }, uWearThreshold: { value: wearUniform(undefined) } },
       { LV_BATCH_CULL: '' },
     );
     // Premultiplied "over" on colour and alpha.
@@ -1298,13 +1315,16 @@ export class Baker {
 
   private ensureGeometry(state: SlotState): void {
     if (state.geometry) return;
-    const g = buildUnwrapped(this.model, state.index);
+    this.edgeHeights ??= sharpEdgeHeights(this.model);
+    const g = buildUnwrapped(this.model, state.index, this.edgeHeights);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(g.positions, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(g.normals, 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(g.uvs, 2));
     geometry.setAttribute('partGroup', new THREE.BufferAttribute(g.groups, 1));
     geometry.setAttribute('triSphere', new THREE.BufferAttribute(g.spheres, 4));
+    geometry.setAttribute('edgeBary', new THREE.BufferAttribute(g.bary, 3));
+    geometry.setAttribute('edgeH', new THREE.BufferAttribute(g.edgeHeights, 3));
     const mesh = new THREE.Mesh(geometry, this.baseMaterial);
     mesh.frustumCulled = false;
     const scene = new THREE.Scene();
@@ -1423,6 +1443,7 @@ export class Baker {
     u.uFrequency!.value = b.frequency;
     u.uSeed!.value = b.seed;
     u.uBaseAlpha!.value = b.alpha;
+    u.uWearThreshold!.value = wearUniform(this.base?.wear);
   }
 
   /**
@@ -1454,6 +1475,7 @@ export class Baker {
       du.uDecalTex!.value = texture;
       du.uOpacity!.value = Math.min(1, Math.max(0, b.layer.opacity));
       du.uFlipX!.value = b.layer.kind === 'image' && b.layer.flipX ? 1 : 0;
+      du.uWearThreshold!.value = wearUniform(b.layer.wear);
       for (const d of b.draws) {
         this.setDecalUniforms(du, d);
         this.draw(state, this.decalMaterial, scratch, false);
