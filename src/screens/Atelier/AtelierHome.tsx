@@ -9,9 +9,10 @@ import { cn } from '@/lib/cn';
 import { errorText } from '@/lib/errors';
 import { useJustEntered } from '@/lib/motion';
 import { call, toAppError } from '@/lib/tauri';
-import { atelierProjectKey, useAtelierProjects, useDeleteProject, useDuplicateProject, useSaveProject } from '@/queries/atelier';
+import { atelierProjectKey, installedSkinOf, useAtelierProjects, useDeleteProject, useDuplicateProject, useSaveProject } from '@/queries/atelier';
 import { useVehicleNames, useVehicles } from '@/queries/vehicles';
 import { useAtelierUi } from '@/store/atelier';
+import { confirmWithOption } from '@/store/confirm';
 import { toast } from '@/store/toasts';
 import type { AtelierProject, AtelierProjectSummary } from '@/types';
 import { vehicleLabel } from '../Explore/exploreModel';
@@ -22,7 +23,8 @@ import { ProjectCard } from './ProjectCard';
 /**
  * Atelier home: the user's projects as a grid of cards (newest edit first) and "New project". A
  * card opens its project in the editor; its menu renames it in place, duplicates it or deletes it
- * (undoable from the toast: the backend keeps it in a trash until the toast leaves).
+ * (after a confirmation that can also uninstall the skin it installed; undoable from the toast: the
+ * backend keeps it in a trash until the toast leaves).
  */
 export function AtelierHome() {
   const { t } = useTranslation();
@@ -185,18 +187,39 @@ function useProjectActions() {
     [duplicateProject, report],
   );
 
-  /** Resolves to whether the project went to the trash. */
+  /**
+   * Asks first; when the project's skin is still in My Hangar the question offers to uninstall it
+   * too (unchecked). Resolves to whether the project went to the trash.
+   */
+  const asking = useRef(new Set<string>());
   const remove = useCallback(
     async (p: AtelierProjectSummary): Promise<boolean> => {
+      if (asking.current.has(p.id)) return false;
+      asking.current.add(p.id);
+      let answer;
+      let skin = null;
       try {
-        await deleteProject({ id: p.id, name: p.name });
+        // Not knowing the skin (an unreadable project, no game) only leaves the option out.
+        skin = await installedSkinOf(qc, p.id).catch(() => null);
+        answer = await confirmWithOption({
+          title: t('atelier.confirm.deleteTitle', { name: p.name }),
+          body: t('atelier.confirm.deleteBody'),
+          confirmLabel: t('atelier.confirm.delete'),
+          option: skin ? t('atelier.confirm.alsoSkin', { name: skin.name }) : undefined,
+        });
+      } finally {
+        asking.current.delete(p.id);
+      }
+      if (!answer.ok) return false;
+      try {
+        await deleteProject({ id: p.id, name: p.name, skin: skin && answer.checked ? { id: skin.id, name: skin.name } : undefined });
         return true;
       } catch (e) {
         report(e);
         return false;
       }
     },
-    [deleteProject, report],
+    [qc, deleteProject, report, t],
   );
 
   return { rename, duplicate, remove };

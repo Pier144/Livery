@@ -1186,7 +1186,14 @@
     },
     "toast": {
       "deleted": "Deleted project “{{name}}”",
+      "deletedWithSkin": "Deleted project “{{name}}” and its skin",
       "renamed": "Renamed to “{{name}}”"
+    },
+    "confirm": {
+      "deleteTitle": "Delete project “{{name}}”?",
+      "deleteBody": "Its layers and pictures are deleted with it. You can undo it from the notification.",
+      "delete": "Delete project",
+      "alsoSkin": "Also uninstall the skin “{{name}}” it applied to the game"
     },
     "place": {
       "hint": "Click on the vehicle to place it · Enter: middle of the view · Esc: cancel",

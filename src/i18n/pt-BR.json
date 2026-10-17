@@ -1229,7 +1229,14 @@
     },
     "toast": {
       "deleted": "Projeto “{{name}}” excluído",
+      "deletedWithSkin": "Projeto “{{name}}” e a skin dele excluídos",
       "renamed": "Renomeado para “{{name}}”"
+    },
+    "confirm": {
+      "deleteTitle": "Excluir o projeto “{{name}}”?",
+      "deleteBody": "As camadas e imagens dele são excluídas junto. Você pode desfazer pela notificação.",
+      "delete": "Excluir projeto",
+      "alsoSkin": "Desinstalar também a skin “{{name}}” que ele aplicou ao jogo"
     },
     "place": {
       "hint": "Clique no veículo para posicionar · Enter: centro da vista · Esc: cancelar",

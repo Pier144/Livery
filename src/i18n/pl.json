@@ -1272,7 +1272,14 @@
     },
     "toast": {
       "deleted": "Usunięto projekt „{{name}}”",
+      "deletedWithSkin": "Usunięto projekt „{{name}}” i jego kamuflaż",
       "renamed": "Zmieniono nazwę na „{{name}}”"
+    },
+    "confirm": {
+      "deleteTitle": "Usunąć projekt „{{name}}”?",
+      "deleteBody": "Jego warstwy i obrazy zostaną usunięte razem z nim. Możesz to cofnąć w powiadomieniu.",
+      "delete": "Usuń projekt",
+      "alsoSkin": "Odinstaluj też kamuflaż „{{name}}” zastosowany w grze"
     },
     "place": {
       "hint": "Kliknij pojazd, aby umieścić · Enter: środek widoku · Esc: anuluj",

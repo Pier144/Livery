@@ -1143,7 +1143,14 @@
     },
     "toast": {
       "deleted": "已删除项目“{{name}}”",
+      "deletedWithSkin": "已删除项目“{{name}}”及其涂装",
       "renamed": "已重命名为“{{name}}”"
+    },
+    "confirm": {
+      "deleteTitle": "删除项目“{{name}}”？",
+      "deleteBody": "项目的图层和图片会一并删除。你可以在通知中撤销。",
+      "delete": "删除项目",
+      "alsoSkin": "同时卸载它应用到游戏中的涂装“{{name}}”"
     },
     "place": {
       "hint": "点击载具进行放置 · Enter：视图中央 · Esc：取消",

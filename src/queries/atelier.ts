@@ -1,8 +1,10 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { parseModelBuffer, type VehicleModelData } from '@/atelier/modelBuffer';
 import { errorText } from '@/lib/errors';
 import { call, callRaw, hasBackend, toAppError } from '@/lib/tauri';
+import { HANGAR_KEY } from '@/queries/hangar';
+import { BACKUPS_KEY } from '@/queries/settings';
 import { toast } from '@/store/toasts';
 import type { FontRef } from '@/atelier/project';
 import type {
@@ -12,7 +14,9 @@ import type {
   AtelierProjectSummary,
   CutoutResult,
   CutoutStatus,
+  DeleteResult,
   FontInfo,
+  HangarSkin,
 } from '@/types';
 
 /** Everything Atelier caches (projects, models, templates, thumbnails). */
@@ -86,31 +90,74 @@ export function useDuplicateProject() {
   });
 }
 
+/** The skin the project's last apply installed, while it is still in My Hangar (null otherwise). */
+export async function installedSkinOf(qc: QueryClient, id: string): Promise<HangarSkin | null> {
+  const project = await qc.fetchQuery({
+    queryKey: atelierProjectKey(id),
+    queryFn: () => call<AtelierProject>('atelier_project_get', { id }),
+    staleTime: 0,
+  });
+  const skinId = project.installedSkinId;
+  if (!skinId) return null;
+  const skins = await qc.fetchQuery({ queryKey: HANGAR_KEY, queryFn: () => call<HangarSkin[]>('get_hangar'), staleTime: 0 });
+  return skins.find((s) => s.id === skinId && !s.temporary) ?? null;
+}
+
 /**
- * Deletes a project into the backend's trash, then shows an undoable toast: Undo brings it back
- * (`atelier_project_undo_delete`), the toast leaving without Undo removes it for good
- * (`atelier_project_forget_deleted`).
+ * Deletes a project into the backend's trash and, with `skin`, uninstalls that skin too (with a
+ * backup, like My Hangar), then shows one undoable toast: Undo brings both back
+ * (`atelier_project_undo_delete`, `restore_backups`), the toast leaving without Undo removes them for
+ * good (`atelier_project_forget_deleted`, `clear_backups`). A skin that can't be uninstalled is
+ * reported and the project's delete stands.
  */
 export function useDeleteProject() {
   const qc = useQueryClient();
   const { t } = useTranslation();
-  return useMutation<null, AppError, { id: string; name: string }>({
-    mutationFn: ({ id }) => call<null>('atelier_project_delete', { id }),
-    onSuccess: (_, { id, name }) => {
+  return useMutation<string[] | null, AppError, { id: string; name: string; skin?: { id: string; name: string } }>({
+    mutationFn: async ({ id, skin }) => {
+      await call<null>('atelier_project_delete', { id });
+      if (!skin) return null;
+      try {
+        return (await call<DeleteResult>('delete_skins', { ids: [skin.id] })).backupIds;
+      } catch (e) {
+        toast(errorText(toAppError(e), t));
+        return null;
+      } finally {
+        void qc.invalidateQueries({ queryKey: HANGAR_KEY });
+      }
+    },
+    onSuccess: (backupIds, { id, name }) => {
       qc.removeQueries({ queryKey: atelierProjectKey(id) });
+      const skinGone = backupIds !== null;
+      const backups = backupIds ?? [];
       toast.undoable(
-        t('atelier.toast.deleted', { name }),
+        t(skinGone ? 'atelier.toast.deletedWithSkin' : 'atelier.toast.deleted', { name }),
         async () => {
           try {
             await call('atelier_project_undo_delete', { id });
           } catch (e) {
             toast(errorText(toAppError(e), t));
-          } finally {
-            await qc.invalidateQueries({ queryKey: ATELIER_PROJECTS_KEY });
           }
+          if (backups.length > 0) {
+            try {
+              await call('restore_backups', { backupIds: backups });
+            } catch (e) {
+              toast(errorText(toAppError(e), t));
+            }
+          }
+          await Promise.all([
+            qc.invalidateQueries({ queryKey: ATELIER_PROJECTS_KEY }),
+            backups.length > 0 ? qc.invalidateQueries({ queryKey: HANGAR_KEY }) : null,
+          ]);
         },
         async () => {
           qc.removeQueries({ queryKey: thumbKey(id) });
+          if (backups.length > 0) {
+            // A backup left behind goes with the 30-day expiry.
+            call('clear_backups', { ids: backups })
+              .catch(() => undefined)
+              .finally(() => void qc.invalidateQueries({ queryKey: BACKUPS_KEY }));
+          }
           await call('atelier_project_forget_deleted', { id });
         },
       );

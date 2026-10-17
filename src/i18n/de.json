@@ -1186,7 +1186,14 @@
     },
     "toast": {
       "deleted": "Projekt „{{name}}“ gelöscht",
+      "deletedWithSkin": "Projekt „{{name}}“ und sein Skin gelöscht",
       "renamed": "In „{{name}}“ umbenannt"
+    },
+    "confirm": {
+      "deleteTitle": "Projekt „{{name}}“ löschen?",
+      "deleteBody": "Seine Ebenen und Bilder werden mit gelöscht. Du kannst es über die Benachrichtigung rückgängig machen.",
+      "delete": "Projekt löschen",
+      "alsoSkin": "Auch den Skin „{{name}}“ deinstallieren, den es im Spiel angewendet hat"
     },
     "place": {
       "hint": "Auf das Fahrzeug klicken, um es zu platzieren · Eingabe: Mitte der Ansicht · Esc: abbrechen",

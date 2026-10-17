@@ -1229,7 +1229,14 @@
     },
     "toast": {
       "deleted": "Proyecto «{{name}}» eliminado",
+      "deletedWithSkin": "Proyecto «{{name}}» y su skin eliminados",
       "renamed": "Renombrado como «{{name}}»"
+    },
+    "confirm": {
+      "deleteTitle": "¿Eliminar el proyecto «{{name}}»?",
+      "deleteBody": "Sus capas e imágenes se eliminan con él. Puedes deshacerlo desde la notificación.",
+      "delete": "Eliminar proyecto",
+      "alsoSkin": "Desinstalar también la skin «{{name}}» que aplicó al juego"
     },
     "place": {
       "hint": "Haz clic en el vehículo para colocarlo · Intro: centro de la vista · Esc: cancelar",

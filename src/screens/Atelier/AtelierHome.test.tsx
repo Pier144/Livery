@@ -1,13 +1,14 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmDialog } from '@/components/chrome/ConfirmDialog';
 import { Toaster } from '@/components/chrome/Toaster';
 import { useAtelierUi } from '@/store/atelier';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
-import type { AtelierProject, AtelierProjectSummary, Settings } from '@/types';
+import type { AtelierProject, AtelierProjectSummary, HangarSkin, Settings } from '@/types';
 import { Atelier } from '../Atelier';
 
 const backend = vi.hoisted(() => ({
@@ -65,10 +66,26 @@ function project(id: string, name: string, vehicle: string, updatedAt: string): 
 
 let projects: AtelierProject[];
 let trash: AtelierProject[];
+/** My Hangar's skins (`get_hangar`); `delete_skins` moves them to `skinBackups`. */
+let skins: HangarSkin[];
+let skinBackups: { backupId: string; skin: HangarSkin }[];
 let clock: number;
 let failCreate: boolean;
 /** While set, `atelier_project_create` waits for it (the dialog stays in its creating state). */
 let createGate: Promise<void> | null;
+
+function hangarSkin(id: string, name: string): HangarSkin {
+  return {
+    id,
+    folder: name,
+    name,
+    vehicle: { code: TIGER, name: 'Tiger II (H)', nation: 'GER', type: 'ground', class: 'heavy_tank' },
+    origin: 'mine',
+    sizeBytes: 1024,
+    active: true,
+    installedAt: '2026-10-16T10:00:00Z',
+  };
+}
 
 const stamp = () => new Date(Date.UTC(2026, 9, 16, 10, clock++)).toISOString();
 const summary = (p: AtelierProject): AtelierProjectSummary => ({ id: p.id, name: p.name, vehicle: p.vehicle, updatedAt: p.updatedAt, hasThumb: false });
@@ -112,6 +129,25 @@ function answer(cmd: string, args: Record<string, unknown> = {}): unknown {
       return null;
     case 'atelier_project_forget_deleted':
       return null;
+    case 'get_hangar':
+      return skins;
+    case 'delete_skins': {
+      const ids = args.ids as string[];
+      const gone = skins.filter((s) => ids.includes(s.id));
+      skins = skins.filter((s) => !ids.includes(s.id));
+      const made = gone.map((skin) => ({ backupId: `b-${skin.id}`, skin }));
+      skinBackups.push(...made);
+      return { backupIds: made.map((b) => b.backupId) };
+    }
+    case 'restore_backups': {
+      const ids = args.backupIds as string[];
+      const back = skinBackups.filter((b) => ids.includes(b.backupId));
+      skinBackups = skinBackups.filter((b) => !ids.includes(b.backupId));
+      skins.push(...back.map((b) => b.skin));
+      return back.map((b) => b.skin);
+    }
+    case 'clear_backups':
+      return null;
     default:
       return Promise.reject({ code: 'noBackend', message: `unexpected ${cmd}` });
   }
@@ -130,6 +166,7 @@ function renderAtelier(list: AtelierProject[] = [], settings: Partial<Settings> 
     <>
       <Atelier />
       <Toaster />
+      <ConfirmDialog />
     </>,
     { settings: { atelierEnabled: true, ...settings } },
   );
@@ -139,6 +176,8 @@ beforeEach(() => {
   resetStores();
   useUi.setState({ screen: 'atelier' });
   trash = [];
+  skins = [];
+  skinBackups = [];
   clock = 30;
   failCreate = false;
   createGate = null;
@@ -319,6 +358,9 @@ describe('Atelier home', () => {
     renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z'), project('p2', 'Winter', T34, '2026-10-16T09:00:00Z')]);
     await user.click(within(await findCard('Desert')).getByRole('button', { name: 'Project actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete project “Desert”?' });
+    expect(within(dialog).queryByRole('checkbox')).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete project' }));
 
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Desert' })).not.toBeInTheDocument());
     expect(calls('atelier_project_delete')).toEqual([{ id: 'p1' }]);
@@ -335,8 +377,87 @@ describe('Atelier home', () => {
     renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z'), project('p2', 'Winter', T34, '2026-10-16T09:00:00Z')]);
     (await screen.findByRole('button', { name: 'Winter' })).focus();
     await user.keyboard('{Delete}');
+    await user.click(await screen.findByRole('button', { name: 'Delete project' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Desert' })).toHaveFocus());
     expect(calls('atelier_project_delete')).toEqual([{ id: 'p2' }]);
+  });
+
+  it('asks before deleting: Cancel (focused, so Enter cancels) keeps the project', async () => {
+    const user = userEvent.setup();
+    renderAtelier([project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z')]);
+    (await screen.findByRole('button', { name: 'Desert' })).focus();
+    await user.keyboard('{Delete}');
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete project “Desert”?' });
+    expect(within(dialog).getByText('Its layers and pictures are deleted with it. You can undo it from the notification.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Desert' })).toBeInTheDocument();
+    expect(calls('atelier_project_delete')).toEqual([]);
+  });
+
+  it('offers to uninstall the skin the project applied; checked, both go and Undo brings both back', async () => {
+    const user = userEvent.setup();
+    skins = [hangarSkin('s1', 'Tiger_Desert')];
+    const { container } = renderAtelier([{ ...project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z'), installedSkinId: 's1' }]);
+    (await screen.findByRole('button', { name: 'Desert' })).focus();
+    await user.keyboard('{Delete}');
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete project “Desert”?' });
+    const label = 'Also uninstall the skin “Tiger_Desert” it applied to the game';
+    const option = within(dialog).getByRole('checkbox', { name: label });
+    expect(option).toHaveAttribute('aria-checked', 'false');
+    expect(await seriousViolations(container)).toEqual([]);
+    // The label toggles it too.
+    await user.click(within(dialog).getByText(label));
+    expect(option).toHaveAttribute('aria-checked', 'true');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete project' }));
+
+    await waitFor(() => expect(toastTexts()).toContain('Deleted project “Desert” and its skin'));
+    expect(calls('atelier_project_delete')).toEqual([{ id: 'p1' }]);
+    expect(calls('delete_skins')).toEqual([{ ids: ['s1'] }]);
+    expect(skins).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(await screen.findByRole('button', { name: 'Desert' })).toBeInTheDocument();
+    expect(calls('atelier_project_undo_delete')).toEqual([{ id: 'p1' }]);
+    expect(calls('restore_backups')).toEqual([{ backupIds: ['b-s1'] }]);
+    expect(skins.map((s) => s.id)).toEqual(['s1']);
+    expect(calls('clear_backups')).toEqual([]);
+  });
+
+  it('left unchecked, only the project goes; an expired toast forgets the project and the skin backup', async () => {
+    const user = userEvent.setup();
+    skins = [hangarSkin('s1', 'Tiger_Desert'), hangarSkin('s2', 'T34_Winter')];
+    renderAtelier([
+      { ...project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z'), installedSkinId: 's1' },
+      { ...project('p2', 'Winter', T34, '2026-10-16T09:00:00Z'), installedSkinId: 's2' },
+    ]);
+    (await screen.findByRole('button', { name: 'Desert' })).focus();
+    await user.keyboard('{Delete}');
+    await user.click(await screen.findByRole('button', { name: 'Delete project' }));
+    await waitFor(() => expect(toastTexts()).toContain('Deleted project “Desert”'));
+    expect(calls('delete_skins')).toEqual([]);
+    expect(skins.map((s) => s.id)).toEqual(['s1', 's2']);
+
+    (await screen.findByRole('button', { name: 'Winter' })).focus();
+    await user.keyboard('{Delete}');
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete project “Winter”?' });
+    await user.click(within(dialog).getByRole('checkbox'));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete project' }));
+    await waitFor(() => expect(toastTexts()).toContain('Deleted project “Winter” and its skin'));
+    const withSkin = useToasts.getState().toasts.find((t) => t.message === 'Deleted project “Winter” and its skin');
+    act(() => useToasts.getState().dismiss(withSkin!.id));
+    await waitFor(() => expect(calls('clear_backups')).toEqual([{ ids: ['b-s2'] }]));
+    expect(calls('atelier_project_forget_deleted')).toContainEqual({ id: 'p2' });
+  });
+
+  it('leaves the option out when the skin is gone from My Hangar', async () => {
+    const user = userEvent.setup();
+    renderAtelier([{ ...project('p1', 'Desert', TIGER, '2026-10-15T09:00:00Z'), installedSkinId: 'gone' }]);
+    (await screen.findByRole('button', { name: 'Desert' })).focus();
+    await user.keyboard('{Delete}');
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete project “Desert”?' });
+    expect(within(dialog).queryByRole('checkbox')).toBeNull();
   });
 
   it('has no serious axe violations (grid, menu and dialog)', async () => {

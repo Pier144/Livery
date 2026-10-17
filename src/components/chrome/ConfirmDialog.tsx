@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/lib/cn';
 import { useLeaving } from '@/lib/motion';
 import { useConfirm, type ConfirmRequest } from '@/store/confirm';
 
 /**
  * "Uninstall “Name”?" before a destructive action (`confirm()` in src/store/confirm.ts): Cancel
- * (focused, so a stray Enter after Delete doesn't remove anything) and the red action. Modal like
+ * (focused, so a stray Enter after Delete doesn't remove anything) and the red action, with an
+ * optional checkbox above them (`confirmWithOption`, unchecked when it opens; its label toggles it). Modal like
  * the conflict dialog: Escape or a click outside cancels, Tab cycles inside, keys don't reach the
  * screen underneath, focus goes back on close. It fades and scales in, and fades out once answered.
  */
@@ -24,6 +26,8 @@ function ConfirmDialogBody({ request, leaving }: { request: ConfirmRequest; leav
   const settle = useConfirm((s) => s.settle);
   const titleId = useId();
   const bodyId = useId();
+  const optionId = useId();
+  const [checked, setChecked] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   // Read during the first render, before Cancel takes focus.
@@ -111,11 +115,19 @@ function ConfirmDialogBody({ request, leaving }: { request: ConfirmRequest; leav
             {request.body}
           </p>
         </div>
+        {request.option !== undefined && (
+          <div className="flex items-start gap-2.5">
+            <Checkbox className="mt-px" checked={checked} onChange={setChecked} aria-labelledby={optionId} />
+            <span id={optionId} className="min-w-0 cursor-default break-words text-body text-ink-2" onClick={() => setChecked((v) => !v)}>
+              {request.option}
+            </span>
+          </div>
+        )}
         <div className="flex items-center justify-end gap-2">
           <Button ref={cancelRef} variant="ghost" size={32} onClick={() => settle(false)}>
             {t('common.cancel')}
           </Button>
-          <Button variant="danger" size={32} onClick={() => settle(true)}>
+          <Button variant="danger" size={32} onClick={() => settle(true, checked)}>
             {request.confirmLabel}
           </Button>
         </div>
