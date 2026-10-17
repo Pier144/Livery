@@ -20,9 +20,19 @@ interface DecalUiState {
   fontsVersion: number;
   /** The gizmo snaps moves and turns (`decalSnap.ts`); the view's magnet button toggles it. */
   snap: boolean;
+  /** The Baker's last `setLayers` left the topmost layers undrawn (past the draw budget, `Baker.truncated`). */
+  drawTruncated: boolean;
 }
 
-const INITIAL: DecalUiState = { missingAssets: {}, shared: {}, placingLayerId: null, cutoutBusy: false, fontsVersion: 0, snap: true };
+const INITIAL: DecalUiState = {
+  missingAssets: {},
+  shared: {},
+  placingLayerId: null,
+  cutoutBusy: false,
+  fontsVersion: 0,
+  snap: true,
+  drawTruncated: false,
+};
 
 export const useDecalUi = create<DecalUiState>()(() => ({ ...INITIAL }));
 
@@ -50,6 +60,10 @@ export function setCutoutBusy(busy: boolean): void {
 
 export function setSnap(snap: boolean): void {
   useDecalUi.setState({ snap });
+}
+
+export function setDrawTruncated(truncated: boolean): void {
+  if (useDecalUi.getState().drawTruncated !== truncated) useDecalUi.setState({ drawTruncated: truncated });
 }
 
 export function bumpFonts(): void {

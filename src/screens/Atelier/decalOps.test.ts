@@ -1,6 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { decalRight, MAX_DECAL_SIZE, type Decal } from '@/atelier/project';
-import { decalCorners, MAX_DEPTH_UI, MIN_DEPTH_UI, nudgePoint, NUDGE_FRACTION, rotateDecal, scaleDecal, slideOnto, slideTo, wheelDepth } from './decalOps';
+import {
+  decalRight,
+  HAZARD_ASPECT,
+  MAX_DECAL_SIZE,
+  newBaseLayer,
+  newFolder,
+  newHazardStripe,
+  newImageLayer,
+  newShapeLayer,
+  type Decal,
+  type Layer,
+  type MergedLayer,
+  type Piece,
+} from '@/atelier/project';
+import {
+  axisScale,
+  decalCorners,
+  framedLayerOf,
+  MAX_DEPTH_UI,
+  MIN_DEPTH_UI,
+  nudgePoint,
+  NUDGE_FRACTION,
+  rotateDecal,
+  scaleDecal,
+  shapePlaceAspect,
+  slideOnto,
+  slideTo,
+  wheelDepth,
+} from './decalOps';
 
 const DECAL: Decal = { center: [0.5, 0, 0], normal: [1, 0, 0], up: [0, 1, 0], width: 0.4, height: 0.2, depth: 0.04, part: 'all', mirror: false };
 
@@ -66,5 +93,50 @@ describe('decal edits', () => {
     expect(wheelDepth(0.1, 100)).toBeCloseTo(0.1 / 1.1);
     expect(wheelDepth(0.5, -100000)).toBe(MAX_DEPTH_UI);
     expect(wheelDepth(0.05, 100000)).toBe(MIN_DEPTH_UI);
+  });
+});
+
+describe('edge scaling', () => {
+  it('measures the drag along the axis on screen, whatever its length', () => {
+    // Twice as far along the axis: twice the size; the drag across it doesn't count.
+    expect(axisScale({ x: 10, y: 0 }, { x: 20, y: 7 }, { x: 3, y: 0 })).toBeCloseTo(2);
+    // A slanted axis: only the part along it.
+    expect(axisScale({ x: 10, y: 10 }, { x: 5, y: 5 }, { x: 1, y: 1 })).toBeCloseTo(0.5);
+    // Past the centre counts as the distance from it (the other side mirrors).
+    expect(axisScale({ x: 0, y: 10 }, { x: 0, y: -30 }, { x: 0, y: -4 })).toBeCloseTo(3);
+  });
+
+  it('counts a start under 1 px as 1 px and leaves a degenerate axis alone', () => {
+    expect(axisScale({ x: 0.2, y: 0 }, { x: 4, y: 0 }, { x: 1, y: 0 })).toBeCloseTo(4);
+    expect(axisScale({ x: 10, y: 0 }, { x: 40, y: 0 }, { x: 0, y: 0 })).toBe(1);
+  });
+});
+
+describe('framed layers', () => {
+  const piece = (id: string): Piece => {
+    const { decal: _d, repeat: _r, ...rest } = newShapeLayer('rect', DECAL);
+    return { ...rest, id, place: { x: 0, y: 0, w: 1, h: 1, angle: 0 } };
+  };
+  const shape = { ...newShapeLayer('star', DECAL), id: 's' };
+  const child = { ...newImageLayer('asset', DECAL), id: 'c' };
+  const folder = { ...newFolder('Folder 1', [child]), id: 'f' };
+  const merged: MergedLayer = { id: 'm', kind: 'merged', name: '', visible: true, decal: DECAL, opacity: 1, children: [piece('p')] };
+  const layers: Layer[] = [newBaseLayer(), shape, folder, merged];
+
+  it('finds top-level and folder layers with a frame; never pieces, folders, the Base or unknown ids', () => {
+    expect(framedLayerOf(layers, 's')).toBe(shape);
+    expect(framedLayerOf(layers, 'c')).toBe(child);
+    expect(framedLayerOf(layers, 'm')).toBe(merged);
+    expect(framedLayerOf(layers, 'p')).toBeNull();
+    expect(framedLayerOf(layers, 'f')).toBeNull();
+    expect(framedLayerOf(layers, layers[0]!.id)).toBeNull();
+    expect(framedLayerOf(layers, 'nope')).toBeNull();
+    expect(framedLayerOf(layers, null)).toBeNull();
+  });
+
+  it('places a shape again square, a striped band at the hazard aspect, a merged object square', () => {
+    expect(shapePlaceAspect(shape)).toBe(1);
+    expect(shapePlaceAspect(newHazardStripe('Hazard stripe'))).toBe(HAZARD_ASPECT);
+    expect(shapePlaceAspect(merged)).toBe(1);
   });
 });

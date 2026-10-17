@@ -12,6 +12,7 @@ import { confirm } from '@/store/confirm';
 import { toast } from '@/store/toasts';
 import { AtelierDialog } from './AtelierDialog';
 import { Slider } from './controls';
+import { framedLayerOf } from './decalOps';
 import { noteAssetSize } from './decalUi';
 import { alphaOf, paintDab, restoreSource, setAlpha, strokePoints, unionRect, type DirtyRect, type RestoreSource } from './refineEdge';
 
@@ -61,7 +62,8 @@ export function RefineEdgeDialog({ projectId, layerId, onClose }: { projectId: s
   // The picture and the one restore reads from (the cutout's source, or the picture itself).
   useEffect(() => {
     let stale = false;
-    const layer = useAtelierEditor.getState().layers.find((l) => l.id === layerId);
+    // A framed picture (top level or in a folder); pieces are never offered.
+    const layer = framedLayerOf(useAtelierEditor.getState().layers, layerId);
     if (layer?.kind !== 'image') {
       onClose();
       return;
@@ -214,7 +216,7 @@ export function RefineEdgeDialog({ projectId, layerId, onClose }: { projectId: s
       const ref = await putAsset(projectId, loaded.picture);
       noteAssetSize(ref.id, ref.width, ref.height);
       const store = useAtelierEditor.getState();
-      const layer = store.layers.find((l) => l.id === layerId);
+      const layer = framedLayerOf(store.layers, layerId);
       if (layer?.kind !== 'image' || layer.assetId !== loaded.assetId) {
         toast(t('atelier.refine.stale'));
         onClose();

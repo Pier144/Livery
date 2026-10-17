@@ -6,13 +6,24 @@ import { useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import { QUICK_VIEWS, type QuickView } from '@/atelier/gl/scene';
 import type { VehicleModelData } from '@/atelier/modelBuffer';
-import { dot, isPictureLayer, maskOf, partGroupOf, type Decal, type DecalLayer, type PartFilter, type Vec3 } from '@/atelier/project';
+import { dot, maskOf, partGroupOf, type Decal, type PartFilter, type PlacedLayer, type Vec3 } from '@/atelier/project';
 import { measureTextAspect } from '@/atelier/text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/lib/cn';
-import { DecalGizmo } from './DecalGizmo';
-import { decalCorners, nudgePoint, rotateDecal, ROTATE_STEP_DEG, scaleDecal, SCALE_STEP, slideOnto, wheelDepth } from './decalOps';
-import { assetSize, setPlacingLayer, setSnap, useDecalUi } from './decalUi';
+import { DecalGizmo, SelectionOutlines } from './DecalGizmo';
+import {
+  decalCorners,
+  framedLayerOf,
+  nudgePoint,
+  rotateDecal,
+  ROTATE_STEP_DEG,
+  scaleDecal,
+  SCALE_STEP,
+  shapePlaceAspect,
+  slideOnto,
+  wheelDepth,
+} from './decalOps';
+import { assetSize, setDrawTruncated, setPlacingLayer, setSnap, useDecalUi } from './decalUi';
 import { distance, enabledSlots, POINT_SPACING } from './editorModel';
 import { EngineContext, type Engine } from './engine';
 
@@ -50,10 +61,17 @@ const CLICK_SLOP = 4;
 /** Alt+wheel depth edits end their undo step after this quiet time. */
 const WHEEL_GESTURE_MS = 400;
 
-/** The selected image or text layer when it is placed (its gizmo and keys apply), else null. */
-function selectedPlaced(s: ReturnType<typeof useAtelierEditor.getState>): (DecalLayer & { decal: Decal }) | null {
-  const layer = s.layers.find((l) => l.id === s.selectedId);
-  return isPictureLayer(layer) && layer.decal ? (layer as DecalLayer & { decal: Decal }) : null;
+/** A placed layer that has its frame. */
+type Framed = PlacedLayer & { decal: Decal };
+
+/**
+ * The single selected framed layer (image, text, shape or merged object, top level or in a folder;
+ * never a piece) when it is placed: its gizmo and keys apply. Null with several selected.
+ */
+function selectedPlaced(s: ReturnType<typeof useAtelierEditor.getState>): Framed | null {
+  if (s.selectedIds.length > 1) return null;
+  const layer = framedLayerOf(s.layers, s.selectedId);
+  return layer?.decal ? (layer as Framed) : null;
 }
 
 /** Arrow keys turn the view this many pixels' worth; + and − zoom by this wheel delta. */
@@ -84,6 +102,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
   const placingRef = useRef(placing);
   placingRef.current = placing;
   const decalLayer = useAtelierEditor((s) => (placing ? null : selectedPlaced(s)));
+  const multiSelected = useAtelierEditor((s) => s.selectedIds.length > 1);
   const decalRef = useRef(decalLayer);
   decalRef.current = decalLayer;
   const [announcement, setAnnouncement] = useState('');
@@ -134,6 +153,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     const sync = (s = useAtelierEditor.getState()) => {
       if (!s.project) return;
       engine.baker.setLayers(s.layers, enabledSlots(s.project, model));
+      setDrawTruncated(engine.baker.truncated);
     };
     sync();
     const unsubscribe = useAtelierEditor.subscribe((s, prev) => {
@@ -213,7 +233,8 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
   /**
    * Places the waiting layer where the view shows the model at (`x`, `y`): the decal faces out
    * along the surface, its up the screen's, sized from the model (25% of its diagonal) and the
-   * picture's or text's aspect. False when nothing is there.
+   * picture's or text's aspect (a shape placed again: square, a striped band 8:1; a merged object
+   * square). False when nothing is there.
    */
   const placeAt = (x: number, y: number): boolean => {
     const e = engineRef.current;
@@ -225,21 +246,23 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     }
     const store = useAtelierEditor.getState();
     const again = useDecalUi.getState().placingLayerId;
-    const target = again ? store.layers.find((l) => l.id === again) : undefined;
+    const target = again ? framedLayerOf(store.layers, again) : null;
     let aspect = store.pending?.aspect ?? 1;
-    if (!store.pending && isPictureLayer(target)) {
+    if (!store.pending && target) {
       if (target.kind === 'image') {
         const size = assetSize(target.assetId);
         aspect = size ? size.width / size.height : 1;
-      } else {
+      } else if (target.kind === 'text') {
         aspect = measureTextAspect(target) ?? 1;
+      } else {
+        aspect = shapePlaceAspect(target);
       }
     }
     const decal = frameFromHit(hit.point, hit.normal, e.scene.cameraMatrixWorld(), defaultDecalSize(diagonal, aspect));
     if (!decal) return false;
     let placed: string | null = null;
     if (store.pending) placed = store.placePending(decal);
-    else if (again && isPictureLayer(target)) {
+    else if (again && target) {
       store.setDecal(again, decal);
       store.select(again);
       setPlacingLayer(null);
@@ -256,7 +279,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
    * (`slideOnto`: a surface turned more than 35° keeps the decal's orientation); false when that
    * misses the model.
    */
-  const slideDecalTo = (layer: DecalLayer & { decal: Decal }, x: number, y: number, mergeKey: string): boolean => {
+  const slideDecalTo = (layer: Framed, x: number, y: number, mergeKey: string): boolean => {
     const hit = engineRef.current?.scene.raycast(x, y, partGroupOf(layer.decal.part));
     if (!hit) return false;
     useAtelierEditor.getState().setDecal(layer.id, slideOnto(layer.decal, hit.point, hit.normal), mergeKey);
@@ -439,7 +462,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
    * Shift+arrows turn it, + and − scale it, Alt+arrows (and Alt with + / −) move the view. Held
    * keys make one undo step. False when the key isn't one of these.
    */
-  const decalKey = (e: KeyboardEvent<HTMLDivElement>, layer: DecalLayer & { decal: Decal }): boolean => {
+  const decalKey = (e: KeyboardEvent<HTMLDivElement>, layer: Framed): boolean => {
     const scene = engineRef.current?.scene;
     if (!scene || e.ctrlKey || e.metaKey || e.altKey) return false;
     const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
@@ -557,6 +580,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
           }}
         />
       )}
+      {engine && multiSelected && !brush && !placing && <SelectionOutlines scene={engine.scene} />}
       {placing && (
         <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3">
           <p className="rounded-ctl border border-amber-35 bg-bg-scrim px-3 py-1.5 text-meta text-ink-1">{t('atelier.place.hint')}</p>

@@ -9,9 +9,14 @@ import {
   normalize,
   scale,
   sub,
+  HAZARD_ASPECT,
+  isPlacedLayer,
   type Decal,
+  type Layer,
+  type PlacedLayer,
   type Vec3,
 } from '@/atelier/project';
+import { findLayer, isPiece } from '@/atelier/layerTree';
 
 /**
  * Pure edits of a placed decal, shared by the gizmo (mouse) and the viewport's keys: slide along
@@ -91,6 +96,45 @@ export function scaleDecal(decal: Decal, kx: number, ky = kx): Decal {
 export function wheelDepth(depth: number, deltaY: number): number {
   const next = depth * Math.pow(DEPTH_WHEEL_STEP, -deltaY / 100);
   return Math.min(MAX_DEPTH_UI, Math.max(MIN_DEPTH_UI, next));
+}
+
+/** A point on the view, CSS px. */
+export interface ScreenPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * How much a drag from `from` to `to` (both relative to the decal's centre on screen) stretches the
+ * decal along one of its axes, `axis` being that axis's direction on screen (any length): the
+ * ratio of the two distances measured along it. A start closer than 1 px counts as 1 px; a
+ * degenerate axis gives 1 (nothing changes).
+ */
+export function axisScale(from: ScreenPoint, to: ScreenPoint, axis: ScreenPoint): number {
+  const l = Math.hypot(axis.x, axis.y);
+  if (!(l > 1e-6)) return 1;
+  const along = (v: ScreenPoint) => Math.abs((v.x * axis.x + v.y * axis.y) / l);
+  return along(to) / Math.max(1, along(from));
+}
+
+/**
+ * The placed layer `id` with a frame of its own (top level or in a folder; never a merged object's
+ * piece), or null: what the gizmo, the keys, the shared-texel check and the picture dialogs act on.
+ */
+export function framedLayerOf(layers: readonly Layer[], id: string | null): PlacedLayer | null {
+  if (id === null) return null;
+  const found = findLayer(layers, id);
+  if (!found || isPiece(found)) return null;
+  const layer = found.layer as Layer;
+  return isPlacedLayer(layer) ? layer : null;
+}
+
+/**
+ * The aspect (width over height) a shape or merged object is placed again with: a striped shape
+ * (the hazard stripe) is a band, anything else square. Pictures and text measure their own.
+ */
+export function shapePlaceAspect(layer: PlacedLayer): number {
+  return layer.kind === 'shape' && layer.fill.kind === 'stripes' ? HAZARD_ASPECT : 1;
 }
 
 /** Re-exported from `@/atelier/decal` (the merge maths uses it too), so existing imports keep working. */

@@ -2,7 +2,22 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAtelierEditor } from '@/atelier/editorStore';
-import { maskOf, type BaseLayer, type DecalLayer, type ImageLayer, type Layer, type TextLayer } from '@/atelier/project';
+import {
+  maskOf,
+  newBaseLayer,
+  newFolder,
+  newShapeLayer,
+  newTextLayer,
+  type BaseLayer,
+  type Decal,
+  type DecalLayer,
+  type ImageLayer,
+  type Layer,
+  type MergedLayer,
+  type Piece,
+  type ShapeLayer,
+  type TextLayer,
+} from '@/atelier/project';
 import { ConfirmDialog } from '@/components/chrome/ConfirmDialog';
 import { Toaster } from '@/components/chrome/Toaster';
 import { encodeAsset, encodeMockModel, mockPicture, mockTemplate, MOCK_TEXTURE_SIZE } from '@/dev/mockAtelier';
@@ -161,6 +176,7 @@ function stubEngine() {
       prepareExport: vi.fn(async () => {}),
       endExport: vi.fn(),
       decalTouchesSharedTexels: vi.fn(async () => false),
+      truncated: false,
     },
     dispose: vi.fn(),
   };
@@ -1178,3 +1194,79 @@ function withSharedSlots(buf: ArrayBuffer): ArrayBuffer {
   out.set(new Uint8Array(buf, 8 + len), 8 + padded);
   return out.buffer;
 }
+
+// ── Shapes, folders, merged objects, multi-select ──────────────────────────
+
+describe('Atelier editor · shapes, folders and merged objects', () => {
+  /** On the stub's view: centre (50, 30), 40 × 20 px (right is −z, so the right side is at x = 30). */
+  const at = (y: number, z: number): Decal => ({ center: [0.5, y, z], normal: [1, 0, 0], up: [0, 1, 0], width: 0.4, height: 0.2, depth: 0.04, part: 'all', mirror: false });
+  const piece = (id: string): Piece => {
+    const { decal: _d, repeat: _r, ...rest } = newShapeLayer('rect', at(0, 0));
+    return { ...rest, id, place: { x: 0, y: 0, w: 0.5, h: 1, angle: 0 } };
+  };
+  const shape: ShapeLayer = { ...newShapeLayer('star', at(0.3, 0.5)), id: 's' };
+  const child: TextLayer = { ...newTextLayer('ACE', at(0.6, 0.2)), id: 'c' };
+  const folder = { ...newFolder('Folder 1', [child]), id: 'f' };
+  const merged: MergedLayer = { id: 'm', kind: 'merged', name: '', visible: true, decal: at(0.3, 0.9), opacity: 1, children: [piece('p'), piece('q')] };
+  const layers = (): Layer[] => [{ ...newBaseLayer(), id: 'b' }, shape, folder, merged];
+
+  beforeEach(() => {
+    resetDecalUi();
+    setCutoutBusy(false);
+    decalAnswers();
+  });
+
+  it('opens a project with a shape, a folder and a merged object; a shape gets edge handles that stretch one axis', async () => {
+    const { container } = renderEditor(project({ layers: layers() }));
+    await ready();
+    expect(engine.baker.setLayers).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'f' }), expect.objectContaining({ id: 'm' })]), expect.anything());
+    act(() => S().select('s'));
+    expect(container.querySelector('[data-gizmo="body"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-gizmo^="corner"]')).toHaveLength(4);
+    expect(container.querySelectorAll('[data-gizmo^="edge"]')).toHaveLength(4);
+    // The right side, dragged twice as far from the centre: twice as wide, as high as before, one undo step.
+    const past = S().past.length;
+    const edge = container.querySelector('[data-gizmo="edge-1"]')!;
+    fireEvent.pointerDown(edge, { button: 0, clientX: 30, clientY: 30, pointerId: 2 });
+    fireEvent.pointerMove(edge, { clientX: 20, clientY: 33, pointerId: 2 });
+    fireEvent.pointerMove(edge, { clientX: 10, clientY: 30, pointerId: 2 });
+    fireEvent.pointerUp(edge, { clientX: 10, clientY: 30, pointerId: 2 });
+    const stretched = S().layers.find((l) => l.id === 's') as ShapeLayer;
+    expect(stretched.decal!.width).toBeCloseTo(0.8);
+    expect(stretched.decal!.height).toBeCloseTo(0.2);
+    expect(S().past).toHaveLength(past + 1);
+  });
+
+  it('a folder child gets the gizmo; a merged object only corners; Repeat outlines the whole row', async () => {
+    const { container } = renderEditor(project({ layers: layers() }));
+    await ready();
+    act(() => S().select('c'));
+    expect(container.querySelector('[data-gizmo="body"]')).not.toBeNull();
+    expect(container.querySelector('[data-gizmo^="edge"]')).toBeNull();
+    act(() => S().select('m'));
+    expect(container.querySelectorAll('[data-gizmo^="corner"]')).toHaveLength(4);
+    expect(container.querySelector('[data-gizmo^="edge"]')).toBeNull();
+    expect(container.querySelector('[data-gizmo="repeat"]')).toBeNull();
+    act(() => S().setLayerProps('m', { repeat: { count: 3, gap: 0.5, direction: 'row' } }));
+    expect(container.querySelector('[data-gizmo="repeat"]')).not.toBeNull();
+    // A piece is edited from the properties panel only: no gizmo.
+    act(() => S().select('p'));
+    expect(container.querySelector('[data-gizmo="body"]')).toBeNull();
+  });
+
+  it('with two layers selected, outlines each frame and shows no gizmo', async () => {
+    const { container } = renderEditor(project({ layers: layers() }));
+    await ready();
+    act(() => {
+      S().select('s');
+      S().toggleSelect('m');
+    });
+    expect(S().selectedIds).toHaveLength(2);
+    expect(container.querySelector('[data-gizmo]')).toBeNull();
+    expect(container.querySelectorAll('[data-selection-outline]')).toHaveLength(2);
+    expect(container.querySelector('[data-selection-outline="s"]')).not.toBeNull();
+    act(() => S().select('s'));
+    expect(container.querySelector('[data-selection-outline]')).toBeNull();
+    expect(container.querySelector('[data-gizmo="body"]')).not.toBeNull();
+  });
+});

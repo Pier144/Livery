@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { resetAtelierEditor, useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import type { OrbitState } from '@/atelier/gl/scene';
-import { isPictureLayer, maskOf, type Decal, type TextLayer } from '@/atelier/project';
+import { textLayers } from '@/atelier/layerTree';
+import { maskOf, type Decal, type Layer } from '@/atelier/project';
 import { fontStatus, loadFont } from '@/atelier/text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -17,6 +18,7 @@ import { toast } from '@/store/toasts';
 import type { AppError, AtelierProject, AtelierProjectSummary } from '@/types';
 import { vehicleLabel } from '../Explore/exploreModel';
 import { CutoutDownloadDialog } from './CutoutDownloadDialog';
+import { framedLayerOf } from './decalOps';
 import { bumpFonts, resetDecalUi, setPlacingLayer, setShared, useDecalUi } from './decalUi';
 import { BRUSH_DEFAULT, enabledSlots, HARDNESS_DEFAULT, isTypingTarget, MASK_ROW_ID } from './editorModel';
 import { EditorTopBar } from './EditorTopBar';
@@ -78,19 +80,21 @@ function useOpenProject(id: string): AppError | null {
   return error;
 }
 
-/** Text layers' fonts: loaded once each (the stand-in measures meanwhile), then the layers using them re-measured. */
+/**
+ * Text layers' fonts (in folders and merged objects too): loaded once each (the stand-in measures
+ * meanwhile), then the layers and pieces using them re-measured.
+ */
 function useTextFonts() {
   useEffect(() => {
-    const load = (layers: readonly { kind: string }[]) => {
-      for (const layer of layers) {
-        if (layer.kind !== 'text') continue;
-        const font = (layer as TextLayer).font;
+    const load = (layers: readonly Layer[]) => {
+      for (const layer of textLayers(layers)) {
+        const font = layer.font;
         if (fontStatus(font) !== undefined) continue;
         void loadFont(font).then(() => {
           bumpFonts();
           const store = useAtelierEditor.getState();
-          for (const l of store.layers) {
-            if (l.kind === 'text' && l.font.family === font.family && l.font.style === font.style) store.refreshTextMetrics(l.id);
+          for (const l of textLayers(store.layers)) {
+            if (l.font.family === font.family && l.font.style === font.style) store.refreshTextMetrics(l.id);
           }
         });
       }
@@ -329,8 +333,8 @@ export function Editor({ id }: { id: string }) {
   const sharedChecks = useRef(new Map<string, { decal: Decal; slots: unknown; result: Promise<boolean> }>());
   const checkShared = useCallback((layerId: string, decal?: Decal): Promise<boolean> => {
     const state = useAtelierEditor.getState();
-    const layer = state.layers.find((l) => l.id === layerId);
-    const target = decal ?? (isPictureLayer(layer) ? layer.decal : null);
+    // Any framed layer, top level or in a folder (a merged object: its frame).
+    const target = decal ?? framedLayerOf(state.layers, layerId)?.decal ?? null;
     const e = engineRef.current;
     if (!target || !e) return Promise.resolve(false);
     const slots = state.project?.slots;
@@ -356,8 +360,8 @@ export function Editor({ id }: { id: string }) {
     if (!engine) return;
     const run = (s: ReturnType<typeof useAtelierEditor.getState>) => {
       if (s.mergeKey !== null || s.stroking) return;
-      const layer = s.layers.find((l) => l.id === s.selectedId);
-      if (isPictureLayer(layer) && layer.decal) void checkShared(layer.id);
+      const layer = framedLayerOf(s.layers, s.selectedId);
+      if (layer?.decal) void checkShared(layer.id);
     };
     run(useAtelierEditor.getState());
     return useAtelierEditor.subscribe((s, prev) => {

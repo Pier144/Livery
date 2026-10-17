@@ -13,6 +13,7 @@ import en from '@/i18n/en.json';
 import { toast } from '@/store/toasts';
 import { EVENTS, type CutoutProgress, type CutoutStatus, type CutoutStep, type DownloadItem, type DownloadProgress } from '@/types';
 import { AtelierDialog, ProgressBar } from './AtelierDialog';
+import { framedLayerOf } from './decalOps';
 import { assetSize, noteAssetSize, setCutoutBusy } from './decalUi';
 
 type Retry = 'status' | 'download' | 'cutout';
@@ -85,7 +86,8 @@ export function CutoutDownloadDialog({ projectId, layerId, onClose }: { projectI
   );
 
   const cut = useCallback(async () => {
-    const layer = useAtelierEditor.getState().layers.find((l) => l.id === layerId);
+    // A framed picture (top level or in a folder); pieces are never offered.
+    const layer = framedLayerOf(useAtelierEditor.getState().layers, layerId);
     if (layer?.kind !== 'image') {
       onClose();
       return;

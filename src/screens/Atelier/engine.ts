@@ -51,6 +51,7 @@ export type EngineBaker = Pick<
   | 'prepareExport'
   | 'endExport'
   | 'decalTouchesSharedTexels'
+  | 'truncated'
 >;
 
 export interface Engine {
