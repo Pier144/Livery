@@ -586,6 +586,75 @@ describe('Atelier editor', () => {
     expect(new Set(colors).size).toBe(3);
   });
 
+  it('camo styles: tiles as a radio group, the sliders of each style, one undo step per style', async () => {
+    const user = userEvent.setup();
+    const { container } = renderEditor();
+    await ready();
+    expect(screen.queryByRole('radiogroup', { name: 'Style' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Camo' }));
+    const styles = screen.getByRole('radiogroup', { name: 'Style' });
+    const tiles = within(styles).getAllByRole('radio');
+    expect(tiles.map((t) => t.textContent)).toEqual(['Organic', 'Digital', 'Hexagons', 'Splinter', 'Triangles', 'Stripes']);
+    expect(within(styles).getByRole('radio', { name: 'Organic' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByRole('slider', { name: 'Cell size' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('slider', { name: 'Stripe angle' })).not.toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Softness' })).toBeInTheDocument();
+
+    const steps = S().past.length;
+    await user.click(within(styles).getByRole('radio', { name: 'Hexagons' }));
+    expect((S().layers[0] as BaseLayer).pattern).toBe('hex');
+    expect(S().past).toHaveLength(steps + 1);
+    expect(screen.getByRole('slider', { name: 'Cell size' })).toBeInTheDocument();
+    expect(screen.queryByRole('slider', { name: 'Stripe angle' })).not.toBeInTheDocument();
+    // Arrow keys move and select: Hexagons → Splinter, End → Stripes.
+    await user.keyboard('{ArrowRight}');
+    expect((S().layers[0] as BaseLayer).pattern).toBe('splinter');
+    expect(within(styles).getByRole('radio', { name: 'Splinter' })).toHaveFocus();
+    await user.keyboard('{End}');
+    expect((S().layers[0] as BaseLayer).pattern).toBe('stripes');
+    expect(screen.getByRole('slider', { name: 'Stripe angle' })).toBeInTheDocument();
+    expect(screen.queryByRole('slider', { name: 'Cell size' })).not.toBeInTheDocument();
+    await user.keyboard('{Home}');
+    expect(S().layers[0]).not.toHaveProperty('pattern');
+
+    const softness = screen.getByRole('slider', { name: 'Softness' });
+    fireEvent.change(softness, { target: { value: '0.3' } });
+    fireEvent.change(softness, { target: { value: '0.5' } });
+    fireEvent.pointerUp(softness);
+    expect((S().layers[0] as BaseLayer).softness).toBe(0.5);
+    expect(await seriousViolations(container)).toEqual([]);
+  });
+
+  it('camo shares: a divider per colour pair, keys move it 1 %, Equal and new colours keep them consistent', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await ready();
+    await user.click(screen.getByRole('radio', { name: 'Camo' }));
+    const dividers = () => screen.getAllByRole('slider', { name: /^Between colour/ });
+    expect(dividers()).toHaveLength(1);
+    expect(dividers()[0]).toHaveAttribute('aria-valuetext', 'Colour 1: 50%, colour 2: 50%');
+    expect(screen.queryByRole('button', { name: 'Make shares equal' })).not.toBeInTheDocument();
+    const steps = S().past.length;
+    dividers()[0]!.focus();
+    await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
+    expect((S().layers[0] as BaseLayer).weights).toEqual([0.53, 0.47]);
+    // keyup ends each press: three presses, three steps.
+    expect(S().past.length).toBe(steps + 3);
+    await user.keyboard('{PageDown}{PageDown}{PageDown}{PageDown}{PageDown}{PageDown}');
+    expect((S().layers[0] as BaseLayer).weights).toEqual([0.05, 0.95]);
+
+    await user.click(screen.getByRole('button', { name: 'Add a colour' }));
+    const w = (S().layers[0] as BaseLayer).weights!;
+    expect(w).toHaveLength(3);
+    for (const v of w) expect(v).toBeGreaterThanOrEqual(0.05);
+    expect(dividers()).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'Remove colour 3' }));
+    expect((S().layers[0] as BaseLayer).weights).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: 'Make shares equal' }));
+    expect(S().layers[0]).not.toHaveProperty('weights');
+  });
+
   it('remembers the camera of each project for the session', async () => {
     // A project no other test opened (the cameras are kept for the session).
     const first = renderEditor(project({ id: 'p-camera' }));

@@ -65,6 +65,10 @@ export interface LayerCommon {
 
 export type BaseMode = 'solid' | 'camo';
 
+/** The camo styles (`BaseLayer.pattern`); absent means organic. */
+export type CamoPattern = 'organic' | 'digital' | 'hex' | 'splinter' | 'triangles' | 'stripes';
+export const CAMO_PATTERNS: readonly CamoPattern[] = ['organic', 'digital', 'hex', 'splinter', 'triangles', 'stripes'];
+
 export interface BaseLayer extends LayerCommon {
   kind: 'base';
   mode: BaseMode;
@@ -78,6 +82,20 @@ export interface BaseLayer extends LayerCommon {
    * grows (`wear.ts`). Left out when 0, so older projects and files without it read as unworn.
    */
   wear?: number;
+  /**
+   * The camo style; absent = organic (and organic is never written). A style this version doesn't
+   * know is kept as written and drawn as organic. Like the fields below, absent in older projects,
+   * which therefore render as they always did.
+   */
+  pattern?: CamoPattern | (string & {});
+  /** Share of each camo colour (same length as `colors`, each ≥ MIN_CAMO_WEIGHT, sum 1); absent = equal. */
+  weights?: number[];
+  /** Cell size multiplier of the digital, hex and triangle styles (CELL_SIZE_MIN..MAX); absent = 1. */
+  cellSize?: number;
+  /** Stripe angle in degrees (STRIPE_ANGLE_MIN..MAX, 0 = vertical bands on the sides); absent = DEFAULT_STRIPE_ANGLE. */
+  angle?: number;
+  /** Softness of the colour edges, 0 to 1; absent (never written as 0) = sharp. */
+  softness?: number;
 }
 
 /**
@@ -189,6 +207,13 @@ export const DEFAULT_BASE_COLOR = '#56603f';
 export const DEFAULT_CAMO_COLOR = '#8a7a55';
 export const MIN_CAMO_COLORS = 2;
 export const MAX_CAMO_COLORS = 4;
+/** Smallest share of a camo colour. */
+export const MIN_CAMO_WEIGHT = 0.05;
+export const CELL_SIZE_MIN = 0.25;
+export const CELL_SIZE_MAX = 4;
+export const STRIPE_ANGLE_MIN = -80;
+export const STRIPE_ANGLE_MAX = 80;
+export const DEFAULT_STRIPE_ANGLE = 30;
 export const DEFAULT_DIR: Vec3 = [0, 0, -1];
 
 export const MAX_TEXT_CHARS = 200;
@@ -297,7 +322,49 @@ function toBase(raw: Record<string, unknown>): BaseLayer {
     scale: isFiniteNumber(raw.scale) && raw.scale > 0 ? raw.scale : 1,
     seed: isFiniteNumber(raw.seed) ? Math.trunc(raw.seed) : 1,
   };
+  delete base.pattern;
+  delete base.weights;
+  delete base.cellSize;
+  delete base.angle;
+  delete base.softness;
+  if (typeof raw.pattern === 'string' && raw.pattern.length > 0 && raw.pattern !== 'organic') base.pattern = raw.pattern;
+  const weights = raw.weights;
+  if (Array.isArray(weights) && weights.length === colors.length && weights.every((w) => isFiniteNumber(w) && w > 0)) {
+    base.weights = normalizeWeights(weights as number[]);
+  }
+  if (isFiniteNumber(raw.cellSize)) base.cellSize = clamp(raw.cellSize, CELL_SIZE_MIN, CELL_SIZE_MAX);
+  if (isFiniteNumber(raw.angle)) base.angle = clamp(raw.angle, STRIPE_ANGLE_MIN, STRIPE_ANGLE_MAX);
+  if (isFiniteNumber(raw.softness) && raw.softness > 0) base.softness = Math.min(1, raw.softness);
   return withWear(base, raw.wear);
+}
+
+/**
+ * Camo shares that check out: scaled to sum 1, every share below MIN_CAMO_WEIGHT pinned to it and
+ * the others scaled to fill the rest (repeated until none is below), rounded to 4 decimals with
+ * the largest share taking the rounding rest. Idempotent. Expects finite positive numbers.
+ */
+export function normalizeWeights(weights: readonly number[]): number[] {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let w = weights.map((v) => v / total);
+  const pinned = new Set<number>();
+  for (let round = 0; round <= w.length; round++) {
+    const low = w.findIndex((v, i) => !pinned.has(i) && v < MIN_CAMO_WEIGHT);
+    if (low < 0) break;
+    w.forEach((v, i) => {
+      if (!pinned.has(i) && v < MIN_CAMO_WEIGHT) pinned.add(i);
+    });
+    const free = w.reduce((a, v, i) => (pinned.has(i) ? a : a + v), 0);
+    const room = 1 - pinned.size * MIN_CAMO_WEIGHT;
+    w = w.map((v, i) => (pinned.has(i) ? MIN_CAMO_WEIGHT : (v / free) * room));
+  }
+  const rounded = w.map((v) => Math.round(v * 10000) / 10000);
+  let largest = 0;
+  rounded.forEach((v, i) => {
+    if (v > rounded[largest]!) largest = i;
+  });
+  const rest = rounded.reduce((a, v, i) => (i === largest ? a : a + v), 0);
+  rounded[largest] = Math.round((1 - rest) * 10000) / 10000;
+  return rounded;
 }
 
 /** A stroke that checks out, or null (dropped). */

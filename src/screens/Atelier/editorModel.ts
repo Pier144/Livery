@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next';
 import { HQ_SIZE, isBodySlot } from '@/atelier/gl/baker';
 import type { VehicleModelData } from '@/atelier/modelBuffer';
+import { MIN_CAMO_WEIGHT, normalizeWeights } from '@/atelier/project';
 import type { AtelierProject } from '@/types';
 
 /** Pure helpers of the editor (no React, no WebGL). */
@@ -19,6 +20,41 @@ export const POINT_SPACING = 1 / 3;
 /** Camo pattern scale range (the Base's `scale`). */
 export const SCALE_MIN = 0.1;
 export const SCALE_MAX = 4;
+
+// ── Camo shares (`BaseLayer.weights`; undefined = equal shares) ─────────────
+
+/** Equal shares of `count` colours (stored rounded, the first taking the rest). */
+export function equalShares(count: number): number[] {
+  return normalizeWeights(Array.from({ length: count }, () => 1));
+}
+
+/** The shares after "Add a colour": the new one gets 1/n, the others shrink in proportion (none under 5 %). */
+export function weightsWithColorAdded(weights: readonly number[] | undefined): number[] | undefined {
+  if (!weights) return undefined;
+  const n = weights.length + 1;
+  return normalizeWeights([...weights.map((w) => w * (1 - 1 / n)), 1 / n]);
+}
+
+/** The shares after removing colour `index`. */
+export function weightsWithColorRemoved(weights: readonly number[] | undefined, index: number): number[] | undefined {
+  if (!weights) return undefined;
+  return normalizeWeights(weights.filter((_, i) => i !== index));
+}
+
+/**
+ * The shares with divider `index` (between colour `index` and `index + 1`) moved to `position`
+ * (0..1 along the bar), clamped so both neighbours keep MIN_CAMO_WEIGHT; the other shares stay.
+ * Without shares the bar starts from equal ones of `count` colours.
+ */
+export function moveShareDivider(weights: readonly number[] | undefined, index: number, position: number, count = weights?.length ?? 2): number[] {
+  const w = weights ? [...weights] : Array.from({ length: count }, () => 1 / count);
+  const before = w.slice(0, index).reduce((a, b) => a + b, 0);
+  const after = before + w[index]! + w[index + 1]!;
+  const p = Math.min(after - MIN_CAMO_WEIGHT, Math.max(before + MIN_CAMO_WEIGHT, position));
+  w[index] = p - before;
+  w[index + 1] = after - p;
+  return normalizeWeights(w);
+}
 
 /** A project name the backend accepts: 1 to 80 characters once trimmed. */
 export const NAME_MAX = 80;

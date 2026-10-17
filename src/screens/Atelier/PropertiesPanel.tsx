@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import {
   baseOf,
+  CELL_SIZE_MAX,
+  CELL_SIZE_MIN,
   DEFAULT_CAMO_COLOR,
+  DEFAULT_STRIPE_ANGLE,
+  STRIPE_ANGLE_MAX,
+  STRIPE_ANGLE_MIN,
   maskOf,
   MAX_CAMO_COLORS,
   MIN_CAMO_COLORS,
@@ -19,9 +24,20 @@ import { Button } from '@/components/ui/Button';
 import { ChipDropdown } from '@/components/ui/ChipDropdown';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { PartGroup } from '@/types';
+import { CamoSharesBar, CamoStylePicker, camoPatternOf } from './CamoControls';
 import { ColorSwatch, Field, Slider } from './controls';
 import { DecalProperties } from './DecalProperties';
-import { BRUSH_MAX, BRUSH_MIN, MASK_ROW_ID, nextCamoColor, SCALE_MAX, SCALE_MIN, shuffledSeed } from './editorModel';
+import {
+  BRUSH_MAX,
+  BRUSH_MIN,
+  MASK_ROW_ID,
+  nextCamoColor,
+  SCALE_MAX,
+  SCALE_MIN,
+  shuffledSeed,
+  weightsWithColorAdded,
+  weightsWithColorRemoved,
+} from './editorModel';
 import { PANEL_LABEL, useLayerName } from './LayersPanel';
 
 /** The brush as the panel edits it (`size` is a fraction of the model's radius). */
@@ -94,11 +110,14 @@ function BaseProperties({ base }: { base: BaseLayer }) {
   const endGesture = useAtelierEditor((s) => s.endGesture);
   const camo = base.mode === 'camo';
   const shown = camo ? base.colors : base.colors.slice(0, 1);
+  const pattern = camoPatternOf(base);
+  const grid = pattern === 'digital' || pattern === 'hex' || pattern === 'triangles';
 
   const setMode = (mode: BaseMode) => {
     if (mode === base.mode) return;
-    const colors = mode === 'camo' && base.colors.length < MIN_CAMO_COLORS ? [...base.colors, DEFAULT_CAMO_COLOR] : base.colors;
-    setBase({ mode, colors });
+    const add = mode === 'camo' && base.colors.length < MIN_CAMO_COLORS;
+    const colors = add ? [...base.colors, DEFAULT_CAMO_COLOR] : base.colors;
+    setBase({ mode, colors, weights: add ? weightsWithColorAdded(base.weights) : base.weights });
   };
 
   const setColor = (i: number, hex: string) => {
@@ -125,6 +144,12 @@ function BaseProperties({ base }: { base: BaseLayer }) {
         )}
       </Field>
 
+      {camo && (
+        <Field label={t('atelier.props.camoStyle')}>
+          {(id) => <CamoStylePicker base={base} labelId={id} onChange={(next) => setBase({ pattern: next })} />}
+        </Field>
+      )}
+
       <Field label={camo ? t('atelier.props.colors') : t('atelier.props.color')}>
         {() => (
           <div className="flex flex-wrap items-center gap-2">
@@ -139,7 +164,7 @@ function BaseProperties({ base }: { base: BaseLayer }) {
                 {camo && base.colors.length > MIN_CAMO_COLORS && (
                   <button
                     type="button"
-                    onClick={() => setBase({ colors: base.colors.filter((_, k) => k !== i) })}
+                    onClick={() => setBase({ colors: base.colors.filter((_, k) => k !== i), weights: weightsWithColorRemoved(base.weights, i) })}
                     aria-label={t('atelier.props.removeColor', { n: i + 1 })}
                     title={t('atelier.props.removeColor', { n: i + 1 })}
                     className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full border border-line-3 bg-bg-5 text-ink-3 opacity-0 hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100"
@@ -152,7 +177,7 @@ function BaseProperties({ base }: { base: BaseLayer }) {
             {camo && base.colors.length < MAX_CAMO_COLORS && (
               <button
                 type="button"
-                onClick={() => setBase({ colors: [...base.colors, nextCamoColor(base.colors)] })}
+                onClick={() => setBase({ colors: [...base.colors, nextCamoColor(base.colors)], weights: weightsWithColorAdded(base.weights) })}
                 aria-label={t('atelier.props.addColor')}
                 title={t('atelier.props.addColor')}
                 className="grid h-8 w-8 place-items-center rounded-ctl border border-dashed border-line-4 text-ink-3 hover:border-ink-4 hover:text-ink-1 motion-safe:transition-colors motion-safe:duration-120"
@@ -166,6 +191,18 @@ function BaseProperties({ base }: { base: BaseLayer }) {
 
       {camo && (
         <>
+          <Field label={t('atelier.props.shares')}>
+            {(id) => (
+              <div className="flex flex-col gap-1.5">
+                <CamoSharesBar base={base} labelId={id} onChange={(weights) => setBase({ weights }, 'shares')} onCommit={endGesture} />
+                {base.weights && (
+                  <button type="button" onClick={() => setBase({ weights: undefined })} className="self-start text-meta text-ink-3 underline-offset-2 hover:text-ink-1 hover:underline">
+                    {t('atelier.props.sharesEqual')}
+                  </button>
+                )}
+              </div>
+            )}
+          </Field>
           <Slider
             label={t('atelier.props.scale')}
             value={base.scale}
@@ -174,6 +211,40 @@ function BaseProperties({ base }: { base: BaseLayer }) {
             step={0.05}
             format={(v) => `${v.toFixed(2)}×`}
             onChange={(scale) => setBase({ scale }, 'scale')}
+            onCommit={endGesture}
+          />
+          {grid && (
+            <Slider
+              label={t('atelier.props.cellSize')}
+              value={base.cellSize ?? 1}
+              min={CELL_SIZE_MIN}
+              max={CELL_SIZE_MAX}
+              step={0.05}
+              format={(v) => `${v.toFixed(2)}×`}
+              onChange={(cellSize) => setBase({ cellSize }, 'cellSize')}
+              onCommit={endGesture}
+            />
+          )}
+          {pattern === 'stripes' && (
+            <Slider
+              label={t('atelier.props.angle')}
+              value={base.angle ?? DEFAULT_STRIPE_ANGLE}
+              min={STRIPE_ANGLE_MIN}
+              max={STRIPE_ANGLE_MAX}
+              step={1}
+              format={(v) => `${Math.round(v)}°`}
+              onChange={(angle) => setBase({ angle }, 'angle')}
+              onCommit={endGesture}
+            />
+          )}
+          <Slider
+            label={t('atelier.props.softness')}
+            value={base.softness ?? 0}
+            min={0}
+            max={1}
+            step={0.01}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(softness) => setBase({ softness }, 'softness')}
             onCommit={endGesture}
           />
           <Field label={t('atelier.props.pattern')}>

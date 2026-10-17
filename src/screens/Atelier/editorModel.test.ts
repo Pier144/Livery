@@ -15,7 +15,12 @@ import {
   bodyEnabled,
   isTypingTarget,
   nextCamoColor,
+  equalShares,
+  moveShareDivider,
+  weightsWithColorAdded,
+  weightsWithColorRemoved,
 } from './editorModel';
+import { MIN_CAMO_WEIGHT } from '@/atelier/project';
 
 const model = parseModelBuffer(encodeMockModel('v'));
 const t = i18n.getFixedT('en');
@@ -140,5 +145,34 @@ describe('editor model (review round)', () => {
     expect(isTypingTarget(input('color'))).toBe(false);
     expect(isTypingTarget(input('checkbox'))).toBe(false);
     expect(isTypingTarget(document.createElement('div'))).toBe(false);
+  });
+});
+
+
+describe('camo shares', () => {
+  const total = (w: readonly number[]) => w.reduce((a, b) => a + b, 0);
+
+  it('adding a colour gives it 1/n and keeps every share at 5 % or more', () => {
+    expect(weightsWithColorAdded(undefined)).toBeUndefined();
+    const w = weightsWithColorAdded([0.05, 0.05, 0.9])!;
+    expect(w).toHaveLength(4);
+    expect(total(w)).toBeCloseTo(1, 10);
+    for (const v of w) expect(v).toBeGreaterThanOrEqual(MIN_CAMO_WEIGHT);
+    expect(weightsWithColorAdded([0.5, 0.5])!.map((v) => +v.toFixed(3))).toEqual([0.333, 0.333, 0.333]);
+  });
+
+  it('removing a colour drops its share and renormalises', () => {
+    expect(weightsWithColorRemoved(undefined, 1)).toBeUndefined();
+    expect(weightsWithColorRemoved([0.5, 0.3, 0.2], 0)).toEqual([0.6, 0.4]);
+  });
+
+  it('moving a divider changes only its two neighbours, never under 5 %', () => {
+    expect(moveShareDivider([0.25, 0.25, 0.25, 0.25], 1, 0.6)).toEqual([0.25, 0.35, 0.15, 0.25]);
+    expect(moveShareDivider([0.25, 0.25, 0.25, 0.25], 1, 0.99)).toEqual([0.25, 0.45, 0.05, 0.25]);
+    expect(moveShareDivider([0.5, 0.5], 0, 0)).toEqual([0.05, 0.95]);
+    // Without shares the divider starts from equal ones.
+    expect(moveShareDivider(undefined, 0, 0.5, 3)).toEqual([0.5, 0.1667, 0.3333]);
+    expect(equalShares(3).map((v) => +v.toFixed(3))).toEqual([0.333, 0.333, 0.333]);
+    expect(total(equalShares(3))).toBeCloseTo(1, 10);
   });
 });

@@ -35,7 +35,7 @@ import { measureTextAspect } from './text';
 export const HISTORY_LIMIT = 100;
 
 /** What a Base edit may change. */
-export type BasePatch = Partial<Pick<BaseLayer, 'mode' | 'colors' | 'scale' | 'seed' | 'wear'>>;
+export type BasePatch = Partial<Pick<BaseLayer, 'mode' | 'colors' | 'scale' | 'seed' | 'wear' | 'pattern' | 'weights' | 'cellSize' | 'angle' | 'softness'>>;
 
 /** What `setLayerProps` may change on an image or text layer (fields of the other kind are dropped). */
 export type LayerPropsPatch = Partial<Omit<ImageLayer, 'id' | 'kind' | 'decal'> & Omit<TextLayer, 'id' | 'kind' | 'decal'>>;
@@ -279,6 +279,13 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       // No wear is no field, as in a loaded project.
       if (!(next.wear !== undefined && next.wear > 0)) delete next.wear;
       else next.wear = Math.min(1, next.wear);
+      // Defaults are no field either (organic, equal shares, sharp), and shares follow the colours.
+      if (next.pattern === undefined || next.pattern === 'organic') delete next.pattern;
+      if (next.weights === undefined || next.weights.length !== next.colors.length) delete next.weights;
+      if (!(next.softness !== undefined && next.softness > 0)) delete next.softness;
+      else next.softness = Math.min(1, next.softness);
+      if (next.cellSize === undefined) delete next.cellSize;
+      if (next.angle === undefined) delete next.angle;
       change(
         layers.map((l) => (l === base ? next : l)),
         mergeKey,

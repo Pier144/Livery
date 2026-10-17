@@ -14,9 +14,10 @@
 
 import * as THREE from 'three';
 import { detailMap } from '@/atelier/detailMap';
-import { Baker, buildUnwrapped, compositeTexel, decalContribution, decalCopies, decalSample, type Rgba, type TemplateImage } from '@/atelier/gl/baker';
+import { Baker, buildUnwrapped, compositeTexel, decalContribution, decalCopies, decalSample, hexToSrgb, type Rgba, type TemplateImage } from '@/atelier/gl/baker';
+import { camoParams, camoWeights } from '@/atelier/gl/camo';
 import { parseModelBuffer, type VehicleModelData } from '@/atelier/modelBuffer';
-import type { BaseLayer, Decal, ImageLayer, Layer, TextLayer, Vec3 } from '@/atelier/project';
+import { CAMO_PATTERNS, type BaseLayer, type Decal, type ImageLayer, type Layer, type TextLayer, type Vec3 } from '@/atelier/project';
 import { encodeMockModel, MOCK_TEXTURE_SIZE, mockTemplate } from './mockAtelier';
 
 export interface GlCheck {
@@ -279,6 +280,50 @@ export async function runAtelierGlCheck(): Promise<{ ok: boolean; checks: GlChec
       const onShared = await baker.decalTouchesSharedTexels(face([0, 0, 0.5], [0, 0, 1]));
       const onOwn = await baker.decalTouchesSharedTexels(face([0.5, 0, 0], [1, 0, 0]));
       add('shared-texel check', onShared && !onOwn, { onShared, onOwn });
+    } finally {
+      baker.dispose();
+      renderer.dispose();
+    }
+  }
+
+  // ── Camo styles: every style, sharp and soft, against camoWeights (camo.ts).
+  {
+    const renderer = new THREE.WebGLRenderer({ canvas: document.createElement('canvas') });
+    const baker = new Baker(renderer, model, templates, {});
+    const locate = texelLocator(model, 0);
+    const detail = detailMap(templates.get(body)!.rgba, SIZE, SIZE);
+    const colors = ['#d03020', '#20a040', '#2040c0', '#e0e040'];
+    const rgb = colors.map(hexToSrgb);
+    try {
+      for (const pattern of CAMO_PATTERNS)
+        for (const softness of [0, 0.5]) {
+          const base: BaseLayer = { ...hiddenBase, visible: true, mode: 'camo', colors, scale: 0.3, seed: 5, ...(pattern === 'organic' ? {} : { pattern }), ...(softness ? { softness } : {}) };
+          baker.setLayers([base], slots);
+          await baker.whenReady();
+          await baker.prepareExport(false);
+          const out = baker.bakeForExport(body, false).rgba;
+          baker.endExport();
+          const prm = camoParams(base);
+          let compared = 0;
+          let bad = 0;
+          let maxErr = 0;
+          const used = new Set<number>();
+          for (let y = 0; y < SIZE; y++)
+            for (let x = 0; x < SIZE; x++) {
+              const texel = locate(x, y);
+              if (!texel) continue;
+              const w = camoWeights(texel.pos, texel.normal, prm);
+              used.add(w.indexOf(Math.max(...w)));
+              const mixed: Vec3 = [0, 1, 2].map((c) => w.reduce((a, k, i) => a + k * rgb[i]![c]!, 0)) as Vec3;
+              const ref = compositeTexel({ rgb: mixed, alpha: 1 }, [], detail[y * SIZE + x]!, 0, false).map((v) => v * 255);
+              const o = (y * SIZE + x) * 4;
+              const err = Math.max(...[0, 1, 2].map((c) => Math.abs(ref[c]! - out[o + c]!)));
+              compared++;
+              maxErr = Math.max(maxErr, err);
+              if (err > 3) bad++;
+            }
+          add(`camo ${pattern}${softness ? ' soft' : ''} equals camoWeights`, compared > 1000 && bad / compared < 0.01 && used.size >= 3, { compared, bad, maxErr: +maxErr.toFixed(1), colours: used.size });
+        }
     } finally {
       baker.dispose();
       renderer.dispose();

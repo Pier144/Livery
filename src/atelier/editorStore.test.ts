@@ -111,6 +111,34 @@ describe('editor store', () => {
     expect(S().past).toHaveLength(1);
   });
 
+  it('camo style fields: one step each, defaults leave no field behind', () => {
+    S().setBase({ mode: 'camo', colors: ['#111111', '#333333', '#555555'] });
+    S().setBase({ pattern: 'hex' });
+    expect(base()?.pattern).toBe('hex');
+    S().setBase({ pattern: 'organic' });
+    expect(base()).not.toHaveProperty('pattern');
+    S().setBase({ weights: [0.5, 0.3, 0.2] }, 'shares');
+    S().setBase({ weights: [0.4, 0.4, 0.2] }, 'shares');
+    expect(base()?.weights).toEqual([0.4, 0.4, 0.2]);
+    S().endGesture();
+    S().setBase({ weights: undefined });
+    expect(base()).not.toHaveProperty('weights');
+    S().setBase({ softness: 0.4 }, 'softness');
+    expect(base()?.softness).toBe(0.4);
+    S().setBase({ softness: 0 }, 'softness');
+    expect(base()).not.toHaveProperty('softness');
+    S().setBase({ cellSize: 2, angle: -20 });
+    expect(base()).toMatchObject({ cellSize: 2, angle: -20 });
+    // pattern hex, organic, one shares drag, weights off, one softness drag, cell size + angle.
+    expect(S().past).toHaveLength(7);
+  });
+
+  it('shares that no longer match the colours are dropped', () => {
+    S().setBase({ mode: 'camo', colors: ['#111111', '#333333', '#555555'], weights: [0.5, 0.3, 0.2] });
+    S().setBase({ colors: ['#111111', '#333333'] });
+    expect(base()).not.toHaveProperty('weights');
+  });
+
   it('endGesture ends a merge: two drags with the same key are two undo steps', () => {
     S().setBase({ scale: 1.1 }, 'scale');
     S().setBase({ scale: 1.2 }, 'scale');

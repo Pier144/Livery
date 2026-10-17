@@ -16,6 +16,7 @@ import {
 } from '../project';
 import { texelsPerUnit } from '../decal';
 import type { DecalImage } from './decalTextures';
+import { BASE_FRAGMENT } from './camo';
 import {
   applyStamp,
   Baker,
@@ -58,7 +59,6 @@ import {
   camoNoise,
   latticeValue,
   MASK_FRAGMENT,
-  BASE_FRAGMENT,
   COUNT_FRAGMENT,
   DECAL_FRAGMENT,
   FINAL_FRAGMENT,

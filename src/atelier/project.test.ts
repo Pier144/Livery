@@ -26,6 +26,13 @@ import {
   partGroupOf,
   toDecal,
   validateLayers,
+  normalizeWeights,
+  CELL_SIZE_MAX,
+  CELL_SIZE_MIN,
+  MIN_CAMO_WEIGHT,
+  STRIPE_ANGLE_MAX,
+  STRIPE_ANGLE_MIN,
+  type BaseLayer,
   type ImageLayer,
   type MaskLayer,
   type Stroke,
@@ -348,5 +355,58 @@ describe('image and text layers', () => {
     expect(t.text).toHaveLength(MAX_TEXT_CHARS);
     expect(defaultDepth(0.05)).toBe(0.02);
     expect(defaultDepth(1)).toBeCloseTo(0.1);
+  });
+});
+
+describe('camo styles on the Base', () => {
+  const CAMO = { ...BASE, mode: 'camo', colors: ['#56603f', '#8a7a55', '#2f3324'], scale: 1.5, seed: 9 };
+  const base = (over: Record<string, unknown>) => validateLayers([{ ...CAMO, ...over }])[0] as BaseLayer;
+
+  it('an older camo Base parses without any new field and round-trips', () => {
+    const b = base({});
+    for (const key of ['pattern', 'weights', 'cellSize', 'angle', 'softness']) expect(b).not.toHaveProperty(key);
+    expect(validateLayers(JSON.parse(JSON.stringify(serializeLayers([b]))))[0]).toEqual(b);
+  });
+
+  it('pattern: kept as written unless organic or not a string', () => {
+    expect(base({ pattern: 'hex' }).pattern).toBe('hex');
+    expect(base({ pattern: 'sticker-camo' }).pattern).toBe('sticker-camo');
+    for (const pattern of ['organic', '', 7, null]) expect(base({ pattern })).not.toHaveProperty('pattern');
+  });
+
+  it('weights: normalised with a 5 % floor, dropped when they do not match the colours', () => {
+    expect(base({ weights: [1, 1, 2] }).weights).toEqual([0.25, 0.25, 0.5]);
+    expect(base({ weights: [0.01, 0.01, 0.98] }).weights).toEqual([0.05, 0.05, 0.9]);
+    expect(base({ colors: ['#000000', '#ffffff'], weights: [0.01, 0.99] }).weights).toEqual([0.05, 0.95]);
+    for (const weights of [[1, 2], [1, 0, 1], [1, Number.NaN, 1], ['a', 1, 1], 'x', null]) expect(base({ weights })).not.toHaveProperty('weights');
+    const once = base({ weights: [0.3, 0.3, 0.4] });
+    expect(base({ weights: once.weights }).weights).toEqual(once.weights);
+  });
+
+  it('cell size, angle and softness are clamped; softness 0 is no field', () => {
+    expect(base({ cellSize: 10 }).cellSize).toBe(CELL_SIZE_MAX);
+    expect(base({ cellSize: 0.01 }).cellSize).toBe(CELL_SIZE_MIN);
+    expect(base({ angle: 120 }).angle).toBe(STRIPE_ANGLE_MAX);
+    expect(base({ angle: -120 }).angle).toBe(STRIPE_ANGLE_MIN);
+    expect(base({ softness: 2 }).softness).toBe(1);
+    expect(base({ softness: 0.3 }).softness).toBe(0.3);
+    for (const v of [0, -1, 'x', null]) expect(base({ softness: v })).not.toHaveProperty('softness');
+    for (const v of ['x', null, Number.NaN]) {
+      expect(base({ cellSize: v })).not.toHaveProperty('cellSize');
+      expect(base({ angle: v })).not.toHaveProperty('angle');
+    }
+  });
+});
+
+describe('normalizeWeights', () => {
+  it('sums to 1, floors every share at MIN_CAMO_WEIGHT, keeps a pinned share exact', () => {
+    for (const w of [[1, 1], [0.001, 5, 5, 5], [0.0001, 0.0001, 0.0001, 1], [3, 1, 1]]) {
+      const n = normalizeWeights(w);
+      expect(n.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
+      for (const v of n) expect(v).toBeGreaterThanOrEqual(MIN_CAMO_WEIGHT);
+      expect(normalizeWeights(n)).toEqual(n);
+    }
+    expect(normalizeWeights([0.0001, 0.0001, 0.0001, 1])).toEqual([0.05, 0.05, 0.05, 0.85]);
+    expect(normalizeWeights([1, 2])).toEqual([0.3333, 0.6667]);
   });
 });

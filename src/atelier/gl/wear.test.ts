@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Vec3 } from '../project';
+import { BASE_FRAGMENT } from './camo';
 import {
-  BASE_FRAGMENT,
   DECAL_FRAGMENT,
   WEAR_EDGE_WIDTH,
   WEAR_NONE,

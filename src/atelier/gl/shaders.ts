@@ -188,7 +188,8 @@ export function chipAmount(field: number, amount: number, aa = 0): number {
 
 // ---------------------------------------------------------------- GLSL
 
-const NOISE_GLSL = /* glsl */ `
+/** Integer hash, lattice value noise and the camo noise (`lvCamoNoise`), the GLSL of the mirrors above. */
+export const NOISE_GLSL = /* glsl */ `
 uint lvHash(uint x) {
   x ^= x >> 16u;
   x *= 0x7feb352du;
@@ -230,7 +231,7 @@ float lvCamoNoise(vec3 p, uint seed) {
 }
 `;
 
-const glslFloat = (v: number) => (Number.isInteger(v) ? v.toFixed(1) : String(v));
+export const glslFloat = (v: number) => (Number.isInteger(v) ? v.toFixed(1) : String(v));
 
 /**
  * Wear, shared by the base and decal passes: `lvEdgeDistance()` is the texel's distance to the
@@ -238,7 +239,7 @@ const glslFloat = (v: number) => (Number.isInteger(v) ? v.toFixed(1) : String(v)
  * edges that aren't sharp); `lvWearField()` and `lvChip(threshold)` mirror `wearField` and
  * `chipAmount` (anti-aliased over the field's screen derivative, taken before any discard).
  */
-const WEAR_GLSL = /* glsl */ `
+export const WEAR_GLSL = /* glsl */ `
 varying vec3 vBary;
 varying vec3 vEdgeH;
 
@@ -338,46 +339,7 @@ void main() {
 }
 `;
 
-/**
- * Paint, step 1 (base pass, into the scratch intermediate, premultiplied): the Base (solid
- * `uColors[0]`, or camo: `lvCamoNoise(vPos · uFrequency, seed)` split by `uThresholds` into
- * `uColors[0..3]`) as `(rgb · a, a)` with `a = uBaseAlpha` (0 when the Base is hidden: the game's
- * texture shows wherever no decal covers). With wear (`uWearThreshold` finite), `wearBaseColor`:
- * a darker rim around the chips, and bare metal (rust in patches) inside them.
- */
-export const BASE_FRAGMENT = /* glsl */ `
-${NOISE_GLSL}
-varying vec3 vPos;
-${WEAR_GLSL}
-uniform int uMode;
-uniform vec3 uColors[4];
-uniform vec3 uThresholds;
-uniform float uFrequency;
-uniform int uSeed;
-uniform float uBaseAlpha;
-uniform float uWearThreshold;
-uniform vec3 uWearMetal;
-uniform vec3 uWearRust;
-
-void main() {
-  vec3 color = uColors[0];
-  if (uMode == 1) {
-    float n = lvCamoNoise(vPos * uFrequency, uint(uSeed));
-    int index = int(step(uThresholds.x, n) + step(uThresholds.y, n) + step(uThresholds.z, n));
-    color = uColors[index];
-  }
-  // A uniform branch: the field's derivatives stay defined.
-  if (uWearThreshold < ${glslFloat(WEAR_NONE)}) {
-    float field = lvWearField();
-    float chip = lvChip(field, uWearThreshold);
-    float rim = clamp(smoothstep(uWearThreshold - ${glslFloat(WEAR_RIM)}, uWearThreshold, field) - chip, 0.0, 1.0);
-    float rust = smoothstep(${glslFloat(WEAR_RUST_FROM)}, ${glslFloat(WEAR_RUST_TO)}, lvValueNoise(vPos / ${glslFloat(WEAR_RUST_CELL)}, ${WEAR_SEED >>> 0}u));
-    vec3 metal = mix(uWearMetal, uWearRust, rust);
-    color = mix(color * (1.0 - ${glslFloat(WEAR_RIM_DARKEN)} * rim), metal, chip);
-  }
-  gl_FragColor = vec4(color * uBaseAlpha, uBaseAlpha);
-}
-`;
+// Paint, step 1 (the Base) is `BASE_FRAGMENT` in camo.ts, next to the camo styles it draws.
 
 /**
  * The decal tests shared by the decal and footprint passes: `lvDecalSpace()` is the texel's

@@ -19,14 +19,12 @@ import {
   type Vec3,
 } from '../project';
 import { loadFont, MAX_RASTER_SIDE, MIN_RASTER_HEIGHT, rasterHeightFor, rasterise } from '../text';
+import { BASE_FRAGMENT, camoParams, type CamoParams } from './camo';
 import { DecalTextureCache, PREVIEW_DECAL_MAX, type DecalImage } from './decalTextures';
 import {
   BAKE_MAX_POINTS,
   BAKE_VERTEX,
-  BASE_FRAGMENT,
   brushWeight,
-  CAMO_CELL,
-  CAMO_THRESHOLDS,
   COUNT_FRAGMENT,
   COVERAGE_FRAGMENT,
   DECAL_FRAGMENT,
@@ -184,18 +182,12 @@ export function hexToSrgb(hex: string): Vec3 {
   return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
 }
 
-/** The paint pass's Base uniforms. */
-export interface BaseUniforms {
+/** The paint pass's Base uniforms: the camo maths (`camoParams`, camo.ts) plus the colours. */
+export interface BaseUniforms extends CamoParams {
   /** 0 solid, 1 camo. */
   mode: number;
   /** Four sRGB colours (x, y, z each), unused ones repeat the last. */
   colors: Float32Array;
-  count: number;
-  thresholds: readonly [number, number, number];
-  /** Noise cells per model unit: `1 / (CAMO_CELL · scale)`. */
-  frequency: number;
-  /** The seed as an int32 (the shader reads it back as a uint). */
-  seed: number;
   /** 0 when the Base is hidden or missing (nothing painted). */
   alpha: number;
 }
@@ -203,17 +195,12 @@ export interface BaseUniforms {
 export function baseUniforms(base: BaseLayer | undefined): BaseUniforms {
   const colors = new Float32Array(12);
   const list = base && base.colors.length > 0 ? base.colors : ['#000000'];
-  const camo = base?.mode === 'camo' && list.length >= 2;
-  const count = camo ? Math.min(4, list.length) : 1;
-  for (let i = 0; i < 4; i++) colors.set(hexToSrgb(list[Math.min(i, count - 1)]!), i * 3);
-  const scale = base && base.scale > 0 ? base.scale : 1;
+  const camo = camoParams(base);
+  for (let i = 0; i < 4; i++) colors.set(hexToSrgb(list[Math.min(i, camo.count - 1)]!), i * 3);
   return {
-    mode: camo ? 1 : 0,
+    ...camo,
+    mode: camo.count >= 2 ? 1 : 0,
     colors,
-    count,
-    thresholds: CAMO_THRESHOLDS[count] ?? CAMO_THRESHOLDS[1]!,
-    frequency: 1 / (CAMO_CELL * scale),
-    seed: (base?.seed ?? 1) | 0,
     alpha: base && base.visible ? 1 : 0,
   };
 }
@@ -875,6 +862,15 @@ export class Baker {
       uThresholds: { value: new THREE.Vector3(2, 2, 2) },
       uFrequency: { value: 1 },
       uSeed: { value: 1 },
+      uPattern: { value: 0 },
+      uCount: { value: 1 },
+      uBounds: { value: new THREE.Vector3(2, 2, 2) },
+      uCell: { value: 1 },
+      uSoft: { value: 0 },
+      uStripeN: { value: new THREE.Vector3(1, 0, 0) },
+      uStripeB: { value: new THREE.Vector3(0, 1, 0) },
+      uSegment: { value: 1 },
+      uJitter: { value: 0 },
       uBaseAlpha: { value: 0 },
       uWearThreshold: { value: wearUniform(undefined) },
       uWearMetal: { value: new THREE.Vector3(...WEAR_METAL_RGB) },
@@ -1442,6 +1438,15 @@ export class Baker {
     (u.uThresholds!.value as THREE.Vector3).set(b.thresholds[0], b.thresholds[1], b.thresholds[2]);
     u.uFrequency!.value = b.frequency;
     u.uSeed!.value = b.seed;
+    u.uPattern!.value = b.pattern;
+    u.uCount!.value = b.count;
+    (u.uBounds!.value as THREE.Vector3).set(b.bounds[0], b.bounds[1], b.bounds[2]);
+    u.uCell!.value = b.cell;
+    u.uSoft!.value = b.soft;
+    (u.uStripeN!.value as THREE.Vector3).set(...b.stripeN);
+    (u.uStripeB!.value as THREE.Vector3).set(...b.stripeB);
+    u.uSegment!.value = b.segment;
+    u.uJitter!.value = b.jitter;
     u.uBaseAlpha!.value = b.alpha;
     u.uWearThreshold!.value = wearUniform(this.base?.wear);
   }
