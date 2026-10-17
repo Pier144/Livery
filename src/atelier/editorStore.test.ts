@@ -768,6 +768,18 @@ describe('editor store · folders', () => {
     expect(ids()).toEqual(['B', 'F', 'y']);
   });
 
+  it('restoring a folder whose children came back with Dissolve does nothing (no repeated ids)', () => {
+    const folder = item<FolderLayer>('F');
+    const entries = S().deleteLayers(['F']);
+    S().undo();
+    S().dissolveFolder('F');
+    const past = S().past.length;
+    S().restoreLayers(entries);
+    S().restoreLayer(folder, 2);
+    expect(S().past).toHaveLength(past);
+    expect(ids()).toEqual(['B', 'x', 'a', 'b', 'y']);
+  });
+
   it('moveLayer moves within the folder', () => {
     S().moveLayer('a', 5);
     expect(childIds('F')).toEqual(['b', 'a']);
@@ -1070,6 +1082,68 @@ describe('editor store · merge and separate', () => {
     expect(ids()).toEqual(['B', 'c']);
     S().undo();
     expect(childIds(result.id)).toEqual(['b']);
+  });
+
+  it('restoring a merged object whose pieces came back with Separate does nothing (no repeated ids)', () => {
+    const result = S().mergeLayers(['a', 'b']);
+    if (!result.ok) throw new Error('refused');
+    const merged = item<MergedLayer>(result.id);
+    const entries = S().deleteLayers([result.id]);
+    S().undo();
+    S().separate(result.id);
+    const past = S().past.length;
+    S().restoreLayers(entries);
+    S().restoreLayer(merged, 2);
+    expect(S().past).toHaveLength(past);
+    expect(find(result.id)).toBeNull();
+    expect(new Set(allLayers(S().layers).map((l) => l.id)).size).toBe(allLayers(S().layers).length);
+  });
+
+  it('a place-less unsupported piece never comes back at the top level', () => {
+    const sticker = { id: 'U', kind: 'sticker', name: '', visible: true };
+    const { decal: _d, ...pictureOfP } = image('p');
+    loadLayers({
+      id: 'M',
+      kind: 'merged',
+      name: '',
+      visible: true,
+      decal: DECAL,
+      opacity: 1,
+      children: [{ ...pictureOfP, place: { x: 0, y: 0, w: 1, h: 1, angle: 0 } }, sticker],
+    } as unknown as Layer);
+    expect(item('U')).toMatchObject({ kind: 'unsupported' });
+    expect(item('U')).not.toHaveProperty('place');
+    const entries = S().deleteLayers(['U']);
+    expect(entries).toEqual([expect.objectContaining({ parentId: 'M', index: 1, fromMerged: true })]);
+    S().restoreLayers(entries);
+    expect(childIds('M')).toEqual(['p', 'U']);
+    S().deleteLayers(['U']);
+    S().deleteLayer('M');
+    const past = S().past.length;
+    S().restoreLayers(entries);
+    expect(S().past).toHaveLength(past);
+    expect(ids()).toEqual(['B']);
+  });
+
+  it('separate selects only the placed layers it gives back', () => {
+    const sticker = { id: 'U', kind: 'sticker', name: '', visible: true, place: { x: 0, y: 0, w: 1, h: 1, angle: 0 } };
+    const piece = (id: string) => {
+      const { decal: _d, ...rest } = image(id);
+      return { ...rest, place: { x: 0, y: 0, w: 0.5, h: 0.5, angle: 0 } };
+    };
+    loadLayers({ id: 'M', kind: 'merged', name: '', visible: true, decal: DECAL, opacity: 1, children: [piece('p'), piece('q'), sticker] } as unknown as Layer);
+    expect(S().separate('M')).toEqual({ ok: true, ids: ['p', 'q', 'U'], droppedRepeat: false });
+    expect(S().selectedIds).toEqual(['p', 'q']);
+    expect(S().selectedId).toBe('q');
+  });
+
+  it('a piece that does not check out refuses the merge, removing nothing', () => {
+    // Only reachable with a layer the store was handed as is (an image without its asset).
+    useAtelierEditor.setState({ layers: S().layers.map((l) => (l.id === 'a' ? { ...l, assetId: '' } : l)) });
+    const before = S().layers;
+    expect(S().mergeLayers(['a', 'b'])).toEqual({ ok: false, reason: 'pieces' });
+    expect(S().layers).toBe(before);
+    expect(S().past).toHaveLength(0);
   });
 
   it('duplicating a merged object renews every id; pieces are not duplicated on their own', () => {

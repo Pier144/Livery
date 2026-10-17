@@ -99,11 +99,16 @@ export type PendingPlacement =
 /** Where `duplicateLayer` puts the copy: this fraction of the decal's height down and right along the surface. */
 export const DUPLICATE_OFFSET = 0.05;
 
-/** What `deleteLayers` removed: the layer or piece as it was, its container and its index there. */
+/**
+ * What `deleteLayers` removed: the layer or piece as it was, its container and its index there.
+ * `fromMerged` marks a piece (an unsupported one may have no `place`), which only goes back into
+ * its merged object.
+ */
 export interface DeletedEntry {
   layer: Layer | Piece;
   parentId: string | null;
   index: number;
+  fromMerged?: boolean;
 }
 
 /** What `mergeLayers` answers. `reset` says whether the shared part or Mirror differ from some layer's own. */
@@ -256,7 +261,7 @@ interface EditorState {
    * Puts back a deleted layer or piece at `index` of its container (kept between the Base and the
    * mask at the top level; a layer whose folder is gone goes to the top level) as one undo step and
    * selects it: the "Layer deleted" toast's Undo once other edits came after the delete. Ignored
-   * when an item with its id is already there.
+   * when it, or anything inside it, has an id already in the tree.
    */
   restoreLayer(layer: Layer | Piece, index: number, parentId?: string | null): void;
   /**
@@ -300,7 +305,7 @@ interface EditorState {
   /**
    * Puts back what `deleteLayers` removed, as one undo step: each into its container at its index
    * (a container that is gone: the top level, under the mask; a piece whose merged object is gone
-   * is lost). Items whose id is already there are skipped.
+   * is lost). An entry is skipped when it, or anything inside it, has an id already in the tree.
    */
   restoreLayers(entries: DeletedEntry[]): void;
   /** Merges placed layers of one container into a merged object at the topmost one's place, selected (spec "Merge"). */
@@ -491,18 +496,26 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     const target = emptied ? findLayer(layers, emptied.id) : found;
     if (!target) return null;
     const entry: DeletedEntry = { layer: target.layer as Layer | Piece, parentId: target.parentId, index: target.index };
+    if (isPiece(target)) entry.fromMerged = true;
     return { layers: removeLayers(layers, [target.layer.id]), entry };
   };
 
-  /** `layers` with `item` back in `parentId` at `index`, or the top level under the mask when that container can't take it. */
-  const restored = (layers: Layer[], item: Layer | Piece, parentId: ParentId, index: number): Layer[] => {
+  /**
+   * `layers` with `item` back in `parentId` at `index`, or the top level under the mask when that
+   * container can't take it. Unchanged when the item or anything inside it has an id already in the
+   * tree (it came back another way: an undo then Separate or Dissolve), and for a piece
+   * (`fromMerged`) whose merged object is gone.
+   */
+  const restored = (layers: Layer[], item: Layer | Piece, parentId: ParentId, index: number, fromMerged = false): Layer[] => {
+    if (allLayers([item] as Layer[]).some((inner) => findLayer(layers, inner.id))) return layers;
     if (parentId !== null) {
       const container = findLayer(layers, parentId)?.layer;
-      const fits = container?.kind === 'merged' ? 'place' in item : container?.kind === 'folder' && item.kind !== 'folder' && !('place' in item);
+      const piece = fromMerged || 'place' in item;
+      const fits = container?.kind === 'merged' ? piece : container?.kind === 'folder' && item.kind !== 'folder' && !piece;
       if (fits) return insertLayers(layers, parentId, index, [item]);
     }
     // A piece only lives in a merged object.
-    if ('place' in item) return layers;
+    if (fromMerged || 'place' in item) return layers;
     return insertLayers(layers, null, parentId === null ? index : Number.NaN, [item]);
   };
 
@@ -694,7 +707,7 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
 
     restoreLayer: (layer, index, parentId = null) => {
       const { layers } = get();
-      if (layer.kind === 'base' || layer.kind === 'mask' || findLayer(layers, layer.id) || !Number.isFinite(index)) return;
+      if (layer.kind === 'base' || layer.kind === 'mask' || !Number.isFinite(index)) return;
       const next = restored(layers, layer, parentId, Math.round(index));
       if (next !== layers) structural(next, { selectedId: layer.id });
     },
@@ -905,8 +918,8 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       // In reverse removal order, so each index means what it meant when its item left.
       for (const entry of [...entries].reverse()) {
         const { layer } = entry;
-        if (layer.kind === 'base' || layer.kind === 'mask' || findLayer(next, layer.id)) continue;
-        const put = restored(next, layer, entry.parentId, entry.index);
+        if (layer.kind === 'base' || layer.kind === 'mask') continue;
+        const put = restored(next, layer, entry.parentId, entry.index, entry.fromMerged === true);
         if (put === next) continue;
         next = put;
         topmost = layer.id;
@@ -947,7 +960,9 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
           continue;
         }
         const piece = checkPiece({ ...item, place: placeOf(frame, box!) } as Piece);
-        if (piece) children.push(piece);
+        // Nothing is lost silently: a piece that doesn't check out refuses the merge.
+        if (!piece) return { ok: false, reason: 'pieces' };
+        children.push(piece);
       }
       const merged: MergedLayer = { id: newLayerId(), kind: 'merged', name: '', visible: true, decal: frame, opacity: 1, children };
       const parentId = top.found.parentId;
@@ -970,7 +985,9 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       const next = spliceLayer(layers, id, separated);
       if (next === layers) return { ok: false };
       const separatedIds = separated.map((l) => l.id);
-      structural(next, { selectedId: separatedIds[separatedIds.length - 1] ?? null, selectedIds: separatedIds.length > 1 ? separatedIds : [] });
+      // Unsupported pieces come back as layers too, but only placed layers can be selected together.
+      const selectable = separated.filter((l) => isPlacedLayer(l)).map((l) => l.id);
+      structural(next, { selectedId: selectable[selectable.length - 1] ?? null, selectedIds: selectable.length > 1 ? selectable : [] });
       return { ok: true, ids: separatedIds, droppedRepeat: merged.repeat !== undefined };
     },
 
