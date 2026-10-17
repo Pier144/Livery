@@ -1,3 +1,4 @@
+import { Magnet } from 'lucide-react';
 import { useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { boundingDiagonal, defaultDecalSize, frameFromHit } from '@/atelier/decal';
@@ -11,7 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/lib/cn';
 import { DecalGizmo } from './DecalGizmo';
 import { decalCorners, nudgePoint, rotateDecal, ROTATE_STEP_DEG, scaleDecal, SCALE_STEP, slideOnto, wheelDepth } from './decalOps';
-import { assetSize, setPlacingLayer, useDecalUi } from './decalUi';
+import { assetSize, setPlacingLayer, setSnap, useDecalUi } from './decalUi';
 import { distance, enabledSlots, POINT_SPACING } from './editorModel';
 import { EngineContext, type Engine } from './engine';
 
@@ -78,6 +79,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
   const [failed, setFailed] = useState(false);
   const pending = useAtelierEditor((s) => s.pending);
   const placingLayerId = useDecalUi((s) => s.placingLayerId);
+  const snap = useDecalUi((s) => s.snap);
   const placing = pending !== null || placingLayerId !== null;
   const placingRef = useRef(placing);
   placingRef.current = placing;
@@ -541,6 +543,7 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
         <DecalGizmo
           scene={engine.scene}
           layer={decalLayer}
+          mirrorAxis={model.header.mirrorAxis}
           onGestureStart={() => {
             // Whatever ran before (an Alt+wheel burst, held keys) ends here: the drag is its own step.
             endWheelGesture();
@@ -584,6 +587,22 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
             </button>
           ))}
         </div>
+        {decalLayer && !brush && (
+          <button
+            type="button"
+            aria-pressed={snap}
+            title={t('atelier.view.snapHint')}
+            aria-description={t('atelier.view.snapHint')}
+            onClick={() => setSnap(!snap)}
+            className={cn(
+              'pointer-events-auto mr-auto flex h-[30px] items-center gap-1.5 rounded-ctl border bg-bg-scrim px-2.5 text-meta leading-none motion-safe:transition-colors motion-safe:duration-120',
+              snap ? 'border-amber-35 text-ink-1' : 'border-line-3 text-ink-3 hover:text-ink-1',
+            )}
+          >
+            <Magnet size={14} strokeWidth={1.75} aria-hidden className={snap ? 'text-amber' : undefined} />
+            {t('atelier.view.snap')}
+          </button>
+        )}
         <p id={helpId} className="min-w-0 truncate rounded-tag bg-bg-scrim px-2 py-1 text-meta text-ink-3 max-xl:sr-only">
           {help}
         </p>

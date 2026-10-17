@@ -1100,6 +1100,8 @@
     },
     "view": {
       "label": "Viste rapide",
+      "snap": "Aggancio",
+      "snapHint": "Aggancia immagini e testi all’asse centrale, in bolla e tra loro. Tieni premuto Ctrl mentre trascini per muoverli liberamente.",
       "front": "Fronte",
       "side": "Lato",
       "rear": "Retro",

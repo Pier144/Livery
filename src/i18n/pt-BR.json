@@ -1100,6 +1100,8 @@
     },
     "view": {
       "label": "Vistas rápidas",
+      "snap": "Encaixe",
+      "snapHint": "Encaixa imagens e textos na linha central, no nível e entre si. Segure Ctrl ao arrastar para mover livremente.",
       "front": "Frente",
       "side": "Lateral",
       "rear": "Traseira",

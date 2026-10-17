@@ -1,7 +1,9 @@
-import { useEffect, useReducer, useRef, type PointerEvent } from 'react';
+import { useEffect, useReducer, useRef, useState, type PointerEvent } from 'react';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import { decalRight, dot, isDecalLayer, partGroupOf, type Decal, type DecalLayer } from '@/atelier/project';
 import { decalCorners, rotateDecal, scaleDecal, slideOnto } from './decalOps';
+import { snapLevel, snapMove, unitsPerPixel, type SnapGuide } from './decalSnap';
+import { useDecalUi } from './decalUi';
 import type { EngineScene } from './engine';
 
 /** Distance of the rotate handle from the top edge, CSS px. */
@@ -19,6 +21,8 @@ type Gesture =
 interface DecalGizmoProps {
   scene: EngineScene;
   layer: DecalLayer & { decal: Decal };
+  /** The model's mirror plane (`ModelHeader.mirrorAxis`), the centre line moves snap to. */
+  mirrorAxis: number;
   /** A drag on a handle begins (the view takes focus, so the keys work next). */
   onGestureStart: () => void;
   /** A drag ended: one undo step was made; the caller re-checks shared texels. */
@@ -35,17 +39,30 @@ function liveDecal(id: string): Decal | null {
   return isDecalLayer(layer) ? layer.decal : null;
 }
 
+/** The other placed image and text decals, which a moved decal aligns with. */
+function otherDecals(id: string): Decal[] {
+  return useAtelierEditor
+    .getState()
+    .layers.filter((l) => l.id !== id && isDecalLayer(l))
+    .flatMap((l) => (isDecalLayer(l) && l.decal ? [l.decal] : []));
+}
+
 /**
  * The selected image or text decal on the 3D view: its box outlined on screen (the four corners on
  * its plane, projected), with a body that slides it along the surface (re-raycast under the
  * pointer, normal and up re-derived), corner handles that scale it keeping its ratio (Shift frees
  * it, images only: text keeps its measured aspect) and a rotate handle that turns it around its
- * normal (Shift snaps to 15°). Each drag is one undo step (`mergeKey` + `endGesture`). Mouse only:
- * the view's keys do the same from the keyboard. Redrawn after every frame (the camera moves).
+ * normal (Shift snaps to 15°). With snapping on (`useDecalUi.snap`, Ctrl held frees one drag), a
+ * move pulls the centre onto the centre line or another decal's height or vertical, a turn settles
+ * level (`decalSnap.ts`), and the snaps that hold are drawn as dashed guides. Each drag is one
+ * undo step (`mergeKey` + `endGesture`). Mouse only: the view's keys do the same from the keyboard
+ * (never snapped: the arrows are for exact steps). Redrawn after every frame (the camera moves).
  */
-export function DecalGizmo({ scene, layer, onGestureStart, onGestureEnd }: DecalGizmoProps) {
+export function DecalGizmo({ scene, layer, mirrorAxis, onGestureStart, onGestureEnd }: DecalGizmoProps) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const gesture = useRef<Gesture | null>(null);
+  const [guides, setGuides] = useState<SnapGuide[]>([]);
+  const snapOn = useDecalUi((s) => s.snap);
   useEffect(() => scene.onRender(redraw), [scene]);
 
   const decal = layer.decal;
@@ -83,10 +100,19 @@ export function DecalGizmo({ scene, layer, onGestureStart, onGestureEnd }: Decal
     const store = useAtelierEditor.getState();
     const current = liveDecal(id);
     if (!current) return;
+    const snapping = snapOn && !e.ctrlKey;
     if (g.kind === 'move') {
       // Only its own part group, and never onto a surface turned too far (see `slideOnto`).
       const hit = scene.raycast(at.x - g.offset.x, at.y - g.offset.y, partGroupOf(current.part));
-      if (hit) store.setDecal(id, slideOnto(current, hit.point, hit.normal), 'move');
+      if (!hit) return;
+      let next = slideOnto(current, hit.point, hit.normal);
+      let held: SnapGuide[] = [];
+      if (snapping) {
+        const unitsPerPx = unitsPerPixel(scene.project, next.center, decalRight(next), Math.max(next.width, next.height) / 2);
+        ({ decal: next, guides: held } = snapMove(next, { mirrorAxis, others: otherDecals(id), unitsPerPx }));
+      }
+      setGuides(held);
+      store.setDecal(id, next, 'move');
     } else if (g.kind === 'scale') {
       const from = sub(g.start, g.centre);
       const to = sub(at, g.centre);
@@ -109,13 +135,17 @@ export function DecalGizmo({ scene, layer, onGestureStart, onGestureEnd }: Decal
         const snap = (ROTATE_SNAP_DEG * Math.PI) / 180;
         delta = Math.round(delta / snap) * snap;
       }
-      store.setDecal(id, rotateDecal(g.decal, g.sign * delta), 'rotate');
+      const turned = rotateDecal(g.decal, g.sign * delta);
+      const level = snapping && !e.shiftKey ? snapLevel(turned) : { decal: turned, guides: [] };
+      setGuides(level.guides);
+      store.setDecal(id, level.decal, 'rotate');
     }
   };
 
   const onUp = (e: PointerEvent<SVGElement>) => {
     if (!gesture.current) return;
     gesture.current = null;
+    setGuides([]);
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     useAtelierEditor.getState().endGesture();
     onGestureEnd(id);
@@ -134,8 +164,17 @@ export function DecalGizmo({ scene, layer, onGestureStart, onGestureEnd }: Decal
   const awayFromCamera = dot(decal.normal, scene.viewDirection()) > 0;
   const dashed = !layer.visible || awayFromCamera;
 
+  const guideLines = guides.flatMap((guide) => {
+    const a = scene.project(guide.from);
+    const b = scene.project(guide.to);
+    return a.behind || b.behind ? [] : [{ kind: guide.kind, a, b }];
+  });
+
   return (
     <svg aria-hidden data-facing={awayFromCamera ? 'away' : 'toward'} className={`pointer-events-none absolute inset-0 h-full w-full overflow-visible ${awayFromCamera ? 'opacity-50' : ''}`}>
+      {guideLines.map((l, i) => (
+        <line key={i} data-snap-guide={l.kind} x1={l.a.x} y1={l.a.y} x2={l.b.x} y2={l.b.y} className="stroke-ink-1 [stroke-dasharray:5_4]" strokeWidth={1} />
+      ))}
       <polygon
         data-gizmo="body"
         points={corners.map((c) => `${c.x},${c.y}`).join(' ')}

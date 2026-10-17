@@ -1100,6 +1100,8 @@
     },
     "view": {
       "label": "Vues rapides",
+      "snap": "Magnétisme",
+      "snapHint": "Aimante images et textes à l’axe central, à l’horizontale et entre eux. Maintenez Ctrl en glissant pour les déplacer librement.",
       "front": "Avant",
       "side": "Côté",
       "rear": "Arrière",

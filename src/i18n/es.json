@@ -1100,6 +1100,8 @@
     },
     "view": {
       "label": "Vistas rápidas",
+      "snap": "Ajuste",
+      "snapHint": "Ajusta imágenes y textos a la línea central, a nivel y entre sí. Mantén Ctrl al arrastrar para moverlos libremente.",
       "front": "Frente",
       "side": "Lateral",
       "rear": "Trasera",

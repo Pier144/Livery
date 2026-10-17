@@ -1057,6 +1057,8 @@
     },
     "view": {
       "label": "Quick views",
+      "snap": "Snap",
+      "snapHint": "Snaps pictures and text to the centre line, to level and to each other. Hold Ctrl while dragging to move freely.",
       "front": "Front",
       "side": "Side",
       "rear": "Rear",

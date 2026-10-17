@@ -757,6 +757,33 @@ describe('Atelier editor · images and text', () => {
     expect(container.querySelectorAll('[data-gizmo^="corner"]')).toHaveLength(4);
   });
 
+  it('snaps a dragged decal onto the centre line with a guide; Ctrl or the magnet button frees it', async () => {
+    const user = userEvent.setup();
+    const { container } = renderEditor();
+    await ready();
+    const id = await placeImage(user);
+    const body = () => container.querySelector('[data-gizmo="body"]')!;
+    // 1 px is 1 cm on the stub's view: 5 px from the centre line (z = 0) is within reach.
+    fireEvent.pointerDown(body(), { button: 0, clientX: 50, clientY: 20, pointerId: 2 });
+    fireEvent.pointerMove(body(), { clientX: 5, clientY: 30, pointerId: 2 });
+    expect(decalLayer(id).decal!.center).toEqual([0.5, 0.3, 0]);
+    expect(container.querySelector('[data-snap-guide="centre"]')).not.toBeNull();
+    fireEvent.pointerMove(body(), { clientX: 5, clientY: 30, pointerId: 2, ctrlKey: true });
+    expect(decalLayer(id).decal!.center).toEqual([0.5, 0.3, 0.05]);
+    expect(container.querySelector('[data-snap-guide]')).toBeNull();
+    fireEvent.pointerUp(body(), { clientX: 5, clientY: 30, pointerId: 2 });
+
+    const magnet = screen.getByRole('button', { name: 'Snap' });
+    expect(magnet).toHaveAttribute('aria-pressed', 'true');
+    await user.click(magnet);
+    expect(magnet).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.pointerDown(body(), { button: 0, clientX: 5, clientY: 30, pointerId: 3 });
+    fireEvent.pointerMove(body(), { clientX: 4, clientY: 30, pointerId: 3 });
+    expect(decalLayer(id).decal!.center[2]).toBeCloseTo(0.04);
+    fireEvent.pointerUp(body(), { clientX: 4, clientY: 30, pointerId: 3 });
+    expect(container.querySelector('[data-snap-guide]')).toBeNull();
+  });
+
   it('offers Mirror off where both sides share the texture, and turns it on elsewhere', async () => {
     const user = userEvent.setup();
     engine.baker.decalTouchesSharedTexels.mockResolvedValue(true);

@@ -1143,6 +1143,8 @@
     },
     "view": {
       "label": "Szybkie widoki",
+      "snap": "Przyciąganie",
+      "snapHint": "Przyciąga obrazy i tekst do linii środkowej, do poziomu i do siebie nawzajem. Przytrzymaj Ctrl podczas przeciągania, aby przesuwać swobodnie.",
       "front": "Przód",
       "side": "Bok",
       "rear": "Tył",

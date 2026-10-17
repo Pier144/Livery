@@ -1057,6 +1057,8 @@
     },
     "view": {
       "label": "Schnellansichten",
+      "snap": "Einrasten",
+      "snapHint": "Lässt Bilder und Text an der Mittellinie, waagerecht und aneinander einrasten. Strg beim Ziehen gedrückt halten, um frei zu verschieben.",
       "front": "Vorne",
       "side": "Seite",
       "rear": "Hinten",

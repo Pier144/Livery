@@ -18,9 +18,11 @@ interface DecalUiState {
   cutoutBusy: boolean;
   /** Bumped when a text layer's font finished loading (or turned out missing): warnings re-read `fontStatus`. */
   fontsVersion: number;
+  /** The gizmo snaps moves and turns (`decalSnap.ts`); the view's magnet button toggles it. */
+  snap: boolean;
 }
 
-const INITIAL: DecalUiState = { missingAssets: {}, shared: {}, placingLayerId: null, cutoutBusy: false, fontsVersion: 0 };
+const INITIAL: DecalUiState = { missingAssets: {}, shared: {}, placingLayerId: null, cutoutBusy: false, fontsVersion: 0, snap: true };
 
 export const useDecalUi = create<DecalUiState>()(() => ({ ...INITIAL }));
 
@@ -44,6 +46,10 @@ export function setPlacingLayer(layerId: string | null): void {
 
 export function setCutoutBusy(busy: boolean): void {
   useDecalUi.setState({ cutoutBusy: busy });
+}
+
+export function setSnap(snap: boolean): void {
+  useDecalUi.setState({ snap });
 }
 
 export function bumpFonts(): void {
