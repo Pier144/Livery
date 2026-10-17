@@ -197,13 +197,16 @@ export function boundingDiagonal(positions: ArrayLike<number>): number {
   return lo[0] === Infinity ? 0 : Math.hypot(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!);
 }
 
+/** Default width of a new stock shape (not the hazard stripe): a badge-sized fraction of the diagonal. */
+export const SHAPE_WIDTH_RATIO = 0.06;
+
 /**
- * The size a new decal gets: width = DEFAULT_WIDTH_RATIO of the model's bounding-box diagonal,
- * height from the picture's (or text's) aspect (width / height), depth = 10% of the width, at
- * least 2 cm. Sides are clamped to MIN_DECAL_SIZE..MAX_DECAL_SIZE.
+ * The size a new decal gets: width = `widthRatio` (DEFAULT_WIDTH_RATIO unless given) of the
+ * model's bounding-box diagonal, height from the picture's (or text's) aspect (width / height),
+ * depth = 10% of the width, at least 2 cm. Sides are clamped to MIN_DECAL_SIZE..MAX_DECAL_SIZE.
  */
-export function defaultDecalSize(diagonal: number, aspect: number): Required<DecalSize> {
-  const width = clampSize(DEFAULT_WIDTH_RATIO * diagonal);
+export function defaultDecalSize(diagonal: number, aspect: number, widthRatio = DEFAULT_WIDTH_RATIO): Required<DecalSize> {
+  const width = clampSize(widthRatio * diagonal);
   const height = clampSize(aspect > 0 && Number.isFinite(aspect) ? width / aspect : width);
   return { width, height, depth: clampSize(defaultDepth(width)) };
 }

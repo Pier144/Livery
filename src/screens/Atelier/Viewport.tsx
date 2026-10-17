@@ -1,7 +1,7 @@
 import { Magnet } from 'lucide-react';
 import { useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { boundingDiagonal, defaultDecalSize, frameFromHit } from '@/atelier/decal';
+import { DEFAULT_WIDTH_RATIO, SHAPE_WIDTH_RATIO, boundingDiagonal, defaultDecalSize, frameFromHit } from '@/atelier/decal';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import type { TemplateImage } from '@/atelier/gl/baker';
 import { QUICK_VIEWS, type QuickView } from '@/atelier/gl/scene';
@@ -248,6 +248,8 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
     const again = useDecalUi.getState().placingLayerId;
     const target = again ? framedLayerOf(store.layers, again) : null;
     let aspect = store.pending?.aspect ?? 1;
+    // Stars, badges and lines start badge-sized; the hazard stripe (a long band) keeps the picture size.
+    let widthRatio = store.pending?.kind === 'shape' && !store.pending.hazard ? SHAPE_WIDTH_RATIO : DEFAULT_WIDTH_RATIO;
     if (!store.pending && target) {
       if (target.kind === 'image') {
         const size = assetSize(target.assetId);
@@ -256,9 +258,10 @@ export function Viewport({ model, templates, label, showTemplate, brush, onEngin
         aspect = measureTextAspect(target) ?? 1;
       } else {
         aspect = shapePlaceAspect(target);
+        if (target.kind === 'shape' && target.fill.kind === 'solid') widthRatio = SHAPE_WIDTH_RATIO;
       }
     }
-    const decal = frameFromHit(hit.point, hit.normal, e.scene.cameraMatrixWorld(), defaultDecalSize(diagonal, aspect));
+    const decal = frameFromHit(hit.point, hit.normal, e.scene.cameraMatrixWorld(), defaultDecalSize(diagonal, aspect, widthRatio));
     if (!decal) return false;
     let placed: string | null = null;
     if (store.pending) placed = store.placePending(decal);

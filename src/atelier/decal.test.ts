@@ -4,6 +4,7 @@ import {
   DECAL_FADE_END,
   DECAL_FADE_START,
   DEFAULT_WIDTH_RATIO,
+  SHAPE_WIDTH_RATIO,
   PARALLEL_EPSILON,
   boundingDiagonal,
   decalMatrix,
@@ -195,6 +196,13 @@ describe('default size', () => {
     expect(size.depth).toBeCloseTo(0.2);
     expect(defaultDecalSize(0.4, 1).depth).toBe(MIN_DEPTH);
     expect(defaultDecalSize(8, 0).height).toBeCloseTo(2);
+  });
+
+  it('stock shapes start smaller, from their own width ratio', () => {
+    const size = defaultDecalSize(10, 1, SHAPE_WIDTH_RATIO);
+    expect(size.width).toBeCloseTo(10 * SHAPE_WIDTH_RATIO);
+    expect(size.height).toBeCloseTo(size.width);
+    expect(size.depth).toBeCloseTo(0.1 * size.width);
   });
 });
 
