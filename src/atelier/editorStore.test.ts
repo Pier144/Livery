@@ -4,20 +4,31 @@ import {
   DUPLICATE_OFFSET,
   HISTORY_LIMIT,
   currentProject,
+  insertTarget,
   refitDecal,
   resetAtelierEditor,
   setTextMeasurer,
   useAtelierEditor,
 } from './editorStore';
+import { allLayers, findLayer, type TreeItem } from './layerTree';
 import {
+  HAZARD_ASPECT,
   baseOf,
   maskOf,
+  newBaseLayer,
+  newFolder,
   newImageLayer,
+  newMaskLayer,
+  newShapeLayer,
   newTextLayer,
   type Decal,
   type DecalLayer,
+  type FolderLayer,
   type ImageLayer,
   type Layer,
+  type MergedLayer,
+  type Piece,
+  type ShapeLayer,
   type Stroke,
   type TextLayer,
 } from './project';
@@ -583,5 +594,537 @@ describe('editor store · image and text layers', () => {
     S().load(JSON.parse(JSON.stringify(saved)) as AtelierProject);
     expect(S().dirty).toBe(false);
     expect(ids().slice(1)).toEqual(['a', 't']);
+  });
+});
+
+// ── Shapes, repeats, folders, multi-select, merge and separate ────────────────
+
+const RIGHT_OF_A: Decal = { ...DECAL, center: [0.5, 0, -0.6] };
+const find = (id: string) => findLayer(S().layers, id);
+const item = <T extends TreeItem = TreeItem>(id: string) => find(id)?.layer as T;
+const shape = (id: string, over: Partial<ShapeLayer> = {}): ShapeLayer => ({ ...newShapeLayer('rect', DECAL), id, ...over });
+const folderOf = (id: string, children: FolderLayer['children'], over: Partial<FolderLayer> = {}): FolderLayer => ({
+  ...newFolder(id, children),
+  id,
+  ...over,
+});
+const childIds = (id: string) => item<FolderLayer | MergedLayer>(id).children.map((c) => c.id);
+
+/** Opens a project holding these layers (after a Base with id `B`), clean, with an empty history. */
+function loadLayers(...layers: Layer[]): void {
+  resetAtelierEditor();
+  const all = [{ ...newBaseLayer(), id: 'B' }, ...layers];
+  S().load({ ...PROJECT, layers: JSON.parse(JSON.stringify(all)) as unknown[] });
+}
+
+describe('editor store · shapes and repeats', () => {
+  it('places a shape and a hazard stripe from a pending placement', () => {
+    S().beginPlacement({ kind: 'shape', shape: 'ellipse', aspect: 1, name: 'Dot' });
+    const dot = S().placePending(DECAL)!;
+    expect(item<ShapeLayer>(dot)).toMatchObject({ kind: 'shape', shape: 'ellipse', name: 'Dot', decal: DECAL, fill: { kind: 'solid' } });
+    S().beginPlacement({ kind: 'shape', shape: 'rect', hazard: true, name: 'Hazard stripe', aspect: HAZARD_ASPECT });
+    expect(S().pending).toMatchObject({ aspect: 8 });
+    const stripe = S().placePending(DECAL)!;
+    expect(item<ShapeLayer>(stripe)).toMatchObject({ kind: 'shape', shape: 'rect', name: 'Hazard stripe', fill: { kind: 'stripes' } });
+    expect(S().selectedId).toBe(stripe);
+    // Placed above the selected shape.
+    expect(ids().slice(1)).toEqual([dot, stripe]);
+    S().beginPlacement({ kind: 'shape', shape: 'star', aspect: 1 });
+    expect(item<ShapeLayer>(S().placePending(DECAL)!).name).toBe('');
+  });
+
+  it('setting and clearing a repeat are one undo step each', () => {
+    S().addDecalLayer(shape('s'));
+    const past = S().past.length;
+    S().setLayerProps('s', { repeat: { count: 3, gap: 0.5, direction: 'row' } });
+    expect(item<ShapeLayer>('s').repeat).toEqual({ count: 3, gap: 0.5, direction: 'row' });
+    S().setLayerProps('s', { repeat: null });
+    expect(item<ShapeLayer>('s')).not.toHaveProperty('repeat');
+    expect(S().past).toHaveLength(past + 2);
+    S().undo();
+    expect(item<ShapeLayer>('s').repeat).toMatchObject({ count: 3 });
+  });
+
+  it('setLayerProps on a shape takes shape fields and drops image and text ones', () => {
+    S().addDecalLayer(shape('s'));
+    S().setLayerProps('s', { shape: 'star', points: 7, innerRatio: 5, outlineWidth: 3, text: 'NO', flipX: true });
+    const s = item<ShapeLayer>('s');
+    expect(s).toMatchObject({ shape: 'star', points: 7, innerRatio: 0.9, outlineWidth: 3 });
+    for (const key of ['text', 'flipX']) expect(s).not.toHaveProperty(key);
+  });
+});
+
+describe('editor store · folders', () => {
+  beforeEach(() => loadLayers(image('x'), folderOf('F', [image('a'), image('b')]), image('y')));
+
+  it('edits a layer inside a folder: rename, hide, setDecal, setLayerProps', () => {
+    S().renameLayer('a', 'Badge');
+    S().toggleLayerVisible('a');
+    S().setDecal('a', { center: [0.5, 0.3, 0] });
+    S().setLayerProps('a', { opacity: 0.25 });
+    expect(item<ImageLayer>('a')).toMatchObject({ name: 'Badge', visible: false, opacity: 0.25 });
+    expect(item<ImageLayer>('a').decal!.center).toEqual([0.5, 0.3, 0]);
+    expect(find('a')?.parentId).toBe('F');
+    expect(S().past).toHaveLength(4);
+    // Folders hide and rename too.
+    S().toggleLayerVisible('F');
+    S().renameLayer('F', 'Markings');
+    expect(item<FolderLayer>('F')).toMatchObject({ visible: false, name: 'Markings' });
+  });
+
+  it('deletes a layer inside a folder, selecting the one below, else the folder', () => {
+    S().select('b');
+    S().deleteLayer('b');
+    expect(childIds('F')).toEqual(['a']);
+    expect(S().selectedId).toBe('a');
+    S().deleteLayer('a');
+    expect(childIds('F')).toEqual([]);
+    expect(S().selectedId).toBe('F');
+    S().undo();
+    S().undo();
+    expect(childIds('F')).toEqual(['a', 'b']);
+  });
+
+  it('duplicates a layer in its folder, and a folder with new ids and offset children', () => {
+    S().duplicateLayer('a');
+    const copy = S().selectedId!;
+    expect(childIds('F')).toEqual(['a', copy, 'b']);
+    S().duplicateLayer('F');
+    const folderCopy = item<FolderLayer>(S().selectedId!);
+    expect(ids()).toEqual(['B', 'x', 'F', folderCopy.id, 'y']);
+    const inner = folderCopy.children as ImageLayer[];
+    expect(inner).toHaveLength(3);
+    for (const child of inner) expect(['a', 'b', copy]).not.toContain(child.id);
+    expect(inner[0]!.decal!.center).not.toEqual(DECAL.center);
+    expect(item<ImageLayer>('a').decal).toEqual(DECAL);
+    expect(new Set(allLayers(S().layers).map((l) => l.id)).size).toBe(allLayers(S().layers).length);
+  });
+
+  it('undo keeps a folder child selected', () => {
+    S().select('a');
+    S().setLayerProps('a', { opacity: 0.5 });
+    S().undo();
+    expect(S().selectedId).toBe('a');
+    S().redo();
+    expect(S().selectedId).toBe('a');
+  });
+
+  it("createFolder from a multi-selection puts the layers in at the topmost one's place", () => {
+    S().select('x');
+    S().toggleSelect('y');
+    expect(S().selectedIds).toEqual(['x', 'y']);
+    const id = S().createFolder('Group', S().selectedIds)!;
+    expect(ids()).toEqual(['B', 'F', id]);
+    expect(item<FolderLayer>(id)).toMatchObject({ kind: 'folder', name: 'Group', collapsed: false });
+    expect(childIds(id)).toEqual(['x', 'y']);
+    expect(S().selectedId).toBe(id);
+    expect(S().selectedIds).toEqual([]);
+    expect(S().past).toHaveLength(1);
+    S().undo();
+    expect(ids()).toEqual(['B', 'x', 'F', 'y']);
+    // Only top-level placed layers.
+    expect(S().createFolder('No', ['a', 'x'])).toBeNull();
+    expect(S().createFolder('No', ['F', 'x'])).toBeNull();
+    expect(S().past).toHaveLength(0);
+  });
+
+  it('createFolder without ids goes above the selection, but never inside a folder', () => {
+    S().select('x');
+    const above = S().createFolder('One')!;
+    expect(ids()).toEqual(['B', 'x', above, 'F', 'y']);
+    S().select('a');
+    const outside = S().createFolder('Two')!;
+    expect(ids()).toEqual(['B', 'x', above, 'F', outside, 'y']);
+    S().select('F');
+    const overFolder = S().createFolder('Three')!;
+    expect(ids().indexOf(overFolder)).toBe(ids().indexOf('F') + 1);
+  });
+
+  it('dissolves a folder: its children take its place', () => {
+    S().select('F');
+    S().dissolveFolder('F');
+    expect(ids()).toEqual(['B', 'x', 'a', 'b', 'y']);
+    expect(S().selectedId).toBe('b');
+    S().undo();
+    expect(ids()).toEqual(['B', 'x', 'F', 'y']);
+  });
+
+  it('moveInto drags layers into and out of a folder; folders never go into folders', () => {
+    S().moveInto('x', 'F', 0);
+    expect(ids()).toEqual(['B', 'F', 'y']);
+    expect(childIds('F')).toEqual(['x', 'a', 'b']);
+    S().moveInto('b', null, 1);
+    expect(ids()).toEqual(['B', 'b', 'F', 'y']);
+    expect(S().past).toHaveLength(2);
+    const g = S().createFolder('G', ['y'])!;
+    const past = S().past.length;
+    S().moveInto(g, 'F', 0);
+    S().moveInto('a', 'x', 0);
+    expect(S().past).toHaveLength(past);
+    expect(find(g)?.parentId).toBeNull();
+    S().undo();
+    expect(ids()).toEqual(['B', 'b', 'F', 'y']);
+    S().undo();
+    expect(ids()).toEqual(['B', 'F', 'y']);
+  });
+
+  it('moveLayer moves within the folder', () => {
+    S().moveLayer('a', 5);
+    expect(childIds('F')).toEqual(['b', 'a']);
+    expect(find('a')?.parentId).toBe('F');
+  });
+
+  it('restoreLayer puts a layer back into its folder, or the top level when the folder is gone', () => {
+    const a = item<ImageLayer>('a');
+    S().deleteLayer('a');
+    S().restoreLayer(a, 0, 'F');
+    expect(childIds('F')).toEqual(['a', 'b']);
+    S().deleteLayer('a');
+    S().deleteLayer('F');
+    S().restoreLayer(a, 0, 'F');
+    expect(ids()).toEqual(['B', 'x', 'y', 'a']);
+  });
+
+  it('collapsing is saved but not an undo step, and undo never flips it', () => {
+    S().setLayerProps('x', { opacity: 0.5 });
+    const past = S().past.length;
+    const revision = S().revision;
+    S().toggleCollapsed('F');
+    expect(item<FolderLayer>('F').collapsed).toBe(true);
+    expect(S().past).toHaveLength(past);
+    expect(S().revision).toBe(revision + 1);
+    expect(S().dirty).toBe(true);
+    expect(S().past.every((snapshot) => (findLayer(snapshot, 'F')?.layer as FolderLayer).collapsed)).toBe(true);
+    S().undo();
+    expect(item<FolderLayer>('F').collapsed).toBe(true);
+    S().redo();
+    expect(item<FolderLayer>('F').collapsed).toBe(true);
+    S().toggleCollapsed('F');
+    expect(item<FolderLayer>('F').collapsed).toBe(false);
+    // Not a folder: nothing happens.
+    S().toggleCollapsed('x');
+    expect(item<ImageLayer>('x')).not.toHaveProperty('collapsed');
+  });
+});
+
+describe('editor store · multi-select', () => {
+  beforeEach(() => loadLayers(image('x'), image('y'), image('z'), folderOf('F', [image('a'), image('b')])));
+
+  it('Ctrl toggles placed layers and folders of one container', () => {
+    S().select('x');
+    S().toggleSelect('z');
+    S().toggleSelect('F');
+    expect(S().selectedIds).toEqual(['x', 'z', 'F']);
+    expect(S().selectedId).toBe('F');
+    S().toggleSelect('F');
+    expect(S().selectedIds).toEqual(['x', 'z']);
+    expect(S().selectedId).toBe('z');
+    S().toggleSelect('x');
+    expect(S().selectedIds).toEqual([]);
+    expect(S().selectedId).toBe('z');
+  });
+
+  it('Ctrl on the Base, or across containers, falls back to a single selection', () => {
+    S().select('x');
+    S().toggleSelect('B');
+    expect(S().selectedIds).toEqual([]);
+    expect(S().selectedId).toBe('B');
+    S().toggleSelect('x');
+    expect(S().selectedId).toBe('x');
+    expect(S().selectedIds).toEqual([]);
+    S().toggleSelect('a');
+    expect(S().selectedIds).toEqual([]);
+    expect(S().selectedId).toBe('a');
+    S().toggleSelect('b');
+    expect(S().selectedIds).toEqual(['a', 'b']);
+  });
+
+  it('Shift selects the range in the container, the active row staying the anchor', () => {
+    S().select('y');
+    S().selectRange('F');
+    expect(S().selectedIds).toEqual(['y', 'z', 'F']);
+    expect(S().selectedId).toBe('y');
+    S().selectRange('x');
+    expect(S().selectedIds).toEqual(['x', 'y']);
+    S().selectRange('a');
+    expect(S().selectedIds).toEqual([]);
+    expect(S().selectedId).toBe('a');
+  });
+
+  it('plain selection, undo and structural actions go back to a single selection', () => {
+    S().select('x');
+    S().toggleSelect('y');
+    S().select('z');
+    expect(S().selectedIds).toEqual([]);
+    S().toggleSelect('y');
+    S().setLayerProps('z', { opacity: 0.5 });
+    S().toggleSelect('x');
+    expect(S().selectedIds).toEqual(['z', 'y', 'x']);
+    S().undo();
+    expect(S().selectedIds).toEqual([]);
+    S().toggleSelect('y');
+    S().moveLayer('x', 3);
+    expect(S().selectedIds).toEqual([]);
+  });
+
+  it('deleteLayers is one step; restoreLayers puts each back in its container, even after other edits', () => {
+    const entries = S().deleteLayers(['y', 'a', 'z']);
+    expect(entries.map((e) => [e.layer.id, e.parentId, e.index])).toEqual([
+      ['a', 'F', 0],
+      ['z', null, 3],
+      ['y', null, 2],
+    ]);
+    expect(ids()).toEqual(['B', 'x', 'F']);
+    expect(childIds('F')).toEqual(['b']);
+    expect(S().past).toHaveLength(1);
+    S().setLayerProps('x', { opacity: 0.5 });
+    S().restoreLayers(entries);
+    expect(ids()).toEqual(['B', 'x', 'y', 'z', 'F']);
+    expect(childIds('F')).toEqual(['a', 'b']);
+    expect(S().past).toHaveLength(3);
+    // Already there: skipped.
+    S().restoreLayers(entries);
+    expect(S().past).toHaveLength(3);
+    S().undo();
+    expect(ids()).toEqual(['B', 'x', 'F']);
+  });
+
+  it('deleteLayers skips the Base and children of a deleted folder; a gone folder restores to the top level', () => {
+    const entries = S().deleteLayers(['B', 'F', 'a']);
+    expect(entries.map((e) => e.layer.id)).toEqual(['F']);
+    S().undo();
+    const first = S().deleteLayers(['b']);
+    S().deleteLayers(['F']);
+    S().addStroke({ ...brush, points: [[0, 0, 0]] });
+    S().restoreLayers(first);
+    expect(ids()).toEqual(['B', 'x', 'y', 'z', 'b', maskOf(S().layers)!.id]);
+  });
+});
+
+describe('editor store · merge and separate', () => {
+  afterEach(() => setTextMeasurer(measureTextAspect));
+
+  beforeEach(() => loadLayers(image('a'), shape('c', { decal: { ...DECAL, center: [0.5, 1, 0] } }), image('b', { decal: RIGHT_OF_A })));
+
+  it("merges into one frame at the topmost layer's place, selected, as one undo step", () => {
+    const result = S().mergeLayers(['b', 'a']);
+    expect(result).toMatchObject({ ok: true, reset: { part: false, mirror: false } });
+    if (!result.ok) return;
+    expect(ids()).toEqual(['B', 'c', result.id]);
+    const merged = item<MergedLayer>(result.id);
+    expect(merged).toMatchObject({ kind: 'merged', name: '', visible: true, opacity: 1 });
+    expect(childIds(result.id)).toEqual(['a', 'b']);
+    // A spans right -0.2..0.2, B 0.4..0.8 (right = -z): a 1 × 0.2 frame centred at right 0.3.
+    expect(merged.decal!.width).toBeCloseTo(1);
+    expect(merged.decal!.height).toBeCloseTo(0.2);
+    expect(merged.decal!.center[2]).toBeCloseTo(-0.3);
+    expect(merged.decal!.depth).toBeCloseTo(DECAL.depth);
+    const [pa, pb] = merged.children as Piece[];
+    expect(pa!.place.x).toBeCloseTo(-0.3);
+    expect(pb!.place.x).toBeCloseTo(0.3);
+    expect(pa!.place.w).toBeCloseTo(0.4);
+    expect(pa).not.toHaveProperty('decal');
+    expect(S().selectedId).toBe(result.id);
+    expect(S().selectedIds).toEqual([]);
+    expect(S().past).toHaveLength(1);
+    S().undo();
+    expect(ids()).toEqual(['B', 'a', 'c', 'b']);
+    expect(item<ImageLayer>('b').decal).toEqual(RIGHT_OF_A);
+  });
+
+  it('refuses one id, mixed containers, folders, unplaced layers, faces too far apart and too many pieces', () => {
+    loadLayers(
+      image('a'),
+      image('b', { decal: RIGHT_OF_A }),
+      image('u', { decal: null }),
+      image('t', { decal: { ...DECAL, normal: [0, 0, 1] } }),
+      image('r', { repeat: { count: 50, gap: 0, direction: 'row' } }),
+      folderOf('F', [image('f')]),
+    );
+    expect(S().mergeLayers(['a'])).toEqual({ ok: false, reason: 'count' });
+    expect(S().mergeLayers(['a', 'a'])).toEqual({ ok: false, reason: 'count' });
+    expect(S().mergeLayers(['a', 'f'])).toEqual({ ok: false, reason: 'container' });
+    expect(S().mergeLayers(['a', 'F'])).toEqual({ ok: false, reason: 'container' });
+    expect(S().mergeLayers(['a', 'u'])).toEqual({ ok: false, reason: 'unplaced' });
+    expect(S().mergeLayers(['a', 'B'])).toEqual({ ok: false, reason: 'unplaced' });
+    expect(S().mergeLayers(['a', 't'])).toEqual({ ok: false, reason: 'angle' });
+    expect(S().mergeLayers(['a', 'r'])).toEqual({ ok: false, reason: 'pieces' });
+    expect(S().past).toHaveLength(0);
+  });
+
+  it('merges inside a folder', () => {
+    loadLayers(folderOf('F', [image('a'), image('b', { decal: RIGHT_OF_A })]));
+    const result = S().mergeLayers(['a', 'b']);
+    if (!result.ok) throw new Error('refused');
+    expect(find(result.id)?.parentId).toBe('F');
+    expect(childIds('F')).toEqual([result.id]);
+  });
+
+  it('a repeated layer gives one piece per copy, the first keeping its id', () => {
+    S().setLayerProps('a', { repeat: { count: 3, gap: 0, direction: 'column' } });
+    const result = S().mergeLayers(['a', 'b']);
+    if (!result.ok) throw new Error('refused');
+    const merged = item<MergedLayer>(result.id);
+    const children = merged.children as Piece[];
+    expect(children).toHaveLength(4);
+    expect(children[0]!.id).toBe('a');
+    expect(children[3]!.id).toBe('b');
+    expect(new Set(children.map((c) => c.id)).size).toBe(4);
+    for (const c of children) expect(c).not.toHaveProperty('repeat');
+    // Column copies go downwards, one height apart.
+    expect(children[1]!.place.y - children[0]!.place.y).toBeCloseTo(-DECAL.height / merged.decal!.height);
+  });
+
+  it('a merged object in the selection is flattened', () => {
+    const first = S().mergeLayers(['a', 'b']);
+    if (!first.ok) throw new Error('refused');
+    S().setLayerProps(first.id, { opacity: 0.5 });
+    const second = S().mergeLayers([first.id, 'c']);
+    if (!second.ok) throw new Error('refused');
+    const children = item<MergedLayer>(second.id).children as Piece[];
+    expect(children.map((c) => c.id)).toEqual(['c', 'a', 'b']);
+    expect(children.map((c) => c.opacity)).toEqual([1, 0.5, 0.5]);
+    expect(ids()).toEqual(['B', second.id]);
+  });
+
+  it('part kept when all agree, Mirror only when all are on; reset flags say what changed', () => {
+    S().setDecal('a', { part: 'turret', mirror: true });
+    S().setDecal('b', { part: 'turret', mirror: true });
+    let result = S().mergeLayers(['a', 'b']);
+    if (!result.ok) throw new Error('refused');
+    expect(result.reset).toEqual({ part: false, mirror: false });
+    expect(item<MergedLayer>(result.id).decal).toMatchObject({ part: 'turret', mirror: true });
+    S().undo();
+    S().setDecal('b', { part: 'hull', mirror: false });
+    result = S().mergeLayers(['a', 'b']);
+    if (!result.ok) throw new Error('refused');
+    expect(result.reset).toEqual({ part: true, mirror: true });
+    expect(item<MergedLayer>(result.id).decal).toMatchObject({ part: 'all', mirror: false });
+  });
+
+  it("separate gives the layers back at the merged object's place, selected; undo brings it back", () => {
+    const merged = S().mergeLayers(['a', 'b']);
+    if (!merged.ok) throw new Error('refused');
+    const result = S().separate(merged.id);
+    expect(result).toEqual({ ok: true, ids: ['a', 'b'], droppedRepeat: false });
+    expect(ids()).toEqual(['B', 'c', 'a', 'b']);
+    expect(S().selectedIds).toEqual(['a', 'b']);
+    expect(S().selectedId).toBe('b');
+    const b = item<ImageLayer>('b').decal!;
+    for (let k = 0; k < 3; k += 1) expect(b.center[k]).toBeCloseTo(RIGHT_OF_A.center[k]!, 6);
+    expect(b.width).toBeCloseTo(RIGHT_OF_A.width, 6);
+    S().undo();
+    expect(item<MergedLayer>(merged.id).kind).toBe('merged');
+    S().setLayerProps(merged.id, { repeat: { count: 2, gap: 0, direction: 'row' }, flipX: true });
+    expect(item<MergedLayer>(merged.id)).not.toHaveProperty('flipX');
+    expect(S().separate(merged.id)).toMatchObject({ ok: true, droppedRepeat: true });
+    expect(S().separate('c')).toEqual({ ok: false });
+  });
+
+  it('a text piece gets its new width from the measurer: centre and height kept, frame not refitted', () => {
+    let perChar = 0.5;
+    setTextMeasurer((l) => [...l.text].length * perChar);
+    loadLayers(image('a'), { ...newTextLayer('AB', RIGHT_OF_A), id: 't' });
+    const result = S().mergeLayers(['a', 't']);
+    if (!result.ok) throw new Error('refused');
+    const frame = item<MergedLayer>(result.id).decal!;
+    const before = item<Piece>('t').place;
+    S().setLayerProps('t', { text: 'ABCDEFGH', repeat: { count: 3, gap: 0, direction: 'row' } });
+    const after = item<Piece>('t');
+    expect(after).toMatchObject({ kind: 'text', text: 'ABCDEFGH' });
+    expect(after).not.toHaveProperty('repeat');
+    expect(after.place.w).toBeCloseTo((before.h * frame.height * 4) / frame.width);
+    expect(after.place).toMatchObject({ x: before.x, y: before.y, h: before.h });
+    expect(item<MergedLayer>(result.id).decal).toEqual(frame);
+    // A font that finished loading: refitted without an undo step, history included.
+    perChar = 1;
+    const past = S().past.length;
+    S().refreshTextMetrics('t');
+    expect(item<Piece>('t').place.w).toBeCloseTo((before.h * frame.height * 8) / frame.width);
+    expect(S().past).toHaveLength(past);
+    S().undo();
+    expect(item<Piece>('t').place.w).toBeCloseTo((before.h * frame.height * 2) / frame.width);
+  });
+
+  it('applyCutout and setDecal ignore pieces', () => {
+    const result = S().mergeLayers(['a', 'b']);
+    if (!result.ok) throw new Error('refused');
+    const { past, revision } = S();
+    S().applyCutout('a', { id: 'img-cut', width: 10, height: 10 }, { x: 0, y: 0, w: 10, h: 10 }, { id: 'img-a', width: 400, height: 200 });
+    S().setDecal('a', DECAL);
+    expect(S().past).toBe(past);
+    expect(S().revision).toBe(revision);
+    expect(item<Piece>('a')).toMatchObject({ assetId: 'img-a' });
+    expect(item<Piece>('a')).not.toHaveProperty('decal');
+  });
+
+  it('deleting the last drawable piece deletes the merged object', () => {
+    const result = S().mergeLayers(['a', 'b']);
+    if (!result.ok) throw new Error('refused');
+    S().select('a');
+    S().deleteLayer('a');
+    expect(childIds(result.id)).toEqual(['b']);
+    expect(S().selectedId).toBe(result.id);
+    S().deleteLayer('b');
+    expect(find(result.id)).toBeNull();
+    expect(ids()).toEqual(['B', 'c']);
+    S().undo();
+    expect(childIds(result.id)).toEqual(['b']);
+  });
+
+  it('duplicating a merged object renews every id; pieces are not duplicated on their own', () => {
+    const result = S().mergeLayers(['a', 'b']);
+    if (!result.ok) throw new Error('refused');
+    S().duplicateLayer(result.id);
+    const copy = item<MergedLayer>(S().selectedId!);
+    expect(copy.kind).toBe('merged');
+    expect(copy.id).not.toBe(result.id);
+    expect(copy.children.map((c) => c.id)).not.toContain('a');
+    expect(new Set(allLayers(S().layers).map((l) => l.id)).size).toBe(allLayers(S().layers).length);
+    const count = allLayers(S().layers).length;
+    S().duplicateLayer('a');
+    expect(allLayers(S().layers)).toHaveLength(count);
+  });
+});
+
+describe('insertTarget', () => {
+  const { decal: _d, ...pictureOfP } = image('p');
+  const merged: MergedLayer = {
+    id: 'M',
+    kind: 'merged',
+    name: '',
+    visible: true,
+    decal: DECAL,
+    opacity: 1,
+    children: [{ ...pictureOfP, place: { x: 0, y: 0, w: 1, h: 1, angle: 0 } }],
+  };
+  const layers: Layer[] = [{ ...newBaseLayer(), id: 'B' }, image('x'), folderOf('F', [image('a'), image('b')]), merged, { ...newMaskLayer(), id: 'K' }];
+
+  it('goes above the selected layer in its container, or at the top of a selected folder', () => {
+    expect(insertTarget(layers, 'x')).toEqual({ parentId: null, index: 2 });
+    expect(insertTarget(layers, 'a')).toEqual({ parentId: 'F', index: 1 });
+    expect(insertTarget(layers, 'F')).toEqual({ parentId: 'F', index: 2 });
+    expect(insertTarget(layers, 'M')).toEqual({ parentId: null, index: 4 });
+  });
+
+  it('goes above the merged object of a selected piece', () => {
+    expect(insertTarget(layers, 'p')).toEqual({ parentId: null, index: 4 });
+    const inFolder: Layer[] = [layers[0]!, folderOf('G', [image('y'), merged])];
+    expect(insertTarget(inFolder, 'p')).toEqual({ parentId: 'G', index: 2 });
+  });
+
+  it('goes just under the mask with the Base, the mask or nothing selected', () => {
+    for (const id of ['B', 'K', null, 'gone']) expect(insertTarget(layers, id)).toEqual({ parentId: null, index: 4 });
+    expect(insertTarget(layers.slice(0, 4), null)).toEqual({ parentId: null, index: 4 });
+  });
+
+  it('a layer added with a folder child selected lands in the folder', () => {
+    loadLayers(folderOf('F', [image('a')]));
+    S().select('a');
+    S().addDecalLayer(image('n'));
+    expect(childIds('F')).toEqual(['a', 'n']);
+    S().select('F');
+    S().addDecalLayer(image('m'));
+    expect(childIds('F')).toEqual(['a', 'n', 'm']);
   });
 });
