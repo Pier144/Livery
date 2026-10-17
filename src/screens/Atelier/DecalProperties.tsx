@@ -2,7 +2,18 @@ import { Brush, Crosshair, FlipHorizontal2, Wand2 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtelierEditor } from '@/atelier/editorStore';
-import { MAX_OUTLINE_WIDTH, MAX_SKEW, MAX_TEXT_CHARS, type Decal, type DecalLayer, type FontRef, type ImageLayer, type PartFilter, type TextLayer } from '@/atelier/project';
+import {
+  MAX_OUTLINE_WIDTH,
+  MAX_SKEW,
+  MAX_TEXT_CHARS,
+  type Decal,
+  type DecalLayer,
+  type FontRef,
+  type ImageLayer,
+  type PartFilter,
+  type PlacedLayer,
+  type TextLayer,
+} from '@/atelier/project';
 import { debounce, fontStatus } from '@/atelier/text';
 import { Button } from '@/components/ui/Button';
 import { ChipDropdown } from '@/components/ui/ChipDropdown';
@@ -12,12 +23,15 @@ import type { PartGroup } from '@/types';
 import { ColorSwatch, Field, Slider } from './controls';
 import { MAX_DEPTH_UI, MIN_DEPTH_UI } from './decalOps';
 import { setPlacingLayer, useDecalUi } from './decalUi';
+import { RepeatSection } from './RepeatSection';
 
 interface DecalPropertiesProps {
   layer: DecalLayer;
   checkShared: (layerId: string, decal?: Decal) => Promise<boolean>;
   onRemoveBackground: (layerId: string) => void;
   onRefineEdge: (layerId: string) => void;
+  /** The model's mirror plane (`ModelHeader.mirrorAxis`), for the Repeat copies budget. */
+  mirrorAxis: number;
 }
 
 /** At most MAX_TEXT_CHARS characters (code points), as the project stores text. */
@@ -29,34 +43,21 @@ export function clampText(text: string): string {
 const SELECT =
   'h-ctl w-full min-w-0 rounded-ctl border border-line-3 bg-bg-input px-2 text-meta text-ink-1 hover:border-line-4 focus-visible:outline focus-visible:-outline-offset-1 disabled:opacity-50';
 
+/** A text layer or a text piece (what the content rows edit: no frame, no repeat). */
+type TextLike = Omit<TextLayer, 'decal' | 'repeat'>;
+
 /**
  * An image or text layer's settings: what it shows (text, font, colours, outline, slant; for a
- * picture flip, Remove background and Refine edge), how it is drawn (opacity, box depth), where
- * (Only this part, Mirror). Sliders and colour pickers make one undo step per drag or picker
- * session; text typed in the field reaches the layer 150 ms after the last key (one undo step
- * until the field is left).
+ * picture flip, Remove background and Refine edge), how it is drawn (opacity, wear, box depth),
+ * where (Only this part, Mirror) and its Repeat. Sliders and colour pickers make one undo step per
+ * drag or picker session; text typed in the field reaches the layer 150 ms after the last key (one
+ * undo step until the field is left).
  */
-export function DecalProperties({ layer, checkShared, onRemoveBackground, onRefineEdge }: DecalPropertiesProps) {
-  const { t } = useTranslation();
-  const setLayerProps = useAtelierEditor((s) => s.setLayerProps);
-  const setDecal = useAtelierEditor((s) => s.setDecal);
-  const endGesture = useAtelierEditor((s) => s.endGesture);
+export function DecalProperties({ layer, checkShared, onRemoveBackground, onRefineEdge, mirrorAxis }: DecalPropertiesProps) {
   const missing = useDecalUi((s) => layer.kind === 'image' && s.missingAssets[layer.assetId] === true);
   useDecalUi((s) => s.fontsVersion);
 
-  if (!layer.decal) {
-    return (
-      <div className="flex flex-col items-start gap-3 rounded-ctl border border-line-2 bg-bg-2 p-3">
-        <p className="text-meta text-ink-2">{t('atelier.props.notPlaced')}</p>
-        <Button size={28} onClick={() => setPlacingLayer(layer.id)}>
-          <Crosshair size={14} strokeWidth={1.75} aria-hidden />
-          {t('atelier.props.placeAgain')}
-        </Button>
-      </div>
-    );
-  }
-  const decal = layer.decal;
-
+  if (!layer.decal) return <NotPlaced id={layer.id} />;
   return (
     <>
       {layer.kind === 'image' ? (
@@ -64,27 +65,77 @@ export function DecalProperties({ layer, checkShared, onRemoveBackground, onRefi
       ) : (
         <TextContent layer={layer} />
       )}
-      <Slider
-        label={t('atelier.props.opacity')}
-        value={layer.opacity}
-        min={0}
-        max={1}
-        step={0.01}
-        format={(v) => `${Math.round(v * 100)}%`}
-        onChange={(opacity) => setLayerProps(layer.id, { opacity }, 'opacity')}
-        onCommit={endGesture}
-      />
-      <Slider
-        label={t('atelier.props.wear')}
-        value={layer.wear ?? 0}
-        min={0}
-        max={1}
-        step={0.01}
-        format={(v) => `${Math.round(v * 100)}%`}
-        hint={t('atelier.props.wearHintDecal')}
-        onChange={(wear) => setLayerProps(layer.id, { wear }, 'wear')}
-        onCommit={endGesture}
-      />
+      <PlacementRows layer={layer} decal={layer.decal} checkShared={checkShared} />
+      <RepeatSection layer={layer} mirrorAxis={mirrorAxis} />
+    </>
+  );
+}
+
+/** A placed layer whose saved placement didn't check out: offers to place it again. */
+export function NotPlaced({ id }: { id: string }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-ctl border border-line-2 bg-bg-2 p-3">
+      <p className="text-meta text-ink-2">{t('atelier.props.notPlaced')}</p>
+      <Button size={28} onClick={() => setPlacingLayer(id)}>
+        <Crosshair size={14} strokeWidth={1.75} aria-hidden />
+        {t('atelier.props.placeAgain')}
+      </Button>
+    </div>
+  );
+}
+
+/** Opacity of a placed layer or a piece (one undo step per drag). */
+export function OpacityRow({ id, opacity }: { id: string; opacity: number }) {
+  const { t } = useTranslation();
+  const setLayerProps = useAtelierEditor((s) => s.setLayerProps);
+  const endGesture = useAtelierEditor((s) => s.endGesture);
+  return (
+    <Slider
+      label={t('atelier.props.opacity')}
+      value={opacity}
+      min={0}
+      max={1}
+      step={0.01}
+      format={(v) => `${Math.round(v * 100)}%`}
+      onChange={(next) => setLayerProps(id, { opacity: next }, 'opacity')}
+      onCommit={endGesture}
+    />
+  );
+}
+
+/** Wear of an image, text or shape layer or piece (merged objects have none of their own). */
+export function WearRow({ id, wear }: { id: string; wear: number | undefined }) {
+  const { t } = useTranslation();
+  const setLayerProps = useAtelierEditor((s) => s.setLayerProps);
+  const endGesture = useAtelierEditor((s) => s.endGesture);
+  return (
+    <Slider
+      label={t('atelier.props.wear')}
+      value={wear ?? 0}
+      min={0}
+      max={1}
+      step={0.01}
+      format={(v) => `${Math.round(v * 100)}%`}
+      hint={t('atelier.props.wearHintDecal')}
+      onChange={(next) => setLayerProps(id, { wear: next }, 'wear')}
+      onCommit={endGesture}
+    />
+  );
+}
+
+/**
+ * The rows every placed layer shares: Opacity, Wear (not on merged objects: they have none),
+ * Depth, Only this part and Mirror.
+ */
+export function PlacementRows({ layer, decal, checkShared }: { layer: PlacedLayer; decal: Decal; checkShared: DecalPropertiesProps['checkShared'] }) {
+  const { t } = useTranslation();
+  const setDecal = useAtelierEditor((s) => s.setDecal);
+  const endGesture = useAtelierEditor((s) => s.endGesture);
+  return (
+    <>
+      <OpacityRow id={layer.id} opacity={layer.opacity} />
+      {layer.kind !== 'merged' && <WearRow id={layer.id} wear={layer.wear} />}
       <Slider
         label={t('atelier.props.depth')}
         value={Math.min(MAX_DEPTH_UI, Math.max(MIN_DEPTH_UI, decal.depth))}
@@ -97,7 +148,7 @@ export function DecalProperties({ layer, checkShared, onRemoveBackground, onRefi
         onCommit={endGesture}
       />
       <PartFilterChip value={decal.part} onChange={(part) => setDecal(layer.id, { part })} />
-      <MirrorRow layer={layer} decal={decal} checkShared={checkShared} />
+      <MirrorRow id={layer.id} decal={decal} checkShared={checkShared} />
     </>
   );
 }
@@ -123,18 +174,18 @@ function PartFilterChip({ value, onChange }: { value: string; onChange: (part: P
 }
 
 /** Mirror to the other side: off by default; offered off where the model already shares the texture between sides. */
-function MirrorRow({ layer, decal, checkShared }: { layer: DecalLayer; decal: Decal; checkShared: DecalPropertiesProps['checkShared'] }) {
+function MirrorRow({ id: layerId, decal, checkShared }: { id: string; decal: Decal; checkShared: DecalPropertiesProps['checkShared'] }) {
   const { t } = useTranslation();
   const labelId = useId();
   const hintId = useId();
-  const shared = useDecalUi((s) => s.shared[layer.id] === true);
+  const shared = useDecalUi((s) => s.shared[layerId] === true);
   // Which layer a check runs for: the panel may show another layer by the time it answers.
   const [checkingId, setCheckingId] = useState<string | null>(null);
-  const checking = checkingId === layer.id;
+  const checking = checkingId === layerId;
   const setDecal = useAtelierEditor((s) => s.setDecal);
 
   const toggle = async (next: boolean) => {
-    const id = layer.id;
+    const id = layerId;
     if (!next) {
       setDecal(id, { mirror: false });
       return;
@@ -169,16 +220,21 @@ function MirrorRow({ layer, decal, checkShared }: { layer: DecalLayer; decal: De
   );
 }
 
-function ImageContent({
+/**
+ * A picture's content rows: flip, and for a layer (not a piece: a piece's picture changes only
+ * once its object is separated) Remove background and Refine edge.
+ */
+export function ImageContent({
   layer,
   missing,
   onRemoveBackground,
   onRefineEdge,
 }: {
-  layer: ImageLayer;
+  layer: Pick<ImageLayer, 'id' | 'flipX'>;
   missing: boolean;
-  onRemoveBackground: (id: string) => void;
-  onRefineEdge: (id: string) => void;
+  /** Left out for a piece, with `onRefineEdge`: no Remove background or Refine edge. */
+  onRemoveBackground?: (id: string) => void;
+  onRefineEdge?: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const setLayerProps = useAtelierEditor((s) => s.setLayerProps);
@@ -194,21 +250,24 @@ function ImageContent({
         </span>
         <Switch checked={layer.flipX} onChange={(flipX) => setLayerProps(layer.id, { flipX })} aria-labelledby={flipId} />
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button size={28} disabled={missing || busy} onClick={() => onRemoveBackground(layer.id)} title={t('atelier.props.removeBackgroundHint')}>
-          <Wand2 size={14} strokeWidth={1.75} aria-hidden />
-          {t('atelier.props.removeBackground')}
-        </Button>
-        <Button size={28} disabled={missing} onClick={() => onRefineEdge(layer.id)} title={t('atelier.props.refineEdgeHint')}>
-          <Brush size={14} strokeWidth={1.75} aria-hidden />
-          {t('atelier.props.refineEdge')}
-        </Button>
-      </div>
+      {onRemoveBackground && onRefineEdge && (
+        <div className="flex flex-wrap gap-2">
+          <Button size={28} disabled={missing || busy} onClick={() => onRemoveBackground(layer.id)} title={t('atelier.props.removeBackgroundHint')}>
+            <Wand2 size={14} strokeWidth={1.75} aria-hidden />
+            {t('atelier.props.removeBackground')}
+          </Button>
+          <Button size={28} disabled={missing} onClick={() => onRefineEdge(layer.id)} title={t('atelier.props.refineEdgeHint')}>
+            <Brush size={14} strokeWidth={1.75} aria-hidden />
+            {t('atelier.props.refineEdge')}
+          </Button>
+        </div>
+      )}
     </>
   );
 }
 
-function TextContent({ layer }: { layer: TextLayer }) {
+/** A text layer's or text piece's content rows: text, font, colours, outline and slant. */
+export function TextContent({ layer }: { layer: TextLike }) {
   const { t } = useTranslation();
   const setLayerProps = useAtelierEditor((s) => s.setLayerProps);
   const endGesture = useAtelierEditor((s) => s.endGesture);

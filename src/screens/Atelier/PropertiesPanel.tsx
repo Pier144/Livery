@@ -1,7 +1,8 @@
-import { Plus, Shuffle, Trash2, X } from 'lucide-react';
+import { Combine, FolderOpen, FolderPlus, Plus, Shuffle, Trash2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtelierEditor } from '@/atelier/editorStore';
+import { findLayer, isPiece, type TreeItem } from '@/atelier/layerTree';
 import {
   baseOf,
   CELL_SIZE_MAX,
@@ -17,8 +18,12 @@ import {
   type BaseLayer,
   type BaseMode,
   type Decal,
+  type DecalLayer,
+  type FolderLayer,
   type Layer,
   type PartFilter,
+  type Piece,
+  type ShapeLayer,
 } from '@/atelier/project';
 import { Button } from '@/components/ui/Button';
 import { ChipDropdown } from '@/components/ui/ChipDropdown';
@@ -39,6 +44,9 @@ import {
   weightsWithColorRemoved,
 } from './editorModel';
 import { PANEL_LABEL, useLayerName } from './LayersPanel';
+import { MergedProperties, PieceProperties } from './MergedProperties';
+import { selectionBlocks, useSelectionActions } from './selectionActions';
+import { ShapeProperties } from './ShapeProperties';
 
 /** The brush as the panel edits it (`size` is a fraction of the model's radius). */
 export interface BrushUi {
@@ -55,30 +63,51 @@ interface PropertiesPanelProps {
   checkShared: (layerId: string, decal?: Decal) => Promise<boolean>;
   onRemoveBackground: (layerId: string) => void;
   onRefineEdge: (layerId: string) => void;
+  /** The model's mirror plane (`ModelHeader.mirrorAxis`), for the Repeat copies budget; 2 when left out. */
+  mirrorAxis?: number;
 }
 
 /**
- * The selected layer's properties: the Base's paint, the Protected areas' brush, an image or text
- * layer's settings, or a note for layers this version can't edit.
+ * The selected layer's properties: the Base's paint, the Protected areas' brush, an image, text or
+ * shape layer's settings, a merged object's, a piece's content, a folder's actions, the actions for
+ * several selected layers, or a note for layers this version can't edit.
  */
-export function PropertiesPanel({ brush, onBrush, checkShared, onRemoveBackground, onRefineEdge }: PropertiesPanelProps) {
+export function PropertiesPanel({ brush, onBrush, checkShared, onRemoveBackground, onRefineEdge, mirrorAxis = 2 }: PropertiesPanelProps) {
   const { t } = useTranslation();
   const layers = useAtelierEditor((s) => s.layers);
   const selectedId = useAtelierEditor((s) => s.selectedId);
+  const selectedIds = useAtelierEditor((s) => s.selectedIds);
   const nameOf = useLayerName();
   const mask = maskOf(layers);
-  const selected: Layer | undefined = layers.find((l) => l.id === selectedId);
-  const maskSelected = selectedId === MASK_ROW_ID || (selected !== undefined && selected.kind === 'mask');
+  const found = selectedId === null ? null : findLayer(layers, selectedId);
+  const selected: TreeItem | undefined = found?.layer;
+  const maskSelected = selectedId === MASK_ROW_ID || selected?.kind === 'mask';
   const base = baseOf(layers);
 
   let title: string;
   let body: ReactNode;
-  if (maskSelected) {
+  if (selectedIds.length >= 2) {
+    title = t('atelier.layers.selected', { count: selectedIds.length });
+    body = <SelectionActions ids={selectedIds} />;
+  } else if (maskSelected) {
     title = nameOf(mask, 'mask');
     body = <MaskProperties brush={brush} onBrush={onBrush} hidden={mask !== undefined && !mask.visible} strokes={mask?.strokes.length ?? 0} />;
-  } else if (isPictureLayer(selected)) {
+  } else if (found && selected && selected.kind !== 'unsupported' && isPiece(found)) {
     title = nameOf(selected, selected.kind);
-    body = <DecalProperties layer={selected} checkShared={checkShared} onRemoveBackground={onRemoveBackground} onRefineEdge={onRefineEdge} />;
+    body = <PieceProperties piece={selected as Piece} />;
+  } else if (isPictureLayer(selected as Layer | undefined)) {
+    const layer = selected as DecalLayer;
+    title = nameOf(layer, layer.kind);
+    body = <DecalProperties layer={layer} checkShared={checkShared} onRemoveBackground={onRemoveBackground} onRefineEdge={onRefineEdge} mirrorAxis={mirrorAxis} />;
+  } else if (selected?.kind === 'shape') {
+    title = nameOf(selected, 'shape');
+    body = <ShapeProperties layer={selected as ShapeLayer} checkShared={checkShared} mirrorAxis={mirrorAxis} />;
+  } else if (selected?.kind === 'merged') {
+    title = nameOf(selected, 'merged');
+    body = <MergedProperties layer={selected} checkShared={checkShared} mirrorAxis={mirrorAxis} />;
+  } else if (selected?.kind === 'folder') {
+    title = nameOf(selected, 'folder');
+    body = <FolderProperties folder={selected} name={title} />;
   } else if (selected?.kind === 'unsupported') {
     title = nameOf(selected, 'unsupported');
     body = <p className="text-body text-ink-3">{t('atelier.props.unsupported')}</p>;
@@ -99,6 +128,64 @@ export function PropertiesPanel({ brush, onBrush, checkShared, onRemoveBackgroun
       </div>
       {body}
     </section>
+  );
+}
+
+// ── Several layers ──────────────────────────────────────────────────────────
+
+/** With two or more layers selected: Merge, Put in folder and Delete, as the Layers panel's bar. */
+function SelectionActions({ ids }: { ids: string[] }) {
+  const { t } = useTranslation();
+  const layers = useAtelierEditor((s) => s.layers);
+  const actions = useSelectionActions();
+  const blocks = selectionBlocks(layers, ids, t);
+  const unavailable = 'aria-disabled:opacity-50 aria-disabled:hover:border-line-3';
+  return (
+    // aria-disabled keeps the reason reachable: the button stays focusable and shows its title.
+    <div role="group" aria-labelledby="atelier-props-title" className="flex flex-wrap gap-2">
+      <Button size={28} aria-disabled={blocks.merge !== null || undefined} title={blocks.merge ?? undefined} onClick={() => blocks.merge === null && actions.merge(ids)} className={unavailable}>
+        <Combine size={14} strokeWidth={1.75} aria-hidden />
+        {t('atelier.layers.merge')}
+      </Button>
+      <Button
+        size={28}
+        aria-disabled={blocks.folder !== null || undefined}
+        title={blocks.folder ?? undefined}
+        onClick={() => blocks.folder === null && actions.putInFolder(ids)}
+        className={unavailable}
+      >
+        <FolderPlus size={14} strokeWidth={1.75} aria-hidden />
+        {t('atelier.layers.putInFolder')}
+      </Button>
+      <Button size={28} variant="danger" onClick={() => actions.deleteMany(ids)}>
+        <Trash2 size={14} strokeWidth={1.75} aria-hidden />
+        {t('atelier.layers.delete')}
+      </Button>
+    </div>
+  );
+}
+
+// ── Folder ──────────────────────────────────────────────────────────────────
+
+/** A folder: how many items it holds, Dissolve folder (the content stays in place) and Delete folder and content. */
+function FolderProperties({ folder, name }: { folder: FolderLayer; name: string }) {
+  const { t } = useTranslation();
+  const dissolve = useAtelierEditor((s) => s.dissolveFolder);
+  const { deleteFolder } = useSelectionActions();
+  return (
+    <>
+      <p className="text-meta text-ink-3">{t('atelier.layers.itemCount', { count: folder.children.length })}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button size={28} onClick={() => dissolve(folder.id)}>
+          <FolderOpen size={14} strokeWidth={1.75} aria-hidden />
+          {t('atelier.layers.dissolve')}
+        </Button>
+        <Button size={28} variant="danger" onClick={() => deleteFolder(folder.id, name)}>
+          <Trash2 size={14} strokeWidth={1.75} aria-hidden />
+          {t('atelier.layers.deleteFolder')}
+        </Button>
+      </div>
+    </>
   );
 }
 

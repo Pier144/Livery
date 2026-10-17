@@ -429,6 +429,7 @@ export function Editor({ id }: { id: string }) {
           checkShared={checkShared}
           onRemoveBackground={setCutoutLayer}
           onRefineEdge={setRefineLayer}
+          mirrorAxis={model.data.header.mirrorAxis}
         />
       </div>
       {cutoutLayer !== null && <CutoutDownloadDialog projectId={id} layerId={cutoutLayer} onClose={() => setCutoutLayer(null)} />}
