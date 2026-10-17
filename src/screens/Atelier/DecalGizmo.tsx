@@ -1,9 +1,9 @@
-import { useEffect, useReducer, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent } from 'react';
 import { useAtelierEditor } from '@/atelier/editorStore';
 import { framedLayers } from '@/atelier/layerTree';
 import { envelopeOf } from '@/atelier/merge';
 import { decalRight, dot, partGroupOf, type Decal, type PlacedLayer, type Vec3 } from '@/atelier/project';
-import { axisScale, decalCorners, framedLayerOf, rotateDecal, scaleDecal, slideOnto } from './decalOps';
+import { axisScale, decalCorners, framedLayerOf, MIN_AXIS_PX, rotateDecal, scaleDecal, slideOnto } from './decalOps';
 import { snapLevel, snapMove, unitsPerPixel, type SnapGuide } from './decalSnap';
 import { useDecalUi } from './decalUi';
 import type { EngineScene } from './engine';
@@ -141,15 +141,17 @@ export function DecalGizmo({ scene, layer, mirrorAxis, onGestureStart, onGesture
       setGuides(held);
       store.setDecal(id, next, 'move');
     } else if (g.kind === 'edge') {
-      // One axis: the drag measured along that axis's direction on screen.
+      // One axis: the drag measured along that axis's direction on screen (ignored while it is too short there).
       const { right, up } = screenAxes(scene, g.decal, g.centre);
-      const k = axisScale(sub(g.start, g.centre), sub(at, g.centre), g.axis === 'x' ? right : up);
+      const axis = g.axis === 'x' ? right : up;
+      if (len(axis) < MIN_AXIS_PX) return;
+      const k = axisScale(sub(g.start, g.centre), sub(at, g.centre), axis);
       store.setDecal(id, g.axis === 'x' ? scaleDecal(g.decal, k, 1) : scaleDecal(g.decal, 1, k), 'scale');
     } else if (g.kind === 'scale') {
       const from = sub(g.start, g.centre);
       const to = sub(at, g.centre);
       if (e.shiftKey && freeRatio) {
-        // Free ratio: the drag along the decal's own screen axes.
+        // Free ratio: the drag along the decal's own screen axes (an axis too short there keeps its size).
         const { right, up } = screenAxes(scene, g.decal, g.centre);
         store.setDecal(id, scaleDecal(g.decal, axisScale(from, to, right), axisScale(from, to, up)), 'scale');
       } else {
@@ -265,16 +267,24 @@ export function DecalGizmo({ scene, layer, mirrorAxis, onGestureStart, onGesture
 
 /**
  * With several layers selected: each selected placed frame outlined on the 3D view (no handles, no
- * pointer events), redrawn after every frame as the gizmo is.
+ * pointer events). The frames are looked up when the layers or the selection change; only their
+ * projection runs after every frame, as the gizmo's does.
  */
 export function SelectionOutlines({ scene }: { scene: EngineScene }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   useEffect(() => scene.onRender(redraw), [scene]);
   const layers = useAtelierEditor((s) => s.layers);
   const selectedIds = useAtelierEditor((s) => s.selectedIds);
-  const outlines = selectedIds.flatMap((id) => {
-    const decal = framedLayerOf(layers, id)?.decal;
-    const corners = decal ? screenCorners(scene, decal) : null;
+  const frames = useMemo(
+    () =>
+      selectedIds.flatMap((id) => {
+        const decal = framedLayerOf(layers, id)?.decal;
+        return decal ? [{ id, decal }] : [];
+      }),
+    [layers, selectedIds],
+  );
+  const outlines = frames.flatMap(({ id, decal }) => {
+    const corners = screenCorners(scene, decal);
     return corners ? [{ id, points: pointsOf(corners) }] : [];
   });
   return (

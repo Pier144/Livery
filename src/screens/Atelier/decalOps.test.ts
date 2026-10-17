@@ -18,6 +18,7 @@ import {
   decalCorners,
   framedLayerOf,
   MAX_DEPTH_UI,
+  MIN_AXIS_PX,
   MIN_DEPTH_UI,
   nudgePoint,
   NUDGE_FRACTION,
@@ -99,16 +100,18 @@ describe('decal edits', () => {
 describe('edge scaling', () => {
   it('measures the drag along the axis on screen, whatever its length', () => {
     // Twice as far along the axis: twice the size; the drag across it doesn't count.
-    expect(axisScale({ x: 10, y: 0 }, { x: 20, y: 7 }, { x: 3, y: 0 })).toBeCloseTo(2);
+    expect(axisScale({ x: 10, y: 0 }, { x: 20, y: 7 }, { x: 30, y: 0 })).toBeCloseTo(2);
     // A slanted axis: only the part along it.
-    expect(axisScale({ x: 10, y: 10 }, { x: 5, y: 5 }, { x: 1, y: 1 })).toBeCloseTo(0.5);
+    expect(axisScale({ x: 10, y: 10 }, { x: 5, y: 5 }, { x: 6, y: 6 })).toBeCloseTo(0.5);
     // Past the centre counts as the distance from it (the other side mirrors).
-    expect(axisScale({ x: 0, y: 10 }, { x: 0, y: -30 }, { x: 0, y: -4 })).toBeCloseTo(3);
+    expect(axisScale({ x: 0, y: 10 }, { x: 0, y: -30 }, { x: 0, y: -8 })).toBeCloseTo(3);
   });
 
-  it('counts a start under 1 px as 1 px and leaves a degenerate axis alone', () => {
-    expect(axisScale({ x: 0.2, y: 0 }, { x: 4, y: 0 }, { x: 1, y: 0 })).toBeCloseTo(4);
+  it('counts a start under 1 px as 1 px and leaves an axis under MIN_AXIS_PX alone', () => {
+    expect(axisScale({ x: 0.2, y: 0 }, { x: 4, y: 0 }, { x: MIN_AXIS_PX, y: 0 })).toBeCloseTo(4);
     expect(axisScale({ x: 10, y: 0 }, { x: 40, y: 0 }, { x: 0, y: 0 })).toBe(1);
+    // Seen almost edge-on: a 3 px axis isn't stretched along.
+    expect(axisScale({ x: 10, y: 0 }, { x: 40, y: 0 }, { x: 3, y: 0 })).toBe(1);
   });
 });
 

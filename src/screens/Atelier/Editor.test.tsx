@@ -27,7 +27,7 @@ import { useUi } from '@/store/ui';
 import { seriousViolations } from '@/test/axe';
 import { renderWithProviders, resetStores } from '@/test/render';
 import type { ApplyProgress, AtelierProject, CutoutStatus, HangarSkin } from '@/types';
-import { resetDecalUi, setCutoutBusy } from './decalUi';
+import { resetDecalUi, setCutoutBusy, useDecalUi } from './decalUi';
 import { Editor } from './Editor';
 import { EngineContext, type Engine, type EngineFactory } from './engine';
 
@@ -1252,6 +1252,39 @@ describe('Atelier editor · shapes, folders and merged objects', () => {
     // A piece is edited from the properties panel only: no gizmo.
     act(() => S().select('p'));
     expect(container.querySelector('[data-gizmo="body"]')).toBeNull();
+  });
+
+  it('Shift frees the ratio on a shape corner; a merged object scales uniformly, Shift or not', async () => {
+    const { container } = renderEditor(project({ layers: layers() }));
+    await ready();
+    const frame = (id: string) => (S().layers.find((l) => l.id === id) as ShapeLayer | MergedLayer).decal!;
+    // The shape's top-left corner is at (70, 40) (centre (50, 30); right is −z): dragged 20 px further out across.
+    act(() => S().select('s'));
+    let corner = container.querySelector('[data-gizmo="corner-0"]')!;
+    fireEvent.pointerDown(corner, { button: 0, clientX: 70, clientY: 40, pointerId: 2 });
+    fireEvent.pointerMove(corner, { clientX: 90, clientY: 40, pointerId: 2, shiftKey: true });
+    fireEvent.pointerUp(corner, { clientX: 90, clientY: 40, pointerId: 2, shiftKey: true });
+    expect(frame('s').width).toBeCloseTo(0.8);
+    expect(frame('s').height).toBeCloseTo(0.2);
+    // The merged object's (centre (90, 30)) at (110, 40), the same drag with Shift: both sides by the distance ratio.
+    act(() => S().select('m'));
+    corner = container.querySelector('[data-gizmo="corner-0"]')!;
+    fireEvent.pointerDown(corner, { button: 0, clientX: 110, clientY: 40, pointerId: 3 });
+    fireEvent.pointerMove(corner, { clientX: 130, clientY: 40, pointerId: 3, shiftKey: true });
+    fireEvent.pointerUp(corner, { clientX: 130, clientY: 40, pointerId: 3, shiftKey: true });
+    const k = Math.hypot(40, 10) / Math.hypot(20, 10);
+    expect(frame('m').width).toBeCloseTo(0.4 * k);
+    expect(frame('m').height).toBeCloseTo(0.2 * k);
+  });
+
+  it('flags the bake as truncated when the Baker leaves layers out, and clears it when it no longer does', async () => {
+    engine.baker.truncated = true;
+    renderEditor(project({ layers: layers() }));
+    await ready();
+    expect(useDecalUi.getState().drawTruncated).toBe(true);
+    engine.baker.truncated = false;
+    act(() => S().setLayerProps('s', { opacity: 0.5 }));
+    expect(useDecalUi.getState().drawTruncated).toBe(false);
   });
 
   it('with two layers selected, outlines each frame and shows no gizmo', async () => {

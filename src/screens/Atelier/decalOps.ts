@@ -98,6 +98,9 @@ export function wheelDepth(depth: number, deltaY: number): number {
   return Math.min(MAX_DEPTH_UI, Math.max(MIN_DEPTH_UI, next));
 }
 
+/** A decal axis shorter than this on screen (CSS px, centre to side) isn't stretched along. */
+export const MIN_AXIS_PX = 4;
+
 /** A point on the view, CSS px. */
 export interface ScreenPoint {
   x: number;
@@ -107,12 +110,13 @@ export interface ScreenPoint {
 /**
  * How much a drag from `from` to `to` (both relative to the decal's centre on screen) stretches the
  * decal along one of its axes, `axis` being that axis's direction on screen (any length): the
- * ratio of the two distances measured along it. A start closer than 1 px counts as 1 px; a
- * degenerate axis gives 1 (nothing changes).
+ * ratio of the two distances measured along it. A start closer than 1 px counts as 1 px; an axis
+ * shorter than MIN_AXIS_PX (the decal seen edge-on, or tiny) gives 1: nothing changes, since a
+ * direction that short is mostly noise and would fling the size.
  */
 export function axisScale(from: ScreenPoint, to: ScreenPoint, axis: ScreenPoint): number {
   const l = Math.hypot(axis.x, axis.y);
-  if (!(l > 1e-6)) return 1;
+  if (!(l >= MIN_AXIS_PX)) return 1;
   const along = (v: ScreenPoint) => Math.abs((v.x * axis.x + v.y * axis.y) / l);
   return along(to) / Math.max(1, along(from));
 }
