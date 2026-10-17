@@ -43,15 +43,27 @@ fn language_codes_match_the_ui() {
 }
 
 #[test]
-fn atelier_is_off_by_default_and_in_old_files() {
-    assert!(!Settings::default().atelier_enabled);
-    assert_eq!(serde_json::to_value(Settings::default()).unwrap()["atelierEnabled"], false);
+fn atelier_is_on_by_default_and_old_files_migrate_to_on_once() {
+    assert!(Settings::default().atelier_enabled);
+    assert_eq!(serde_json::to_value(Settings::default()).unwrap()["atelierEnabled"], true);
+    assert_eq!(Settings::default().settings_version, livery_lib::model::SETTINGS_VERSION);
+    // A file from before the switch existed reads with it on.
     let text = std::fs::read_to_string(fixture("partial.json")).unwrap();
     let old_file: Settings = serde_json::from_str(&text).unwrap();
-    assert!(!old_file.atelier_enabled, "files from before the switch load with Atelier off");
+    assert!(old_file.atelier_enabled);
+    // 0.4.0 wrote its old default (off) and no settings version: the migration turns it on, once.
+    let mut from_0_4: Settings = serde_json::from_str(r#"{ "atelierEnabled": false }"#).unwrap();
+    assert_eq!(from_0_4.settings_version, 0);
+    assert!(from_0_4.migrate());
+    assert!(from_0_4.atelier_enabled);
+    assert!(!from_0_4.migrate(), "the migration runs once");
+    // Turned off after it: it stays off.
+    let mut chosen: Settings = serde_json::from_str(r#"{ "atelierEnabled": false, "settingsVersion": 1 }"#).unwrap();
+    assert!(!chosen.migrate());
+    assert!(!chosen.atelier_enabled);
     let mut settings = Settings::default();
-    settings.apply(serde_json::from_str(r#"{ "atelierEnabled": true }"#).unwrap());
-    assert!(settings.atelier_enabled);
+    settings.apply(serde_json::from_str(r#"{ "atelierEnabled": false }"#).unwrap());
+    assert!(!settings.atelier_enabled);
     settings.apply(serde_json::from_str(r#"{ "language": "en" }"#).unwrap());
-    assert!(settings.atelier_enabled, "a patch without it leaves it");
+    assert!(!settings.atelier_enabled, "a patch without it leaves it");
 }
