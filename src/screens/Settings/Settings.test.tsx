@@ -210,7 +210,7 @@ describe('Settings · navigation', () => {
     const tablist = screen.getByRole('tablist', { name: 'Settings sections' });
     expect(tablist).toHaveAttribute('aria-orientation', 'vertical');
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['General', 'Game', 'Conflicts', 'Backups', 'WT Live', 'Language', 'Updates', 'Experimental', 'About']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['General', 'Game', 'Conflicts', 'Backups', 'WT Live', 'Language', 'Updates', 'Atelier', 'About']);
     expect(screen.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'General' })).toHaveClass('bg-bg-hover', 'text-ink-1');
     expect(screen.getByRole('tab', { name: 'Game' })).toHaveClass('text-ink-3');
@@ -374,8 +374,8 @@ describe('Settings · General', () => {
     expect(settings.startWithWindows).toBe(false);
   });
 
-  it('summarises the keyboard shortcuts with key caps', () => {
-    renderSettings('general');
+  it('summarises the keyboard shortcuts with key caps (1–5 with Atelier hidden)', () => {
+    renderSettings('general', { atelierEnabled: false });
     const list = screen.getByRole('list');
     expect(list.textContent?.replace(/\s+/g, ' ')).toBe('Ctrl K search · 1–5 sections · [ ] sidebar · Ctrl Z undo · Esc close');
     expect(within(list).getByText('Ctrl K').tagName).toBe('KBD');
@@ -708,30 +708,32 @@ describe('Settings · WT Live', () => {
   });
 });
 
-// ── Experimental ────────────────────────────────────────────────────────────
+// ── Atelier ─────────────────────────────────────────────────────────────────
 
-describe('Settings · Experimental', () => {
-  it('the Atelier switch patches atelierEnabled', async () => {
-    const { user, container } = renderSettings('experimental');
-    expect(within(panel()).getByRole('heading', { level: 2, name: 'Experimental features' })).toBeInTheDocument();
-    const toggle = screen.getByRole('switch', { name: 'Atelier' });
-    expect(toggle).toHaveAccessibleDescription('Create skins on a 3D model of your vehicle. Experimental: things may change or break.');
-    expect(toggle).not.toBeChecked();
+const ATELIER_HELPER = 'Create skins on a 3D model of your vehicle. Turned off, Atelier leaves the sidebar and Livery doesn’t read the vehicles’ models.';
+
+describe('Settings · Atelier', () => {
+  it('Show Atelier is on by default and patches atelierEnabled', async () => {
+    const { user, container } = renderSettings('atelier');
+    expect(within(panel()).getByRole('heading', { level: 2, name: 'Atelier' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Atelier' })).toHaveAttribute('aria-selected', 'true');
+    const toggle = screen.getByRole('switch', { name: 'Show Atelier' });
+    expect(toggle).toHaveAccessibleDescription(ATELIER_HELPER);
+    expect(toggle).toBeChecked();
+    expect(screen.queryByText(/Experimental/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Game settings' })).not.toBeInTheDocument();
     await user.click(toggle);
-    expect(toggle).toBeChecked();
-    await waitFor(() => expect(settings.atelierEnabled).toBe(true));
-    expect(calls('set_settings')).toEqual([['set_settings', { patch: { atelierEnabled: true } }]]);
+    expect(toggle).not.toBeChecked();
+    await waitFor(() => expect(settings.atelierEnabled).toBe(false));
+    expect(calls('set_settings')).toEqual([['set_settings', { patch: { atelierEnabled: false } }]]);
     expect(await seriousViolations(container)).toEqual([]);
   });
 
   it('with Read data from the game off, explains why and links to Game', async () => {
-    const { user } = renderSettings('experimental', { readGameData: false, atelierEnabled: true });
-    const toggle = screen.getByRole('switch', { name: 'Atelier' });
+    const { user } = renderSettings('atelier', { readGameData: false, atelierEnabled: true });
+    const toggle = screen.getByRole('switch', { name: 'Show Atelier' });
     expect(toggle).toBeChecked();
-    expect(toggle).toHaveAccessibleDescription(
-      'Create skins on a 3D model of your vehicle. Experimental: things may change or break. Atelier reads your vehicles’ models from the game: turn on Read data from the game to use it.',
-    );
+    expect(toggle).toHaveAccessibleDescription(`${ATELIER_HELPER} Atelier reads your vehicles’ models from the game: turn on Read data from the game to use it.`);
     await user.click(screen.getByRole('button', { name: 'Open Game settings' }));
     expect(useSettingsUi.getState().section).toBe('game');
     expect(useUi.getState().screen).toBe('settings');
@@ -739,30 +741,30 @@ describe('Settings · Experimental', () => {
   });
 });
 
-describe('Settings · Experimental · background removal files', () => {
+describe('Settings · Atelier · background removal files', () => {
   const READY: CutoutStatus = { runtime: true, model: true, bytes: 190 * MB, downloadBytes: 0, pendingRemoval: false };
 
   it('is not shown, nor queried, while Atelier is off; turning it on shows the row', async () => {
     cutout = READY;
-    const { user } = renderSettings('experimental');
-    expect(screen.getByRole('switch', { name: 'Atelier' })).not.toBeChecked();
+    const { user } = renderSettings('atelier', { atelierEnabled: false });
+    expect(screen.getByRole('switch', { name: 'Show Atelier' })).not.toBeChecked();
     expect(screen.queryByText('Background removal files')).not.toBeInTheDocument();
     expect(calls('atelier_cutout_status')).toHaveLength(0);
-    await user.click(screen.getByRole('switch', { name: 'Atelier' }));
+    await user.click(screen.getByRole('switch', { name: 'Show Atelier' }));
     expect(await screen.findByText('190 MB on this PC (ONNX Runtime and the isnet-anime model).')).toBeInTheDocument();
     expect(calls('atelier_cutout_status')).toHaveLength(1);
   });
 
   it('says the files aren’t downloaded yet, with nothing to remove', async () => {
     cutout = { runtime: false, model: false, bytes: 0, downloadBytes: 225 * MB, pendingRemoval: false };
-    renderSettings('experimental', { atelierEnabled: true });
+    renderSettings('atelier', { atelierEnabled: true });
     expect(await screen.findByText('Not downloaded. Atelier asks before downloading them (225 MB) the first time you remove a background.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
   });
 
   it('shows their size and removes them after asking; a runtime in use finishes at the next start', async () => {
     cutout = READY;
-    const { user, container } = renderSettings('experimental', { atelierEnabled: true });
+    const { user, container } = renderSettings('atelier', { atelierEnabled: true });
     expect(await screen.findByText('190 MB on this PC (ONNX Runtime and the isnet-anime model).')).toBeInTheDocument();
     expect(await seriousViolations(container)).toEqual([]);
     await user.click(screen.getByRole('button', { name: 'Remove' }));
@@ -780,7 +782,7 @@ describe('Settings · Experimental · background removal files', () => {
   it('Remove waits while a download or a cutout runs', async () => {
     cutout = READY;
     setCutoutBusy(true);
-    renderSettings('experimental', { atelierEnabled: true });
+    renderSettings('atelier', { atelierEnabled: true });
     expect(await screen.findByRole('button', { name: 'Remove' })).toBeDisabled();
     act(() => setCutoutBusy(false));
     expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled();

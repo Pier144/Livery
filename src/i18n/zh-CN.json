@@ -1173,7 +1173,7 @@
       "consent": "去除背景需要两个文件，Livery 会从 GitHub 下载一次：",
       "runtime": "ONNX Runtime",
       "model": "isnet-anime 模型（rembg 项目）",
-      "privacy": "需下载 {{size}}。文件保存在此电脑并在本地运行，您的图片不会离开此电脑。可在“设置 → 实验性功能”中删除。",
+      "privacy": "需下载 {{size}}。文件保存在此电脑并在本地运行，您的图片不会离开此电脑。可在“设置 → 涂装工坊”中删除。",
       "download": "下载（{{size}}）",
       "restart": "请先重启 Livery：您删除的去除背景文件仍在使用中，会在 Livery 下次启动时彻底删除。之后可以重新下载。",
       "downloading": "正在从 GitHub 下载…",
@@ -1224,7 +1224,7 @@
       "wtlive": "WT Live",
       "language": "语言",
       "updates": "更新",
-      "experimental": "实验性功能",
+      "atelier": "涂装工坊",
       "about": "关于"
     },
     "general": {
@@ -1339,10 +1339,10 @@
       "auto": "自动安装更新",
       "autoHelper": "在后台下载新版本，并在您关闭 Livery 时安装。"
     },
-    "experimental": {
-      "title": "实验性功能",
-      "atelier": "涂装工坊",
-      "atelierHelper": "在载具的 3D 模型上制作涂装。实验性功能：部分内容可能会变动或出错。",
+    "atelier": {
+      "title": "涂装工坊",
+      "atelier": "显示涂装工坊",
+      "atelierHelper": "在载具的 3D 模型上制作涂装。关闭后，涂装工坊会从侧边栏消失，Livery 也不会读取载具模型。",
       "needsGameData": "涂装工坊从游戏中读取载具模型：请开启“从游戏读取数据”后使用。",
       "openGame": "打开游戏设置",
       "cutout": "去除背景所需文件",

@@ -7,7 +7,7 @@ import type { Section, Settings } from '@/types';
 
 /**
  * Digit (and ",") → section. "," mirrors the Settings hint shown in the sidebar; "6" (Atelier)
- * works only while Settings → Experimental → Atelier is on.
+ * works only while Settings → Atelier → Show Atelier is on.
  */
 export const SECTION_KEYS: Record<string, Section> = {
   '1': 'explore',

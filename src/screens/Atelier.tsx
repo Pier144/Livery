@@ -16,7 +16,7 @@ import { ScreenFrame, ScreenHeader } from './ScreenHeader';
 const Editor = lazy(() => import('./Atelier/Editor').then((m) => ({ default: m.Editor })));
 
 /**
- * Atelier, the skin editor (Settings → Experimental → Atelier): the project grid, or the editor of
+ * Atelier, the skin editor (Settings → Atelier → Show Atelier): the project grid, or the editor of
  * the open project. It reads the vehicles' models from the game, so with Settings → Game → Read
  * data from the game off it explains that and links there; without WebGL 2 it explains that and
  * stays closed.

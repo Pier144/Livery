@@ -48,7 +48,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// `invalidInput` while Settings → Game → Read data from the game is off: Atelier opens no pack.
 pub const ATELIER_NEEDS_GAME_DATA: &str = "Atelier needs Read data from the game turned on";
 
-/// `invalidInput`: Settings → Experimental → Atelier is off (downloads refuse to start).
+/// `invalidInput`: Settings → Atelier → Show Atelier is off (downloads refuse to start).
 pub const ATELIER_DISABLED: &str = "Turn on Atelier in Settings first";
 
 /// Progress of a background removal (payload `CutoutProgress`).
@@ -216,7 +216,7 @@ impl AtelierState {
     }
 }
 
-/// `invalidInput` ([`ATELIER_DISABLED`]) while Settings → Experimental → Atelier is off.
+/// `invalidInput` ([`ATELIER_DISABLED`]) while Settings → Atelier → Show Atelier is off.
 pub fn require_enabled(settings: &Settings) -> AppResult<()> {
     if settings.atelier_enabled {
         Ok(())
@@ -600,7 +600,7 @@ pub async fn atelier_cutout_cancel(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Deletes the background-removal files (Settings → Experimental); refused while a download or a
+/// Deletes the background-removal files (Settings → Atelier); refused while a download or a
 /// background removal runs.
 #[tauri::command]
 pub async fn atelier_cutout_remove(app: AppHandle) -> AppResult<CutoutStatus> {

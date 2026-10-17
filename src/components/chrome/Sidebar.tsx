@@ -25,7 +25,7 @@ const NAV: NavDef[] = [
   { id: 'hangar', icon: Warehouse, hint: '2' },
   { id: 'collections', icon: Layers, hint: '3' },
   { id: 'queue', icon: Download, hint: '4' },
-  // Only with Settings → Experimental → Atelier on.
+  // Only with Settings → Atelier → Show Atelier on.
   { id: 'atelier', icon: Paintbrush, hint: '6' },
   { id: 'settings', icon: Settings, hint: ',' },
 ];

@@ -27,7 +27,15 @@ impl SettingsStore {
                 // Tolerate a UTF-8 BOM (Notepad), like the Following list and the library index.
                 let text = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&bytes);
                 match serde_json::from_slice::<Settings>(text) {
-                    Ok(s) => s,
+                    Ok(mut s) => {
+                        // Saved right away, so the migration runs once; a failed write retries next launch.
+                        if s.migrate() {
+                            if let Err(e) = write_atomic(&path, &s) {
+                                tracing::warn!(error = %e, "cannot save the migrated settings");
+                            }
+                        }
+                        s
+                    }
                     Err(e) => {
                         tracing::warn!(error = %e, "settings file is corrupt; set aside as settings.json.bad");
                         tracing::debug!(path = %path.display(), "settings file");
@@ -118,6 +126,25 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("livery-{name}-{}-{nanos}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn a_file_from_before_0_5_turns_atelier_on_once_and_is_saved() {
+        let dir = temp_dir("migrate");
+        let path = dir.join("settings.json");
+        fs::write(&path, r#"{ "atelierEnabled": false, "language": "it" }"#).unwrap();
+        let store = SettingsStore::load(path.clone());
+        let s = store.get();
+        assert!(s.atelier_enabled);
+        assert_eq!(s.settings_version, crate::model::SETTINGS_VERSION);
+        assert_eq!(s.language, Language::It);
+        let saved: Settings = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(saved.settings_version, crate::model::SETTINGS_VERSION);
+        assert!(saved.atelier_enabled);
+        // Turned off after the migration: it stays off.
+        store.update(serde_json::from_str(r#"{ "atelierEnabled": false }"#).unwrap()).unwrap();
+        assert!(!SettingsStore::load(path).get().atelier_enabled);
+        fs::remove_dir_all(dir).ok();
     }
 
     #[test]

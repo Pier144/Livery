@@ -1259,7 +1259,7 @@
       "consent": "Para quitar fondos hacen falta dos archivos que Livery descarga una sola vez desde GitHub:",
       "runtime": "ONNX Runtime",
       "model": "Modelo isnet-anime (proyecto rembg)",
-      "privacy": "{{size}} para descargar. Se quedan en este PC y funcionan aquí: tus imágenes nunca salen de él. Puedes quitarlos en Ajustes → Experimental.",
+      "privacy": "{{size}} para descargar. Se quedan en este PC y funcionan aquí: tus imágenes nunca salen de él. Puedes quitarlos en Ajustes → Atelier.",
       "download": "Descargar ({{size}})",
       "restart": "Primero reinicia Livery: los archivos para quitar fondos que eliminaste aún estaban en uso y terminan de borrarse al volver a abrirlo. Después podrá descargarlos de nuevo.",
       "downloading": "Descargando desde GitHub…",
@@ -1310,7 +1310,7 @@
       "wtlive": "WT Live",
       "language": "Idioma",
       "updates": "Actualizaciones",
-      "experimental": "Experimental",
+      "atelier": "Atelier",
       "about": "Acerca de"
     },
     "general": {
@@ -1433,10 +1433,10 @@
       "auto": "Instalar las actualizaciones automáticamente",
       "autoHelper": "Descarga las nuevas versiones en segundo plano y las instala cuando cierras Livery."
     },
-    "experimental": {
-      "title": "Funciones experimentales",
-      "atelier": "Atelier",
-      "atelierHelper": "Crea skins sobre un modelo 3D de tu vehículo. Experimental: algunas cosas pueden cambiar o fallar.",
+    "atelier": {
+      "title": "Atelier",
+      "atelier": "Mostrar Atelier",
+      "atelierHelper": "Crea skins sobre un modelo 3D de tu vehículo. Si lo desactivas, Atelier desaparece de la barra lateral y Livery no lee los modelos de los vehículos.",
       "needsGameData": "El Atelier lee los modelos de los vehículos del juego: activa Leer datos del juego para usarlo.",
       "openGame": "Abrir los ajustes del juego",
       "cutout": "Archivos para quitar fondos",

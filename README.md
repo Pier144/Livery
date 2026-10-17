@@ -39,6 +39,12 @@ them with one click, and keep your `UserSkins` folder tidy.
   rename them (the name you see in the game's customisation menu changes too), uninstall them, and
   undo any of it.
 - **Collections**: sets of skins you can switch on together.
+- **Atelier, make your own skin**: paint a ground vehicle on its 3D model, read from your game:
+  a base colour or camouflage, worn paint chipped along the edges, pictures and text projected
+  onto the hull (mirrored to the other side if you like, snapped to the centre line and to each
+  other), background removal for pictures, protected areas that keep the game's texture. Apply to
+  game writes the skin into War Thunder in one click. Settings → Atelier hides it if you don't
+  want it.
 - **Checks** each skin for missing textures and problems in its `.blk` file.
 - **Updates itself**: it tells you when a new version is out, and can install it for you.
 - In English, Italiano, Deutsch, Русский, Français, Español, Polski, Português (Brasil) and 简体中文,
@@ -73,10 +79,9 @@ No account, no ads, no telemetry. Livery connects only to:
   browse, open or install skins. It asks politely: one request a second at most, cached for a day,
   and never anything from Gaijin's Marketplace. You can turn WT Live off in Settings → WT Live.
 - **GitHub**, to check for and download Livery updates.
-- **GitHub, only if you use Remove background in Atelier** (experimental, off by default): ONNX
-  Runtime (Microsoft) and the isnet-anime model are downloaded once, when you ask and after you
-  agree, and kept on your PC. Your pictures never leave it. Settings → Experimental shows their
-  size and removes them.
+- **GitHub, only if you use Remove background in Atelier**: ONNX Runtime (Microsoft) and the
+  isnet-anime model are downloaded once, when you ask and after you agree, and kept on your PC.
+  Your pictures never leave it. Settings → Atelier shows their size and removes them.
 
 **Send feedback** (Settings → About, or the command palette) doesn't send anything by itself: it
 opens a pre-filled page on GitHub in your browser, which you submit there with your GitHub account.
@@ -114,6 +119,9 @@ Entertainment). Ti permette di:
 - sfogliare le skin di WT Live, installarle con un clic o provarle prima nel gioco;
 - vedere nella scheda "Per te" le skin dei veicoli delle tue formazioni di War Thunder;
 - installare skin da ZIP, 7z, RAR (con 7-Zip o WinRAR installato) o cartelle;
+- creare le tue skin nell'Atelier: dipingi il carro sul suo modello 3D letto dal gioco (colore o
+  mimetica, usura con vernice scheggiata, immagini e testi proiettati e agganciati all'asse
+  centrale) e applicale al gioco con un clic;
 - rinominare, disattivare e disinstallare le skin dall'Hangar, sempre con la possibilità di
   annullare;
 - usarlo in italiano (e in altre otto lingue), con i nomi dei veicoli come li scrive il gioco.
@@ -122,7 +130,7 @@ Scarica l'installer con il pulsante in alto (o dall'[ultima release](https://git
 Windows mostra "Windows ha protetto il PC", scegli **Ulteriori informazioni → Esegui comunque**:
 l'installer non è ancora firmato. Livery si aggiorna da solo. Per segnalare un problema o proporre
 un'idea usa **Invia un feedback** in Impostazioni → Informazioni. Si collega solo a WT Live e a GitHub
-(per gli aggiornamenti e, solo se usi "Rimuovi sfondo" nell'Atelier sperimentale, per scaricare una
+(per gli aggiornamenti e, solo se usi "Rimuovi sfondo" nell'Atelier, per scaricare una
 volta i file necessari: le tue immagini restano sul PC), non raccoglie dati e non ha account.
 
 ## Code signing policy

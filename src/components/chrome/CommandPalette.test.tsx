@@ -175,6 +175,8 @@ describe('CommandPalette', () => {
     const user = userEvent.setup();
     renderWithProviders(<CommandPalette />);
     open();
+    // The settings load after the first render and add Open Atelier above Open Settings.
+    await screen.findByRole('option', { name: /Open Atelier/ });
     const settings = screen.getByRole('option', { name: /Open Settings/ });
     await user.hover(settings);
     expect(selected()).toBe(settings);

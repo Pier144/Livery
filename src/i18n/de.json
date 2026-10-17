@@ -1216,7 +1216,7 @@
       "consent": "Zum Entfernen von Hintergründen braucht Livery zwei Dateien, die es einmalig von GitHub lädt:",
       "runtime": "ONNX Runtime",
       "model": "Modell isnet-anime (Projekt rembg)",
-      "privacy": "{{size}} zum Herunterladen. Sie bleiben auf diesem PC und laufen hier: Deine Bilder verlassen ihn nie. Unter Einstellungen → Experimentell lassen sie sich entfernen.",
+      "privacy": "{{size}} zum Herunterladen. Sie bleiben auf diesem PC und laufen hier: Deine Bilder verlassen ihn nie. Unter Einstellungen → Atelier lassen sie sich entfernen.",
       "download": "Herunterladen ({{size}})",
       "restart": "Starte Livery zuerst neu: Die entfernten Dateien zum Entfernen des Hintergrunds waren noch in Gebrauch und verschwinden beim nächsten Start ganz. Danach lassen sie sich neu herunterladen.",
       "downloading": "Wird von GitHub heruntergeladen…",
@@ -1267,7 +1267,7 @@
       "wtlive": "WT Live",
       "language": "Sprache",
       "updates": "Updates",
-      "experimental": "Experimentell",
+      "atelier": "Atelier",
       "about": "Info"
     },
     "general": {
@@ -1386,10 +1386,10 @@
       "auto": "Updates automatisch installieren",
       "autoHelper": "Lädt neue Versionen im Hintergrund herunter und installiert sie, wenn du Livery schließt."
     },
-    "experimental": {
-      "title": "Experimentelle Funktionen",
-      "atelier": "Atelier",
-      "atelierHelper": "Erstelle Skins auf einem 3D-Modell deines Fahrzeugs. Experimentell: Manches kann sich ändern oder nicht funktionieren.",
+    "atelier": {
+      "title": "Atelier",
+      "atelier": "Atelier anzeigen",
+      "atelierHelper": "Erstelle Skins an einem 3D-Modell deines Fahrzeugs. Ausgeschaltet verschwindet Atelier aus der Seitenleiste und Livery liest keine Fahrzeugmodelle.",
       "needsGameData": "Das Atelier liest die Fahrzeugmodelle aus dem Spiel: Schalte „Daten aus dem Spiel lesen“ ein, um es zu nutzen.",
       "openGame": "Spiel-Einstellungen öffnen",
       "cutout": "Dateien zum Entfernen des Hintergrunds",

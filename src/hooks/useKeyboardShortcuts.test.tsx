@@ -32,7 +32,7 @@ describe('useKeyboardShortcuts', () => {
     expect(useUi.getState().screen).toBe('settings');
   });
 
-  it('6 opens Atelier only while Settings → Experimental → Atelier is on', () => {
+  it('6 opens Atelier only while Settings → Atelier → Show Atelier is on', () => {
     const { client } = render(<Harness />);
     key('6');
     expect(useUi.getState().screen).toBe('explore');

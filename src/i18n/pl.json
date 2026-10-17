@@ -1302,7 +1302,7 @@
       "consent": "Do usuwania tła potrzebne są dwa pliki, które Livery pobierze jednorazowo z GitHuba:",
       "runtime": "ONNX Runtime",
       "model": "Model isnet-anime (projekt rembg)",
-      "privacy": "Do pobrania: {{size}}. Pliki zostają na tym PC i tu działają: twoje obrazy nigdy go nie opuszczają. Można je usunąć w Ustawienia → Eksperymentalne.",
+      "privacy": "Do pobrania: {{size}}. Pliki zostają na tym PC i tu działają: twoje obrazy nigdy go nie opuszczają. Można je usunąć w Ustawienia → Atelier.",
       "download": "Pobierz ({{size}})",
       "restart": "Najpierw uruchom ponownie Livery: usunięte pliki do usuwania tła były jeszcze w użyciu i znikną przy następnym uruchomieniu. Potem będzie można pobrać je od nowa.",
       "downloading": "Pobieranie z GitHuba…",
@@ -1353,7 +1353,7 @@
       "wtlive": "WT Live",
       "language": "Język",
       "updates": "Aktualizacje",
-      "experimental": "Eksperymentalne",
+      "atelier": "Atelier",
       "about": "O programie"
     },
     "general": {
@@ -1480,10 +1480,10 @@
       "auto": "Instaluj aktualizacje automatycznie",
       "autoHelper": "Pobiera nowe wersje w tle i instaluje je po zamknięciu Livery."
     },
-    "experimental": {
-      "title": "Funkcje eksperymentalne",
-      "atelier": "Atelier",
-      "atelierHelper": "Twórz skiny na modelu 3D swojego pojazdu. Funkcja eksperymentalna: coś może się zmienić lub nie działać.",
+    "atelier": {
+      "title": "Atelier",
+      "atelier": "Pokazuj Atelier",
+      "atelierHelper": "Twórz kamuflaże na modelu 3D swojego pojazdu. Po wyłączeniu Atelier znika z paska bocznego, a Livery nie odczytuje modeli pojazdów.",
       "needsGameData": "Atelier wczytuje modele pojazdów z gry: aby z niego korzystać, włącz Wczytuj dane z gry.",
       "openGame": "Otwórz ustawienia gry",
       "cutout": "Pliki do usuwania tła",

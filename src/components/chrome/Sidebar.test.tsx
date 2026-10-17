@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createQueryClient } from '@/queries/client';
@@ -46,11 +46,9 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'My Hangar' })).toHaveClass('border-transparent', 'text-ink-3');
   });
 
-  it('shows Atelier (shortcut 6) only with Settings → Experimental → Atelier on', async () => {
+  it('shows Atelier (shortcut 6) unless Settings → Atelier → Show Atelier is off', async () => {
     const user = userEvent.setup();
     const { client } = await renderSidebar();
-    expect(within(nav()).queryByRole('button', { name: 'Atelier' })).not.toBeInTheDocument();
-    act(() => client.setQueryData(['settings'], { ...DEFAULT_SETTINGS, atelierEnabled: true }));
     const atelier = await within(nav()).findByRole('button', { name: 'Atelier' });
     expect(atelier).toHaveAttribute('aria-keyshortcuts', '6');
     // Between the Install queue and Settings.
@@ -61,6 +59,8 @@ describe('Sidebar', () => {
     await user.click(atelier);
     expect(useUi.getState().screen).toBe('atelier');
     expect(atelier).toHaveAttribute('aria-current', 'page');
+    act(() => client.setQueryData(['settings'], { ...DEFAULT_SETTINGS, atelierEnabled: false }));
+    await waitFor(() => expect(within(nav()).queryByRole('button', { name: 'Atelier' })).not.toBeInTheDocument());
   });
 
   it('navigates with the keyboard', async () => {

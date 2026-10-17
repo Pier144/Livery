@@ -1259,7 +1259,7 @@
       "consent": "Supprimer les arrière-plans nécessite deux fichiers que Livery télécharge une seule fois depuis GitHub :",
       "runtime": "ONNX Runtime",
       "model": "Modèle isnet-anime (projet rembg)",
-      "privacy": "{{size}} à télécharger. Ils restent sur ce PC et s’y exécutent : vos images ne le quittent jamais. Paramètres → Expérimental permet de les supprimer.",
+      "privacy": "{{size}} à télécharger. Ils restent sur ce PC et s’y exécutent : vos images ne le quittent jamais. Paramètres → Atelier permet de les supprimer.",
       "download": "Télécharger ({{size}})",
       "restart": "Redémarrez d’abord Livery : les fichiers de suppression d’arrière-plan retirés étaient encore utilisés et disparaissent au prochain démarrage. Ensuite, il pourra les télécharger à nouveau.",
       "downloading": "Téléchargement depuis GitHub…",
@@ -1310,7 +1310,7 @@
       "wtlive": "WT Live",
       "language": "Langue",
       "updates": "Mises à jour",
-      "experimental": "Expérimental",
+      "atelier": "Atelier",
       "about": "À propos"
     },
     "general": {
@@ -1433,10 +1433,10 @@
       "auto": "Installer les mises à jour automatiquement",
       "autoHelper": "Télécharge les nouvelles versions en arrière-plan et les installe à la fermeture de Livery."
     },
-    "experimental": {
-      "title": "Fonctions expérimentales",
-      "atelier": "Atelier",
-      "atelierHelper": "Créez des skins sur un modèle 3D de votre véhicule. Expérimental : certaines choses peuvent changer ou ne pas fonctionner.",
+    "atelier": {
+      "title": "Atelier",
+      "atelier": "Afficher Atelier",
+      "atelierHelper": "Créez des skins sur un modèle 3D de votre véhicule. Désactivé, Atelier quitte la barre latérale et Livery ne lit pas les modèles des véhicules.",
       "needsGameData": "L’Atelier lit les modèles des véhicules dans le jeu : activez Lire les données du jeu pour l’utiliser.",
       "openGame": "Ouvrir les paramètres du jeu",
       "cutout": "Fichiers de suppression d’arrière-plan",

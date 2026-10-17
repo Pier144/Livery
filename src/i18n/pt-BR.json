@@ -1259,7 +1259,7 @@
       "consent": "Remover fundos precisa de dois arquivos que o Livery baixa uma única vez do GitHub:",
       "runtime": "ONNX Runtime",
       "model": "Modelo isnet-anime (projeto rembg)",
-      "privacy": "{{size}} para baixar. Eles ficam neste PC e rodam aqui: suas imagens nunca saem dele. Você pode removê-los em Configurações → Experimental.",
+      "privacy": "{{size}} para baixar. Eles ficam neste PC e rodam aqui: suas imagens nunca saem dele. Você pode removê-los em Configurações → Ateliê.",
       "download": "Baixar ({{size}})",
       "restart": "Reinicie o Livery primeiro: os arquivos de remoção de fundo que você removeu ainda estavam em uso e terminam de ser apagados quando o Livery abrir de novo. Depois ele pode baixá-los outra vez.",
       "downloading": "Baixando do GitHub…",
@@ -1310,7 +1310,7 @@
       "wtlive": "WT Live",
       "language": "Idioma",
       "updates": "Atualizações",
-      "experimental": "Experimental",
+      "atelier": "Ateliê",
       "about": "Sobre"
     },
     "general": {
@@ -1433,10 +1433,10 @@
       "auto": "Instalar atualizações automaticamente",
       "autoHelper": "Baixa as novas versões em segundo plano e as instala quando você fecha o Livery."
     },
-    "experimental": {
-      "title": "Recursos experimentais",
-      "atelier": "Ateliê",
-      "atelierHelper": "Crie skins em um modelo 3D do seu veículo. Experimental: algumas coisas podem mudar ou falhar.",
+    "atelier": {
+      "title": "Ateliê",
+      "atelier": "Mostrar Ateliê",
+      "atelierHelper": "Crie skins em um modelo 3D do seu veículo. Desligado, o Ateliê sai da barra lateral e o Livery não lê os modelos dos veículos.",
       "needsGameData": "O Ateliê lê os modelos dos veículos do jogo: ative Ler dados do jogo para usá-lo.",
       "openGame": "Abrir as configurações do jogo",
       "cutout": "Arquivos de remoção de fundo",

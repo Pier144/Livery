@@ -80,7 +80,7 @@ function useBootScreen(): boolean {
   return booted;
 }
 
-/** Atelier is reachable only while Settings → Experimental → Atelier is on: turned off while open, it leaves for Explore. */
+/** Atelier is reachable only while Settings → Atelier → Show Atelier is on: turned off while open, it leaves for Explore. */
 function useAtelierGate() {
   const enabled = useSettings().data?.atelierEnabled;
   const screen = useUi((s) => s.screen);

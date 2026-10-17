@@ -1259,7 +1259,7 @@
       "consent": "Per rimuovere gli sfondi servono due file che Livery scarica una volta sola da GitHub:",
       "runtime": "ONNX Runtime",
       "model": "Modello isnet-anime (progetto rembg)",
-      "privacy": "{{size}} da scaricare. Restano su questo PC e funzionano qui: le tue immagini non lo lasciano mai. Si rimuovono da Impostazioni → Sperimentale.",
+      "privacy": "{{size}} da scaricare. Restano su questo PC e funzionano qui: le tue immagini non lo lasciano mai. Si rimuovono da Impostazioni → Atelier.",
       "download": "Scarica ({{size}})",
       "restart": "Prima riavvia Livery: i file per rimuovere lo sfondo che hai eliminato erano ancora in uso e vengono cancellati del tutto al prossimo avvio. Dopo potrai scaricarli di nuovo.",
       "downloading": "Download da GitHub…",
@@ -1310,7 +1310,7 @@
       "wtlive": "WT Live",
       "language": "Lingua",
       "updates": "Aggiornamenti",
-      "experimental": "Sperimentale",
+      "atelier": "Atelier",
       "about": "Informazioni"
     },
     "general": {
@@ -1433,10 +1433,10 @@
       "auto": "Installa gli aggiornamenti automaticamente",
       "autoHelper": "Scarica le nuove versioni in background e le installa quando chiudi Livery."
     },
-    "experimental": {
-      "title": "Funzioni sperimentali",
-      "atelier": "Atelier",
-      "atelierHelper": "Crea skin su un modello 3D del tuo veicolo. Sperimentale: alcune cose potrebbero cambiare o non funzionare.",
+    "atelier": {
+      "title": "Atelier",
+      "atelier": "Mostra Atelier",
+      "atelierHelper": "Crea skin su un modello 3D del tuo veicolo. Se lo spegni, l’Atelier sparisce dalla barra laterale e Livery non legge i modelli dei veicoli.",
       "needsGameData": "L’Atelier legge i modelli dei veicoli dal gioco: per usarlo attiva Leggi i dati dal gioco.",
       "openGame": "Apri le impostazioni del gioco",
       "cutout": "File per rimuovere lo sfondo",

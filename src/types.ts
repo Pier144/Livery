@@ -182,7 +182,7 @@ export interface Settings {
    * the lineups from the War Thunder profile (off: built-in list, no For you suggestions).
    */
   readGameData: boolean;
-  /** Settings → Experimental → Atelier (the skin editor). Off by default. */
+  /** Settings → Atelier → Show Atelier (the skin editor). On by default since 0.5.0. */
   atelierEnabled: boolean;
 }
 /** `set_settings({ patch })`: the fields to change. */
@@ -234,7 +234,7 @@ export interface AppError {
   detail?: string;
 }
 
-/** Top-level sections reachable from the sidebar (keys 1–6; Atelier only with Settings → Experimental → Atelier on). */
+/** Top-level sections reachable from the sidebar (keys 1–6; Atelier only with Settings → Atelier → Show Atelier on). */
 export type Section = 'explore' | 'hangar' | 'collections' | 'queue' | 'atelier' | 'settings';
 /** Everything the main area can show. First run hides the sidebar and disables section keys. */
 export type Screen = Section | 'firstRun' | 'detail';

@@ -14,11 +14,11 @@ import { openSettingsAt } from './settingsUi';
 import { useSettingsPatch } from './useSettingsPatch';
 
 /**
- * Experimental: features that may still change or break. Atelier (the skin editor) shows in the
- * sidebar while its switch is on; it reads the vehicles' models from the game, so with Game →
- * Read data from the game off the row says so and links to that setting.
+ * Atelier (the skin editor, out of Experimental since 0.5.0): Show Atelier, on by default, puts it
+ * in the sidebar; it reads the vehicles' models from the game, so with Game → Read data from the
+ * game off the row says so and links to that setting. Below, the background-removal files.
  */
-export function ExperimentalSection() {
+export function AtelierSection() {
   const { t } = useTranslation();
   const { settings, patch } = useSettingsPatch();
   const needsId = useId();
@@ -26,19 +26,19 @@ export function ExperimentalSection() {
 
   return (
     <>
-      <SectionTitle>{t('settings.experimental.title')}</SectionTitle>
+      <SectionTitle>{t('settings.atelier.title')}</SectionTitle>
       <SettingGroup>
         <SettingRow
-          label={t('settings.experimental.atelier')}
-          helper={t('settings.experimental.atelierHelper')}
+          label={t('settings.atelier.atelier')}
+          helper={t('settings.atelier.atelierHelper')}
           details={
             needsGameData && (
               <div className="flex flex-col gap-1 pt-1.5">
                 <p id={needsId} className="text-[11px] leading-[normal] text-ink-3">
-                  {t('settings.experimental.needsGameData')}
+                  {t('settings.atelier.needsGameData')}
                 </p>
                 <button type="button" onClick={() => openSettingsAt('game')} className={ROW_LINK}>
-                  {t('settings.experimental.openGame')}
+                  {t('settings.atelier.openGame')}
                 </button>
               </div>
             )
@@ -74,30 +74,30 @@ function CutoutFilesRow() {
   if (!s) return null;
   const present = s.runtime || s.model || s.bytes > 0;
   const helper = s.pendingRemoval
-    ? t('settings.experimental.cutoutPending')
+    ? t('settings.atelier.cutoutPending')
     : present
-      ? t('settings.experimental.cutoutSize', { size: formatBytes(s.bytes) })
-      : t('settings.experimental.cutoutNone', { size: formatBytes(s.downloadBytes) });
+      ? t('settings.atelier.cutoutSize', { size: formatBytes(s.bytes) })
+      : t('settings.atelier.cutoutNone', { size: formatBytes(s.downloadBytes) });
 
   const onRemove = async () => {
     const ok = await confirm({
-      title: t('settings.experimental.cutoutConfirmTitle'),
-      body: t('settings.experimental.cutoutConfirmBody', { size: formatBytes(s.bytes) }),
-      confirmLabel: t('settings.experimental.cutoutRemove'),
+      title: t('settings.atelier.cutoutConfirmTitle'),
+      body: t('settings.atelier.cutoutConfirmBody', { size: formatBytes(s.bytes) }),
+      confirmLabel: t('settings.atelier.cutoutRemove'),
     });
     if (!ok) return;
     remove.mutate(undefined, {
-      onSuccess: (next) => toast(next.pendingRemoval ? t('settings.experimental.cutoutPending') : t('settings.experimental.cutoutRemoved')),
+      onSuccess: (next) => toast(next.pendingRemoval ? t('settings.atelier.cutoutPending') : t('settings.atelier.cutoutRemoved')),
       onError: (e) => toast(errorText(e, t)),
     });
   };
 
   return (
-    <SettingRow label={t('settings.experimental.cutout')} helper={helper}>
+    <SettingRow label={t('settings.atelier.cutout')} helper={helper}>
       {({ labelId, helperId }) =>
         present && !s.pendingRemoval ? (
           <Button size={28} variant="danger" disabled={busy} aria-describedby={[labelId, helperId].filter(Boolean).join(' ')} onClick={() => void onRemove()}>
-            {t('settings.experimental.cutoutRemove')}
+            {t('settings.atelier.cutoutRemove')}
           </Button>
         ) : null
       }

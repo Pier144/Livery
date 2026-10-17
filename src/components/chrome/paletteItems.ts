@@ -39,7 +39,7 @@ export interface PaletteContext {
   applyVehicle?: (code: string) => void;
   /** Opens the Send feedback dialog; without it the action isn't listed. */
   openFeedback?: () => void;
-  /** Settings → Experimental → Atelier: its action is listed only while it is on. */
+  /** Settings → Atelier → Show Atelier: its action is listed only while it is on. */
   atelierEnabled?: boolean;
 }
 

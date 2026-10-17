@@ -2,9 +2,9 @@ import { useId, useLayoutEffect, useRef, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 import { AboutSection } from './Settings/AboutSection';
+import { AtelierSection } from './Settings/AtelierSection';
 import { BackupsSection } from './Settings/BackupsSection';
 import { ConflictsSection } from './Settings/ConflictsSection';
-import { ExperimentalSection } from './Settings/ExperimentalSection';
 import { GameSection } from './Settings/GameSection';
 import { GeneralSection } from './Settings/GeneralSection';
 import { LanguageSection } from './Settings/LanguageSection';
@@ -20,7 +20,7 @@ const PANELS: Record<SettingsSection, () => JSX.Element> = {
   wtlive: WtLiveSection,
   language: LanguageSection,
   updates: UpdatesSection,
-  experimental: ExperimentalSection,
+  atelier: AtelierSection,
   about: AboutSection,
 };
 

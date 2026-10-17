@@ -20,7 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reduceMotion: 'system',
   wtliveEnabled: true,
   readGameData: true,
-  atelierEnabled: false,
+  atelierEnabled: true,
 };
 
 export const SETTINGS_KEY = ['settings'] as const;

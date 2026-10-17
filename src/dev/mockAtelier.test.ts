@@ -348,9 +348,9 @@ describe('mock Atelier · gate', () => {
 });
 
 describe('mock Atelier · start-up switch', () => {
-  it('?atelier=1 turns Settings → Experimental → Atelier on', async () => {
+  it('Show Atelier starts on (the default since 0.5.0), also with ?atelier=1, and can be turned off', async () => {
     resetMockBackend();
-    expect((await call<Settings>('get_settings')).atelierEnabled).toBe(false);
+    expect((await call<Settings>('get_settings')).atelierEnabled).toBe(true);
     window.history.replaceState(null, '', '/?atelier=1');
     resetMockBackend();
     expect((await call<Settings>('get_settings')).atelierEnabled).toBe(true);

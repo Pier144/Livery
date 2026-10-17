@@ -106,9 +106,32 @@ pub struct Settings {
     /// data archives (`char.vromfs.bin`, `lang.vromfs.bin`) and uses its built-in list.
     #[serde(default = "yes")]
     pub read_game_data: bool,
-    /// Settings → Experimental → Atelier (the skin editor). Off by default; files from before the
-    /// switch load with it off.
+    /// Settings → Atelier → Show Atelier (the skin editor). On by default since 0.5.0, when it left
+    /// Experimental; `migrate` turns it on once in files written before that.
     pub atelier_enabled: bool,
+    /// Which one-time migrations the file has had (`migrate`). Missing in files from before 0.5.0,
+    /// which read as 0.
+    #[serde(default)]
+    pub settings_version: u32,
+}
+
+/// The settings layout this version writes (see `Settings::migrate`).
+pub const SETTINGS_VERSION: u32 = 1;
+
+impl Settings {
+    /// One-time changes to a file written by an older Livery; true when something changed (the
+    /// caller saves it). Version 1 (0.5.0): Atelier left Experimental and is on for everyone, also
+    /// where 0.4.0 wrote its old default (off).
+    pub fn migrate(&mut self) -> bool {
+        if self.settings_version >= SETTINGS_VERSION {
+            return false;
+        }
+        if self.settings_version < 1 {
+            self.atelier_enabled = true;
+        }
+        self.settings_version = SETTINGS_VERSION;
+        true
+    }
 }
 
 fn yes() -> bool {
@@ -142,7 +165,8 @@ impl Default for Settings {
             reduce_motion: ReduceMotion::System,
             wtlive_enabled: true,
             read_game_data: true,
-            atelier_enabled: false,
+            atelier_enabled: true,
+            settings_version: SETTINGS_VERSION,
         }
     }
 }

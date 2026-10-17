@@ -132,7 +132,7 @@
 //                                        query parameter, setting or removing the localStorage
 //                                        key takes effect at the next call, and a call that
 //                                        succeeds again emits { online: true }
-//   ?atelier=1    livery.mock.atelier    Settings → Experimental → Atelier starts on (sidebar entry);
+//   ?atelier=1    livery.mock.atelier    Settings → Atelier → Show Atelier on (the default since 0.5.0);
 //                                        Atelier's commands are in src/dev/mockAtelier.ts
 // A query parameter wins over localStorage; `=0` turns a stored switch off for that load.
 // Without switches the app opens on First run (onboarded: false, no game folder), which saves the
