@@ -139,7 +139,12 @@ function stubEngine() {
       viewSize: vi.fn(() => ({ width: 200, height: 100 })),
       cameraMatrixWorld: vi.fn(() => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
       // Consistent with `raycast`: a model point (0.5, y, z) is at (z·100, y·100) on the view.
-      project: vi.fn((p: [number, number, number]) => ({ x: p[2] * 100, y: p[1] * 100, behind: false })),
+      // A method that needs its scene, like `Scene.project` (it reads `this`): passed around
+      // unbound it throws, as the real one does.
+      project: vi.fn(function (this: { viewSize: () => unknown } | undefined, p: [number, number, number]) {
+        if (!this?.viewSize) throw new TypeError("Cannot read properties of undefined (reading 'scratch')");
+        return { x: p[2] * 100, y: p[1] * 100, behind: false };
+      }),
     },
     baker: {
       setLayers: vi.fn(),

@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState, type PointerEvent } from 'react';
 import { useAtelierEditor } from '@/atelier/editorStore';
-import { decalRight, dot, isDecalLayer, partGroupOf, type Decal, type DecalLayer } from '@/atelier/project';
+import { decalRight, dot, isDecalLayer, partGroupOf, type Decal, type DecalLayer, type Vec3 } from '@/atelier/project';
 import { decalCorners, rotateDecal, scaleDecal, slideOnto } from './decalOps';
 import { snapLevel, snapMove, unitsPerPixel, type SnapGuide } from './decalSnap';
 import { useDecalUi } from './decalUi';
@@ -108,7 +108,9 @@ export function DecalGizmo({ scene, layer, mirrorAxis, onGestureStart, onGesture
       let next = slideOnto(current, hit.point, hit.normal);
       let held: SnapGuide[] = [];
       if (snapping) {
-        const unitsPerPx = unitsPerPixel(scene.project, next.center, decalRight(next), Math.max(next.width, next.height) / 2);
+        // Bound: `Scene.project` reads its own camera (passed bare, it threw and the decal stayed put).
+        const project = (p: Vec3) => scene.project(p);
+        const unitsPerPx = unitsPerPixel(project, next.center, decalRight(next), Math.max(next.width, next.height) / 2);
         ({ decal: next, guides: held } = snapMove(next, { mirrorAxis, others: otherDecals(id), unitsPerPx }));
       }
       setGuides(held);
