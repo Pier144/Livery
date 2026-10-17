@@ -45,7 +45,12 @@
       "queueBadge_one": "{{count}} archive waiting",
       "queueBadge_other": "{{count}} archives waiting",
       "collapse": "Collapse sidebar",
-      "expand": "Expand sidebar"
+      "expand": "Expand sidebar",
+      "resize": "Resize sidebar",
+      "resizeHint": "Drag to resize, double-click to reset"
+    },
+    "zoom": {
+      "notice": "Interface size {{percent}}"
     },
     "status": {
       "game": "War Thunder",
@@ -1281,11 +1286,14 @@
         "on": "On",
         "off": "Off"
       },
+      "zoom": "Interface size",
+      "zoomHelper": "Text and controls grow together. Ctrl + and Ctrl − work anywhere, Ctrl 0 resets.",
       "shortcuts": "Keyboard shortcuts",
       "keys": {
         "search": "Ctrl K",
         "sections": "1–5",
         "sidebar": "[ ]",
+        "zoom": "Ctrl + −",
         "undo": "Ctrl Z",
         "close": "Esc",
         "sectionsAtelier": "1–6"
@@ -1294,6 +1302,7 @@
         "search": "search",
         "sections": "sections",
         "sidebar": "sidebar",
+        "zoom": "interface size",
         "undo": "undo",
         "close": "close"
       }

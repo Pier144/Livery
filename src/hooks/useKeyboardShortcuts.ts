@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { resetZoom, zoomBy } from '@/hooks/useZoom';
 import { SETTINGS_KEY } from '@/queries/settings';
 import { useToasts } from '@/store/toasts';
 import { useUi } from '@/store/ui';
@@ -19,6 +20,9 @@ export const SECTION_KEYS: Record<string, Section> = {
   ',': 'settings',
 };
 
+/** Ctrl/Cmd + key → interface size: one step up or down, or back to 100 % (`0`). "=" is "+" without Shift on US layouts. */
+const ZOOM_KEYS: Record<string, 1 | -1 | 0> = { '+': 1, '=': 1, '-': -1, _: -1, '0': 0 };
+
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
@@ -31,7 +35,8 @@ function modalDialogOpen(): boolean {
 }
 
 /**
- * Window-level shortcuts: Ctrl/Cmd+K palette, Esc close, Ctrl/Cmd+Z undo last toast, 1–6 sections, [ / ] sidebar.
+ * Window-level shortcuts: Ctrl/Cmd+K palette, Esc close, Ctrl/Cmd+Z undo last toast, Ctrl/Cmd + / − / 0
+ * interface size (everywhere, also while typing, as in a browser), 1–6 sections, [ / ] sidebar.
  * Section and sidebar keys are ignored while typing, with modifiers held, and during First run
  * (no sidebar there; leaving it takes the screen's own actions, as in the prototype). A section
  * key moves focus to the new screen's heading (`useScreenFocus`, mounted in App).
@@ -45,6 +50,13 @@ export function useKeyboardShortcuts() {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         if (ui.palette.open || !modalDialogOpen()) ui.togglePalette();
+        return;
+      }
+      const zoom = (e.ctrlKey || e.metaKey) && !e.altKey ? ZOOM_KEYS[e.key] : undefined;
+      if (zoom !== undefined) {
+        e.preventDefault();
+        if (zoom === 0) resetZoom();
+        else zoomBy(zoom);
         return;
       }
       if (e.key === 'Escape') {

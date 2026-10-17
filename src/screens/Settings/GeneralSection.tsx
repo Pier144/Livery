@@ -5,14 +5,16 @@ import { SegmentedControl, type Segment } from '@/components/ui/SegmentedControl
 import { Switch } from '@/components/ui/Switch';
 import { errorText } from '@/lib/errors';
 import { isTauri, toAppError } from '@/lib/tauri';
+import { formatZoom, ZOOM_STEPS } from '@/lib/zoom';
 import { useSettings } from '@/queries/settings';
 import { toast } from '@/store/toasts';
+import { useUi } from '@/store/ui';
 import type { ReduceMotion, Settings } from '@/types';
 import { SectionTitle, SettingGroup, SettingRow } from './SettingRow';
 import { useSettingsPatch } from './useSettingsPatch';
 
 const MOTION: readonly ReduceMotion[] = ['system', 'on', 'off'];
-const SHORTCUTS = ['search', 'sections', 'sidebar', 'undo', 'close'] as const;
+const SHORTCUTS = ['search', 'sections', 'sidebar', 'zoom', 'undo', 'close'] as const;
 
 /**
  * Start with Windows. `settings.startWithWindows` is the stored intent; the autostart plugin (the
@@ -97,12 +99,15 @@ function useStartWithWindows(settings: Settings, patch: (changes: Partial<Settin
   return { checked: pending ?? settings.startWithWindows, busy: pending !== null, toggle };
 }
 
-/** General: Start with Windows, Reduce motion, shortcuts. */
+/** General: Start with Windows, Reduce motion, Interface size, shortcuts. */
 export function GeneralSection() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { settings, patch } = useSettingsPatch();
   const autostart = useStartWithWindows(settings, patch);
   const motion: Segment<ReduceMotion>[] = MOTION.map((value) => ({ value, label: t(`settings.general.motion.${value}`) }));
+  // Kept in the UI store (applied before the first paint), not in the backend settings.
+  const zoom = useUi((s) => s.zoom);
+  const zoomSteps: Segment[] = ZOOM_STEPS.map((step) => ({ value: String(step), label: formatZoom(step, i18n.language) }));
 
   return (
     <>
@@ -126,6 +131,17 @@ export function GeneralSection() {
               value={settings.reduceMotion}
               options={motion}
               onChange={(reduceMotion) => patch({ reduceMotion })}
+              aria-describedby={helperId}
+            />
+          )}
+        </SettingRow>
+        <SettingRow label={t('settings.general.zoom')} helper={t('settings.general.zoomHelper')}>
+          {({ helperId }) => (
+            <SegmentedControl
+              label={t('settings.general.zoom')}
+              value={String(zoom)}
+              options={zoomSteps}
+              onChange={(value) => useUi.getState().setZoom(Number(value))}
               aria-describedby={helperId}
             />
           )}

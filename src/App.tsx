@@ -17,6 +17,7 @@ import { setLanguage } from '@/i18n';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useScreenFocus } from '@/hooks/useScreenFocus';
 import { useLaunchUpdateCheck, useUpdateEvents } from '@/hooks/useUpdateEvents';
+import { useZoom } from '@/hooks/useZoom';
 import { reportReadyAfterPaint } from '@/lib/startup';
 import { useWtLiveInstallEvents } from '@/store/installs';
 import { SETTINGS_KEY, useSettings, useUpdateSettings } from '@/queries/settings';
@@ -99,6 +100,7 @@ export function App() {
   useLaunchUpdateCheck();
   useLanguageSync();
   useReduceMotion();
+  useZoom();
   useAtelierGate();
   // After the screens' own effects: focus the new screen's heading, or the card the detail came from.
   useScreenFocus();

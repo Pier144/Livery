@@ -377,9 +377,25 @@ describe('Settings · General', () => {
   it('summarises the keyboard shortcuts with key caps (1–5 with Atelier hidden)', () => {
     renderSettings('general', { atelierEnabled: false });
     const list = screen.getByRole('list');
-    expect(list.textContent?.replace(/\s+/g, ' ')).toBe('Ctrl K search · 1–5 sections · [ ] sidebar · Ctrl Z undo · Esc close');
+    expect(list.textContent?.replace(/\s+/g, ' ')).toBe(
+      'Ctrl K search · 1–5 sections · [ ] sidebar · Ctrl + − interface size · Ctrl Z undo · Esc close',
+    );
     expect(within(list).getByText('Ctrl K').tagName).toBe('KBD');
-    expect(within(list).getAllByRole('listitem')).toHaveLength(5);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(6);
+  });
+
+  it('Interface size: picks a step, kept in the UI store (not the backend settings)', async () => {
+    const { user } = renderSettings('general');
+    const group = screen.getByRole('radiogroup', { name: 'Interface size' });
+    expect(group).toHaveAccessibleDescription(/Ctrl 0 resets/);
+    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['80%', '90%', '100%', '110%', '125%', '150%']);
+    expect(within(group).getByRole('radio', { name: '100%' })).toBeChecked();
+    await user.click(within(group).getByRole('radio', { name: '125%' }));
+    expect(useUi.getState().zoom).toBe(1.25);
+    expect(within(group).getByRole('radio', { name: '125%' })).toBeChecked();
+    act(() => useUi.getState().setZoom(0.9));
+    expect(within(group).getByRole('radio', { name: '90%' })).toBeChecked();
+    expect(calls('set_settings')).toHaveLength(0);
   });
 
   it('counts Atelier among the sections while it is on', () => {

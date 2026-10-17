@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Compass, Download, Layers, Paintbrush, Settings, Warehouse, type LucideIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/Kbd';
@@ -10,7 +10,7 @@ import { play, POP } from '@/lib/motion';
 import { useHangarSummary } from '@/queries/hangar';
 import { useSettings } from '@/queries/settings';
 import { selectPendingCount, useQueue } from '@/store/queue';
-import { useUi } from '@/store/ui';
+import { clampSidebarWidth, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, useUi } from '@/store/ui';
 import type { Section } from '@/types';
 
 interface NavDef {
@@ -30,13 +30,30 @@ const NAV: NavDef[] = [
   { id: 'settings', icon: Settings, hint: ',' },
 ];
 
+/** Arrow keys on the resize handle move the edge this much (Shift: `KEY_STEP_LARGE`). */
+const KEY_STEP = 8;
+const KEY_STEP_LARGE = 40;
+/** Dragging the edge this far left of the minimum collapses the sidebar to the rail. */
+const COLLAPSE_SLACK = 64;
+/** The open sidebar never takes more than this share of the window (small windows, large zoom). */
+const MAX_SHARE = 0.35;
+
+/** Widest the sidebar may be in the current window. */
+function maxWidth(): number {
+  return Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, Math.floor(window.innerWidth * MAX_SHARE)));
+}
+
 /**
- * 216px section nav with the status card, or the 56px icon rail when collapsed (`[` / `]`).
- * Both variants share one element tree so focus survives a toggle.
+ * Section nav with the status card (216px by default; its right edge drags between 184 and 360px),
+ * or the 56px icon rail when collapsed (`[` / `]`). Both variants share one element tree so focus
+ * survives a toggle.
  */
 export function Sidebar() {
   const { t } = useTranslation();
   const open = useUi((s) => s.sidebarOpen);
+  const storedWidth = useUi((s) => s.sidebarWidth);
+  const [resizing, setResizing] = useState(false);
+  const navId = useId();
   const screen = useUi((s) => s.screen);
   const detailFrom = useUi((s) => s.detailReturnTo);
   const toggleSidebar = useUi((s) => s.toggleSidebar);
@@ -48,72 +65,197 @@ export function Sidebar() {
   const navRef = useRef<HTMLElement>(null);
   const activeId = items.find((item) => screen === item.id || (screen === 'detail' && item.id === detailFrom))?.id ?? '';
   const highlight = useActiveBox(navRef, '[aria-current="page"]', `${activeId}|${open}`);
+  useWindowWidth();
+  // A window too narrow for the stored width (or a large zoom) shows it narrower; the choice is kept.
+  const width = Math.min(storedWidth, maxWidth());
 
   return (
-    <nav
-      ref={navRef}
-      aria-label={t('common.nav.label')}
-      className={cn(
-        'relative flex flex-none flex-col border-r border-line-1 bg-bg-1 pb-3 pt-3.5',
-        open ? 'w-sidebar gap-0.5 px-2.5' : 'w-sidebar-c items-center gap-1',
-      )}
-    >
-      {highlight && (
-        <span
-          aria-hidden
-          className={cn(
-            'pointer-events-none absolute left-0 top-0 rounded-ctl bg-bg-hover motion-safe:transition-[transform,width,height] motion-safe:duration-200 motion-safe:ease-decel',
-            open && 'shadow-[inset_2px_0_0_theme(colors.amber.DEFAULT)]',
-          )}
-          style={{ width: highlight.width, height: highlight.height, transform: `translate(${highlight.left}px, ${highlight.top}px)` }}
-        />
-      )}
-      {items.map((item) => (
-        <NavItem
-          key={item.id}
-          {...item}
-          slid={highlight !== null}
-          collapsed={!open}
-          // The Skin detail belongs to the section it was opened from.
-          active={screen === item.id || (screen === 'detail' && item.id === detailFrom)}
-          badge={item.id === 'queue' ? pending : 0}
-          describedBy={badgeId}
-        />
-      ))}
-      <div className="flex-1" />
-      {open && <StatusCard />}
-      <button
-        type="button"
-        onClick={toggleSidebar}
-        aria-keyshortcuts={open ? '[' : ']'}
-        aria-label={open ? undefined : t('common.nav.expand')}
-        title={open ? undefined : t('common.nav.expand')}
+    <div className="relative flex flex-none">
+      <nav
+        ref={navRef}
+        id={navId}
+        aria-label={t('common.nav.label')}
+        style={open ? { width } : undefined}
         className={cn(
-          // ink-4, not the prototype's ink-5: 11px text on bg-1 needs 4.5:1.
-          'text-ink-4 hover:text-ink-2 motion-safe:transition-colors motion-safe:duration-120',
-          open
-            ? 'px-2.5 pt-2 text-left text-[11px] leading-[1.4]'
-            : // 36×24 hit area; the negative margins keep the glyph where the prototype puts it.
-              '-my-1 flex h-6 w-9 flex-none items-center justify-center rounded-ctl font-mono text-mono-sm',
+          'relative flex flex-none flex-col border-r border-line-1 bg-bg-1 pb-3 pt-3.5',
+          open ? 'gap-0.5 px-2.5' : 'w-sidebar-c items-center gap-1',
         )}
       >
-        {open ? (
-          <>
-            {t('common.nav.collapse')}{' '}
-            <span aria-hidden className="font-mono text-[10px]">
-              [
-            </span>
-          </>
-        ) : (
-          <span aria-hidden>]</span>
+        {highlight && (
+          <span
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute left-0 top-0 rounded-ctl bg-bg-hover',
+              // While the edge is dragged the highlight follows at once instead of sliding behind.
+              !resizing && 'motion-safe:transition-[transform,width,height] motion-safe:duration-200 motion-safe:ease-decel',
+              open && 'shadow-[inset_2px_0_0_theme(colors.amber.DEFAULT)]',
+            )}
+            style={{ width: highlight.width, height: highlight.height, transform: `translate(${highlight.left}px, ${highlight.top}px)` }}
+          />
         )}
-      </button>
-      {pending > 0 && (
-        <span id={badgeId} hidden>
-          {t('common.nav.queueBadge', { count: pending })}
-        </span>
-      )}
-    </nav>
+        {items.map((item) => (
+          <NavItem
+            key={item.id}
+            {...item}
+            slid={highlight !== null}
+            collapsed={!open}
+            // The Skin detail belongs to the section it was opened from.
+            active={screen === item.id || (screen === 'detail' && item.id === detailFrom)}
+            badge={item.id === 'queue' ? pending : 0}
+            describedBy={badgeId}
+          />
+        ))}
+        <div className="flex-1" />
+        {open && <StatusCard />}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-keyshortcuts={open ? '[' : ']'}
+          aria-label={open ? undefined : t('common.nav.expand')}
+          title={open ? undefined : t('common.nav.expand')}
+          className={cn(
+            // ink-4, not the prototype's ink-5: 11px text on bg-1 needs 4.5:1.
+            'text-ink-4 hover:text-ink-2 motion-safe:transition-colors motion-safe:duration-120',
+            open
+              ? 'px-2.5 pt-2 text-left text-[11px] leading-[1.4]'
+              : // 36×24 hit area; the negative margins keep the glyph where the prototype puts it.
+                '-my-1 flex h-6 w-9 flex-none items-center justify-center rounded-ctl font-mono text-mono-sm',
+          )}
+        >
+          {open ? (
+            <>
+              {t('common.nav.collapse')}{' '}
+              <span aria-hidden className="font-mono text-[10px]">
+                [
+              </span>
+            </>
+          ) : (
+            <span aria-hidden>]</span>
+          )}
+        </button>
+        {pending > 0 && (
+          <span id={badgeId} hidden>
+            {t('common.nav.queueBadge', { count: pending })}
+          </span>
+        )}
+      </nav>
+      {open && <ResizeHandle width={width} controls={navId} onResizing={setResizing} />}
+    </div>
+  );
+}
+
+/** Re-renders on window resizes, so the sidebar's cap (`maxWidth`) follows the window. */
+function useWindowWidth() {
+  const [, setWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+}
+
+interface ResizeHandleProps {
+  /** Width shown now. */
+  width: number;
+  /** Id of the nav it resizes. */
+  controls: string;
+  onResizing: (resizing: boolean) => void;
+}
+
+/**
+ * The open sidebar's right edge (WAI-ARIA window splitter): drag it, or focus it and use ←/→
+ * (Shift for bigger steps) and Home/End for the narrowest/widest; a double click or Enter goes back
+ * to 216px. Dragging well past the narrowest collapses the sidebar to the rail, like `[`.
+ */
+function ResizeHandle({ width, controls, onResizing }: ResizeHandleProps) {
+  const { t } = useTranslation();
+  const drag = useRef<{ x: number; width: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  // While dragging, the cursor stays a resize cursor over the whole window and nothing gets selected.
+  useEffect(() => {
+    onResizing(dragging);
+    if (!dragging) return;
+    const root = document.documentElement;
+    root.style.cursor = 'col-resize';
+    root.style.userSelect = 'none';
+    return () => {
+      root.style.cursor = '';
+      root.style.userSelect = '';
+      onResizing(false);
+    };
+  }, [dragging, onResizing]);
+
+  const resize = (next: number) => useUi.getState().setSidebarWidth(Math.min(clampSidebarWidth(next), maxWidth()));
+
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    drag.current = { x: e.clientX, width };
+    setDragging(true);
+  };
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    const next = drag.current.width + e.clientX - drag.current.x;
+    if (next < SIDEBAR_MIN - COLLAPSE_SLACK) {
+      // Reopening (`]`) brings back the width the drag started from, not the narrowest.
+      resize(drag.current.width);
+      drag.current = null;
+      setDragging(false);
+      useUi.getState().setSidebarOpen(false);
+      return;
+    }
+    resize(next);
+  };
+  const end = () => {
+    drag.current = null;
+    setDragging(false);
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = e.shiftKey ? KEY_STEP_LARGE : KEY_STEP;
+    const keys: Record<string, number> = {
+      ArrowLeft: width - step,
+      ArrowRight: width + step,
+      Home: SIDEBAR_MIN,
+      End: SIDEBAR_MAX,
+      Enter: SIDEBAR_DEFAULT,
+    };
+    const next = keys[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    resize(next);
+  };
+
+  return (
+    <div
+      role="separator"
+      tabIndex={0}
+      aria-orientation="vertical"
+      aria-label={t('common.nav.resize')}
+      aria-controls={controls}
+      aria-valuenow={width}
+      aria-valuemin={SIDEBAR_MIN}
+      aria-valuemax={maxWidth()}
+      title={t('common.nav.resizeHint')}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={end}
+      onPointerCancel={end}
+      onLostPointerCapture={end}
+      onDoubleClick={() => resize(SIDEBAR_DEFAULT)}
+      onKeyDown={onKeyDown}
+      // A 7px hit area centred on the border; its 2px line shows on hover, focus and while dragging.
+      className="group absolute -right-1 bottom-0 top-0 z-10 flex w-[7px] cursor-col-resize justify-center focus-visible:outline-none"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          'h-full w-0.5 group-hover:bg-amber-50 group-focus-visible:bg-amber motion-safe:transition-colors motion-safe:duration-120',
+          dragging && 'bg-amber',
+        )}
+      />
+    </div>
   );
 }
 

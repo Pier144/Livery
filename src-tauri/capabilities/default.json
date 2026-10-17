@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: core IPC, the window controls used by the frameless title bar, the folder picker, opening WT Live and Livery links plus folders in the file manager, and Start with Windows.",
+  "description": "Main window: core IPC, the window controls used by the frameless title bar, the interface size (webview zoom),the folder picker, opening WT Live and Livery links plus folders in the file manager, and Start with Windows.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,6 +9,7 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
+    "core:webview:allow-set-webview-zoom",
     "dialog:allow-open",
     {
       "identifier": "opener:allow-open-url",

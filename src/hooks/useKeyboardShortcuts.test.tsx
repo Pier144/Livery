@@ -41,6 +41,24 @@ describe('useKeyboardShortcuts', () => {
     expect(useUi.getState().screen).toBe('atelier');
   });
 
+  it('Ctrl + / Ctrl − / Ctrl 0 change the interface size, also while typing, with one toast', () => {
+    render(<Harness />);
+    key('+', { ctrlKey: true });
+    expect(useUi.getState().zoom).toBe(1.1);
+    // "=" is "+" without Shift on a US layout; the numpad sends "+" and "-".
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'field' }), { key: '=', ctrlKey: true });
+    expect(useUi.getState().zoom).toBe(1.25);
+    expect(useToasts.getState().toasts.map((t) => t.message)).toEqual(['Interface size 125%']);
+    key('-', { ctrlKey: true });
+    expect(useUi.getState().zoom).toBe(1.1);
+    key('0', { ctrlKey: true });
+    expect(useUi.getState().zoom).toBe(1);
+    expect(useToasts.getState().toasts.map((t) => t.message)).toEqual(['Interface size 100%']);
+    // Without Ctrl, "0" and "-" are no shortcut.
+    key('-');
+    expect(useUi.getState().zoom).toBe(1);
+  });
+
   it('[ and ] toggle the sidebar', () => {
     render(<Harness />);
     key('[');

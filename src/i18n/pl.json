@@ -47,7 +47,12 @@
       "queueBadge_many": "{{count}} archiwów czeka",
       "queueBadge_other": "{{count}} archiwum czeka",
       "collapse": "Zwiń pasek boczny",
-      "expand": "Rozwiń pasek boczny"
+      "expand": "Rozwiń pasek boczny",
+      "resize": "Zmień szerokość paska bocznego",
+      "resizeHint": "Przeciągnij, aby zmienić szerokość; dwukrotne kliknięcie przywraca domyślną"
+    },
+    "zoom": {
+      "notice": "Rozmiar interfejsu {{percent}}"
     },
     "status": {
       "game": "War Thunder",
@@ -1367,11 +1372,14 @@
         "on": "Wł.",
         "off": "Wył."
       },
+      "zoom": "Rozmiar interfejsu",
+      "zoomHelper": "Tekst i kontrolki rosną razem. Ctrl + i Ctrl − działają wszędzie, Ctrl 0 przywraca 100%.",
       "shortcuts": "Skróty klawiszowe",
       "keys": {
         "search": "Ctrl K",
         "sections": "1–5",
         "sidebar": "[ ]",
+        "zoom": "Ctrl + −",
         "undo": "Ctrl Z",
         "close": "Esc",
         "sectionsAtelier": "1–6"
@@ -1380,6 +1388,7 @@
         "search": "szukaj",
         "sections": "sekcje",
         "sidebar": "pasek boczny",
+        "zoom": "rozmiar interfejsu",
         "undo": "cofnij",
         "close": "zamknij"
       }

@@ -46,7 +46,12 @@
       "queueBadge_many": "{{count}} archivi in attesa",
       "queueBadge_other": "{{count}} archivi in attesa",
       "collapse": "Comprimi barra laterale",
-      "expand": "Espandi barra laterale"
+      "expand": "Espandi barra laterale",
+      "resize": "Ridimensiona barra laterale",
+      "resizeHint": "Trascina per ridimensionare, doppio clic per ripristinare"
+    },
+    "zoom": {
+      "notice": "Dimensione interfaccia {{percent}}"
     },
     "status": {
       "game": "War Thunder",
@@ -1324,11 +1329,14 @@
         "on": "Sì",
         "off": "No"
       },
+      "zoom": "Dimensione interfaccia",
+      "zoomHelper": "Testo e controlli crescono insieme. Ctrl + e Ctrl − funzionano ovunque, Ctrl 0 ripristina.",
       "shortcuts": "Scorciatoie da tastiera",
       "keys": {
         "search": "Ctrl K",
         "sections": "1–5",
         "sidebar": "[ ]",
+        "zoom": "Ctrl + −",
         "undo": "Ctrl Z",
         "close": "Esc",
         "sectionsAtelier": "1–6"
@@ -1337,6 +1345,7 @@
         "search": "cerca",
         "sections": "sezioni",
         "sidebar": "barra laterale",
+        "zoom": "dimensione interfaccia",
         "undo": "annulla",
         "close": "chiudi"
       }

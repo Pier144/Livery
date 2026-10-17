@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createQueryClient } from '@/queries/client';
@@ -180,6 +180,77 @@ describe('Sidebar', () => {
     act(() => useUi.getState().toggleSidebar());
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
     expect(nav()).toHaveClass('w-sidebar-c');
+  });
+
+  it('resizes from its edge with the keyboard (←/→, Shift, Home/End, Enter resets)', async () => {
+    const user = userEvent.setup();
+    await renderSidebar();
+    const edge = screen.getByRole('separator', { name: 'Resize sidebar' });
+    expect(edge).toHaveAttribute('aria-controls', nav().id);
+    expect(edge).toHaveAttribute('aria-valuenow', '216');
+    expect(nav()).toHaveStyle({ width: '216px' });
+    edge.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(useUi.getState().sidebarWidth).toBe(224);
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
+    expect(useUi.getState().sidebarWidth).toBe(264);
+    expect(edge).toHaveAttribute('aria-valuenow', '264');
+    expect(nav()).toHaveStyle({ width: '264px' });
+    await user.keyboard('{Home}');
+    expect(useUi.getState().sidebarWidth).toBe(184);
+    await user.keyboard('{ArrowLeft}');
+    expect(useUi.getState().sidebarWidth).toBe(184);
+    // jsdom's window is 1024px wide: the sidebar may take 35 % of it (358px), not the full 360.
+    await user.keyboard('{End}');
+    expect(useUi.getState().sidebarWidth).toBe(358);
+    expect(edge).toHaveAttribute('aria-valuemax', '358');
+    await user.keyboard('{Enter}');
+    expect(useUi.getState().sidebarWidth).toBe(216);
+  });
+
+  it('shows a stored width narrower when the window is too small for it, and keeps it', async () => {
+    useUi.setState({ sidebarWidth: 340 });
+    await renderSidebar();
+    const width = window.innerWidth;
+    try {
+      // e.g. the 1100px minimum window at 150 % interface size.
+      act(() => {
+        Object.defineProperty(window, 'innerWidth', { configurable: true, value: 733 });
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(nav()).toHaveStyle({ width: '256px' });
+      expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '256');
+      expect(useUi.getState().sidebarWidth).toBe(340);
+    } finally {
+      act(() => {
+        Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+        window.dispatchEvent(new Event('resize'));
+      });
+    }
+    expect(nav()).toHaveStyle({ width: '340px' });
+  });
+
+  it('resizes by dragging its edge; dragging far left collapses it and keeps the width', async () => {
+    await renderSidebar();
+    const edge = screen.getByRole('separator', { name: 'Resize sidebar' });
+    fireEvent.pointerDown(edge, { button: 0, clientX: 216, pointerId: 1 });
+    expect(document.documentElement.style.cursor).toBe('col-resize');
+    fireEvent.pointerMove(edge, { clientX: 300, pointerId: 1 });
+    expect(useUi.getState().sidebarWidth).toBe(300);
+    fireEvent.pointerUp(edge, { pointerId: 1 });
+    expect(document.documentElement.style.cursor).toBe('');
+
+    fireEvent.pointerDown(edge, { button: 0, clientX: 300, pointerId: 1 });
+    fireEvent.pointerMove(edge, { clientX: 260, pointerId: 1 });
+    fireEvent.pointerMove(edge, { clientX: 20, pointerId: 1 });
+    expect(useUi.getState()).toMatchObject({ sidebarOpen: false, sidebarWidth: 300 });
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+    expect(document.documentElement.style.cursor).toBe('');
+
+    act(() => useUi.getState().setSidebarOpen(true));
+    await screen.findByText('NOT SET');
+    fireEvent.doubleClick(screen.getByRole('separator', { name: 'Resize sidebar' }));
+    expect(useUi.getState().sidebarWidth).toBe(216);
   });
 
   it('has no serious axe violations when expanded', async () => {

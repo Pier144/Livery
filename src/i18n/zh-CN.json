@@ -44,7 +44,12 @@
       "settings": "设置",
       "queueBadge_other": "{{count}} 个压缩包待安装",
       "collapse": "收起侧边栏",
-      "expand": "展开侧边栏"
+      "expand": "展开侧边栏",
+      "resize": "调整侧边栏宽度",
+      "resizeHint": "拖动可调整宽度，双击恢复默认"
+    },
+    "zoom": {
+      "notice": "界面大小 {{percent}}"
     },
     "status": {
       "game": "War Thunder",
@@ -1238,11 +1243,14 @@
         "on": "开",
         "off": "关"
       },
+      "zoom": "界面大小",
+      "zoomHelper": "文字和控件一起缩放。Ctrl + 和 Ctrl − 随处可用，Ctrl 0 恢复默认。",
       "shortcuts": "键盘快捷键",
       "keys": {
         "search": "Ctrl K",
         "sections": "1–5",
         "sidebar": "[ ]",
+        "zoom": "Ctrl + −",
         "undo": "Ctrl Z",
         "close": "Esc",
         "sectionsAtelier": "1–6"
@@ -1251,6 +1259,7 @@
         "search": "搜索",
         "sections": "分区",
         "sidebar": "侧边栏",
+        "zoom": "界面大小",
         "undo": "撤销",
         "close": "关闭"
       }

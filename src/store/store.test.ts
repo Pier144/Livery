@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetStores } from '@/test/render';
 import { TOAST_DURATION_MS, toast, useToasts } from './toasts';
-import { detailReturnFor, useUi } from './ui';
+import { detailReturnFor, SIDEBAR_MAX, SIDEBAR_MIN, useUi } from './ui';
 
 beforeEach(() => resetStores());
 
@@ -75,11 +75,38 @@ describe('ui store', () => {
     expect(useUi.getState()).toMatchObject({ screen: 'collections', returnFocusSkin: null, headingFocus: start + 2 });
   });
 
-  it('persists only the sidebar preference', () => {
+  it('persists only the sidebar (open, width) and the interface size', () => {
     useUi.getState().toggleSidebar();
+    useUi.getState().setSidebarWidth(300);
+    useUi.getState().stepZoom(1);
     useUi.getState().go('queue');
     const saved = JSON.parse(localStorage.getItem('livery.ui') ?? '{}');
-    expect(saved.state).toEqual({ sidebarOpen: false });
+    expect(saved.state).toEqual({ sidebarOpen: false, sidebarWidth: 300, zoom: 1.1 });
+  });
+
+  it('keeps the sidebar width in range and the zoom on its steps', () => {
+    const ui = useUi.getState();
+    ui.setSidebarWidth(9999);
+    expect(useUi.getState().sidebarWidth).toBe(SIDEBAR_MAX);
+    ui.setSidebarWidth(10);
+    expect(useUi.getState().sidebarWidth).toBe(SIDEBAR_MIN);
+    ui.setSidebarWidth(250.6);
+    expect(useUi.getState().sidebarWidth).toBe(251);
+    ui.setZoom(1.25);
+    ui.stepZoom(1);
+    ui.stepZoom(1);
+    expect(useUi.getState().zoom).toBe(1.5);
+    ui.setZoom(3);
+    expect(useUi.getState().zoom).toBe(1);
+  });
+
+  it('checks stored values when it loads them', async () => {
+    localStorage.setItem('livery.ui', JSON.stringify({ state: { sidebarOpen: 'yes', sidebarWidth: 5000, zoom: 1.33 }, version: 1 }));
+    await useUi.persist.rehydrate();
+    expect(useUi.getState()).toMatchObject({ sidebarOpen: true, sidebarWidth: SIDEBAR_MAX, zoom: 1 });
+    localStorage.setItem('livery.ui', JSON.stringify({ state: { sidebarOpen: false, sidebarWidth: 280, zoom: 0.9 }, version: 1 }));
+    await useUi.persist.rehydrate();
+    expect(useUi.getState()).toMatchObject({ sidebarOpen: false, sidebarWidth: 280, zoom: 0.9 });
   });
 });
 

@@ -45,7 +45,12 @@
       "queueBadge_one": "{{count}} Archiv wartet",
       "queueBadge_other": "{{count}} Archive warten",
       "collapse": "Seitenleiste einklappen",
-      "expand": "Seitenleiste ausklappen"
+      "expand": "Seitenleiste ausklappen",
+      "resize": "Breite der Seitenleiste ändern",
+      "resizeHint": "Ziehen zum Anpassen, Doppelklick zum Zurücksetzen"
+    },
+    "zoom": {
+      "notice": "Oberflächengröße {{percent}}"
     },
     "status": {
       "game": "War Thunder",
@@ -1281,11 +1286,14 @@
         "on": "An",
         "off": "Aus"
       },
+      "zoom": "Oberflächengröße",
+      "zoomHelper": "Text und Bedienelemente wachsen gemeinsam. Strg + und Strg − funktionieren überall, Strg 0 setzt zurück.",
       "shortcuts": "Tastenkürzel",
       "keys": {
         "search": "Strg K",
         "sections": "1–5",
         "sidebar": "[ ]",
+        "zoom": "Strg + −",
         "undo": "Strg Z",
         "close": "Esc",
         "sectionsAtelier": "1–6"
@@ -1294,6 +1302,7 @@
         "search": "suchen",
         "sections": "Bereiche",
         "sidebar": "Seitenleiste",
+        "zoom": "Oberflächengröße",
         "undo": "rückgängig",
         "close": "schließen"
       }
