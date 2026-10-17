@@ -1278,6 +1278,42 @@ describe('Baker draw groups (WebGL stubbed)', () => {
     baker.dispose();
   });
 
+  it('re-bakes when two groups swap places, and for a wear-only or a flip-only change', async () => {
+    const { baker, draws } = setupGroups();
+    const base = newBaseLayer();
+    const a = image('a');
+    const b = image('b', { center: [0.3, 0.5, 0] });
+    baker.setLayers([base, a, b], [BODY]);
+    await baker.whenReady();
+    let bakes = paints(draws);
+    baker.setLayers([base, b, a], [BODY]);
+    expect(paints(draws)).toBe(bakes + 1);
+    expect(internals(baker).decalOrder.map((x) => x.group.id)).toEqual(['b', 'a']);
+    bakes = paints(draws);
+    baker.setLayers([base, b, { ...a, wear: 0.5 }], [BODY]);
+    expect(paints(draws)).toBe(bakes + 1);
+    bakes = paints(draws);
+    baker.setLayers([base, b, { ...a, wear: 0.5, flipX: true }], [BODY]);
+    expect(paints(draws)).toBe(bakes + 1);
+    expect(draws.filter((d) => d.kind === 'decal').at(-1)!.flipX).toBe(1);
+    // The same values again in new objects: nothing to re-bake.
+    bakes = paints(draws);
+    baker.setLayers([base, { ...b }, { ...a, wear: 0.5, flipX: true }], [BODY]);
+    expect(paints(draws)).toBe(bakes);
+    baker.dispose();
+  });
+
+  it('records truncated while the context is lost', () => {
+    const { baker, context } = setupGroups();
+    const layers = [newBaseLayer(), ...['a', 'b', 'c', 'd', 'e'].map((id) => image(id, { mirror: true }, row(50)))];
+    context.lost = true;
+    baker.setLayers(layers, [BODY]);
+    expect(baker.truncated).toBe(true);
+    baker.setLayers(layers.slice(0, 2), [BODY]);
+    expect(baker.truncated).toBe(false);
+    baker.dispose();
+  });
+
   it('reports truncated when the layers pass the draw budget', () => {
     const { baker } = setupGroups();
     // 100 boxes each (50 copies and their mirror copies): the fifth passes the 400 budget.

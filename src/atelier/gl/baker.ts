@@ -1053,6 +1053,8 @@ export class Baker {
     if (this.disposed) return;
     this.lastLayers = layers;
     this.lastEnabled = enabled;
+    // Recorded even while the context is lost (the plan is memoised, so this is cheap).
+    this.planTruncated = drawGroups(layers, this.model.header.mirrorAxis).truncated;
     if (this.contextLost()) return;
     const base = baseOf(layers);
     const strokes = visibleStrokes(layers);
