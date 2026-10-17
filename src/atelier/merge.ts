@@ -125,9 +125,11 @@ export function envelopeOf(decal: Decal, repeat: Repeat | undefined): Decal {
 /**
  * `boxes` reflected as one picture across the model's mirror plane: the envelope mirrored
  * (`mirrorDecal`, which keeps pictures readable) and each box placed in it at the same local spot
- * (right, up) and turn, facing the reflected envelope's normal. Each box keeps its own depth, size
- * and part; `mirror` is off so nothing mirrors them again. For one box that is its own envelope
- * this is `mirrorDecal(box)` with mirror off. Null for an invalid axis (no mirrored copy drawn).
+ * (right, up) and turn, facing the reflected envelope's normal. Each box keeps its own size and
+ * part; its depth is at least the envelope's (a mirrored row's copy i lands on the reflection of
+ * copy N−1−i, so it takes the deepest copy's box, which `envelopeOf` carries). `mirror` is off so
+ * nothing mirrors them again. For one box that is its own envelope this is `mirrorDecal(box)` with
+ * mirror off. Null for an invalid axis (no mirrored copy drawn).
  */
 export function mirrorAsOne(boxes: readonly Decal[], envelope: Decal, axis: number): Decal[] | null {
   const mirrored = mirrorDecal(envelope, axis);
@@ -148,13 +150,14 @@ export function mirrorAsOne(boxes: readonly Decal[], envelope: Decal, axis: numb
       center: add(add(mirrored.center, scale(R2, lx)), scale(U2, ly)),
       normal: mirrored.normal,
       up: normalize(sub(scale(U2, c), scale(R2, s))) ?? U2,
+      depth: Math.max(box.depth, envelope.depth),
       mirror: false,
     };
   });
 }
 
 /**
- * The shared frame of a merge (spec "Merge"). The plane's normal is the normalised sum of the
+ * The shared frame of a merge (spec "Merge"). The plane's normal is the normalised mean of the
  * boxes' normals; refused (`angle`) when any box faces more than MERGE_MAX_ANGLE_DEG away from it
  * (or the normals cancel out). Up is `topUp` (the topmost layer's) projected onto the plane, with
  * `frameFromHit`'s fallbacks. Width and height are the bounding rectangle of every box's corners
@@ -203,15 +206,15 @@ export function mergeFrame(boxes: readonly Decal[], topUp: Vec3): { frame: Decal
 /**
  * A merged object's pieces as layers again (Separate), bottom to top with the same ids: each
  * drawable piece gets the decal of its place in the frame with the frame's normal, depth, part and
- * mirror, opacity × the object's, hidden when the object is; unsupported pieces come back as
- * unsupported layers. Nothing for an unplaced object.
+ * mirror, opacity × the object's; unsupported pieces come back as unsupported layers. Every
+ * piece is hidden when the object is. Nothing for an unplaced object.
  */
 export function separatePieces(merged: MergedLayer): (PlacedLayer | UnsupportedLayer)[] {
   const frame = merged.decal;
   if (!frame) return [];
   return merged.children.map((child): PlacedLayer | UnsupportedLayer => {
     if (child.kind === 'unsupported') {
-      const layer: Partial<UnsupportedPiece> & UnsupportedLayer = { ...child };
+      const layer: Partial<UnsupportedPiece> & UnsupportedLayer = { ...child, visible: child.visible && merged.visible };
       delete layer.place;
       return layer;
     }

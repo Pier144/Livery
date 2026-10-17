@@ -242,10 +242,13 @@ describe('mirrorAsOne', () => {
     const xs = mirrored.map((m) => local(m.center, envM)[0]);
     expect(xs[0]).toBeLessThan(xs[1]!);
     expect(xs[1]).toBeLessThan(xs[2]!);
-    // Each copy keeps its own depth (growth included), size and part.
-    mirrored.forEach((m, i) => {
-      expect(m.depth).toBe(copies[i]!.depth);
+    // Each copy keeps its size and part; its box is at least as deep as the original copy it
+    // reflects (matched by position), so the far end of the row still lands on curved surfaces.
+    mirrored.forEach((m) => {
       expect([m.width, m.height, m.part]).toEqual([d.width, d.height, d.part]);
+      const reflected = copies.find((c) => length(sub([c.center[0], c.center[1], -c.center[2]], m.center)) < 1e-12);
+      expect(reflected).toBeDefined();
+      expect(m.depth).toBeGreaterThanOrEqual(reflected!.depth);
     });
     // The mirrored copies cover the reflection of the original row's area.
     const reflectedCorners = copies.flatMap((c) => decalCorners(c)).map((p) => [p[0], p[1], -p[2]] as Vec3);
@@ -366,7 +369,7 @@ describe('separatePieces', () => {
     });
   });
 
-  it('hides pieces of a hidden object and keeps unsupported pieces as unsupported layers', () => {
+  it('hides every piece of a hidden object and keeps unsupported pieces as unsupported layers', () => {
     const frame = decal();
     const hiddenPiece = { ...newShapeLayer('rect', frame), visible: false };
     const unsupported: UnsupportedPiece = {
@@ -380,8 +383,8 @@ describe('separatePieces', () => {
     const children = [...piecesOf([newImageLayer('a', frame), hiddenPiece], frame), unsupported];
     const merged: MergedLayer = { id: 'm', kind: 'merged', name: '', visible: false, decal: frame, opacity: 1, children };
     const back = separatePieces(merged);
-    expect(back.map((b) => b.visible)).toEqual([false, false, true]);
-    expect(back[2]).toEqual({ id: 'u1', kind: 'unsupported', name: '', visible: true, original: { kind: 'sticker', id: 'u1' } });
+    expect(back.map((b) => b.visible)).toEqual([false, false, false]);
+    expect(back[2]).toEqual({ id: 'u1', kind: 'unsupported', name: '', visible: false, original: { kind: 'sticker', id: 'u1' } });
     const shown = separatePieces({ ...merged, visible: true });
     expect(shown.map((b) => b.visible)).toEqual([true, false, true]);
   });
