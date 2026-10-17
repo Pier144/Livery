@@ -3,21 +3,22 @@ import type { ModelSlot } from '@/types';
 import { detailMap } from '../detailMap';
 import { dilate, DILATE_PX } from '../dilate';
 import { decalMatrix, facingWeight, mirrorDecal, toDecalSpace } from '../decal';
+import { drawGroups, type DrawGroup } from '../drawItems';
 import type { VehicleModelData } from '../modelBuffer';
 import {
   baseOf,
-  decalLayers,
   decalRight,
   maskOf,
   partGroupOf,
   type BaseLayer,
   type Decal,
-  type DecalLayer,
   type Layer,
+  type ShapeLayer,
   type Stroke,
   type TextLayer,
   type Vec3,
 } from '../project';
+import { rasteriseShape as defaultRasteriseShape, shapeKey } from '../shapes';
 import { loadFont, MAX_RASTER_SIDE, MIN_RASTER_HEIGHT, rasterHeightFor, rasterise } from '../text';
 import { BASE_FRAGMENT, camoParams, type CamoParams } from './camo';
 import { DecalTextureCache, PREVIEW_DECAL_MAX, type DecalImage } from './decalTextures';
@@ -52,9 +53,11 @@ import { WEAR_METAL_RGB, WEAR_RUST_RGB, sharpEdgeHeights, wearUniform } from './
  *   stroke list changes in a way that isn't an append (undo, clear, edit);
  * - a **paint** target (RGBA8, sRGB numbers, `NoColorSpace`), composited in three steps through
  *   a scratch **intermediate** (RGBA8, premultiplied, one per exact size, shared by the slots):
- *   the Base (solid or 3D-noise camo; alpha 0 when hidden), then every visible image and text
- *   layer (and its mirrored copy) in layer order, projected through its decal box and blended
- *   `ONE, ONE_MINUS_SRC_ALPHA`, then a final pass: × template detail factor, alpha × (1 − mask).
+ *   the Base (solid or 3D-noise camo; alpha 0 when hidden), then every draw group
+ *   (`drawGroups`, drawItems.ts: one picture of an image, text or shape layer or of a merged
+ *   object's piece, with all its repeat and mirror boxes) in layer order, projected through each
+ *   box and blended `ONE, ONE_MINUS_SRC_ALPHA`, then a final pass: × template detail factor,
+ *   alpha × (1 − mask). Past the draw budget the topmost layers aren't drawn (`truncated`).
  *   At most 1024 px while editing; the focused slot (the body by default) also gets a full-size
  *   target, rendered `UPGRADE_DELAY_MS` after the last change;
  * - a **preview** material (`MeshStandardMaterial` + `onBeforeCompile`) showing
@@ -69,10 +72,14 @@ import { WEAR_METAL_RGB, WEAR_RUST_RGB, sharpEdgeHeights, wearUniform } from './
  * `UPGRADE_DELAY_MS` after the last change): call it before rendering a thumbnail.
  *
  * Decal pictures (`decalTextures.ts`) load asynchronously: image assets through
- * `options.loadAsset`, text through `options.rasteriseText` (font + raster); a layer keeps
- * showing its previous picture until the new one is ready, and the slots re-bake when one
- * arrives. `whenReady()` resolves once the pictures the current layers need are loaded;
- * `prepareExport()` loads full-size copies (pictures, text at export resolution) that
+ * `options.loadAsset`, text through `options.rasteriseText` (font + raster), shapes through
+ * `options.rasteriseShape`; a draw group keeps showing its previous picture until the new one is
+ * ready, and the slots re-bake when one arrives. Draw groups are rebuilt whenever their layer
+ * object changes (a rename, typing, a colour), so the Baker compares them by value: draws are
+ * recomputed only when a group's boxes moved, texel densities are cached by box geometry, and
+ * the paint re-renders only when a group's picture, boxes, opacity, flip or wear changed.
+ * `whenReady()` resolves once the pictures the current groups need are loaded;
+ * `prepareExport()` loads full-size copies (pictures, text and shapes at export resolution) that
  * `bakeForExport` uses until `endExport()`. `decalTouchesSharedTexels(decal)` tells whether a
  * decal lands on texels more than one triangle draws (mirrored or repeated UVs), from a
  * per-slot overlap map built once.
@@ -116,6 +123,17 @@ export interface BakerOptions {
    * Defaults to loading its font (`loadFont`) and `rasterise`.
    */
   rasteriseText?: (layer: TextLayer, pxHeight: number) => Promise<DecalImage | null>;
+  /**
+   * A shape layer (`variant` picks its repeat's alternate colour) drawn for a frame of `frame`
+   * metres, `px` tall (straight alpha), null when there's nothing to draw. Defaults to
+   * `rasteriseShape` (shapes.ts).
+   */
+  rasteriseShape?: (
+    layer: ShapeLayer,
+    variant: 'main' | 'alt',
+    frame: { width: number; height: number },
+    px: number,
+  ) => Promise<DecalImage | null>;
 }
 
 /** The default text rasteriser: the layer's font (or the fallback), then the canvas raster. */
@@ -710,14 +728,49 @@ export function slotDensity(table: DensityTable, decal: Decal, output: { width: 
   return Math.sqrt((uv * output.width * output.height) / world);
 }
 
-/** A decal layer the bake draws: visible, placed, not fully transparent. */
-export function drawnDecalLayers(layers: readonly Layer[]): DecalLayer[] {
-  return decalLayers(layers).filter((l) => l.visible && l.decal !== null && l.opacity > 0);
+/** Most entries the texel density cache keeps before it starts over. */
+const DENSITY_CACHE_MAX = 4096;
+
+/** Rounds to 1e-9 (the box geometry keys and comparisons ignore float noise below it). */
+const nano = (v: number) => Math.round(v * 1e9);
+
+/** A box's geometry as a string: what the texel density around it depends on (mirror aside). */
+export function decalGeometryKey(d: Decal): string {
+  const n = nano;
+  return `${n(d.center[0])},${n(d.center[1])},${n(d.center[2])};${n(d.normal[0])},${n(d.normal[1])},${n(d.normal[2])};${n(d.up[0])},${n(d.up[1])},${n(d.up[2])};${n(d.width)},${n(d.height)},${n(d.depth)};${d.part}`;
+}
+
+function sameVec(a: Vec3, b: Vec3): boolean {
+  return nano(a[0]) === nano(b[0]) && nano(a[1]) === nano(b[1]) && nano(a[2]) === nano(b[2]);
+}
+
+/** Same boxes, element by element, by value (within 1e-9): their draws are the same. */
+export function sameBoxes(a: readonly Decal[], b: readonly Decal[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const p = a[i]!;
+    const q = b[i]!;
+    if (p === q) continue;
+    if (
+      !sameVec(p.center, q.center) ||
+      !sameVec(p.normal, q.normal) ||
+      !sameVec(p.up, q.up) ||
+      nano(p.width) !== nano(q.width) ||
+      nano(p.height) !== nano(q.height) ||
+      nano(p.depth) !== nano(q.depth) ||
+      p.part !== q.part ||
+      p.mirror !== q.mirror
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // ================================================================ the Baker
 
-/** One draw of a decal box (the layer's own, or its mirrored copy): uniforms ready to set. */
+/** One draw of a decal box (a repeat copy or a mirror copy of a group): uniforms ready to set. */
 interface DecalDraw {
   matrix: THREE.Matrix4;
   normal: THREE.Vector3;
@@ -725,15 +778,15 @@ interface DecalDraw {
   part: number;
 }
 
-/** What the Baker holds for a drawn decal layer. */
+/** What the Baker holds for a draw group (keyed by `group.id`). */
 interface LayerBinding {
-  layer: DecalLayer;
+  group: DrawGroup;
   /** The picture it needs now (a reference is held). */
   key: string;
   /** The picture drawn now: `key` once settled, the previous one until then (a reference is held). */
   shown: string | null;
-  /** The decal the draws were computed from. */
-  decal: Decal;
+  /** The boxes the draws were computed from (equal by value to `group.boxes`). */
+  boxes: Decal[];
   draws: DecalDraw[];
 }
 
@@ -797,16 +850,22 @@ export class Baker {
   private readonly countMaterial: THREE.ShaderMaterial;
   private readonly footprintMaterial: THREE.ShaderMaterial;
   private readonly decalTextures: DecalTextureCache;
-  /** Drawn decal layers, bottom to top. */
+  /** Drawn groups, bottom to top. */
   private decalOrder: LayerBinding[] = [];
+  /** By group id. */
   private readonly bindings = new Map<string, LayerBinding>();
-  /** Full-size pictures per layer id between `prepareExport` and `endExport`. */
+  /** The last draw plan left the topmost layers out (draw budget). */
+  private planTruncated = false;
+  /** Full-size pictures per group id between `prepareExport` and `endExport`. */
   private exportKeys: Map<string, string> | null = null;
   /** Scratch intermediates by exact size (`w×h`). */
   private readonly scratches = new Map<string, THREE.WebGLRenderTarget>();
   private footprintTarget: THREE.WebGLRenderTarget | null = null;
-  /** Texel density around a decal (max over the slots), by decal object and output (`p`, `f`, `fhq`). */
-  private readonly densities = new WeakMap<Decal, Map<string, number | null>>();
+  /**
+   * Texel density around a box (max over the slots), by output (`p`, `f`, `fhq`) and box geometry
+   * (`decalGeometryKey`): rebuilt groups bring new box objects with the same values.
+   */
+  private readonly densities = new Map<string, number | null>();
   /** High quality of the export `prepareExport` prepares (the body's output size). */
   private exportHighQuality = false;
   /** Texel density tables per slot index (built on the first text layer). */
@@ -1024,9 +1083,14 @@ export class Baker {
     this.refresh(changed);
   }
 
+  /** The last `setLayers` left the topmost layers undrawn: their boxes would pass the draw budget. */
+  get truncated(): boolean {
+    return this.planTruncated;
+  }
+
   /**
-   * Resolves when the pictures the current layers need (decal images, text rasters with their
-   * fonts) have loaded, or failed, and the slots were re-baked with them.
+   * Resolves when the pictures the current draw groups need (decal images, text rasters with
+   * their fonts, shape rasters) have loaded, or failed, and the slots were re-baked with them.
    */
   async whenReady(): Promise<void> {
     for (;;) {
@@ -1038,8 +1102,8 @@ export class Baker {
   }
 
   /**
-   * Loads full-size copies of the current layers' pictures (images at their own size, text at
-   * its export resolution, which `highQuality` raises with the body's output) for
+   * Loads full-size copies of the current groups' pictures (images at their own size, text and
+   * shapes at their export resolution, which `highQuality` raises with the body's output) for
    * `bakeForExport`, until `endExport()`. Resolves when loaded.
    */
   async prepareExport(highQuality = false): Promise<void> {
@@ -1049,17 +1113,21 @@ export class Baker {
     this.exportHighQuality = highQuality;
     const keys = new Map<string, string>();
     for (const b of this.decalOrder) {
-      const full = this.pictureKey(b.layer, true);
-      // The preview copy already is the full-size picture when it wasn't reduced (and, for text,
-      // has the export height): share it instead of loading the same pixels twice.
-      const preview = b.layer.kind === 'image' ? imageKey(b.layer.assetId, false) : full.replace(/:f$/, ':p');
-      if (b.shown === preview && this.decalTextures.loadedUnreduced(preview)) {
-        this.decalTextures.acquire(preview, async () => null);
-        keys.set(b.layer.id, preview);
-      } else {
-        this.acquirePicture(b.layer, full, true);
-        keys.set(b.layer.id, full);
+      const { source, id } = b.group;
+      const full = this.pictureKey(b.group, true);
+      if (source.kind !== 'shape') {
+        // The preview copy already is the full-size picture when it wasn't reduced (and, for
+        // text, has the export height): share it instead of loading the same pixels twice.
+        // Shapes always load their export raster.
+        const preview = source.kind === 'image' ? imageKey(source.assetId, false) : full.replace(/:f$/, ':p');
+        if (b.shown === preview && this.decalTextures.loadedUnreduced(preview)) {
+          this.decalTextures.acquire(preview, async () => null);
+          keys.set(id, preview);
+          continue;
+        }
       }
+      this.acquirePicture(b.group, full, true);
+      keys.set(id, full);
     }
     this.exportKeys = keys;
     // Until every export picture has settled (a context restore may reload them meanwhile).
@@ -1470,7 +1538,7 @@ export class Baker {
       let texture: THREE.Texture | null;
       if (exporting) {
         // Export draws the full-size pictures only: a missing one is an error, never a fallback.
-        const key = this.exportKeys?.get(b.layer.id);
+        const key = this.exportKeys?.get(b.group.id);
         if (key === undefined || !this.decalTextures.settled(key)) throw new Error(EXPORT_PICTURE_NOT_READY);
         texture = this.decalTextures.get(key);
       } else {
@@ -1478,9 +1546,9 @@ export class Baker {
       }
       if (!texture) continue;
       du.uDecalTex!.value = texture;
-      du.uOpacity!.value = Math.min(1, Math.max(0, b.layer.opacity));
-      du.uFlipX!.value = b.layer.kind === 'image' && b.layer.flipX ? 1 : 0;
-      du.uWearThreshold!.value = wearUniform(b.layer.wear);
+      du.uOpacity!.value = Math.min(1, Math.max(0, b.group.opacity));
+      du.uFlipX!.value = b.group.flipX ? 1 : 0;
+      du.uWearThreshold!.value = wearUniform(b.group.wear);
       for (const d of b.draws) {
         this.setDecalUniforms(du, d);
         this.draw(state, this.decalMaterial, scratch, false);
@@ -1580,74 +1648,97 @@ export class Baker {
     return { width: size.w, height: size.h };
   }
 
-  /** The text raster height for a decal: 2 × the texel density around it (max over slots), snapped. */
-  private textHeight(decal: Decal, full: boolean): number {
-    const cacheKey = full ? (this.exportHighQuality ? 'fhq' : 'f') : 'p';
-    let byOutput = this.densities.get(decal);
-    if (!byOutput) {
-      byOutput = new Map();
-      this.densities.set(decal, byOutput);
-    }
-    let density = byOutput.get(cacheKey);
-    if (density === undefined) {
-      density = null;
-      for (const state of this.slots) {
-        let table = this.densityTables.get(state.index);
-        if (!table) {
-          table = densityTable(this.model, state.index);
-          this.densityTables.set(state.index, table);
-        }
-        const d = slotDensity(table, decal, this.outputSize(state, full));
-        if (d !== null && (density === null || d > density)) density = d;
+  /** Texel density around a box, max over the slots rendered at their preview or export size. */
+  private densityAround(decal: Decal, full: boolean): number | null {
+    let density: number | null = null;
+    for (const state of this.slots) {
+      let table = this.densityTables.get(state.index);
+      if (!table) {
+        table = densityTable(this.model, state.index);
+        this.densityTables.set(state.index, table);
       }
-      byOutput.set(cacheKey, density);
+      const d = slotDensity(table, decal, this.outputSize(state, full));
+      if (d !== null && (density === null || d > density)) density = d;
+    }
+    return density;
+  }
+
+  /** The text (or shape) raster height for a box: 2 × the texel density around it (max over slots), snapped. */
+  private textHeight(decal: Decal, full: boolean): number {
+    const cacheKey = `${full ? (this.exportHighQuality ? 'fhq' : 'f') : 'p'}|${decalGeometryKey(decal)}`;
+    let density = this.densities.get(cacheKey);
+    if (density === undefined) {
+      density = this.densityAround(decal, full);
+      if (this.densities.size >= DENSITY_CACHE_MAX) this.densities.clear();
+      this.densities.set(cacheKey, density);
     }
     const px = quantiseRasterHeight(rasterHeightFor(density, decal.height));
     return full ? Math.min(px, this.maxTextureSize) : Math.min(px, PREVIEW_DECAL_MAX);
   }
 
-  private pictureKey(layer: DecalLayer, full: boolean): string {
-    return layer.kind === 'image' ? imageKey(layer.assetId, full) : textKey(layer, this.textHeight(layer.decal!, full), full);
-  }
-
-  /** One more reference to a layer's picture, loading it on first use. */
-  private acquirePicture(layer: DecalLayer, key: string, full: boolean): void {
-    const maxSide = full ? this.maxTextureSize : PREVIEW_DECAL_MAX;
-    if (layer.kind === 'image') {
-      const { loadAsset } = this.options;
-      const assetId = layer.assetId;
-      this.decalTextures.acquire(key, async () => (loadAsset ? loadAsset(assetId) : null), maxSide);
-    } else {
-      const rasteriseText = this.options.rasteriseText ?? defaultRasteriseText;
-      const px = this.textHeight(layer.decal!, full);
-      this.decalTextures.acquire(key, () => rasteriseText(layer, px), maxSide);
+  /** The cache key of a group's picture; text and shape rasters are sized for its `rasterDecal`. */
+  private pictureKey(group: DrawGroup, full: boolean): string {
+    const { source, rasterDecal } = group;
+    switch (source.kind) {
+      case 'image':
+        return imageKey(source.assetId, full);
+      case 'text':
+        return textKey(source, this.textHeight(rasterDecal, full), full);
+      case 'shape':
+        return shapeKey(source, group.variant, rasterDecal, this.textHeight(rasterDecal, full), full);
     }
   }
 
-  /** The drawn layer now shows its current picture (the previous one is released). */
+  /** One more reference to a group's picture, loading it on first use. */
+  private acquirePicture(group: DrawGroup, key: string, full: boolean): void {
+    const maxSide = full ? this.maxTextureSize : PREVIEW_DECAL_MAX;
+    const { source, rasterDecal, variant } = group;
+    if (source.kind === 'image') {
+      const { loadAsset } = this.options;
+      const assetId = source.assetId;
+      this.decalTextures.acquire(key, async () => (loadAsset ? loadAsset(assetId) : null), maxSide);
+    } else if (source.kind === 'text') {
+      const rasteriseText = this.options.rasteriseText ?? defaultRasteriseText;
+      const px = this.textHeight(rasterDecal, full);
+      this.decalTextures.acquire(key, () => rasteriseText(source, px), maxSide);
+    } else {
+      const rasteriseShape = this.options.rasteriseShape ?? defaultRasteriseShape;
+      const px = this.textHeight(rasterDecal, full);
+      const frame = { width: rasterDecal.width, height: rasterDecal.height };
+      this.decalTextures.acquire(key, () => rasteriseShape(source, variant, frame, px), maxSide);
+    }
+  }
+
+  /** The drawn group now shows its current picture (the previous one is released). */
   private promote(b: LayerBinding): void {
     if (b.shown === b.key) return;
     if (b.shown !== null) this.decalTextures.release(b.shown);
     b.shown = b.key;
   }
 
-  /** Brings the decal bindings to `layers`; true when what the paint shows changed. */
+  /**
+   * Brings the bindings to the draw groups of `layers` (`drawGroups`: repeat and mirror copies
+   * are already among each group's boxes). True when what the paint shows changed: a group came,
+   * went or moved in the order, or one's picture shown, boxes (by value), opacity, flip or wear
+   * changed. A rebuilt group with the same values (a rename) changes nothing.
+   */
   private updateDecals(layers: readonly Layer[]): boolean {
-    const drawn = drawnDecalLayers(layers);
+    const plan = drawGroups(layers, this.model.header.mirrorAxis);
+    this.planTruncated = plan.truncated;
     const previous = this.decalOrder;
-    let changed = drawn.length !== previous.length || drawn.some((l, i) => previous[i]!.layer !== l);
+    let changed = false;
     const order: LayerBinding[] = [];
     const seen = new Set<string>();
-    for (const layer of drawn) {
-      if (seen.has(layer.id)) continue;
-      seen.add(layer.id);
-      const decal = layer.decal!;
-      const key = this.pictureKey(layer, false);
-      let b = this.bindings.get(layer.id);
+    for (const group of plan.groups) {
+      if (seen.has(group.id)) continue;
+      seen.add(group.id);
+      const key = this.pictureKey(group, false);
+      let b = this.bindings.get(group.id);
       if (!b) {
-        this.acquirePicture(layer, key, false);
-        b = { layer, key, shown: null, decal, draws: [] };
-        this.bindings.set(layer.id, b);
+        this.acquirePicture(group, key, false);
+        b = { group, key, shown: null, boxes: group.boxes, draws: group.boxes.map((d) => this.decalDraw(d)) };
+        this.bindings.set(group.id, b);
+        changed = true;
       } else if (b.key !== key) {
         if (key === b.shown) {
           // Back to the picture shown (whose reference is held): the pending one is dropped.
@@ -1655,18 +1746,29 @@ export class Baker {
         } else {
           // Keep drawing the picture shown until the new one is ready; a pending one is dropped.
           if (b.key !== b.shown) this.decalTextures.release(b.key);
-          this.acquirePicture(layer, key, false);
+          this.acquirePicture(group, key, false);
         }
         b.key = key;
       }
-      b.layer = layer;
-      if (b.draws.length === 0 || b.decal !== decal) {
-        b.decal = decal;
-        b.draws = decalCopies(decal, this.model.header.mirrorAxis).map((d) => this.decalDraw(d));
+      const before = b.group;
+      if (before !== group) {
+        if (before.opacity !== group.opacity || before.flipX !== group.flipX || before.wear !== group.wear) changed = true;
+        b.group = group;
       }
+      if (b.boxes !== group.boxes) {
+        if (!sameBoxes(b.boxes, group.boxes)) {
+          b.draws = group.boxes.map((d) => this.decalDraw(d));
+          changed = true;
+        }
+        b.boxes = group.boxes;
+      }
+      const shown = b.shown;
       if (this.decalTextures.settled(b.key)) this.promote(b);
+      if (b.shown !== shown) changed = true;
+      if (previous[order.length] !== b) changed = true;
       order.push(b);
     }
+    if (order.length !== previous.length) changed = true;
     for (const [id, b] of this.bindings) {
       if (seen.has(id)) continue;
       this.decalTextures.release(b.key);
@@ -1678,7 +1780,7 @@ export class Baker {
     return changed;
   }
 
-  /** A picture finished loading: layers waiting for it show it and the enabled slots re-bake. */
+  /** A picture finished loading: groups waiting for it show it and the enabled slots re-bake. */
   private decalPictureSettled(key: string): void {
     if (this.disposed) return;
     let shown = false;

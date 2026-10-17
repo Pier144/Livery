@@ -4,13 +4,20 @@ import type { ModelHeader } from '@/types';
 import type { VehicleModelData } from '../modelBuffer';
 import {
   newBaseLayer,
+  newFolder,
   newImageLayer,
   newMaskLayer,
+  newShapeLayer,
   newTextLayer,
   type BaseLayer,
   type Decal,
   type Layer,
   type MaskLayer,
+  type MergedLayer,
+  type Piece,
+  type Place,
+  type Repeat,
+  type ShapeLayer,
   type Stroke,
   type Vec3,
 } from '../project';
@@ -1085,5 +1092,201 @@ describe('texel density for text rasters', () => {
         else expect(fast!).toBeCloseTo(ref, 3);
       }
     }
+  });
+});
+
+describe('Baker draw groups (WebGL stubbed)', () => {
+  type Internals = {
+    decalOrder: { group: { id: string }; key: string; shown: string | null; draws: unknown[] }[];
+    bindings: Map<string, unknown>;
+    exportKeys: Map<string, string> | null;
+    decalTextures: { keys(): string[]; refs(k: string): number };
+    densityAround(decal: Decal, full: boolean): number | null;
+  };
+  const internals = (baker: Baker) => baker as unknown as Internals;
+
+  function setupGroups() {
+    const fake = fakeRenderer();
+    const loadAsset = vi.fn(async (_id: string): Promise<DecalImage> => ({ rgba: new Uint8Array(8 * 4 * 4).fill(255), w: 8, h: 4 }));
+    const rasteriseText = vi.fn(async (_l: unknown, px: number): Promise<DecalImage | null> => ({ rgba: new Uint8Array(4 * px * 4), w: 4 * px, h: px }));
+    const rasteriseShape = vi.fn(
+      async (_l: ShapeLayer, _v: 'main' | 'alt', _f: { width: number; height: number }, px: number): Promise<DecalImage | null> => ({
+        rgba: new Uint8Array(2 * px * 4),
+        w: 2 * px,
+        h: px,
+      }),
+    );
+    const baker = new Baker(fake.renderer, model(), new Map([[BODY, template(64, 64)], [TURRET, template(32, 32)]]), {
+      loadAsset,
+      rasteriseText,
+      rasteriseShape,
+    });
+    return { ...fake, baker, loadAsset, rasteriseText, rasteriseShape };
+  }
+
+  const image = (id: string, over: Partial<Decal> = {}, repeat?: Repeat) => ({ ...newImageLayer(id, { ...DECAL, ...over }), id, ...(repeat ? { repeat } : {}) });
+  const shape = (id: string, over: Partial<ShapeLayer> = {}): ShapeLayer => ({ ...newShapeLayer('star', { ...DECAL }), id, ...over });
+  const row = (count: number, alternate?: string): Repeat => ({ count, gap: 0.5, direction: 'row', ...(alternate ? { alternate } : {}) });
+  const piece = (layer: object, id: string, place: Place): Piece => {
+    const p = { ...layer, id, place } as Partial<ShapeLayer> & { place: Place };
+    delete p.decal;
+    delete p.repeat;
+    return p as Piece;
+  };
+  const paints = (draws: Draw[]) => draws.filter((d) => d.kind === 'paint').length;
+
+  it('rasterises a shape through the rasteriseShape option under a shp: key', async () => {
+    const { baker, rasteriseShape, draws } = setupGroups();
+    const s = shape('s');
+    baker.setLayers([newBaseLayer(), s], [BODY]);
+    await baker.whenReady();
+    expect(rasteriseShape).toHaveBeenCalledTimes(1);
+    const [layer, variant, frame, px] = rasteriseShape.mock.calls[0]!;
+    expect(layer).toBe(s);
+    expect(variant).toBe('main');
+    expect(frame).toEqual({ width: DECAL.width, height: DECAL.height });
+    expect(px).toBe(quantiseRasterHeight(px));
+    const keys = internals(baker).decalTextures.keys();
+    expect(keys).toHaveLength(1);
+    expect(keys[0]!.startsWith('shp:')).toBe(true);
+    expect(draws.at(-2)!.kind).toBe('decal');
+    baker.dispose();
+  });
+
+  it('draws a repeated layer as one binding with a draw per copy (and per mirror copy)', async () => {
+    const { baker, loadAsset, draws } = setupGroups();
+    baker.setLayers([newBaseLayer(), image('a', {}, row(3))], [BODY]);
+    await baker.whenReady();
+    expect(internals(baker).decalOrder.map((b) => [b.group.id, b.draws.length])).toEqual([['a', 3]]);
+    expect(loadAsset).toHaveBeenCalledTimes(1);
+    const before = draws.length;
+    baker.setLayers([newBaseLayer(), image('a', { mirror: true }, row(3))], [BODY]);
+    expect(internals(baker).decalOrder.map((b) => [b.group.id, b.draws.length])).toEqual([['a', 6]]);
+    expect(draws.slice(before).filter((d) => d.kind === 'decal')).toHaveLength(6);
+    expect(loadAsset).toHaveBeenCalledTimes(1);
+    baker.dispose();
+  });
+
+  it('gives an alternate colour its own binding and raster', async () => {
+    const { baker, rasteriseShape } = setupGroups();
+    baker.setLayers([newBaseLayer(), shape('s', { repeat: row(3, '#ff0000') })], [BODY]);
+    await baker.whenReady();
+    expect(internals(baker).decalOrder.map((b) => [b.group.id, b.draws.length])).toEqual([
+      ['s', 2],
+      ['s:alt', 1],
+    ]);
+    expect(rasteriseShape.mock.calls.map((c) => c[1]).sort()).toEqual(['alt', 'main']);
+    expect(rasteriseShape.mock.calls.find((c) => c[1] === 'alt')![0].fill).toEqual({ kind: 'solid', color: '#ff0000' });
+    expect(new Set(internals(baker).decalOrder.map((b) => b.key)).size).toBe(2);
+    baker.dispose();
+  });
+
+  it('binds each piece of a merged object', async () => {
+    const { baker, loadAsset, rasteriseShape } = setupGroups();
+    const merged: MergedLayer = {
+      id: 'm',
+      kind: 'merged',
+      name: '',
+      visible: true,
+      decal: { ...DECAL },
+      opacity: 0.5,
+      children: [
+        piece(newShapeLayer('rect', null), 'p1', { x: -0.25, y: 0, w: 0.5, h: 1, angle: 0 }),
+        piece(newImageLayer('pic', null), 'p2', { x: 0.25, y: 0, w: 0.5, h: 1, angle: 0 }),
+      ],
+    };
+    baker.setLayers([newBaseLayer(), merged], [BODY]);
+    await baker.whenReady();
+    expect(internals(baker).decalOrder.map((b) => [b.group.id, b.draws.length])).toEqual([
+      ['m/p1', 1],
+      ['m/p2', 1],
+    ]);
+    expect(rasteriseShape).toHaveBeenCalledTimes(1);
+    expect(loadAsset).toHaveBeenCalledWith('pic');
+    baker.dispose();
+  });
+
+  it('releases the pictures of the children of a hidden folder', async () => {
+    const { baker } = setupGroups();
+    const folder = newFolder('f', [image('a'), shape('s')]);
+    baker.setLayers([newBaseLayer(), folder], [BODY]);
+    await baker.whenReady();
+    expect(internals(baker).decalTextures.keys()).toHaveLength(2);
+    baker.setLayers([newBaseLayer(), { ...folder, visible: false }], [BODY]);
+    expect(internals(baker).decalTextures.keys()).toEqual([]);
+    expect(internals(baker).bindings.size).toBe(0);
+    baker.dispose();
+  });
+
+  it('renaming a mirrored text layer neither re-bakes nor recomputes its density; editing the text reuses the density', async () => {
+    const { baker, draws, loadAsset, rasteriseText } = setupGroups();
+    const text = { ...newTextLayer('Hi', { ...DECAL, mirror: true }), id: 'txt' };
+    const other = image('a');
+    const base = newBaseLayer();
+    baker.setLayers([base, text, other], [BODY]);
+    await baker.whenReady();
+    expect(rasteriseText).toHaveBeenCalledTimes(1);
+    const density = vi.spyOn(internals(baker), 'densityAround');
+    const textKeyBefore = internals(baker).decalOrder[0]!.key;
+    const imageShown = internals(baker).decalOrder[1]!.shown;
+    const bakes = paints(draws);
+
+    // Rename: a new layer object, so a new group with new boxes, all equal by value.
+    baker.setLayers([base, { ...text, name: 'renamed' }, other], [BODY]);
+    expect(paints(draws)).toBe(bakes);
+    expect(density).not.toHaveBeenCalled();
+    expect(rasteriseText).toHaveBeenCalledTimes(1);
+    expect(internals(baker).decalOrder[0]!.key).toBe(textKeyBefore);
+    expect(internals(baker).decalOrder[1]!.shown).toBe(imageShown);
+    expect(loadAsset).toHaveBeenCalledTimes(1);
+
+    // New text: a new raster key at the same height, the density cached by geometry.
+    baker.setLayers([base, { ...text, text: 'Hello' }, other], [BODY]);
+    expect(internals(baker).decalOrder[0]!.key).not.toBe(textKeyBefore);
+    await baker.whenReady();
+    expect(rasteriseText).toHaveBeenCalledTimes(2);
+    expect(rasteriseText.mock.calls[1]![1]).toBe(rasteriseText.mock.calls[0]![1]);
+    expect(density).not.toHaveBeenCalled();
+    // The unrelated image kept its picture throughout.
+    expect(internals(baker).decalOrder[1]!.shown).toBe(imageShown);
+    expect(loadAsset).toHaveBeenCalledTimes(1);
+
+    // Moving the layer does change its draws and re-bakes.
+    const moved = paints(draws);
+    baker.setLayers([base, { ...text, text: 'Hello', decal: { ...DECAL, mirror: true, center: [0.4, 0.5, 0] } }, other], [BODY]);
+    expect(paints(draws)).toBe(moved + 1);
+    baker.dispose();
+  });
+
+  it('keys export pictures per group; shapes load their own export raster', async () => {
+    const { baker, rasteriseShape, loadAsset } = setupGroups();
+    baker.setLayers([newBaseLayer(), image('a'), shape('s', { repeat: row(2, '#00ff00') })], [BODY]);
+    await baker.whenReady();
+    expect(rasteriseShape).toHaveBeenCalledTimes(2);
+    await baker.prepareExport();
+    const keys = internals(baker).exportKeys!;
+    expect([...keys.keys()]).toEqual(['a', 's', 's:alt']);
+    // The unreduced preview copy of the image is shared; each shape variant loads a `:f` raster.
+    expect(loadAsset).toHaveBeenCalledTimes(1);
+    expect(keys.get('a')).toBe('img:a:p');
+    expect(keys.get('s')!.startsWith('shp:') && keys.get('s')!.endsWith(':f')).toBe(true);
+    expect(keys.get('s:alt')).not.toBe(keys.get('s'));
+    expect(rasteriseShape).toHaveBeenCalledTimes(4);
+    baker.bakeForExport(BODY, false);
+    baker.endExport();
+    expect(internals(baker).exportKeys).toBeNull();
+    baker.dispose();
+  });
+
+  it('reports truncated when the layers pass the draw budget', () => {
+    const { baker } = setupGroups();
+    // 100 boxes each (50 copies and their mirror copies): the fifth passes the 400 budget.
+    const layers = [newBaseLayer(), ...['a', 'b', 'c', 'd', 'e'].map((id) => image(id, { mirror: true }, row(50)))];
+    baker.setLayers(layers, [BODY]);
+    expect(baker.truncated).toBe(true);
+    expect(internals(baker).decalOrder.map((b) => b.group.id)).toEqual(['a', 'b', 'c', 'd']);
+    baker.setLayers(layers.slice(0, 5), [BODY]);
+    expect(baker.truncated).toBe(false);
+    baker.dispose();
   });
 });
