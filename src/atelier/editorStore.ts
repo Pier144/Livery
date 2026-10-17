@@ -1,91 +1,52 @@
 import { create } from 'zustand';
 import type { AssetRef, AtelierProject, CropRect } from '@/types';
 import {
-  MAX_DECAL_SIZE,
-  MAX_PIECES,
-  MIN_DECAL_SIZE,
-  add,
   baseOf,
-  checkLayers,
-  checkPiece,
-  checkPlacedLayer,
-  decalRight,
   isPlacedLayer,
   maskOf,
-  newFolder,
   newHazardStripe,
   newImageLayer,
-  newLayerId,
   newMaskLayer,
   newShapeLayer,
   newTextLayer,
-  scale,
-  serializeLayers,
-  sub,
-  toDecal,
-  type BaseLayer,
   type Decal,
   type FontRef,
-  type ImageLayer,
   type Layer,
   type MaskLayer,
-  type MergedLayer,
   type Piece,
-  type PieceLayer,
   type PlacedLayer,
-  type Repeat,
   type ShapeKind,
-  type ShapeLayer,
   type Stroke,
-  type TextLayer,
-  type UnsupportedLayer,
-  type UnsupportedPiece,
   type Vec3,
 } from './project';
+import { checkLayers, serializeLayers, toDecal } from './projectCheck';
+import { childrenOf, findLayer, framedLayerOf, insertLayers, replaceLayer, updateLayer } from './layerTree';
 import {
-  allLayers,
-  childrenOf,
-  findLayer,
-  framedLayerOf,
-  insertLayers,
-  isPiece,
-  mapLayers,
-  moveItems,
-  removeLayers,
-  replaceLayer,
-  spliceLayer,
-  updateLayer,
-  type Found,
-  type ParentId,
-  type TreeItem,
-} from './layerTree';
-import { mergeFrame, pieceDecal, placeOf, repeatDecals, separatePieces, type MergeRefusal } from './merge';
-import { measureTextAspect } from './text';
+  createFolderIn,
+  deleteItem,
+  deleteItems,
+  dissolveFolderIn,
+  duplicateItem,
+  insertTarget,
+  mergeItems,
+  moveIntoFolder,
+  moveItem,
+  multiSelectable,
+  restoreItem,
+  restoreItems,
+  selectionIn,
+  separateMerged,
+  type DeletedEntry,
+  type MergeResult,
+  type SeparateResult,
+} from './editorTree';
+import { cutoutOf, patchedBase, remeasured, withProps, withTextWidth, type BasePatch, type LayerPropsPatch } from './layerEdits';
+
+export { DUPLICATE_OFFSET, insertTarget, type DeletedEntry, type MergeResult, type SeparateResult } from './editorTree';
+export { refitDecal, setTextMeasurer, type BasePatch, type LayerPropsPatch, type TextMeasurer } from './layerEdits';
 
 /** Undo steps kept by the editor. */
 export const HISTORY_LIMIT = 100;
-
-/** What a Base edit may change. */
-export type BasePatch = Partial<Pick<BaseLayer, 'mode' | 'colors' | 'scale' | 'seed' | 'wear' | 'pattern' | 'weights' | 'cellSize' | 'angle' | 'softness'>>;
-
-/**
- * What `setLayerProps` may change on a placed layer or a piece (fields the layer's kind doesn't
- * have are dropped). `repeat: null` removes the repeat.
- */
-export type LayerPropsPatch = Partial<
-  Omit<ImageLayer, 'id' | 'kind' | 'decal' | 'repeat'> &
-    Omit<TextLayer, 'id' | 'kind' | 'decal' | 'repeat'> &
-    Omit<ShapeLayer, 'id' | 'kind' | 'decal' | 'repeat'>
-> & { repeat?: Repeat | null };
-
-/** The fields `setLayerProps` takes, per kind (everything else in a patch is dropped). */
-const COMMON_PROPS = ['name', 'visible', 'opacity', 'wear', 'repeat'] as const;
-const PROPS_OF: Record<PlacedLayer['kind'], readonly string[]> = {
-  image: [...COMMON_PROPS, 'assetId', 'flipX', 'sourceAssetId', 'sourceOffset'],
-  text: [...COMMON_PROPS, 'text', 'font', 'color', 'outlineColor', 'outlineWidth', 'skew'],
-  shape: [...COMMON_PROPS, 'shape', 'corner', 'points', 'innerRatio', 'fill', 'outlineColor', 'outlineWidth'],
-  merged: ['name', 'opacity', 'repeat'],
-};
 
 /**
  * A new layer waiting for its placement click (outside `layers`: no history, no autosave).
@@ -96,94 +57,6 @@ export type PendingPlacement =
   | { kind: 'image'; assetId: string; aspect: number; name?: string }
   | { kind: 'text'; text: string; font: FontRef; aspect: number }
   | { kind: 'shape'; shape: ShapeKind; hazard?: boolean; name?: string; aspect: number };
-
-/** Where `duplicateLayer` puts the copy: this fraction of the decal's height down and right along the surface. */
-export const DUPLICATE_OFFSET = 0.05;
-
-/**
- * What `deleteLayers` removed: the layer or piece as it was, its container and its index there.
- * `fromMerged` marks a piece (an unsupported one may have no `place`), which only goes back into
- * its merged object.
- */
-export interface DeletedEntry {
-  layer: Layer | Piece;
-  parentId: string | null;
-  index: number;
-  fromMerged?: boolean;
-}
-
-/** What `mergeLayers` answers. `reset` says whether the shared part or Mirror differ from some layer's own. */
-export type MergeResult = { ok: true; id: string; reset: { part: boolean; mirror: boolean } } | { ok: false; reason: MergeRefusal };
-
-/** What `separate` answers: the new layers' ids (bottom to top) and whether the object's repeat was dropped. */
-export type SeparateResult = { ok: true; ids: string[]; droppedRepeat: boolean } | { ok: false };
-
-/** What a text measurer reads. */
-type MeasuredText = Pick<TextLayer, 'text' | 'font' | 'outlineWidth' | 'skew'>;
-
-/**
- * The width / height of a text layer or piece as drawn now (its font, or the stand-in while the
- * font loads), or null when it can't be measured. Defaults to `measureTextAspect` (text.ts); tests
- * set their own.
- */
-export type TextMeasurer = (layer: MeasuredText) => number | null;
-
-let textMeasurer: TextMeasurer | null = measureTextAspect;
-
-/** Sets how text layers are measured (null: text widths are left as they are). */
-export function setTextMeasurer(measurer: TextMeasurer | null): void {
-  textMeasurer = measurer;
-}
-
-/** The measured aspect of a text, or null when there is none worth using. */
-function measured(text: MeasuredText): number | null {
-  if (!textMeasurer) return null;
-  const aspect = textMeasurer(text);
-  return aspect === null || !Number.isFinite(aspect) || aspect <= 0 ? null : aspect;
-}
-
-/** `layer` with a text decal's width set from the measured aspect (the same object when nothing changes). */
-function withTextWidth<T extends PlacedLayer>(layer: T): T {
-  if (layer.kind !== 'text' || !layer.decal) return layer;
-  const aspect = measured(layer);
-  if (aspect === null) return layer;
-  const width = Math.min(MAX_DECAL_SIZE, Math.max(MIN_DECAL_SIZE, layer.decal.height * aspect));
-  return width === layer.decal.width ? layer : { ...layer, decal: { ...layer.decal, width } };
-}
-
-/**
- * A text piece with its place's width set from the measured aspect, its centre and height kept
- * and the frame not refitted (the same object when nothing changes or it isn't a text piece).
- */
-function withPieceTextWidth<T extends Piece | UnsupportedPiece>(piece: T, frame: Decal | null): T {
-  if (piece.kind !== 'text' || !frame) return piece;
-  const aspect = measured(piece);
-  if (aspect === null) return piece;
-  const metres = Math.min(MAX_DECAL_SIZE, Math.max(MIN_DECAL_SIZE, piece.place.h * frame.height * aspect));
-  const w = metres / frame.width;
-  return w === piece.place.w ? piece : { ...piece, place: { ...piece.place, w } };
-}
-
-/** The decal of a duplicate: moved down and right along the surface by DUPLICATE_OFFSET of its height. */
-function offsetDecal(decal: Decal): Decal {
-  const step = (DUPLICATE_OFFSET * decal.height) / Math.SQRT2;
-  return { ...decal, center: add(decal.center, scale(sub(decalRight(decal), decal.up), step)) };
-}
-
-/**
- * The decal refitted after a cutout: the same model units per source pixel (per axis, so a
- * stretched picture stays stretched alike), sized to the crop and moved by the crop centre's
- * offset from the source centre (image y down; mirrored along u when the layer is flipped), so
- * the picture neither stretches nor moves on the model.
- */
-export function refitDecal(decal: Decal, crop: CropRect, source: { width: number; height: number }, flipX: boolean): Decal {
-  const sx = decal.width / source.width;
-  const sy = decal.height / source.height;
-  const du = (crop.x + crop.w / 2 - source.width / 2) * sx * (flipX ? -1 : 1);
-  const dv = -(crop.y + crop.h / 2 - source.height / 2) * sy;
-  const center = add(add(decal.center, scale(decalRight(decal), du)), scale(decal.up, dv));
-  return { ...decal, center, width: crop.w * sx, height: crop.h * sy };
-}
 
 interface EditorState {
   /** The open project (its `layers` field is stale: `layers` below is the truth). */
@@ -350,104 +223,11 @@ function pushed(past: Layer[][], layers: Layer[]): Layer[][] {
   return next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next;
 }
 
-/**
- * Where a new layer goes (spec "Where a new layer goes"): above the selected layer in its
- * container; at the top of a selected folder; above the merged object of a selected piece; just
- * under the mask with the Base, the mask or nothing selected.
- */
-export function insertTarget(layers: readonly Layer[], selectedId: string | null): { parentId: ParentId; index: number } {
-  const found = selectedId === null ? null : findLayer(layers, selectedId);
-  if (found) {
-    const { layer } = found;
-    if (isPiece(found)) {
-      const merged = findLayer(layers, found.parentId!);
-      if (merged) return { parentId: merged.parentId, index: merged.index + 1 };
-    } else if (layer.kind === 'folder') {
-      return { parentId: layer.id, index: layer.children.length };
-    } else if (layer.kind !== 'base' && layer.kind !== 'mask') {
-      return { parentId: found.parentId, index: found.index + 1 };
-    }
-  }
-  const mask = layers.findIndex((l) => l.kind === 'mask');
-  return { parentId: null, index: mask >= 0 ? mask : layers.length };
-}
-
 /** `layers` with the mask replaced by `change(mask)`; a mask is added (pinned last) when there is none. */
 function withMask(layers: Layer[], change: (mask: MaskLayer) => MaskLayer): Layer[] {
   const mask = maskOf(layers);
   if (!mask) return [...layers, change(newMaskLayer())];
   return layers.map((l) => (l === mask ? change(mask) : l));
-}
-
-/** Whether the found item may be part of a multi-selection: a placed layer or a folder, not a piece. */
-function multiSelectable(found: Found | null): found is Found {
-  return !!found && !isPiece(found) && (found.layer.kind === 'folder' || isPlacedLayer(found.layer as Layer));
-}
-
-/** Gives `item` and everything inside it new ids (in place: call it on a copy). */
-function renewIds(item: TreeItem): void {
-  item.id = newLayerId();
-  if (item.kind === 'folder' || item.kind === 'merged') for (const child of item.children) renewIds(child);
-}
-
-/** The merged object that would be left without a drawable piece if the found piece went, or null. */
-function emptiedBy(found: Found): MergedLayer | null {
-  if (!isPiece(found) || found.parent?.kind !== 'merged') return null;
-  const merged = found.parent;
-  return merged.children.some((c) => c.id !== found.layer.id && c.kind !== 'unsupported') ? null : merged;
-}
-
-/** Who is selected after the item at `index` of `parentId` went: the item below, else the container, else the first layer. */
-function selectionAfterRemoval(layers: readonly Layer[], parentId: ParentId, index: number): string | null {
-  const below = childrenOf(layers, parentId)[index - 1];
-  if (below) return below.id;
-  if (parentId !== null && findLayer(layers, parentId)) return parentId;
-  return layers[0]?.id ?? null;
-}
-
-/** The selection kept by an undo or redo landing on `layers`: the active row if it still exists, else the first layer. */
-function selectionIn(layers: readonly Layer[], selectedId: string | null): string | null {
-  return selectedId !== null && findLayer(layers, selectedId) ? selectedId : (layers[0]?.id ?? null);
-}
-
-/** One piece-to-be of a merge: the item without its frame and its box on the vehicle (null for an unsupported piece without a place). */
-interface MergeSource {
-  item: Omit<Piece, 'place'> | UnsupportedLayer;
-  box: Decal | null;
-}
-
-/** A placed layer's merge sources: one per repeat copy, or a merged object's pieces per frame copy (flattened). */
-function mergeSources(layer: PlacedLayer & { decal: Decal }): MergeSource[] {
-  const copies = repeatDecals(layer.decal, layer.repeat);
-  if (layer.kind !== 'merged') {
-    const source = { ...layer } as Partial<PieceLayer>;
-    delete source.decal;
-    delete source.repeat;
-    // A solid shape's alternate colour fills every second copy (as `plainGroups` draws it).
-    const alternate = layer.kind === 'shape' && layer.fill.kind === 'solid' ? layer.repeat?.alternate : undefined;
-    // The first copy keeps the layer's id (as Separate gives it back), the others get new ones.
-    return copies.map((box, i) => {
-      const fill = alternate !== undefined && i % 2 === 1 ? { fill: { kind: 'solid' as const, color: alternate } } : {};
-      return { item: { ...source, ...fill, id: i === 0 ? layer.id : newLayerId() } as Omit<Piece, 'place'>, box };
-    });
-  }
-  const out: MergeSource[] = [];
-  copies.forEach((frame, i) => {
-    for (const child of layer.children) {
-      // An unsupported piece can't be drawn, so it isn't repeated either.
-      if (child.kind === 'unsupported' && i > 0) continue;
-      const { place, ...rest } = child;
-      const id = i === 0 ? child.id : newLayerId();
-      if (rest.kind === 'unsupported') {
-        out.push({ item: { ...rest, id } as UnsupportedLayer, box: place ? pieceDecal(frame, place) : null });
-        continue;
-      }
-      // The merged object's opacity and visibility go into its pieces, so they look the same in the new one.
-      const item = { ...rest, id, opacity: rest.opacity * layer.opacity, visible: rest.visible && layer.visible } as Omit<Piece, 'place'>;
-      out.push({ item, box: place ? pieceDecal(frame, place) : null });
-    }
-  });
-  return out;
 }
 
 export const useAtelierEditor = create<EditorState>()((set, get) => {
@@ -488,36 +268,6 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
     structural(insertLayers(layers, parentId, index, [layer]), { selectedId: layer.id, ...extra });
   };
 
-  /** Removes the found item (or the merged object it would leave empty); the entry, or null for the Base. */
-  const removal = (layers: Layer[], found: Found): { layers: Layer[]; entry: DeletedEntry } | null => {
-    if (found.layer.kind === 'base') return null;
-    const emptied = emptiedBy(found);
-    const target = emptied ? findLayer(layers, emptied.id) : found;
-    if (!target) return null;
-    const entry: DeletedEntry = { layer: target.layer as Layer | Piece, parentId: target.parentId, index: target.index };
-    if (isPiece(target)) entry.fromMerged = true;
-    return { layers: removeLayers(layers, [target.layer.id]), entry };
-  };
-
-  /**
-   * `layers` with `item` back in `parentId` at `index`, or the top level under the mask when that
-   * container can't take it. Unchanged when the item or anything inside it has an id already in the
-   * tree (it came back another way: an undo then Separate or Dissolve), and for a piece
-   * (`fromMerged`) whose merged object is gone.
-   */
-  const restored = (layers: Layer[], item: Layer | Piece, parentId: ParentId, index: number, fromMerged = false): Layer[] => {
-    if (allLayers([item] as Layer[]).some((inner) => findLayer(layers, inner.id))) return layers;
-    if (parentId !== null) {
-      const container = findLayer(layers, parentId)?.layer;
-      const piece = fromMerged || 'place' in item;
-      const fits = container?.kind === 'merged' ? piece : container?.kind === 'folder' && item.kind !== 'folder' && !piece;
-      if (fits) return insertLayers(layers, parentId, index, [item]);
-    }
-    // A piece only lives in a merged object.
-    if (fromMerged || 'place' in item) return layers;
-    return insertLayers(layers, null, parentId === null ? index : Number.NaN, [item]);
-  };
-
   /** A project setting change (saved, never undone). */
   const setProject = (change: (p: AtelierProject) => AtelierProject) =>
     set((s) => (s.project ? { project: change(s.project), dirty: true, revision: s.revision + 1 } : {}));
@@ -535,17 +285,7 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
       const { layers } = get();
       const base = baseOf(layers);
       if (!base) return;
-      const next: BaseLayer = { ...base, ...patch };
-      // No wear is no field, as in a loaded project.
-      if (!(next.wear !== undefined && next.wear > 0)) delete next.wear;
-      else next.wear = Math.min(1, next.wear);
-      // Defaults are no field either (organic, equal shares, sharp), and shares follow the colours.
-      if (next.pattern === undefined || next.pattern === 'organic') delete next.pattern;
-      if (next.weights === undefined || next.weights.length !== next.colors.length) delete next.weights;
-      if (!(next.softness !== undefined && next.softness > 0)) delete next.softness;
-      else next.softness = Math.min(1, next.softness);
-      if (next.cellSize === undefined) delete next.cellSize;
-      if (next.angle === undefined) delete next.angle;
+      const next = patchedBase(base, patch);
       change(
         layers.map((l) => (l === base ? next : l)),
         mergeKey,
@@ -663,52 +403,23 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
 
     deleteLayer: (id) => {
       const { layers, selectedId } = get();
-      const found = findLayer(layers, id);
-      const removed = found && removal(layers, found);
-      if (!removed) return;
-      const { entry } = removed;
-      const next = removed.layers;
-      const keep = selectedId !== null && findLayer(next, selectedId) !== null;
-      structural(next, { selectedId: keep ? selectedId : selectionAfterRemoval(next, entry.parentId, entry.index) });
+      const edit = deleteItem(layers, id, selectedId);
+      if (edit) structural(edit.layers, { selectedId: edit.selectedId });
     },
 
     duplicateLayer: (id) => {
-      const { layers } = get();
-      const found = findLayer(layers, id);
-      if (!found || isPiece(found)) return;
-      const layer = found.layer as Layer;
-      if (!isPlacedLayer(layer) && layer.kind !== 'folder') return;
-      const copy = structuredClone(layer);
-      renewIds(copy);
-      if (copy.kind === 'folder') {
-        for (const child of copy.children) if (isPlacedLayer(child) && child.decal) child.decal = offsetDecal(child.decal);
-      } else if (copy.decal) {
-        copy.decal = offsetDecal(copy.decal);
-      }
-      const next = insertLayers(layers, found.parentId, found.index + 1, [copy]);
-      if (next !== layers) structural(next, { selectedId: copy.id });
+      const edit = duplicateItem(get().layers, id);
+      if (edit) structural(edit.layers, { selectedId: edit.selectedId });
     },
 
     moveLayer: (id, toIndex) => {
-      const { layers } = get();
-      const found = findLayer(layers, id);
-      if (!found || isPiece(found) || !Number.isFinite(toIndex)) return;
-      const layer = found.layer as Layer;
-      if (layer.kind === 'base' || layer.kind === 'mask') return;
-      const list = childrenOf(layers, found.parentId);
-      const top = found.parentId === null;
-      const first = top ? 1 : 0;
-      const last = list.length - 1 - (top && maskOf(layers) ? 1 : 0);
-      const target = Math.min(last, Math.max(first, Math.round(toIndex)));
-      if (target === found.index) return;
-      structural(insertLayers(removeLayers(layers, [id]), found.parentId, target, [layer]));
+      const next = moveItem(get().layers, id, toIndex);
+      if (next) structural(next);
     },
 
     restoreLayer: (layer, index, parentId = null) => {
-      const { layers } = get();
-      if (layer.kind === 'base' || layer.kind === 'mask' || !Number.isFinite(index)) return;
-      const next = restored(layers, layer, parentId, Math.round(index));
-      if (next !== layers) structural(next, { selectedId: layer.id });
+      const next = restoreItem(get().layers, layer, index, parentId);
+      if (next) structural(next, { selectedId: layer.id });
     },
 
     setDecal: (id, patch, mergeKey) => {
@@ -721,59 +432,19 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
 
     setLayerProps: (id, patch, mergeKey) => {
       const found = find(id);
-      if (!found || found.layer.kind === 'unsupported') return;
-      const kind = found.layer.kind;
-      if (kind !== 'image' && kind !== 'text' && kind !== 'shape' && kind !== 'merged') return;
-      const own: Record<string, unknown> = {};
-      for (const key of PROPS_OF[kind]) if (key in patch) own[key] = (patch as Record<string, unknown>)[key];
-      if (isPiece(found)) {
-        // A piece has no repeat (or frame) of its own: the merged object's apply.
-        delete own.repeat;
-        const piece = found.layer as Piece;
-        const checked = checkPiece({ ...piece, ...own, id: piece.id, kind: piece.kind, place: piece.place } as Piece);
-        if (!checked) return;
-        const frame = found.parent?.kind === 'merged' ? found.parent.decal : null;
-        change(replaceLayer(get().layers, id, withPieceTextWidth(checked, frame)), layerKey(id, mergeKey));
-        return;
-      }
-      const layer = found.layer as PlacedLayer;
-      // A placed layer checks out as one of the same kind (or not at all); `repeat: null` is read as no repeat.
-      const next = checkPlacedLayer({ ...layer, ...own, id: layer.id, kind: layer.kind, decal: layer.decal } as PlacedLayer);
-      if (!next) return;
-      change(replaceLayer(get().layers, id, withTextWidth(next)), layerKey(id, mergeKey));
+      const next = found && withProps(found, patch);
+      if (next) change(replaceLayer(get().layers, id, next), layerKey(id, mergeKey));
     },
 
     applyCutout: (layerId, asset, crop, sourceAsset) => {
-      const layer = framedLayerOf(get().layers, layerId);
-      if (layer?.kind !== 'image' || sourceAsset.width <= 0 || sourceAsset.height <= 0 || crop.w <= 0 || crop.h <= 0) return;
-      // A stale result (undo, another cutout or an edit since it started): the layer no longer shows its source.
-      if (layer.assetId !== sourceAsset.id) return;
-      // A cutout of a cutout: the crop is inside the current picture, which lies at the earlier offset in the
-      // original. Without a known offset, the current picture becomes the source.
-      const composed = layer.sourceAssetId !== undefined && layer.sourceOffset !== undefined;
-      const before = composed ? layer.sourceOffset : undefined;
-      const sourceOffset: CropRect = { x: (before?.x ?? 0) + crop.x, y: (before?.y ?? 0) + crop.y, w: crop.w, h: crop.h };
-      const refit = layer.decal ? toDecal(refitDecal(layer.decal, crop, sourceAsset, layer.flipX)) : null;
-      const next: ImageLayer = {
-        ...layer,
-        assetId: asset.id,
-        sourceAssetId: composed ? layer.sourceAssetId : sourceAsset.id,
-        sourceOffset,
-        decal: refit ?? layer.decal,
-      };
-      commit(replaceLayer(get().layers, layerId, next));
+      const next = cutoutOf(framedLayerOf(get().layers, layerId), asset, crop, sourceAsset);
+      if (next) commit(replaceLayer(get().layers, layerId, next));
     },
 
     refreshTextMetrics: (layerId) => {
       // Earlier and later versions of the layer were measured with the same stand-in font: fix them
       // too, whether it was a layer or a piece there (a merge keeps the first copy's id).
-      const fix = (snapshot: Layer[]) =>
-        mapLayers(snapshot, (item) => {
-          if (item.id === layerId && item.kind === 'text' && 'decal' in item) return withTextWidth(item);
-          if (item.kind !== 'merged' || !item.children.some((c) => c.id === layerId)) return item;
-          const children = item.children.map((c) => (c.id === layerId ? withPieceTextWidth(c, item.decal) : c));
-          return children.every((c, i) => c === item.children[i]) ? item : { ...item, children };
-        });
+      const fix = (snapshot: Layer[]) => remeasured(snapshot, layerId);
       const { layers } = get();
       const next = fix(layers);
       if (next === layers) return;
@@ -807,33 +478,10 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
 
     createFolder: (name, ids) => {
       const { layers, selectedId } = get();
-      if (ids && ids.length > 0) {
-        const unique = [...new Set(ids)];
-        const founds = unique.map((id) => findLayer(layers, id));
-        if (!founds.every((f): f is Found => f !== null && f.parentId === null && isPlacedLayer(f.layer as Layer))) return null;
-        founds.sort((a, b) => a.index - b.index);
-        const topmost = founds[founds.length - 1]!;
-        const folder = newFolder(
-          name,
-          founds.map((f) => f.layer as PlacedLayer),
-        );
-        // The folder takes the topmost layer's place once the layers below it have left.
-        const next = insertLayers(removeLayers(layers, unique), null, topmost.index - (founds.length - 1), [folder]);
-        structural(next, { selectedId: folder.id });
-        return folder.id;
-      }
-      let { parentId, index } = insertTarget(layers, selectedId);
-      if (parentId !== null) {
-        // Never in a folder: right above the top-level layer holding the target.
-        let holder = findLayer(layers, parentId);
-        while (holder && holder.parentId !== null) holder = findLayer(layers, holder.parentId);
-        if (!holder) return null;
-        parentId = null;
-        index = holder.index + 1;
-      }
-      const folder = newFolder(name);
-      structural(insertLayers(layers, parentId, index, [folder]), { selectedId: folder.id });
-      return folder.id;
+      const edit = createFolderIn(layers, selectedId, name, ids);
+      if (!edit) return null;
+      structural(edit.layers, { selectedId: edit.selectedId });
+      return edit.selectedId;
     },
 
     toggleCollapsed: (id) => {
@@ -854,140 +502,41 @@ export const useAtelierEditor = create<EditorState>()((set, get) => {
 
     dissolveFolder: (id) => {
       const { layers, selectedId } = get();
-      const found = findLayer(layers, id);
-      if (found?.layer.kind !== 'folder') return;
-      const { children } = found.layer;
-      const next = spliceLayer(layers, id, children);
-      if (next === layers) return;
-      const active =
-        selectedId !== id ? selectedId : (children[children.length - 1]?.id ?? selectionAfterRemoval(next, found.parentId, found.index));
-      structural(next, { selectedId: active });
+      const edit = dissolveFolderIn(layers, id, selectedId);
+      if (edit) structural(edit.layers, { selectedId: edit.selectedId });
     },
 
     moveInto: (id, parentId, index) => {
-      const { layers } = get();
-      const found = findLayer(layers, id);
-      if (!found || isPiece(found) || !Number.isFinite(index)) return;
-      const kind = found.layer.kind;
-      if (kind === 'base' || kind === 'mask') return;
-      if (parentId !== null) {
-        // One level of folders, and only folders take layers dragged in.
-        if (kind === 'folder' || findLayer(layers, parentId)?.layer.kind !== 'folder') return;
-      }
-      const next = moveItems(layers, [id], parentId, index);
-      if (next !== layers) structural(next);
+      const next = moveIntoFolder(get().layers, id, parentId, index);
+      if (next) structural(next);
     },
 
     deleteLayers: (ids) => {
       const { layers, selectedId } = get();
-      const wanted = new Set(ids);
-      /** Inside a container that goes too: it goes with it. */
-      const inWanted = (id: string): boolean => {
-        for (let at = findLayer(layers, id); at && at.parentId !== null; at = findLayer(layers, at.parentId)) {
-          if (wanted.has(at.parentId)) return true;
-        }
-        return false;
-      };
-      // Top of the tree first, so each entry's index is its place before the delete.
-      const order = allLayers(layers)
-        .filter((item) => wanted.has(item.id) && !inWanted(item.id))
-        .reverse();
-      let next = layers;
-      const entries: DeletedEntry[] = [];
-      for (const item of order) {
-        const found = findLayer(next, item.id);
-        // Gone with a container deleted earlier in this run.
-        if (!found) continue;
-        const removed = removal(next, found);
-        if (!removed) continue;
-        next = removed.layers;
-        entries.push(removed.entry);
-      }
-      const last = entries[entries.length - 1];
-      if (!last) return [];
-      const keep = selectedId !== null && findLayer(next, selectedId) !== null;
-      structural(next, { selectedId: keep ? selectedId : selectionAfterRemoval(next, last.parentId, last.index) });
-      return entries;
+      const edit = deleteItems(layers, ids, selectedId);
+      if (!edit) return [];
+      structural(edit.layers, { selectedId: edit.selectedId });
+      return edit.entries;
     },
 
     restoreLayers: (entries) => {
-      const { layers } = get();
-      let next = layers;
-      let topmost: string | null = null;
-      // In reverse removal order, so each index means what it meant when its item left.
-      for (const entry of [...entries].reverse()) {
-        const { layer } = entry;
-        if (layer.kind === 'base' || layer.kind === 'mask') continue;
-        const put = restored(next, layer, entry.parentId, entry.index, entry.fromMerged === true);
-        if (put === next) continue;
-        next = put;
-        topmost = layer.id;
-      }
-      if (next === layers) return;
-      structural(next, { selectedId: topmost });
+      const edit = restoreItems(get().layers, entries);
+      if (edit) structural(edit.layers, { selectedId: edit.selectedId });
     },
 
     mergeLayers: (ids) => {
-      const { layers } = get();
-      const unique = [...new Set(ids)];
-      if (unique.length < 2) return { ok: false, reason: 'count' };
-      const founds = unique.map((id) => findLayer(layers, id));
-      const first = founds[0];
-      if (
-        !founds.every((f): f is Found => f !== null && !isPiece(f) && f.layer.kind !== 'folder' && f.parentId === first?.parentId)
-      ) {
-        return { ok: false, reason: 'container' };
-      }
-      const placed = unique.map((id) => framedLayerOf(layers, id));
-      if (!placed.every((l): l is PlacedLayer & { decal: Decal } => l !== null && l.decal !== null)) return { ok: false, reason: 'unplaced' };
-      // Bottom to top in the container.
-      const order = founds.map((f, i) => ({ found: f, layer: placed[i]! })).sort((a, b) => a.found.index - b.found.index);
-      const sources = order.flatMap(({ layer }) => mergeSources(layer));
-      if (sources.length > MAX_PIECES) return { ok: false, reason: 'pieces' };
-      const top = order[order.length - 1]!;
-      const boxes = sources.filter((s) => s.item.kind !== 'unsupported' && s.box !== null).map((s) => s.box!);
-      const made = mergeFrame(boxes, top.layer.decal.up);
-      if (!('frame' in made)) return { ok: false, reason: made.refused };
-      const parts = order.map(({ layer }) => layer.decal.part);
-      const part = parts.every((p) => p === parts[0]) ? parts[0]! : 'all';
-      const mirror = order.every(({ layer }) => layer.decal.mirror);
-      const frame: Decal = { ...made.frame, part, mirror };
-      const children: MergedLayer['children'] = [];
-      for (const { item, box } of sources) {
-        if (item.kind === 'unsupported') {
-          children.push(box ? { ...item, place: placeOf(frame, box) } : item);
-          continue;
-        }
-        const piece = checkPiece({ ...item, place: placeOf(frame, box!) } as Piece);
-        // Nothing is lost silently: a piece that doesn't check out refuses the merge.
-        if (!piece) return { ok: false, reason: 'pieces' };
-        children.push(piece);
-      }
-      const merged: MergedLayer = { id: newLayerId(), kind: 'merged', name: '', visible: true, decal: frame, opacity: 1, children };
-      const parentId = top.found.parentId;
-      const next = insertLayers(removeLayers(layers, unique), parentId, top.found.index - (order.length - 1), [merged]);
-      structural(next, { selectedId: merged.id });
-      return {
-        ok: true,
-        id: merged.id,
-        reset: { part: order.some(({ layer }) => layer.decal.part !== part), mirror: order.some(({ layer }) => layer.decal.mirror !== mirror) },
-      };
+      const merged = mergeItems(get().layers, ids);
+      if (!merged.ok) return merged;
+      structural(merged.layers, { selectedId: merged.id });
+      return { ok: true, id: merged.id, reset: merged.reset };
     },
 
     separate: (id) => {
-      const { layers } = get();
-      const found = findLayer(layers, id);
-      if (found?.layer.kind !== 'merged') return { ok: false };
-      const merged = found.layer;
-      const separated = separatePieces(merged);
-      if (separated.length === 0) return { ok: false };
-      const next = spliceLayer(layers, id, separated);
-      if (next === layers) return { ok: false };
-      const separatedIds = separated.map((l) => l.id);
-      // Unsupported pieces come back as layers too, but only placed layers can be selected together.
-      const selectable = separated.filter((l) => isPlacedLayer(l)).map((l) => l.id);
-      structural(next, { selectedId: selectable[selectable.length - 1] ?? null, selectedIds: selectable.length > 1 ? selectable : [] });
-      return { ok: true, ids: separatedIds, droppedRepeat: merged.repeat !== undefined };
+      const separated = separateMerged(get().layers, id);
+      if (!separated) return { ok: false };
+      const { selectable } = separated;
+      structural(separated.layers, { selectedId: selectable[selectable.length - 1] ?? null, selectedIds: selectable.length > 1 ? selectable : [] });
+      return { ok: true, ids: separated.ids, droppedRepeat: separated.droppedRepeat };
     },
 
     undo: () => {

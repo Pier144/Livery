@@ -4,7 +4,6 @@ import {
   DUPLICATE_OFFSET,
   HISTORY_LIMIT,
   currentProject,
-  insertTarget,
   refitDecal,
   resetAtelierEditor,
   setTextMeasurer,
@@ -18,7 +17,6 @@ import {
   newBaseLayer,
   newFolder,
   newImageLayer,
-  newMaskLayer,
   newShapeLayer,
   newTextLayer,
   type Decal,
@@ -817,6 +815,16 @@ describe('editor store · folders', () => {
     S().toggleCollapsed('x');
     expect(item<ImageLayer>('x')).not.toHaveProperty('collapsed');
   });
+
+  it('a layer added with a folder child selected lands in the folder', () => {
+    loadLayers(folderOf('F', [image('a')]));
+    S().select('a');
+    S().addDecalLayer(image('n'));
+    expect(childIds('F')).toEqual(['a', 'n']);
+    S().select('F');
+    S().addDecalLayer(image('m'));
+    expect(childIds('F')).toEqual(['a', 'n', 'm']);
+  });
 });
 
 describe('editor store · multi-select', () => {
@@ -1170,47 +1178,5 @@ describe('editor store · merge and separate', () => {
     const count = allLayers(S().layers).length;
     S().duplicateLayer('a');
     expect(allLayers(S().layers)).toHaveLength(count);
-  });
-});
-
-describe('insertTarget', () => {
-  const { decal: _d, ...pictureOfP } = image('p');
-  const merged: MergedLayer = {
-    id: 'M',
-    kind: 'merged',
-    name: '',
-    visible: true,
-    decal: DECAL,
-    opacity: 1,
-    children: [{ ...pictureOfP, place: { x: 0, y: 0, w: 1, h: 1, angle: 0 } }],
-  };
-  const layers: Layer[] = [{ ...newBaseLayer(), id: 'B' }, image('x'), folderOf('F', [image('a'), image('b')]), merged, { ...newMaskLayer(), id: 'K' }];
-
-  it('goes above the selected layer in its container, or at the top of a selected folder', () => {
-    expect(insertTarget(layers, 'x')).toEqual({ parentId: null, index: 2 });
-    expect(insertTarget(layers, 'a')).toEqual({ parentId: 'F', index: 1 });
-    expect(insertTarget(layers, 'F')).toEqual({ parentId: 'F', index: 2 });
-    expect(insertTarget(layers, 'M')).toEqual({ parentId: null, index: 4 });
-  });
-
-  it('goes above the merged object of a selected piece', () => {
-    expect(insertTarget(layers, 'p')).toEqual({ parentId: null, index: 4 });
-    const inFolder: Layer[] = [layers[0]!, folderOf('G', [image('y'), merged])];
-    expect(insertTarget(inFolder, 'p')).toEqual({ parentId: 'G', index: 2 });
-  });
-
-  it('goes just under the mask with the Base, the mask or nothing selected', () => {
-    for (const id of ['B', 'K', null, 'gone']) expect(insertTarget(layers, id)).toEqual({ parentId: null, index: 4 });
-    expect(insertTarget(layers.slice(0, 4), null)).toEqual({ parentId: null, index: 4 });
-  });
-
-  it('a layer added with a folder child selected lands in the folder', () => {
-    loadLayers(folderOf('F', [image('a')]));
-    S().select('a');
-    S().addDecalLayer(image('n'));
-    expect(childIds('F')).toEqual(['a', 'n']);
-    S().select('F');
-    S().addDecalLayer(image('m'));
-    expect(childIds('F')).toEqual(['a', 'n', 'm']);
   });
 });

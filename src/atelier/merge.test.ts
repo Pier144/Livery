@@ -6,7 +6,6 @@ import {
   MERGE_MAX_ANGLE_DEG,
   REPEAT_DEPTH_GROWTH,
   add,
-  checkPlacedLayer,
   decalRight,
   dot,
   length,
@@ -24,6 +23,7 @@ import {
   type UnsupportedPiece,
   type Vec3,
 } from './project';
+import { checkPlacedLayer } from './projectCheck';
 
 const DEG = Math.PI / 180;
 
