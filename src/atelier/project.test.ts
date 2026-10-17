@@ -705,12 +705,43 @@ describe('merged objects', () => {
     expect((layers[1] as MergedLayer).children.map((c) => c.id)).toEqual(['ok']);
   });
 
-  it('a merged object without a drawable piece is dropped', () => {
-    for (const children of [[], [{ id: 'u', kind: 'sticker', place: place() }], 'x', [piece(shape({ id: 'bad' }), { w: 0 })]]) {
+  it('a merged object without any piece left is dropped', () => {
+    for (const children of [[], 'x', [42, null], [piece(shape({ id: 'bad' }), { w: 0 })], [{ ...BASE, id: 'pb', place: place() }]]) {
       const { layers, repaired } = checkLayers([BASE, merged(children), MASK]);
       expect(repaired).toBe(true);
       expect(layers.map((l) => l.id)).toEqual(['b', 'm']);
     }
+  });
+
+  it('a merged object whose pieces are all unsupported is kept as an unsupported layer, exactly as it came', () => {
+    for (const children of [
+      [{ id: 'u', kind: 'sticker', place: place() }],
+      [{ id: 'u', kind: 'sticker' }, piece(shape({ id: 'bad' }), { w: 0 }), { ...MASK, id: 'pm', place: place() }],
+    ]) {
+      const raw = merged(children);
+      const json = [BASE, raw, MASK];
+      const { layers, repaired } = checkLayers(json);
+      expect(repaired).toBe(false);
+      expect(layers[1]).toMatchObject({ kind: 'unsupported', id: 'g', original: raw });
+      expect(serializeLayers(layers)).toEqual(json);
+    }
+  });
+
+  it('checking again keeps unsupported pieces and layers as they came', () => {
+    const json = [
+      BASE,
+      merged([piece(shape({ id: 'p' })), { id: 'u1', kind: 'sticker', name: '', visible: true, place: place({ x: 0.2 }) }, { id: 'u2', kind: 'sticker', name: '', visible: true }]),
+      folder([{ id: 'u3', kind: 'sticker', name: '', visible: true }]),
+      { id: 'u4', kind: 'sticker', name: '', visible: true },
+      MASK,
+    ];
+    const layers = validateLayers(json);
+    const m = layers[1] as MergedLayer;
+    expect(serializeLayers([checkPlacedLayer(m)!])).toEqual([json[1]]);
+    expect(serializeLayers([checkPlacedLayer({ ...m, opacity: 0.5 })!])).toEqual([{ ...(json[1] as object), opacity: 0.5 }]);
+    const again = checkLayers(layers);
+    expect(again.repaired).toBe(false);
+    expect(serializeLayers(again.layers)).toEqual(json);
   });
 
   it('removes repeat and decal from pieces, and keeps at most MAX_PIECES', () => {
@@ -755,6 +786,41 @@ describe('ids across the tree', () => {
       if (l.kind === 'folder' || l.kind === 'merged') for (const c of l.children) ids.push(c.id);
     }
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('renews a piece id of a merged object inside a folder', () => {
+    const { layers, repaired } = checkLayers([BASE, image({ id: 'x' }), folder([merged([piece(shape({ id: 'x' })), piece(shape({ id: 'y' }))])])]);
+    expect(repaired).toBe(true);
+    expect(layers[1]?.id).toBe('x');
+    const inner = (layers[2] as FolderLayer).children[0] as MergedLayer;
+    expect(inner.children[0]?.id).not.toBe('x');
+    expect(inner.children[1]?.id).toBe('y');
+  });
+});
+
+describe('checkLayers input', () => {
+  it('leaves the JSON it is given untouched', () => {
+    const json = [
+      image({ id: 'i', repeat: { count: 60, gap: 9, alternate: 'red' } }),
+      folder([
+        folder([text({ id: 't' })], { id: 'inner' }),
+        { ...BASE, id: 'fb' },
+        merged(
+          [
+            { ...piece(shape({ id: 'p', fill: { kind: 'stripes', colors: ['#AAAAAA'], angle: 200 } })), repeat: { count: 3 }, decal: decal() },
+            { id: 'u', kind: 'sticker', place: { w: 0 } },
+            { ...MASK, place: place() },
+          ],
+          { id: 'g' },
+        ),
+      ]),
+      merged(Array.from({ length: MAX_PIECES + 2 }, (_, i) => piece(shape({ id: `q${i}` }))), { id: 'g2' }),
+      { id: 'i', kind: 'image' },
+      MASK,
+    ];
+    const before = structuredClone(json);
+    checkLayers(json);
+    expect(json).toEqual(before);
   });
 });
 

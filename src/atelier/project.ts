@@ -716,12 +716,28 @@ interface Repairs {
 const unsupported = (raw: Record<string, unknown> & { kind: string }): UnsupportedLayer => ({ ...common(raw), kind: 'unsupported', original: raw });
 
 /**
+ * An unsupported layer or piece already checked (in memory, e.g. inside an edited merged object),
+ * kept as it is so checking again never wraps its `original` a second time; null for anything else.
+ */
+function alreadyUnsupported(raw: Record<string, unknown>): UnsupportedLayer | null {
+  if (raw.kind !== 'unsupported' || !isObject(raw.original)) return null;
+  const original = raw.original;
+  if (typeof original.kind !== 'string' || original.kind.length === 0) return null;
+  return { ...common(raw), kind: 'unsupported', original: original as UnsupportedLayer['original'] };
+}
+
+/**
  * A piece that checks out, an unsupported piece (a kind this version doesn't know, or an image
  * without its asset, with its place when valid), or null: dropped (not a layer; a Base, mask,
  * folder or merged object; a drawable piece without a valid place).
  */
 function toPiece(raw: unknown, repairs: Repairs): Piece | UnsupportedPiece | null {
   if (!isObject(raw) || typeof raw.kind !== 'string' || raw.kind.length === 0) return null;
+  const kept = alreadyUnsupported(raw);
+  if (kept) {
+    const place = toPlace(raw.place);
+    return place ? { ...kept, place } : kept;
+  }
   const kind = raw.kind;
   if (kind === 'base' || kind === 'mask' || kind === 'folder' || kind === 'merged') {
     repairs.repaired = true;
@@ -745,18 +761,26 @@ function toPiece(raw: unknown, repairs: Repairs): Piece | UnsupportedPiece | nul
   return piece as Piece;
 }
 
-/** A merged object that checks out, or null (dropped) when no drawable piece is left. */
-function toMerged(raw: Record<string, unknown>, repairs: Repairs): MergedLayer | null {
+/**
+ * A merged object that checks out; an unsupported layer exactly as it came when every piece left
+ * is unsupported (a later Livery's pieces: kept and saved back, not drawn); null (dropped) when no
+ * piece is left at all.
+ */
+function toMerged(raw: Record<string, unknown>, repairs: Repairs): MergedLayer | UnsupportedLayer | null {
+  // The pieces' repairs only count once it is clear the object is checked rather than kept as it came.
+  const own: Repairs = { repaired: false };
   const children = (Array.isArray(raw.children) ? raw.children : [])
-    .map((c) => toPiece(c, repairs))
+    .map((c) => toPiece(c, own))
     .filter((c): c is Piece | UnsupportedPiece => c !== null);
+  if (children.length === 0) {
+    repairs.repaired = true;
+    return null;
+  }
+  if (!children.some((c) => c.kind !== 'unsupported')) return unsupported(raw as UnsupportedLayer['original']);
+  if (own.repaired) repairs.repaired = true;
   if (children.length > MAX_PIECES) {
     repairs.repaired = true;
     children.length = MAX_PIECES;
-  }
-  if (!children.some((c) => c.kind !== 'unsupported')) {
-    repairs.repaired = true;
-    return null;
   }
   const layer: MergedLayer = {
     ...raw,
@@ -789,8 +813,10 @@ export function checkPlacedLayer(layer: PlacedLayer): PlacedLayer | null {
       return toText(raw);
     case 'shape':
       return toShape(raw);
-    case 'merged':
-      return toMerged(raw, repairs);
+    case 'merged': {
+      const merged = toMerged(raw, repairs);
+      return merged?.kind === 'merged' ? merged : null;
+    }
     default:
       return null;
   }
@@ -804,6 +830,8 @@ export function checkPiece(piece: Piece): Piece | null {
 
 function toLayer(raw: unknown, repairs: Repairs): Layer | null {
   if (!isObject(raw) || typeof raw.kind !== 'string' || raw.kind.length === 0) return null;
+  const kept = alreadyUnsupported(raw);
+  if (kept) return kept;
   switch (raw.kind) {
     case 'base':
       return toBase(raw);
@@ -816,7 +844,7 @@ function toLayer(raw: unknown, repairs: Repairs): Layer | null {
     case 'merged':
       return toMerged(raw, repairs);
     case 'folder':
-      // Nested content is sorted out by `checkLayers`.
+      // Safe: `toLayer` is only called by `checkLayers` (top level, and folder children via `toFolder`), which flattens every folder before returning.
       return toFolder(raw, repairs) as unknown as FolderLayer;
   }
   const image = raw.kind === 'image' ? toImage(raw) : null;
