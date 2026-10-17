@@ -1404,6 +1404,7 @@
     "licenses": {
       "title": "Licenses",
       "intro": "Livery is built with open-source fonts and libraries. Thanks to everyone who makes them.",
+      "own": "Copyright © 2026 Pierangelo Pancera. Livery is free software under the GNU General Public License v3.0 or later: you can share and change it under the same licence, and its source code is on GitHub. It comes with no warranty.",
       "fonts": "Fonts",
       "notices": "Third-party notices",
       "all": "All third-party licenses",

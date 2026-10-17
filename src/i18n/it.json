@@ -1451,6 +1451,7 @@
     "licenses": {
       "title": "Licenze",
       "intro": "Livery usa caratteri e librerie open source. Grazie a chi li realizza.",
+      "own": "Copyright © 2026 Pierangelo Pancera. Livery è software libero con licenza GNU General Public License v3.0 o successiva: puoi condividerlo e modificarlo alle stesse condizioni, e il codice sorgente è su GitHub. Viene fornito senza alcuna garanzia.",
       "fonts": "Caratteri",
       "notices": "Avvisi di terze parti",
       "all": "Tutte le licenze di terze parti",

@@ -967,8 +967,9 @@ describe('Settings · About', () => {
 
     const close = within(dialog).getByRole('button', { name: 'Close' });
     const toggles = within(dialog).getAllByRole('button', { name: 'Show license text' });
-    expect(toggles).toHaveLength(6);
-    const [geist, plex, zstd, awsLc, rust, javascript] = toggles as HTMLElement[] as [
+    expect(toggles).toHaveLength(7);
+    const [geist, plex, zstd, awsLc, ooz, rust, javascript] = toggles as HTMLElement[] as [
+      HTMLElement,
       HTMLElement,
       HTMLElement,
       HTMLElement,
@@ -982,6 +983,10 @@ describe('Settings · About', () => {
     // decoded by the user's 7-Zip or WinRAR), so there is no UnRAR licence either.
     expect(within(dialog).getByText('BSD-3-Clause')).toBeInTheDocument();
     expect(within(dialog).queryByText(/UnRAR/)).toBeNull();
+    // ooz (via oozextract) is GPL-3.0-or-later, which is why Livery is too: both are stated.
+    expect(within(dialog).getByText('ooz · Powzix (Rust port: oozextract)')).toBeInTheDocument();
+    expect(within(dialog).getByText('GPL-3.0-or-later')).toBeInTheDocument();
+    expect(within(dialog).getByText(/GNU General Public License v3\.0 or later/)).toBeInTheDocument();
     await user.tab();
     expect(close).toHaveFocus();
     await user.tab();
@@ -992,6 +997,8 @@ describe('Settings · About', () => {
     expect(zstd).toHaveFocus();
     await user.tab();
     expect(awsLc).toHaveFocus();
+    await user.tab();
+    expect(ooz).toHaveFocus();
     await user.tab();
     expect(rust).toHaveFocus();
     await user.tab();

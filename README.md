@@ -144,7 +144,12 @@ Free code signing provided by [SignPath.io](https://about.signpath.io/), certifi
 
 ## License
 
-Livery is free software under the [MIT licence](LICENSE). It includes open-source libraries and
+Copyright © 2026 Pierangelo Pancera. Livery is free software under the
+[GNU General Public License v3.0 or later](LICENSE): anyone may use, share and change it, and
+anyone who distributes it, changed or not, must pass on the same freedoms and the source code. It
+comes with no warranty. Versions up to 0.4.0 were published as MIT; from the next release Livery is
+GPL-3.0-or-later because Atelier decodes the game's Oodle streams with `oozextract`, a Rust port of
+[ooz](https://github.com/powzix/ooz) (GPL-3.0-or-later). It includes open-source libraries and
 fonts under their own licences: every one, with its full text, is listed in the app (Settings →
 About → Licenses) and in `THIRD-PARTY-NOTICES.txt` attached to each release. Livery contains no
 RAR code of its own: RAR archives are unpacked by the 7-Zip or WinRAR already installed on your PC.

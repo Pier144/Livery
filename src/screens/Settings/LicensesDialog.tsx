@@ -5,6 +5,7 @@ import geistLicense from '@/assets/fonts/Geist-OFL.txt?raw';
 import plexLicense from '@/assets/fonts/IBMPlexMono-OFL.txt?raw';
 import zstdLicense from '@/assets/licenses/zstd-BSD-3-Clause.txt?raw';
 import awsLcLicense from '@/assets/licenses/AWS-LC.txt?raw';
+import oozLicense from '@/assets/licenses/ooz-GPL-3.0.txt?raw';
 
 /** Bundled fonts: their license texts ship next to the woff2 files. */
 const FONTS = [
@@ -15,11 +16,14 @@ const FONTS = [
 /**
  * Bundled native code whose licence asks for its text in the documentation: Zstandard
  * (BSD-3-Clause, inside ZIP support) and AWS-LC (the cryptography behind HTTPS to WT Live; ISC,
- * Apache-2.0, MIT and BSD-3-Clause parts). RAR is decoded by the user's own 7-Zip or WinRAR.
+ * Apache-2.0, MIT and BSD-3-Clause parts), and ooz (GPL-3.0-or-later, through oozextract, its Rust
+ * port, for Atelier's Oodle streams; the reason Livery itself is GPL-3.0-or-later). RAR is decoded
+ * by the user's own 7-Zip or WinRAR.
  */
 const NOTICES = [
   { name: 'Zstandard · Meta Platforms, Inc.', license: 'BSD-3-Clause', text: zstdLicense },
   { name: 'AWS-LC · Amazon.com, Inc.', license: 'ISC · Apache-2.0 · MIT · BSD-3-Clause', text: awsLcLicense },
+  { name: 'ooz · Powzix (Rust port: oozextract)', license: 'GPL-3.0-or-later', text: oozLicense },
 ] as const;
 
 /** Main open-source libraries (names and SPDX ids aren't translated). */
@@ -224,6 +228,7 @@ export function LicensesDialog({ onClose }: { onClose: () => void }) {
           <p id={introId} className="text-body text-ink-3">
             {t('settings.licenses.intro')}
           </p>
+          <p className="text-body text-ink-3">{t('settings.licenses.own')}</p>
           <section aria-labelledby={fontsId} className="flex flex-col gap-2">
             <h3 id={fontsId} className="font-mono text-mono-label uppercase text-ink-4">
               {t('settings.licenses.fonts')}

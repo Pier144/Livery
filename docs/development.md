@@ -117,4 +117,4 @@ NSIS installer, per user, in the app's nine languages, self-updating through sig
 
 ## License
 
-MIT, see [LICENSE](../LICENSE). The fonts shipped in `src/assets/fonts` keep their own licence (SIL OFL 1.1, the texts are next to them and inside the app under Settings → About).
+GPL-3.0-or-later, see [LICENSE](../LICENSE) (MIT up to 0.4.0; it changed because `oozextract`, the Oodle decoder Atelier uses, is a Rust port of powzix's GPL-3.0-or-later `ooz`). Only add dependencies whose licence is compatible with GPL-3.0 (MIT, Apache-2.0, BSD, ISC, Zlib, MPL-2.0 and the like are; non-commercial or proprietary licences are not). The fonts shipped in `src/assets/fonts` keep their own licence (SIL OFL 1.1, the texts are next to them and inside the app under Settings → About).

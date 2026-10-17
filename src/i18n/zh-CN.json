@@ -1357,6 +1357,7 @@
     "licenses": {
       "title": "许可证",
       "intro": "Livery 使用开源字体和库构建。感谢所有开发它们的人。",
+      "own": "Copyright © 2026 Pierangelo Pancera。Livery 是自由软件，采用 GNU 通用公共许可证 3.0 或更高版本：你可以按相同许可分享和修改它，源代码在 GitHub 上。本软件不提供任何担保。",
       "fonts": "字体",
       "notices": "第三方声明",
       "all": "所有第三方许可证",
