@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_INNER_RATIO, DEFAULT_STAR_POINTS, newHazardStripe, newShapeLayer, type ShapeLayer } from './project';
-import { polygonPoints, quantiseOctave16, rasteriseShape, shapeKey, starPoints, stripeBands } from './shapes';
+import { MAX_STRIPE_BANDS, polygonPoints, quantiseOctave16, rasteriseShape, shapeKey, starPoints, stripeBands } from './shapes';
 import { MAX_RASTER_SIDE } from './text';
 
 /** Ray casting: is `p` inside (or on the edge of) the polygon `poly`? */
@@ -93,6 +93,13 @@ describe('stripeBands', () => {
     expect(bands).toHaveLength(10);
   });
 
+  it('never lists more than MAX_STRIPE_BANDS, kept around the centre', () => {
+    const bands = stripeBands(100, 100, 45, 0.001);
+    expect(bands).toHaveLength(MAX_STRIPE_BANDS);
+    // Band 0 (colour 0) still starts on the centre.
+    expect(bands.filter((b) => inside([50, 50], b.quad))).toHaveLength(2);
+  });
+
   it('a positive angle leans the boundaries right (up the frame = further right)', () => {
     const [band] = stripeBands(1, 1, 30, 0.2);
     const quad = band!.quad;
@@ -135,11 +142,21 @@ describe('shapeKey', () => {
     expect(shapeKey({ ...solid, points: 7 }, 'main', frame, 256, false)).not.toBe(base);
   });
 
+  it('ignores the outline colour while the outline width is 0', () => {
+    expect(shapeKey({ ...solid, outlineColor: '#123456' }, 'main', frame, 256, false)).toBe(shapeKey(solid, 'main', frame, 256, false));
+    const outlined = { ...solid, outlineWidth: 4 };
+    expect(shapeKey({ ...outlined, outlineColor: '#123456' }, 'main', frame, 256, false)).not.toBe(shapeKey(outlined, 'main', frame, 256, false));
+  });
+
   it('ignores the frame size for solid fills (same aspect), includes it for stripes', () => {
     expect(shapeKey(solid, 'main', { width: 2, height: 1 }, 256, false)).toBe(shapeKey(solid, 'main', frame, 256, false));
     expect(shapeKey(solid, 'main', { width: 3, height: 1 }, 256, false)).not.toBe(shapeKey(solid, 'main', frame, 256, false));
     const hazard = newHazardStripe('Hazard');
     expect(shapeKey(hazard, 'main', { width: 2, height: 1 }, 256, false)).not.toBe(shapeKey(hazard, 'main', frame, 256, false));
+    // Stripes key on the aspect and the quantised height in metres.
+    expect(shapeKey(hazard, 'main', { width: 2, height: 1 }, 256, false)).toMatch(/:256:2:1:p$/);
+    // A zero height gives no NaN.
+    expect(shapeKey(hazard, 'main', { width: 2, height: 0 }, 256, false)).not.toContain('NaN');
     // The alternate colour doesn't apply to stripes.
     expect(shapeKey({ ...hazard, repeat: solid.repeat }, 'alt', frame, 256, false)).toBe(shapeKey(hazard, 'main', frame, 256, false));
   });
@@ -156,11 +173,14 @@ describe('rasteriseShape', () => {
 
 class StubPath {
   ops: string[] = [];
+  pts: [number, number][] = [];
   moveTo(x: number, y: number) {
     this.ops.push(`M${+x.toFixed(2)},${+y.toFixed(2)}`);
+    this.pts.push([x, y]);
   }
   lineTo(x: number, y: number) {
     this.ops.push(`L${+x.toFixed(2)},${+y.toFixed(2)}`);
+    this.pts.push([x, y]);
   }
   arcTo(_x1: number, _y1: number, _x2: number, _y2: number, r: number) {
     this.ops.push(`A${+r.toFixed(2)}`);
@@ -183,6 +203,7 @@ class StubContext {
   lineJoin = '';
   miterLimit = 10;
   calls: string[] = [];
+  fills: { style: string; path: StubPath }[] = [];
   constructor(
     readonly width: number,
     readonly height: number,
@@ -199,6 +220,7 @@ class StubContext {
   }
   fill(path: StubPath) {
     this.calls.push(`fill ${this.fillStyle} ${path.ops[0]}`);
+    this.fills.push({ style: this.fillStyle, path });
   }
   stroke(path: StubPath) {
     this.calls.push(`stroke ${this.strokeStyle} ${+this.lineWidth.toFixed(2)}`);
@@ -265,16 +287,52 @@ describe('rasteriseShape (stub canvas)', () => {
     expect(DEFAULT_INNER_RATIO).toBeGreaterThan(0);
   });
 
-  it('stripes: clipped to the shape, both colours drawn', async () => {
+  it('stripes: the first colour over the whole shape, then only the second colour bands, clipped', async () => {
     const hazard = newHazardStripe('Hazard');
     await rasteriseShape(hazard, 'main', { width: 0.8, height: 0.1 }, 64);
-    const calls = contexts.at(-1)!.calls;
+    const ctx = contexts.at(-1)!;
+    const calls = ctx.calls;
     expect(calls[0]).toBe('save');
     // Hazard frame 8:1 at 64 px: a sharp 512 × 64 rectangle.
     expect(calls[1]).toBe('clip R0,0,512,64');
-    expect(calls.some((c) => c.startsWith('fill #e8b600'))).toBe(true);
-    expect(calls.some((c) => c.startsWith('fill #141414'))).toBe(true);
+    expect(calls[2]).toBe('fill #e8b600 R0,0,512,64');
+    const rest = calls.slice(3, -1);
+    expect(rest.length).toBeGreaterThan(0);
+    for (const c of rest) expect(c).toMatch(/^fill #141414 M/);
     expect(calls.at(-1)).toBe('restore');
+  });
+
+  it('angle 0: colour-1 bands sit at odd steps from the centre, the one left of it ending at W/2', async () => {
+    const layer: ShapeLayer = { ...newShapeLayer('rect'), fill: { kind: 'stripes', colors: ['#ffffff', '#000000'], angle: 0, stripeWidth: 0.1 } };
+    // 1 × 0.5 m at 100 px: 200 × 100 raster, 200 px per metre, stripes 20 px.
+    await rasteriseShape(layer, 'main', { width: 1, height: 0.5 }, 100);
+    const ranges = contexts
+      .at(-1)!
+      .fills.filter((f) => f.style === '#000000')
+      .map((f) => [Math.min(...f.path.pts.map((p) => p[0])), Math.max(...f.path.pts.map((p) => p[0]))].map((v) => +v.toFixed(6)))
+      .sort((a, b) => a[0]! - b[0]!);
+    // Band k spans s ∈ [0.1k, 0.1(k+1)) m right of the centre, colour 1 for odd k: k = −5, −3, −1, 1, 3.
+    expect(ranges).toEqual([
+      [0, 20],
+      [40, 60],
+      [80, 100],
+      [120, 140],
+      [160, 180],
+    ]);
+  });
+
+  it('stripes thinner than the raster can show blend into one fill of the average colour', async () => {
+    const hazard = newHazardStripe('Hazard');
+    const thin: ShapeLayer = { ...hazard, fill: { ...(hazard.fill as Extract<ShapeLayer['fill'], { kind: 'stripes' }>), stripeWidth: 0.01 } };
+    const img = (await rasteriseShape(thin, 'main', { width: 100, height: 1 }, 64))!;
+    expect(img.w).toBe(MAX_RASTER_SIDE);
+    // (#e8b600 + #141414) / 2 per channel.
+    expect(contexts.at(-1)!.calls).toEqual([`fill #7e650a R0,0,${img.w},${img.h}`]);
+  });
+
+  it('a zero-height frame draws without NaN', async () => {
+    await rasteriseShape(newHazardStripe('Hazard'), 'main', { width: 1, height: 0 }, 64);
+    for (const c of contexts.at(-1)!.calls) expect(c).not.toContain('NaN');
   });
 
   it('an unknown shape draws as a rectangle; corners round it', async () => {

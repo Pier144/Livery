@@ -22,11 +22,14 @@ import { MAX_RASTER_SIDE } from './text';
  *
  * A shape fills its frame: rectangles and ellipses touch its sides, stars and polygons are
  * inscribed in the frame's ellipse with one vertex up, so stretching the frame stretches them.
- * The raster's aspect is the frame's quantised to sixteenth octaves (about 2 %): the picture is
- * stretched onto the exact frame, so only corner, outline and stripe proportions shift a little,
- * and an edge drag re-rasterises a few times rather than on every frame. Stripes are laid out in
- * metres on the vehicle (stretching a band adds stripes), so the frame's quantised size joins the
- * key of striped shapes. The outline is drawn inside the shape's edge (clipped stroke), so the
+ * The raster's aspect is the frame's quantised to sixteenth octaves (at most 2.2 % off): the
+ * picture is stretched onto the exact frame, so only corner, outline and stripe proportions shift a
+ * little, and an edge drag re-rasterises a few times rather than on every frame. Stripes are laid
+ * out in metres on the vehicle (stretching a band adds stripes): on a frame the quantised height
+ * tall and `height × aspect` wide (both quantised, so the stripes stay square to the raster), and
+ * that height joins the key of striped shapes. Stripes are drawn as the first colour over the
+ * whole shape with the second colour's bands on top (no seams where bands meet); stripes thinner
+ * than STRIPE_MIN_PX on the raster blend into one fill of the two colours' average. The outline is drawn inside the shape's edge (clipped stroke), so the
  * frame stays the shape's outer edge.
  *
  * Canvas work uses `OffscreenCanvas` and `Path2D` (WebView2 has both; jsdom doesn't, so the
@@ -35,6 +38,11 @@ import { MAX_RASTER_SIDE } from './text';
 
 type Point = [number, number];
 type Ctx = OffscreenCanvasRenderingContext2D;
+
+/** Most bands `stripeBands` lists (kept around the frame's centre). */
+export const MAX_STRIPE_BANDS = 4096;
+/** Stripes narrower than this on the raster (px) are drawn as one fill of the colours' average. */
+export const STRIPE_MIN_PX = 1.5;
 
 /** `v` rounded and clamped to `min..max`, `fallback` when it isn't a finite number. */
 function clampedInt(v: number | undefined, min: number, max: number, fallback: number): number {
@@ -80,10 +88,11 @@ export function polygonPoints(sides: number, w: number, h: number): [number, num
  * frame's top-left (y down) with its colour index; band k covers `s ∈ [k·sw, (k+1)·sw)` of the
  * across coordinate `s` measured from the frame's centre, so a boundary passes through the centre
  * (band 0, colour 0, starts there). Quads reach past the frame's diagonal along the boundaries,
- * and only the bands that meet the frame are listed, across from negative to positive `s`.
+ * and only the bands that meet the frame are listed, across from negative to positive `s`, at
+ * most MAX_STRIPE_BANDS of them (around the centre).
  */
 export function stripeBands(widthM: number, heightM: number, angleDeg: number, stripeWidth: number): { color: 0 | 1; quad: [number, number][] }[] {
-  const sw = Number.isFinite(stripeWidth) && stripeWidth > 0 ? stripeWidth : DEFAULT_STRIPE_WIDTH;
+  const sw = stripeWidthOf(stripeWidth);
   const w = Math.abs(widthM);
   const h = Math.abs(heightM);
   const a = ((Number.isFinite(angleDeg) ? angleDeg : 0) * Math.PI) / 180;
@@ -93,8 +102,9 @@ export function stripeBands(widthM: number, heightM: number, angleDeg: number, s
   // The frame's corners reach this far across; the quads this far along.
   const reach = (w / 2) * Math.abs(across[0]) + (h / 2) * Math.abs(across[1]);
   const half = Math.hypot(w, h) / 2 + sw;
-  const kMin = Math.floor(-reach / sw);
-  const kMax = Math.max(kMin, Math.ceil(reach / sw) - 1);
+  const halfCap = MAX_STRIPE_BANDS / 2;
+  const kMin = Math.max(-halfCap, Math.floor(-reach / sw));
+  const kMax = Math.min(halfCap - 1, Math.max(kMin, Math.ceil(reach / sw) - 1));
   // (right, up) from the centre → metres from the top-left, y down.
   const out = (s: number, t: number): Point => [w / 2 + s * across[0] + t * along[0], h / 2 - (s * across[1] + t * along[1])];
   const bands: { color: 0 | 1; quad: [number, number][] }[] = [];
@@ -104,6 +114,19 @@ export function stripeBands(widthM: number, heightM: number, angleDeg: number, s
     bands.push({ color: (((k % 2) + 2) % 2) as 0 | 1, quad: [out(s0, -half), out(s0, half), out(s1, half), out(s1, -half)] });
   }
   return bands;
+}
+
+/** A usable stripe width in metres: DEFAULT_STRIPE_WIDTH for zero, negative or non-finite. */
+function stripeWidthOf(stripeWidth: number): number {
+  return Number.isFinite(stripeWidth) && stripeWidth > 0 ? stripeWidth : DEFAULT_STRIPE_WIDTH;
+}
+
+/** The colour halfway between two `#rrggbb` colours (per channel, rounded). */
+function averageColor(a: string, b: string): string {
+  const channel = (c: string, i: number) => parseInt(c.slice(1 + 2 * i, 3 + 2 * i), 16) || 0;
+  let out = '#';
+  for (let i = 0; i < 3; i++) out += Math.round((channel(a, i) + channel(b, i)) / 2).toString(16).padStart(2, '0');
+  return out;
 }
 
 /** `v` rounded to sixteenth octaves (`2^(round(16·log2 v)/16)`), within about 2.2 %; non-positive values as they are. */
@@ -118,21 +141,25 @@ function fillFor(layer: Pick<ShapeLayer, 'fill' | 'repeat'>, variant: 'main' | '
   return variant === 'alt' && layer.fill.kind === 'solid' && alternate ? { kind: 'solid', color: alternate } : layer.fill;
 }
 
-/** The frame's quantised aspect and (for stripes) its quantised size in metres. */
-function quantisedFrame(frame: { width: number; height: number }) {
-  return { aspect: quantiseOctave16(frame.width / frame.height), w: quantiseOctave16(frame.width), h: quantiseOctave16(frame.height) };
+/**
+ * The frame's quantised aspect and, for stripes, its quantised height in metres (0 when the frame
+ * has none): the stripes' frame is `h` tall and `h × aspect` wide.
+ */
+function quantisedFrame(frame: { width: number; height: number }): { aspect: number; h: number } {
+  const h = quantiseOctave16(frame.height);
+  return { aspect: quantiseOctave16(frame.width / frame.height), h: h > 0 && Number.isFinite(h) ? h : 0 };
 }
 
 /**
  * The picture cache key of a shape raster `px` tall: everything that changes its pixels (the fill
- * after `variant`, the quantised aspect, and for stripes the quantised frame size), and whether
+ * after `variant`, the outline, the quantised aspect, and for stripes the quantised frame height), and whether
  * it's the full-size (export) or preview copy.
  */
 export function shapeKey(layer: ShapeLayer, variant: 'main' | 'alt', frame: { width: number; height: number }, px: number, full: boolean): string {
   const fill = fillFor(layer, variant);
   const q = quantisedFrame(frame);
-  const shape = JSON.stringify([layer.shape, layer.corner ?? 0, layer.points ?? null, layer.innerRatio ?? null, fill, layer.outlineColor, layer.outlineWidth]);
-  return `shp:${shape}:${px}:${q.aspect}${fill.kind === 'stripes' ? `:${q.w}x${q.h}` : ''}:${full ? 'f' : 'p'}`;
+  const shape = JSON.stringify([layer.shape, layer.corner ?? 0, layer.points ?? null, layer.innerRatio ?? null, fill, layer.outlineWidth > 0 ? layer.outlineColor : null, layer.outlineWidth]);
+  return `shp:${shape}:${px}:${q.aspect}${fill.kind === 'stripes' ? `:${q.h}` : ''}:${full ? 'f' : 'p'}`;
 }
 
 /** The raster size for a quantised aspect, `pxHeight` tall, the long side at most MAX_RASTER_SIDE. */
@@ -210,7 +237,7 @@ function context2d(width: number, height: number): Ctx | null {
  * The shape drawn `pxHeight` tall, its width from the frame's quantised aspect (both scaled down
  * so the long side is at most MAX_RASTER_SIDE): the fill (solid, the repeat's alternate for
  * `variant: 'alt'`, or stripes laid out on the frame's quantised size in metres and clipped to
- * the shape), then the outline inside the edge. The opacity is the decal pass's, not drawn here.
+ * the shape, blended to their average colour when too thin to show), then the outline inside the edge. The opacity is the decal pass's, not drawn here.
  * Read back straight (canvas `getImageData`). Null without a canvas.
  */
 export async function rasteriseShape(layer: ShapeLayer, variant: 'main' | 'alt', frame: { width: number; height: number }, pxHeight: number): Promise<DecalImage | null> {
@@ -225,15 +252,27 @@ export async function rasteriseShape(layer: ShapeLayer, variant: 'main' | 'alt',
     ctx.fillStyle = fill.color;
     ctx.fill(path);
   } else {
-    ctx.save();
-    ctx.clip(path);
-    const sx = w / q.w;
-    const sy = h / q.h;
-    for (const band of stripeBands(q.w, q.h, fill.angle, fill.stripeWidth)) {
-      ctx.fillStyle = fill.colors[band.color];
-      ctx.fill(polygonPath(band.quad.map(([x, y]): Point => [x * sx, y * sy])));
+    // Stripe space in metres: the quantised height, and the width from the quantised aspect.
+    const hS = q.h;
+    const wS = hS * (q.aspect > 0 && Number.isFinite(q.aspect) ? q.aspect : w / h);
+    const sx = hS > 0 ? w / wS : 0;
+    const sy = hS > 0 ? h / hS : 0;
+    const sw = stripeWidthOf(fill.stripeWidth);
+    if (!(sw * Math.min(sx, sy) >= STRIPE_MIN_PX)) {
+      ctx.fillStyle = averageColor(fill.colors[0], fill.colors[1]);
+      ctx.fill(path);
+    } else {
+      // The first colour under everything, the second's bands over it: no antialiased seams between bands.
+      ctx.save();
+      ctx.clip(path);
+      ctx.fillStyle = fill.colors[0];
+      ctx.fill(path);
+      ctx.fillStyle = fill.colors[1];
+      for (const band of stripeBands(wS, hS, fill.angle, sw)) {
+        if (band.color === 1) ctx.fill(polygonPath(band.quad.map(([x, y]): Point => [x * sx, y * sy])));
+      }
+      ctx.restore();
     }
-    ctx.restore();
   }
   const outline = clamped(layer.outlineWidth, 0, MAX_OUTLINE_WIDTH, 0);
   if (outline > 0) {
