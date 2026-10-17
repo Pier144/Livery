@@ -120,6 +120,19 @@ describe('drawGroups: what is drawn', () => {
   });
 });
 
+describe('drawGroups: duplicate ids', () => {
+  it('draws a repeated layer or piece id once (the first, bottom-most)', () => {
+    const a = newImageLayer('a', decal());
+    const twin = { ...newTextLayer('T', decal()), id: a.id };
+    const p = piece(newShapeLayer('rect', null), { x: 0, y: 0, w: 0.5, h: 1, angle: 0 });
+    const m = merged([p, { ...p, place: { x: 0.2, y: 0, w: 0.5, h: 1, angle: 0 } }]);
+    const plan = drawGroups([a, newFolder('f', [twin]), m, { ...m }], AXIS);
+    expect(ids(plan.groups)).toEqual([a.id, `m/${p.id}`]);
+    expect(plan.groups[0]!.source).toBe(a);
+    expect(plan.boxes).toBe(2);
+  });
+});
+
 describe('drawGroups: repeat and alternate', () => {
   it('draws every repeat copy in one group', () => {
     const d = decal();
@@ -282,6 +295,18 @@ describe('drawGroups: budget', () => {
     expect(ids(plan.groups)).toEqual([first.id]);
     expect(plan.boxes).toBe(1);
     expect(plan.truncated).toBe(true);
+  });
+
+  it('never caches a truncation: a bigger budget draws everything with the same groups', () => {
+    const repeat = { count: 3, gap: 0, direction: 'row' as const };
+    const layers = [newImageLayer('a', decal()), { ...newImageLayer('b', decal()), repeat }, newTextLayer('C', decal())];
+    expect(drawGroups(layers, AXIS, 4).truncated).toBe(true);
+    const after = drawGroups(layers, AXIS, 400);
+    expect(after.truncated).toBe(false);
+    expect(after.boxes).toBe(5);
+    const fresh = drawGroups(layers, AXIS, 400);
+    expect(after.groups).toHaveLength(3);
+    after.groups.forEach((g, i) => expect(g).toBe(fresh.groups[i]));
   });
 
   it('is not truncated when everything fits exactly', () => {

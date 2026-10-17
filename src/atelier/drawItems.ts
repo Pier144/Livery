@@ -1,5 +1,5 @@
 import { envelopeOf, mirrorAsOne, pieceDecal, repeatDecals } from './merge';
-import { MAX_DRAW_ITEMS, type Decal, type Layer, type MergedLayer, type Piece, type PieceLayer, type Place } from './project';
+import { MAX_DRAW_ITEMS, type Decal, type Layer, type MergedLayer, type Piece, type PieceLayer } from './project';
 
 /**
  * What the bake projects (spec "drawItems"), flattened from the layer tree (pure: no three.js, no
@@ -18,7 +18,12 @@ import { MAX_DRAW_ITEMS, type Decal, type Layer, type MergedLayer, type Piece, t
 export interface DrawGroup {
   /** Binding id, stable: layer id; `${mergedId}/${pieceId}` for pieces; `:alt` suffix for the alternate colour. */
   id: string;
-  /** What the picture is drawn from. A piece comes as the layer it would be: its first box as `decal`, no place, no repeat. */
+  /**
+   * What the picture is drawn from: a plain layer's source is the layer itself; a piece comes as
+   * the layer it would be (its first box as `decal`, no place). For geometry use `boxes` and
+   * `rasterDecal`, never `source.decal` or `source.repeat` (`repeat.alternate` is read by the
+   * shape raster).
+   */
   source: PieceLayer;
   /** `alt`: the shape filled with its repeat's `alternate` colour (every second copy). */
   variant: 'main' | 'alt';
@@ -84,6 +89,12 @@ function plainGroups(layer: PieceLayer, axis: number): DrawGroup[] {
   return groups;
 }
 
+/** A piece as the layer it would be: without its place, with `decal` as its frame. */
+function pieceSource(piece: Piece, decal: Decal): PieceLayer {
+  const { place: _place, ...layer } = piece;
+  return { ...layer, decal };
+}
+
 /** A merged object: each drawable piece through every copy of the frame, mirrored as one picture. */
 function mergedGroups(merged: MergedLayer, axis: number): DrawGroup[] {
   const frame = merged.decal;
@@ -105,10 +116,7 @@ function mergedGroups(merged: MergedLayer, axis: number): DrawGroup[] {
     : null;
   return drawn.map(({ piece, opacity, boxes }, k) => {
     const own = mirrored ? mirrored.slice(k * frames.length, (k + 1) * frames.length) : [];
-    const source = { ...piece, decal: boxes[0]! } as PieceLayer & { place?: Place };
-    delete source.place;
-    delete source.repeat;
-    return group(`${merged.id}/${piece.id}`, source, 'main', [...boxes, ...own], boxes[0]!, opacity);
+    return group(`${merged.id}/${piece.id}`, pieceSource(piece, boxes[0]!), 'main', [...boxes, ...own], boxes[0]!, opacity);
   });
 }
 
@@ -141,15 +149,22 @@ function layerGroups(layer: Layer, axis: number): DrawGroup[] {
 /**
  * The draw groups of `layers`, bottom to top: folders (unless hidden) contribute their children in
  * order; hidden, unplaced or fully transparent layers, the Base, the mask and unsupported layers or
- * pieces contribute nothing. At most `budget` boxes in all (mirror copies counted): at the first
+ * pieces contribute nothing. A group whose id was already emitted (a malformed project repeating
+ * a layer or piece id) is skipped. At most `budget` boxes in all (mirror copies counted): at the first
  * layer whose boxes would pass it, that layer and everything above are left out (`truncated`).
  */
 export function drawGroups(layers: readonly Layer[], mirrorAxis: number, budget = MAX_DRAW_ITEMS): DrawPlan {
   const groups: DrawGroup[] = [];
   let boxes = 0;
+  const emitted = new Set<string>();
   const flat = layers.flatMap((l) => (l.kind === 'folder' ? (l.visible ? l.children : []) : [l]));
   for (const layer of flat) {
-    const own = layerGroups(layer, mirrorAxis);
+    const own: DrawGroup[] = [];
+    for (const g of layerGroups(layer, mirrorAxis)) {
+      if (emitted.has(g.id)) continue;
+      emitted.add(g.id);
+      own.push(g);
+    }
     const count = own.reduce((n, g) => n + g.boxes.length, 0);
     if (boxes + count > budget) return { groups, boxes, truncated: true };
     groups.push(...own);
