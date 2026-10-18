@@ -4,22 +4,39 @@
 
 # Livery
 
-**A free skin manager for War Thunder on Windows.** Browse community skins from WT Live, install
-them with one click, and keep your `UserSkins` folder tidy.
+**A free skin manager for War Thunder on Windows and Linux.** Browse community skins from WT Live,
+install them with one click, keep your `UserSkins` folder tidy, and paint your own skins on the
+vehicle's 3D model in Atelier.
 
 <p align="center">
   <a href="https://github.com/Pier144/Livery/releases/latest/download/Livery-setup.exe">
     <img src="https://img.shields.io/badge/Download_for_Windows-Livery--setup.exe-F7A224?style=for-the-badge&logo=windows&logoColor=white" alt="Download Livery for Windows">
   </a>
+  <a href="https://github.com/Pier144/Livery/releases/latest/download/Livery-x86_64.AppImage">
+    <img src="https://img.shields.io/badge/Download_for_Linux-AppImage-F7A224?style=for-the-badge&logo=linux&logoColor=white" alt="Download Livery for Linux">
+  </a>
   <br>
-  <sub>Windows 10/11, 64-bit · free · <a href="https://github.com/Pier144/Livery/releases/latest">release notes and other files</a></sub>
+  <sub>Windows 10/11 or Linux, 64-bit · free · <a href="https://github.com/Pier144/Livery/releases/latest">release notes and other files</a></sub>
 </p>
+
+## Make your own skin: Atelier
+
+![Atelier: a modern splinter camouflage painted on the Leopard 2A7V's 3D model](docs/screenshots/atelier.jpg)
+
+Pick a ground vehicle and Atelier opens its 3D model, read from your own game files. Paint a base
+colour or one of six camouflage styles (organic, digital, hexagons, splinter, triangles, stripes)
+in your colours, add worn paint chipped along the edges, and project pictures, text and shapes onto
+the hull, mirrored to the other side if you like. **Apply to game** writes the finished skin into
+War Thunder in one click, and it shows up in your Hangar next to the others.
+
+The skin above, *Eisensplitter*, took a few minutes: a three-tone splinter camouflage in graphite,
+olive grey and stone grey, light edge wear, and the Bundeswehr cross built from four rectangles.
 
 ![Explore: WT Live skins with filters, one-click install](docs/screenshots/explore.jpg)
 
 ![For you: skins for the vehicles in your War Thunder lineups, active lineup first](docs/screenshots/foryou.jpg)
 
-![My Hangar: installed skins with their pictures, grouped by vehicle](docs/screenshots/hangar.jpg)
+![My Hangar: installed skins with their pictures, grouped by vehicle, the Atelier skin among them](docs/screenshots/hangar.jpg)
 
 > **Unofficial tool, not affiliated with Gaijin Entertainment.** War Thunder and WT Live are
 > Gaijin's. Every skin belongs to its author: Livery shows who made it and links to the original
@@ -34,7 +51,7 @@ them with one click, and keep your `UserSkins` folder tidy.
 - **Install with one click**, or **try a skin in the game first** and keep it only if you like it.
 - **Install from files**: drop a ZIP, 7z or RAR (or a folder) on the window, or let Livery watch
   your Downloads folder. Packs with several skins install every skin, each for its own vehicle.
-  RAR archives open with the 7-Zip or WinRAR installed on your PC.
+  RAR archives open with the 7-Zip or WinRAR installed on your PC (on Linux, `7z` or `unrar`).
 - **My Hangar**: every installed skin with its picture, grouped by vehicle. Turn skins on and off,
   rename them (the name you see in the game's customisation menu changes too), uninstall them, and
   undo any of it.
@@ -42,13 +59,13 @@ them with one click, and keep your `UserSkins` folder tidy.
 - **Atelier, make your own skin**: paint a ground vehicle on its 3D model, read from your game:
   a base colour or camouflage, worn paint chipped along the edges, pictures and text projected
   onto the hull (mirrored to the other side if you like, snapped to the centre line and to each
-  other), background removal for pictures, protected areas that keep the game's texture. Apply to
-  game writes the skin into War Thunder in one click. Settings → Atelier hides it if you don't
-  want it.
+  other), stock shapes, background removal for pictures (Windows only for now), protected areas
+  that keep the game's texture. Apply to game writes the skin into War Thunder in one click.
+  Settings → Atelier hides it if you don't want it.
 - **Checks** each skin for missing textures and problems in its `.blk` file.
 - **Updates itself**: it tells you when a new version is out, and can install it for you.
 - In English, Italiano, Deutsch, Русский, Français, Español, Polski, Português (Brasil) and 简体中文,
-  with vehicle names as the game writes them in your language. It starts in your Windows language.
+  with vehicle names as the game writes them in your language. It starts in your system language.
 
 ## Install
 
@@ -71,6 +88,20 @@ install them when you close it.
 **Uninstall:** Windows Settings → Apps → Livery. The installer offers to delete Livery's own data;
 your skins in the game's `UserSkins` folder stay where they are.
 
+### On Linux
+
+1. Download `Livery-x86_64.AppImage` with the Linux button above (or `Livery_<version>_amd64.AppImage`
+   from the [latest release](https://github.com/Pier144/Livery/releases/latest)).
+2. Make it executable and run it: `chmod +x Livery-x86_64.AppImage`, then `./Livery-x86_64.AppImage`
+   (or double-click it in your file manager). If it doesn't start, install FUSE 2 (`libfuse2` on
+   Ubuntu/Debian, `fuse-libs` on Fedora).
+3. Livery finds War Thunder's Linux client in Steam (also Flatpak and Snap), in `~/WarThunder`,
+   `~/Games/WarThunder` or `/opt/games/WarThunder`; elsewhere, pick the folder by hand.
+
+The AppImage updates itself like the Windows version. Atelier's Remove background is Windows-only
+for now; everything else works the same. To uninstall, delete the AppImage; Livery's data lives in
+`~/.local/share/app.livery.desktop`.
+
 ## Privacy
 
 No account, no ads, no telemetry. Livery connects only to:
@@ -85,7 +116,7 @@ No account, no ads, no telemetry. Livery connects only to:
 
 **Send feedback** (Settings → About, or the command palette) doesn't send anything by itself: it
 opens a pre-filled page on GitHub in your browser, which you submit there with your GitHub account.
-You see exactly what the page will hold first. Technical details (Livery and Windows version,
+You see exactly what the page will hold first. Technical details (Livery and system version,
 language, the last lines of the log with folders and your user name hidden) are attached only if
 you leave that box checked.
 
@@ -95,7 +126,8 @@ folder; Livery doesn't change any other game file.
 **Reading the game's files.** To recognise which vehicle a skin is for, Livery reads the vehicle
 names from the game's own data files (read-only, on your PC; nothing is changed or sent anywhere).
 For the For you tab it also reads your lineups from your War Thunder profile
-(`Documents\My Games\WarThunder\Saves\…\global.blk`): only the lineups and the selected
+(`Documents\My Games\WarThunder\Saves\…\global.blk`, on Linux
+`~/.config/WarThunder/Saves/…/global.blk`): only the lineups and the selected
 vehicle, nothing else from that file, and nothing leaves your PC. If you prefer it didn't, turn off
 Settings → Game → "Read data from the game": Livery then uses a smaller built-in list, recognises
 fewer skins and has no suggestions in For you.
@@ -109,26 +141,29 @@ fewer skins and has no suggestions in For you.
   "feedback" in the command palette, Ctrl K). Bugs become [issues](https://github.com/Pier144/Livery/issues),
   ideas go to [Discussions](https://github.com/Pier144/Livery/discussions).
 - **A RAR archive doesn't open:** Livery unpacks RAR with the 7-Zip or WinRAR on your PC. Install
-  [7-Zip](https://www.7-zip.org/) (free), or unpack the archive yourself and drop the folder.
+  [7-Zip](https://www.7-zip.org/) (free; on Linux the `7zip` or `p7zip-full` package), or unpack
+  the archive yourself and drop the folder.
 
 ## In italiano
 
 Livery è un gestore di skin per War Thunder, gratuito e non ufficiale (non affiliato a Gaijin
-Entertainment). Ti permette di:
+Entertainment), per Windows e Linux. Ti permette di:
 
 - sfogliare le skin di WT Live, installarle con un clic o provarle prima nel gioco;
 - vedere nella scheda "Per te" le skin dei veicoli delle tue formazioni di War Thunder;
 - installare skin da ZIP, 7z, RAR (con 7-Zip o WinRAR installato) o cartelle;
 - creare le tue skin nell'Atelier: dipingi il carro sul suo modello 3D letto dal gioco (colore o
-  mimetica, usura con vernice scheggiata, immagini e testi proiettati e agganciati all'asse
-  centrale) e applicale al gioco con un clic;
+  una delle sei mimetiche, usura con vernice scheggiata, immagini, testi e forme proiettati e
+  agganciati all'asse centrale) e applicale al gioco con un clic, come la skin *Eisensplitter*
+  del Leopard 2A7V nella prima immagine;
 - rinominare, disattivare e disinstallare le skin dall'Hangar, sempre con la possibilità di
   annullare;
 - usarlo in italiano (e in altre otto lingue), con i nomi dei veicoli come li scrive il gioco.
 
 Scarica l'installer con il pulsante in alto (o dall'[ultima release](https://github.com/Pier144/Livery/releases/latest)). Se
 Windows mostra "Windows ha protetto il PC", scegli **Ulteriori informazioni → Esegui comunque**:
-l'installer non è ancora firmato. Livery si aggiorna da solo. Per segnalare un problema o proporre
+l'installer non è ancora firmato. Su Linux scarica l'AppImage, rendila eseguibile
+(`chmod +x Livery-x86_64.AppImage`) e avviala. Livery si aggiorna da solo. Per segnalare un problema o proporre
 un'idea usa **Invia un feedback** in Impostazioni → Informazioni. Si collega solo a WT Live e a GitHub
 (per gli aggiornamenti e, solo se usi "Rimuovi sfondo" nell'Atelier, per scaricare una
 volta i file necessari: le tue immagini restano sul PC), non raccoglie dati e non ha account.
