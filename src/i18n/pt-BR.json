@@ -10,7 +10,9 @@
     "showPath": "Mostrar caminho",
     "hidePath": "Ocultar caminho",
     "showInExplorer": "Mostrar no Explorador",
+    "showInExplorerLinux": "Mostrar na pasta",
     "explorerFailed": "Não foi possível abrir essa pasta no Explorador de Arquivos.",
+    "explorerFailedLinux": "Não foi possível abrir essa pasta.",
     "link": {
       "copied": "O Livery não conseguiu abrir o navegador, então o link foi copiado para a área de transferência. Cole-o lá.",
       "failed": "Não foi possível abrir o link: {{url}}",
@@ -289,6 +291,7 @@
       },
       "attach": "Anexar detalhes técnicos",
       "attachHelper": "Versão do Livery e do Windows, idioma e as últimas linhas do log. Pastas e seu nome de usuário ficam ocultos.",
+      "attachHelperLinux": "Versão do Livery e do Linux, idioma e as últimas linhas do log. Pastas e seu nome de usuário ficam ocultos.",
       "preview": "O que o GitHub vai receber",
       "dropped_one": "{{count}} linha mais antiga do log foi omitida para que o link caiba.",
       "dropped_many": "{{count}} de linhas mais antigas do log foram omitidas para que o link caiba.",
@@ -1415,10 +1418,14 @@
     },
     "general": {
       "autostart": "Iniciar com o Windows",
+      "autostartLinux": "Iniciar ao entrar",
       "autostartHelper": "O Livery abre quando você entra no Windows.",
+      "autostartHelperLinux": "O Livery abre quando você entra na sessão.",
       "autostartFailed": "Não foi possível alterar Iniciar com o Windows: {{message}}",
+      "autostartFailedLinux": "Não foi possível alterar Iniciar ao entrar: {{message}}",
       "reduceMotion": "Reduzir animações",
       "reduceMotionHelper": "Por padrão, segue a configuração do Windows.",
+      "reduceMotionHelperLinux": "Por padrão, segue a configuração do sistema.",
       "motion": {
         "system": "Sistema",
         "on": "Sim",
@@ -1554,6 +1561,7 @@
     },
     "about": {
       "build": "{{version}} · Windows x64",
+      "buildLinux": "{{version}} · Linux x64",
       "description": "Um gerenciador de skins de usuário para War Thunder. Navegue pelo WT Live, instale com um clique e mantenha seu hangar organizado.",
       "privacyTitle": "Privacidade",
       "privacy": "Sem conta, sem anúncios, sem telemetria. O Livery só se conecta ao WT Live (live.warthunder.com e seu servidor de imagens) quando você navega ou instala skins, e ao GitHub para verificar atualizações. Suas configurações e sua biblioteca ficam neste PC. Ele lê os arquivos do jogo e as escalações do seu perfil do War Thunder sem alterá-los. “Enviar feedback” só abre uma página do GitHub no navegador: nada é enviado até você confirmar o envio lá. Se você usar Remover fundo no Atelier, o Livery baixa os arquivos necessários do GitHub uma única vez, só quando você pede; suas imagens ficam neste PC.",

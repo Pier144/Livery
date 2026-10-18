@@ -7,8 +7,7 @@ mod common;
 use common::http::{Route, Server};
 use livery_lib::atelier::download::{Downloader, MODEL_DOWNLOAD_CORRUPT};
 use livery_lib::atelier::models::{
-    extract_runtime, pinned, FileHash, ModelFiles, Pin, Pins, CUTOUT_RESTART_NEEDED, DLL_FILE, MODEL_FILE,
-    REMOVE_MARKER, RUNTIME_ZIP_FILE,
+    extract_runtime, pinned, FileHash, ModelFiles, Pin, Pins, DLL_FILE, MODEL_FILE, REMOVE_MARKER, RUNTIME_ZIP_FILE,
 };
 use livery_lib::atelier::sha256::{digest, hex};
 use livery_lib::error::ErrorCode;
@@ -190,6 +189,7 @@ fn remove_deletes_the_files() {
 #[cfg(windows)]
 #[test]
 fn a_runtime_in_use_is_removed_at_the_next_launch() {
+    use livery_lib::atelier::models::CUTOUT_RESTART_NEEDED;
     use std::os::windows::fs::OpenOptionsExt;
     let dir = temp("pending");
     let s = served(&dir);

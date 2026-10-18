@@ -8,7 +8,7 @@ This page is for developers.
 
 ## Stack
 
-- **Desktop shell:** Tauri 2 (Rust 1.80+), frameless window, NSIS installer. Windows is the only release target.
+- **Desktop shell:** Tauri 2 (Rust 1.80+), frameless window. Windows (NSIS installer) is the main target; Linux ships as an AppImage (`src-tauri/tauri.linux.conf.json`).
 - **Frontend:** React 18, TypeScript (strict), Vite, Tailwind 3.4 with the tokens in `tokens/`, Zustand, TanStack Query + TanStack Virtual, react-i18next (9 languages), Lucide icons.
 - **Tests:** Vitest + React Testing Library (+ axe-core) for the frontend, `cargo test` for the backend.
 
@@ -21,6 +21,11 @@ This page is for developers.
   ```
 - **Rust stable** via [rustup](https://rustup.rs), with the MSVC toolchain and the Visual Studio C++ Build Tools ("Desktop development with C++"), as Tauri requires on Windows. Add the components CI uses: `rustup component add clippy rustfmt`.
 - **Microsoft Edge WebView2 Runtime**. It ships with Windows 11; on Windows 10 install it if it's missing.
+- **On Linux**, instead of the two Windows items, WebKitGTK and the bundling tools (Ubuntu/Debian names; CI builds on Ubuntu 22.04):
+  ```bash
+  sudo apt install build-essential curl wget file pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xdg-utils
+  ```
+  Atelier lists fonts through fontconfig (`fc-list`); background removal is Windows-only for now. RAR archives decode through `7z`/`7zz` or `unrar` in `/usr/bin` or `/usr/local/bin`.
 
 ## Setup
 

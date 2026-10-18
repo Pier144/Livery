@@ -355,9 +355,13 @@ fn platform_steam_roots() -> Vec<PathBuf> {
 fn platform_steam_roots() -> Vec<PathBuf> {
     let Some(home) = std::env::var_os("HOME").filter(|h| !h.is_empty()) else { return Vec::new() };
     let home = Path::new(&home);
+    let user_data = |base: PathBuf| base.join(".local").join("share").join("Steam");
     vec![
         home.join(".steam").join("steam"),
-        home.join(".local").join("share").join("Steam"),
+        user_data(home.to_path_buf()),
+        // Flatpak and Snap keep Steam inside their own sandbox folders.
+        user_data(home.join(".var").join("app").join("com.valvesoftware.Steam")),
+        user_data(home.join("snap").join("steam").join("common")),
         home.join("Library").join("Application Support").join("Steam"),
     ]
 }

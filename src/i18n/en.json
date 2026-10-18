@@ -10,7 +10,9 @@
     "showPath": "Show path",
     "hidePath": "Hide path",
     "showInExplorer": "Show in Explorer",
+    "showInExplorerLinux": "Show in folder",
     "explorerFailed": "Couldn’t open that folder in Explorer.",
+    "explorerFailedLinux": "Couldn’t open that folder.",
     "link": {
       "copied": "Livery couldn’t open your browser, so the link is on the clipboard. Paste it there.",
       "failed": "Couldn’t open the link: {{url}}",
@@ -287,6 +289,7 @@
       },
       "attach": "Attach technical details",
       "attachHelper": "Livery and Windows version, language and the last lines of the log. Folders and your user name are hidden.",
+      "attachHelperLinux": "Livery and Linux version, language and the last lines of the log. Folders and your user name are hidden.",
       "preview": "What GitHub will receive",
       "dropped_one": "{{count}} older log line is left out to fit the link.",
       "dropped_other": "{{count}} older log lines are left out to fit the link.",
@@ -1367,10 +1370,14 @@
     },
     "general": {
       "autostart": "Start with Windows",
+      "autostartLinux": "Start at login",
       "autostartHelper": "Livery opens when you sign in to Windows.",
+      "autostartHelperLinux": "Livery opens when you log in.",
       "autostartFailed": "Couldn’t change Start with Windows: {{message}}",
+      "autostartFailedLinux": "Couldn’t change Start at login: {{message}}",
       "reduceMotion": "Reduce motion",
       "reduceMotionHelper": "Follows your Windows setting by default.",
+      "reduceMotionHelperLinux": "Follows your system setting by default.",
       "motion": {
         "system": "System",
         "on": "On",
@@ -1502,6 +1509,7 @@
     },
     "about": {
       "build": "{{version}} · Windows x64",
+      "buildLinux": "{{version}} · Linux x64",
       "description": "A user skin manager for War Thunder. Browse WT Live, install with a click, keep your hangar tidy.",
       "privacyTitle": "Privacy",
       "privacy": "No account, no ads, no telemetry. Livery connects only to WT Live (live.warthunder.com and its image server) when you browse or install skins, and to GitHub to check for updates. Your settings and library stay on this PC. It reads the game’s files and the lineups in your War Thunder profile without changing them. “Send feedback” only opens a GitHub page in your browser: nothing is sent until you submit it there. If you use Remove background in Atelier, Livery downloads its files from GitHub once, only when you ask; your pictures stay on this PC.",

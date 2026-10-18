@@ -1,7 +1,8 @@
 //! Installed fonts for Atelier's text layers: the `.ttf`/`.otf` files Windows lists under
 //! `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts` and the same key under HKCU
 //! (per-user installs), re-read on every call. `.ttc` collections are left out: a `FontFace` from
-//! their bytes loads face 0 only, which would misname the others. Other systems list none.
+//! their bytes loads face 0 only, which would misname the others. Elsewhere the list comes from
+//! fontconfig (`fc-list`), with the same rules.
 //!
 //! A font's bytes are only ever served for a `(family, style)` found in a fresh list, never for a
 //! path the frontend sends. Layers store `{ family, style }`, which travel between PCs.
@@ -107,12 +108,39 @@ fn resolve_file(data: &str, fonts_dir: &Path) -> Option<PathBuf> {
 /// parses ([`parse_registry_name`]) and whose file resolves (bare names against `fonts_dir`).
 /// The first entry of a family and style wins; sorted by family, then `Regular` first, then style.
 pub fn entries_from(values: impl IntoIterator<Item = (String, String)>, fonts_dir: &Path) -> Vec<FontEntry> {
+    listed(values.into_iter().filter_map(|(name, data)| {
+        let (family, style) = parse_registry_name(&name)?;
+        Some((family, style, resolve_file(&data, fonts_dir)?))
+    }))
+}
+
+/// The font list from `fc-list --format` output ([`FC_LIST_FORMAT`]: file, family, style per
+/// line): the `.ttf`/`.otf` files with an absolute path, a family and a style that still exist.
+/// Deduplicated and sorted like [`entries_from`].
+pub fn entries_from_fc_list(text: &str) -> Vec<FontEntry> {
+    listed(text.lines().filter_map(|line| {
+        let mut fields = line.split('\t');
+        let (file, family, style) = (fields.next()?, fields.next()?.trim(), fields.next()?.trim());
+        let path = PathBuf::from(file);
+        let ext = path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).unwrap_or_default();
+        let usable = !family.is_empty()
+            && !style.is_empty()
+            && path.is_absolute()
+            && FONT_EXTENSIONS.contains(&ext.as_str())
+            && path.is_file();
+        usable.then(|| (family.to_owned(), style.to_owned(), path))
+    }))
+}
+
+/// `fc-list` output format: the file, the first family and the first style name, tab-separated.
+pub const FC_LIST_FORMAT: &str = "%{file}\t%{family[0]}\t%{style[0]}\n";
+
+/// `(family, style, file)` in reading order as entries: the first of a family and style (any case)
+/// wins; sorted by family, then `Regular` first, then style.
+fn listed(items: impl Iterator<Item = (String, String, PathBuf)>) -> Vec<FontEntry> {
     let mut seen = HashSet::new();
-    let mut entries: Vec<FontEntry> = values
-        .into_iter()
-        .filter_map(|(name, data)| {
-            let (family, style) = parse_registry_name(&name)?;
-            let path = resolve_file(&data, fonts_dir)?;
+    let mut entries: Vec<FontEntry> = items
+        .filter_map(|(family, style, path)| {
             if !seen.insert((family.to_lowercase(), style.to_lowercase())) {
                 return None;
             }
@@ -128,7 +156,7 @@ pub fn entries_from(values: impl IntoIterator<Item = (String, String)>, fonts_di
     entries
 }
 
-/// The fonts installed on this PC, read now (see the module doc). Empty off Windows.
+/// The fonts installed on this PC, read now (see the module doc).
 pub fn system_fonts() -> Vec<FontEntry> {
     platform_fonts()
 }
@@ -155,9 +183,25 @@ fn platform_fonts() -> Vec<FontEntry> {
     entries_from(values, &windows.join("Fonts"))
 }
 
+/// Fontconfig's list (`fc-list`, on every Linux desktop); empty when it can't run.
 #[cfg(not(windows))]
 fn platform_fonts() -> Vec<FontEntry> {
-    Vec::new()
+    let output = std::process::Command::new("fc-list")
+        .args(["--format", FC_LIST_FORMAT])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output();
+    match output {
+        Ok(out) if out.status.success() => entries_from_fc_list(&String::from_utf8_lossy(&out.stdout)),
+        Ok(out) => {
+            tracing::warn!(status = %out.status, "fc-list failed; no fonts listed");
+            Vec::new()
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "fc-list could not run; no fonts listed");
+            Vec::new()
+        }
+    }
 }
 
 fn not_found(detail: impl Into<String>) -> AppError {

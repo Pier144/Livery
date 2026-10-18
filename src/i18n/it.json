@@ -10,7 +10,9 @@
     "showPath": "Mostra percorso",
     "hidePath": "Nascondi percorso",
     "showInExplorer": "Mostra in Esplora file",
+    "showInExplorerLinux": "Mostra nella cartella",
     "explorerFailed": "Impossibile aprire quella cartella in Esplora file.",
+    "explorerFailedLinux": "Impossibile aprire quella cartella.",
     "link": {
       "copied": "Livery non è riuscita ad aprire il browser, quindi il link è negli appunti: incollalo lì.",
       "failed": "Impossibile aprire il link: {{url}}",
@@ -289,6 +291,7 @@
       },
       "attach": "Allega informazioni tecniche",
       "attachHelper": "Versione di Livery e di Windows, lingua e le ultime righe del log. Cartelle e nome utente sono nascosti.",
+      "attachHelperLinux": "Versione di Livery e di Linux, lingua e le ultime righe del log. Cartelle e nome utente sono nascosti.",
       "preview": "Cosa riceverà GitHub",
       "dropped_one": "{{count}} riga più vecchia del log è esclusa per far stare il link.",
       "dropped_many": "{{count}} righe più vecchie del log sono escluse per far stare il link.",
@@ -1415,10 +1418,14 @@
     },
     "general": {
       "autostart": "Avvia con Windows",
+      "autostartLinux": "Avvia all’accesso",
       "autostartHelper": "Livery si apre quando accedi a Windows.",
+      "autostartHelperLinux": "Livery si apre quando accedi.",
       "autostartFailed": "Impossibile cambiare Avvia con Windows: {{message}}",
+      "autostartFailedLinux": "Impossibile cambiare Avvia all’accesso: {{message}}",
       "reduceMotion": "Riduci animazioni",
       "reduceMotionHelper": "Di norma segue l’impostazione di Windows.",
+      "reduceMotionHelperLinux": "Di norma segue l’impostazione di sistema.",
       "motion": {
         "system": "Sistema",
         "on": "Sì",
@@ -1554,6 +1561,7 @@
     },
     "about": {
       "build": "{{version}} · Windows x64",
+      "buildLinux": "{{version}} · Linux x64",
       "description": "Un gestore di skin utente per War Thunder. Sfoglia WT Live, installa con un clic, tieni in ordine il tuo hangar.",
       "privacyTitle": "Privacy",
       "privacy": "Nessun account, nessuna pubblicità, nessuna telemetria. Livery si collega solo a WT Live (live.warthunder.com e il suo server di immagini) quando sfogli o installi skin, e a GitHub per controllare gli aggiornamenti. Impostazioni e libreria restano su questo PC. Legge i file del gioco e le formazioni del tuo profilo di War Thunder senza modificarli. «Invia un feedback» apre solo una pagina di GitHub nel browser: non parte nulla finché non la invii lì. Se usi Rimuovi sfondo in Atelier, Livery scarica una volta sola i file necessari da GitHub, solo quando lo chiedi; le tue immagini restano su questo PC.",

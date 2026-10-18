@@ -1,6 +1,7 @@
 //! The player's lineups, read from War Thunder's local profile file (read-only).
 //!
-//! `<Documents>\My Games\WarThunder\Saves\<uid>\production\global.blk` is a text BLK holding
+//! `<Documents>\My Games\WarThunder\Saves\<uid>\production\global.blk` (Linux:
+//! `~/.config/WarThunder/Saves/<uid>/production/global.blk`) is a text BLK holding
 //! the profile's settings (`Saves\last\lastUid` names the last account; `Saves\last\production`
 //! keeps a copy of its file). Livery needs two blocks of it, `slotbar_presets` (the lineups of
 //! each nation) and `selectedAir` (the vehicle selected in the hangar). The rest is personal and
@@ -312,7 +313,11 @@ pub fn documents_dir(personal: Option<&str>, env: &dyn Fn(&str) -> Option<OsStri
 /// The last account's `global.blk` under `documents`: `Saves\<lastUid>\production`, else the
 /// copy in `Saves\last\production`. `None` when neither file exists.
 pub fn profile_file(documents: &Path) -> Option<PathBuf> {
-    let saves = documents.join("My Games").join("WarThunder").join("Saves");
+    saves_profile_file(&documents.join("My Games").join("WarThunder").join("Saves"))
+}
+
+/// [`profile_file`] for a `Saves` folder given as it is.
+pub fn saves_profile_file(saves: &Path) -> Option<PathBuf> {
     let uid = std::fs::read_to_string(saves.join("last").join("lastUid")).ok();
     // Digits only: the uid becomes a folder name.
     let uid = uid.as_deref().map(str::trim).filter(|u| !u.is_empty() && u.bytes().all(|b| b.is_ascii_digit()));
@@ -320,6 +325,23 @@ pub fn profile_file(documents: &Path) -> Option<PathBuf> {
         .into_iter()
         .chain(std::iter::once(saves.join("last").join("production").join(GLOBAL_BLK)))
         .find(|p| p.is_file())
+}
+
+/// The Linux client's `Saves` folder: `$XDG_CONFIG_HOME/WarThunder/Saves`, else
+/// `$HOME/.config/WarThunder/Saves`. Empty variables count as unset.
+pub fn config_saves_dir(env: &dyn Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    let set = |name: &str| env(name).filter(|v| !v.is_empty()).map(PathBuf::from);
+    let config = set("XDG_CONFIG_HOME").or_else(|| set("HOME").map(|home| home.join(".config")))?;
+    Some(config.join("WarThunder").join("Saves"))
+}
+
+/// The real `Saves` folder: under Documents on Windows, under the user's config folder elsewhere.
+pub fn system_saves_dir() -> Option<PathBuf> {
+    if cfg!(windows) {
+        system_documents_dir().map(|d| d.join("My Games").join("WarThunder").join("Saves"))
+    } else {
+        config_saves_dir(&|name| std::env::var_os(name))
+    }
 }
 
 /// The real Documents folder: the registry's `Personal` shell folder on Windows.

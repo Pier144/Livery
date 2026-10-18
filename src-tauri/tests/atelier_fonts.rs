@@ -3,7 +3,9 @@
 //! paths left out, and font bytes served only for a listed family and style. Temp folders and
 //! fake font files only; one smoke test reads this PC's registry.
 
-use livery_lib::atelier::fonts::{entries_from, font_bytes, parse_registry_name, system_fonts, FONT_NOT_FOUND};
+use livery_lib::atelier::fonts::{
+    entries_from, entries_from_fc_list, font_bytes, parse_registry_name, system_fonts, FONT_NOT_FOUND,
+};
 use livery_lib::error::ErrorCode;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -114,6 +116,42 @@ fn this_pc_lists_its_fonts() {
             (ext.ends_with(".ttf") || ext.ends_with(".otf")) && !f.info.file.contains(['\\', '/'])
         }));
     } else {
-        assert!(fonts.is_empty());
+        // Whatever fontconfig lists (maybe nothing on a bare machine): only usable files.
+        assert!(fonts.iter().all(|f| {
+            let ext = f.info.file.to_ascii_lowercase();
+            (ext.ends_with(".ttf") || ext.ends_with(".otf")) && f.path.is_absolute()
+        }));
     }
+}
+
+#[test]
+fn fc_list_lines_become_entries() {
+    let dir = temp("fclist");
+    for file in ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "Noto.otf", "Cjk.ttc", "Old.pfb"] {
+        fs::write(dir.join(file), b"font").unwrap();
+    }
+    let line = |file: &str, family: &str, style: &str| format!("{}\t{family}\t{style}\n", dir.join(file).display());
+    let text = [
+        line("DejaVuSans-Bold.ttf", "DejaVu Sans", "Bold"),
+        line("DejaVuSans.ttf", "DejaVu Sans", "Book"),
+        line("Noto.otf", "Noto Sans", "Regular"),
+        line("Noto.otf", "noto sans", "regular"),
+        line("Cjk.ttc", "Noto Sans CJK", "Regular"),
+        line("Old.pfb", "Old", "Regular"),
+        line("Gone.ttf", "Gone", "Regular"),
+        line("DejaVuSans.ttf", "", "Regular"),
+        "relative.ttf\tRelative\tRegular\n".to_owned(),
+        "no tabs at all\n".to_owned(),
+    ]
+    .concat();
+    let got: Vec<(String, String, String)> =
+        entries_from_fc_list(&text).into_iter().map(|e| (e.info.family, e.info.style, e.info.file)).collect();
+    let want = [
+        ("DejaVu Sans", "Bold", "DejaVuSans-Bold.ttf"),
+        ("DejaVu Sans", "Book", "DejaVuSans.ttf"),
+        ("Noto Sans", "Regular", "Noto.otf"),
+    ]
+    .map(|(a, b, c)| (a.to_owned(), b.to_owned(), c.to_owned()));
+    assert_eq!(got, want, "collections, Type 1, missing files, blank names and relative paths are left out");
+    let _ = fs::remove_dir_all(&dir);
 }

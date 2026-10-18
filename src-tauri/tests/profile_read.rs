@@ -4,7 +4,8 @@
 
 use livery_lib::error::ErrorCode;
 use livery_lib::game::profile::{
-    documents_dir, expand_env, profile_file, read_lineups, LINEUPS_UNPARSABLE, LINEUPS_UNREADABLE,
+    config_saves_dir, documents_dir, expand_env, profile_file, read_lineups, saves_profile_file, LINEUPS_UNPARSABLE,
+    LINEUPS_UNREADABLE,
 };
 use livery_lib::library::time::parse_rfc3339;
 use livery_lib::model::{LineupsStatus, Nation};
@@ -83,6 +84,30 @@ fn documents_come_from_the_registry_value_then_the_user_profile() {
     assert_eq!(documents_dir(None, &fake_env), Some(PathBuf::from(r"C:\Users\x").join("Documents")));
     assert_eq!(documents_dir(Some("  "), &fake_env), Some(PathBuf::from(r"C:\Users\x").join("Documents")));
     assert_eq!(documents_dir(None, &no_env), None);
+}
+
+#[test]
+fn linux_saves_come_from_xdg_config_home_then_home() {
+    let env = |vars: &'static [(&'static str, &'static str)]| {
+        move |name: &str| vars.iter().find(|(n, _)| *n == name).map(|(_, v)| OsString::from(v))
+    };
+    let saves = |base: &str| Some(Path::new(base).join("WarThunder").join("Saves"));
+    assert_eq!(config_saves_dir(&env(&[("XDG_CONFIG_HOME", "/cfg"), ("HOME", "/home/x")])), saves("/cfg"));
+    assert_eq!(config_saves_dir(&env(&[("HOME", "/home/x")])), saves("/home/x/.config"));
+    assert_eq!(
+        config_saves_dir(&env(&[("XDG_CONFIG_HOME", ""), ("HOME", "/home/x")])),
+        saves("/home/x/.config"),
+        "an empty XDG_CONFIG_HOME counts as unset"
+    );
+    assert_eq!(config_saves_dir(&no_env), None);
+}
+
+#[test]
+fn a_saves_folder_finds_the_profile_like_documents_do() {
+    let config = TempDir::new("config");
+    let own = config.write("WarThunder/Saves/7/production/global.blk", b"a:i=1");
+    config.write("WarThunder/Saves/last/lastUid", b"7\n");
+    assert_eq!(saves_profile_file(&config.path().join("WarThunder").join("Saves")), Some(own));
 }
 
 #[test]

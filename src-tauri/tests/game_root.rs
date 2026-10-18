@@ -72,6 +72,17 @@ fn a_root_with_only_win64_aces_is_valid() {
 }
 
 #[test]
+fn the_linux_client_is_a_root() {
+    let tmp = TempDir::new("linux");
+    assert!(is_game_root(tmp.file("launcher-only/launcher", "").parent().unwrap()));
+    let root = tmp.file("WarThunder/linux64/aces", "").parent().unwrap().parent().unwrap().to_path_buf();
+    assert!(is_game_root(&root));
+    // linux64/ holds aces, so it passes on its own, but picking it selects the root above.
+    assert_eq!(normalize_root(&root.join("linux64")).as_deref(), Some(root.as_path()));
+    assert!(!is_game_root(tmp.dir("fake/launcher").parent().unwrap()), "a folder called launcher is not it");
+}
+
+#[test]
 fn localappdata_with_only_downloads_is_rejected() {
     let tmp = TempDir::new("localappdata");
     let wt = tmp.dir("WarThunder");
@@ -188,8 +199,26 @@ fn standalone_candidates_follow_the_environment() {
     ];
     if cfg!(windows) {
         want.push(PathBuf::from(r"C:\Games\WarThunder"));
+    } else {
+        want.extend(["/opt/games/WarThunder", "/opt/WarThunder"].map(PathBuf::from));
     }
     assert_eq!(got, want, "empty variables are skipped");
+}
+
+#[test]
+#[cfg(not(windows))]
+fn linux_candidates_sit_under_home_then_opt() {
+    let got = standalone_candidates(|name| (name == "HOME").then(|| OsString::from("/home/x")));
+    let want: Vec<PathBuf> = [
+        "/home/x/WarThunder",
+        "/home/x/Games/WarThunder",
+        "/home/x/games/WarThunder",
+        "/opt/games/WarThunder",
+        "/opt/WarThunder",
+    ]
+    .map(PathBuf::from)
+    .into();
+    assert_eq!(got, want);
 }
 
 #[test]

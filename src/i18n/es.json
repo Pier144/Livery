@@ -10,7 +10,9 @@
     "showPath": "Mostrar ruta",
     "hidePath": "Ocultar ruta",
     "showInExplorer": "Mostrar en el Explorador de archivos",
+    "showInExplorerLinux": "Mostrar en la carpeta",
     "explorerFailed": "No se ha podido abrir esa carpeta en el Explorador de archivos.",
+    "explorerFailedLinux": "No se ha podido abrir esa carpeta.",
     "link": {
       "copied": "Livery no ha podido abrir el navegador, así que el enlace está en el portapapeles. Pégalo allí.",
       "failed": "No se ha podido abrir el enlace: {{url}}",
@@ -289,6 +291,7 @@
       },
       "attach": "Adjuntar datos técnicos",
       "attachHelper": "Versión de Livery y de Windows, idioma y las últimas líneas del registro. Las carpetas y tu nombre de usuario se ocultan.",
+      "attachHelperLinux": "Versión de Livery y de Linux, idioma y las últimas líneas del registro. Las carpetas y tu nombre de usuario se ocultan.",
       "preview": "Lo que recibirá GitHub",
       "dropped_one": "Se omite {{count}} línea antigua del registro para que quepa el enlace.",
       "dropped_many": "Se omiten {{count}} de líneas antiguas del registro para que quepa el enlace.",
@@ -1415,10 +1418,14 @@
     },
     "general": {
       "autostart": "Iniciar con Windows",
+      "autostartLinux": "Abrir al iniciar sesión",
       "autostartHelper": "Livery se abre al iniciar sesión en Windows.",
+      "autostartHelperLinux": "Livery se abre al iniciar sesión.",
       "autostartFailed": "No se ha podido cambiar Iniciar con Windows: {{message}}",
+      "autostartFailedLinux": "No se ha podido cambiar Abrir al iniciar sesión: {{message}}",
       "reduceMotion": "Reducir animaciones",
       "reduceMotionHelper": "De forma predeterminada sigue el ajuste de Windows.",
+      "reduceMotionHelperLinux": "De forma predeterminada sigue el ajuste del sistema.",
       "motion": {
         "system": "Sistema",
         "on": "Sí",
@@ -1554,6 +1561,7 @@
     },
     "about": {
       "build": "{{version}} · Windows x64",
+      "buildLinux": "{{version}} · Linux x64",
       "description": "Un gestor de skins (los camuflajes de usuario del juego) para War Thunder. Explora WT Live, instala con un clic y mantén tu hangar en orden.",
       "privacyTitle": "Privacidad",
       "privacy": "Sin cuenta, sin anuncios, sin telemetría. Livery solo se conecta a WT Live (live.warthunder.com y su servidor de imágenes) cuando exploras o instalas skins, y a GitHub para buscar actualizaciones. Tus ajustes y tu biblioteca se quedan en este PC. Lee los archivos del juego y las alineaciones de tu perfil de War Thunder sin modificarlos. «Enviar comentarios» solo abre una página de GitHub en tu navegador: no se envía nada hasta que la publiques allí. Si usas Quitar fondo en Atelier, Livery descarga sus archivos de GitHub una sola vez y solo cuando lo pides; tus imágenes se quedan en este PC.",

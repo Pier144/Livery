@@ -39,6 +39,8 @@ use std::time::{Duration, Instant};
 /// `notFound`: the background-removal files aren't downloaded (or a removal waits for a restart,
 /// or the runtime's DLL doesn't match its pinned hash and was deleted).
 pub const CUTOUT_NOT_READY: &str = "Download the background-removal files first";
+/// `unsupported`: the runtime Livery downloads is the Windows build of ONNX Runtime.
+pub const CUTOUT_UNSUPPORTED: &str = "Background removal needs Windows for now";
 /// `internal`: the runtime or the model failed to load or run.
 pub const CUTOUT_FAILED: &str = "The background couldn't be removed";
 /// `unsupported`: the runtime's DLL needs a DLL Windows can't find (error 126), in practice the

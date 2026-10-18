@@ -11,20 +11,24 @@ use std::path::{Path, PathBuf};
 pub const USER_SKINS: &str = "UserSkins";
 
 /// Sub-folders of a root a user is likely to pick by mistake; picking one selects its parent.
-/// `win64`/`win32` matter most: they hold `aces.exe`, so on their own they would pass validation.
-const ROOT_SUBFOLDERS: [&str; 5] = [USER_SKINS, "win64", "win32", "content", "content.hq"];
+/// `win64`/`win32`/`linux64` matter most: they hold `aces(.exe)`, so on their own they would pass
+/// validation.
+const ROOT_SUBFOLDERS: [&str; 6] = [USER_SKINS, "win64", "win32", "linux64", "content", "content.hq"];
 
 pub fn user_skins_dir(root: &Path) -> PathBuf {
     root.join(USER_SKINS)
 }
 
-/// A game root is a folder with `UserSkins/`, `launcher.exe`, `aces.exe` or `win64/aces.exe`.
+/// A game root is a folder with `UserSkins/`, `launcher.exe`, `aces.exe` or `win64/aces.exe`, or
+/// the Linux client's `launcher` or `linux64/aces`.
 pub fn is_game_root(path: &Path) -> bool {
     path.is_dir()
         && (path.join(USER_SKINS).is_dir()
             || path.join("launcher.exe").is_file()
             || path.join("aces.exe").is_file()
-            || path.join("win64").join("aces.exe").is_file())
+            || path.join("win64").join("aces.exe").is_file()
+            || path.join("launcher").is_file()
+            || path.join("linux64").join("aces").is_file())
 }
 
 /// The game root for a folder the user picked: the folder itself, or its parent when the pick is
@@ -97,6 +101,11 @@ pub fn standalone_candidates(env: impl Fn(&str) -> Option<OsString>) -> Vec<Path
     .collect();
     if cfg!(windows) {
         out.push(PathBuf::from(r"C:\Games\WarThunder"));
+    } else {
+        // The Linux launcher installs next to itself, wherever its archive was unpacked.
+        let home: [&[&str]; 3] = [&["WarThunder"], &["Games", "WarThunder"], &["games", "WarThunder"]];
+        out.extend(home.into_iter().filter_map(|parts| under("HOME", parts)));
+        out.extend(["/opt/games/WarThunder", "/opt/WarThunder"].map(PathBuf::from));
     }
     dedupe_paths(out)
 }

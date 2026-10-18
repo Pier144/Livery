@@ -34,7 +34,7 @@ use crate::settings::SettingsStore;
 use crate::textures::bc::APPLY_BAD_TEXTURE;
 use apply::{APPLY_BAD_SLOT, APPLY_NOT_FOUND, TEXTURES_PCT};
 use assets::ASSET_INVALID;
-use cutout::{Cutout, CUTOUT_NOT_READY};
+use cutout::{Cutout, CUTOUT_NOT_READY, CUTOUT_UNSUPPORTED};
 use download::Downloader;
 use models::{ModelFiles, CUTOUT_BUSY};
 use project::{is_slot_name, ProjectStore, PROJECT_NOT_FOUND, PROJECT_THUMB_INVALID};
@@ -571,6 +571,9 @@ pub async fn atelier_cutout_status(app: AppHandle) -> AppResult<CutoutStatus> {
 #[tauri::command]
 pub async fn atelier_cutout_download(app: AppHandle) -> AppResult<CutoutStatus> {
     atelier_on(&app)?;
+    if cfg!(not(windows)) {
+        return Err(AppError::new(ErrorCode::Unsupported, CUTOUT_UNSUPPORTED));
+    }
     blocking(move || {
         let state = app.state::<CutoutState>();
         let _using = state.use_files();

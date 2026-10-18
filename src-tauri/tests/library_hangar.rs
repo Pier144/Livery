@@ -611,8 +611,10 @@ fn rename_refuses_bad_names_and_other_skins_folders() {
         let e = ops::rename(&tmp.user_skins(), &store, &winter, bad).unwrap_err();
         assert_eq!(e.code, ErrorCode::InvalidInput, "{bad:?}");
     }
-    let e = ops::rename(&tmp.user_skins(), &store, &winter, "desert").unwrap_err();
-    assert_eq!(e.code, ErrorCode::Conflict, "another skin's folder, any case");
+    // Folder names follow the file system: any case on Windows, the exact name elsewhere.
+    let taken = if cfg!(windows) { "desert" } else { "Desert" };
+    let e = ops::rename(&tmp.user_skins(), &store, &winter, taken).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Conflict, "another skin's folder");
     assert_eq!(ops::rename(&tmp.user_skins(), &store, "nope", "X").unwrap_err().code, ErrorCode::NotFound);
     assert!(tmp.user_skins().join("Winter").is_dir(), "nothing moved");
     assert_eq!(store.all(), index);

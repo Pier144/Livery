@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/Switch';
 import { errorText } from '@/lib/errors';
 import { baseName } from '@/lib/format';
 import { showInExplorer } from '@/lib/opener';
+import { IS_LINUX } from '@/lib/platform';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { useWatchFolder } from '@/queries/queue';
 import { toast } from '@/store/toasts';
@@ -38,7 +39,7 @@ function RevealPath({ path, describedBy }: { path: string; describedBy: string }
           {shown ? t('common.hidePath') : t('common.showPath')}
         </button>
         <button type="button" onClick={() => void showInExplorer(path, t)} aria-describedby={describedBy} className={ROW_LINK}>
-          {t('common.showInExplorer')}
+          {t(IS_LINUX ? 'common.showInExplorerLinux' : 'common.showInExplorer')}
         </button>
       </div>
     </>

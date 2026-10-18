@@ -10,7 +10,9 @@
     "showPath": "Afficher le chemin",
     "hidePath": "Masquer le chemin",
     "showInExplorer": "Afficher dans l’Explorateur",
+    "showInExplorerLinux": "Afficher dans le dossier",
     "explorerFailed": "Impossible d’ouvrir ce dossier dans l’Explorateur de fichiers.",
+    "explorerFailedLinux": "Impossible d’ouvrir ce dossier.",
     "link": {
       "copied": "Livery n’a pas pu ouvrir votre navigateur, le lien est donc dans le presse-papiers. Collez-le dans le navigateur.",
       "failed": "Impossible d’ouvrir le lien : {{url}}",
@@ -289,6 +291,7 @@
       },
       "attach": "Joindre les détails techniques",
       "attachHelper": "Versions de Livery et de Windows, langue et dernières lignes du journal. Les dossiers et votre nom d’utilisateur sont masqués.",
+      "attachHelperLinux": "Versions de Livery et de Linux, langue et dernières lignes du journal. Les dossiers et votre nom d’utilisateur sont masqués.",
       "preview": "Ce que GitHub recevra",
       "dropped_one": "{{count}} ligne plus ancienne du journal est omise pour que le lien ne soit pas trop long.",
       "dropped_many": "{{count}} de lignes plus anciennes du journal sont omises pour que le lien ne soit pas trop long.",
@@ -1415,10 +1418,14 @@
     },
     "general": {
       "autostart": "Lancer avec Windows",
+      "autostartLinux": "Lancer à l’ouverture de session",
       "autostartHelper": "Livery s’ouvre quand vous ouvrez une session Windows.",
+      "autostartHelperLinux": "Livery s’ouvre quand vous ouvrez une session.",
       "autostartFailed": "Impossible de modifier Lancer avec Windows : {{message}}",
+      "autostartFailedLinux": "Impossible de modifier Lancer à l’ouverture de session : {{message}}",
       "reduceMotion": "Réduire les animations",
       "reduceMotionHelper": "Suit par défaut le réglage de Windows.",
+      "reduceMotionHelperLinux": "Suit par défaut le réglage du système.",
       "motion": {
         "system": "Système",
         "on": "Oui",
@@ -1554,6 +1561,7 @@
     },
     "about": {
       "build": "{{version}} · Windows x64",
+      "buildLinux": "{{version}} · Linux x64",
       "description": "Un gestionnaire de skins utilisateur pour War Thunder. Parcourez WT Live, installez en un clic, gardez votre hangar en ordre.",
       "privacyTitle": "Confidentialité",
       "privacy": "Pas de compte, pas de publicité, pas de télémétrie. Livery se connecte uniquement à WT Live (live.warthunder.com et son serveur d’images) quand vous parcourez ou installez des skins, et à GitHub pour rechercher les mises à jour. Vos paramètres et votre bibliothèque restent sur ce PC. Livery lit les fichiers du jeu et les compositions de votre profil War Thunder sans les modifier. « Envoyer un retour » ouvre seulement une page GitHub dans votre navigateur : rien n’est envoyé tant que vous ne l’avez pas validée sur GitHub. Si vous utilisez Supprimer l’arrière-plan dans Atelier, Livery télécharge une seule fois ses fichiers depuis GitHub, uniquement à votre demande ; vos images restent sur ce PC.",

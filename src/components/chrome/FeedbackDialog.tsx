@@ -10,6 +10,7 @@ import { cn } from '@/lib/cn';
 import { FEEDBACK_KINDS, MAX_TEXT, draftFeedback } from '@/lib/feedback';
 import { useLeaving } from '@/lib/motion';
 import { openLink } from '@/lib/opener';
+import { IS_LINUX } from '@/lib/platform';
 import { useFeedbackDiagnostics } from '@/queries/feedback';
 import { useAppVersion } from '@/screens/Settings/useAppVersion';
 import { closeFeedback, useFeedback } from '@/store/feedback';
@@ -208,7 +209,7 @@ function FeedbackDialogBody({ leaving }: { leaving: boolean }) {
                 {t('common.feedback.attach')}
               </span>
               <span id={attachHelpId} className="text-meta text-ink-4">
-                {t('common.feedback.attachHelper')}
+                {t(IS_LINUX ? 'common.feedback.attachHelperLinux' : 'common.feedback.attachHelper')}
               </span>
             </div>
           </div>

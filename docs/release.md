@@ -24,6 +24,8 @@ Other behaviour worth knowing:
 - **Publisher:** not set, so Tauri uses the middle segment of the identifier: "livery", shown in Settings → Apps. It also names the registry key `HKCU\Software\livery\Livery`. Decide the publisher (and the identifier, `app.livery.desktop` today) **before the first public release**: changing either later splits upgrades from existing installs (the identifier also moves the app data folder).
 - **Updater:** on (see "Updates" below). `createUpdaterArtifacts: true` makes `tauri build` also write `<installer>.sig`, so **every build needs the updater signing key** in `TAURI_SIGNING_PRIVATE_KEY`.
 
+**Linux:** on Linux `tauri build` also reads `src-tauri/tauri.linux.conf.json`, which makes the bundle an AppImage (`bundle/appimage/Livery_<version>_amd64.AppImage` plus its `.sig`). It is the only Linux format for now: the updater can replace an AppImage, not a `.deb`. Build it on the oldest Ubuntu you support (CI: 22.04) so it runs on older glibc. Locally, without the signing key: `pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'`.
+
 ### Build locally
 
 ```bash
@@ -155,12 +157,14 @@ Also check `livery.exe` after installing. Both need `Status: Valid` and a timest
 
 ## CI
 
-`ci.yml` runs on every push and pull request, on `windows-latest`:
+`ci.yml` runs on every push and pull request. The `check` job, on `windows-latest`:
 
 1. Node 24 + pnpm 10.32.1 through corepack, cached pnpm store, `pnpm install --frozen-lockfile`.
 2. `pnpm typecheck`, `pnpm test`, `pnpm i18n:check`, `pnpm build`.
 3. Fails if `dist/` contains `mockCall|mockListen|livery.mock|mockDetectGame` or a file named `*mock*` (the dev mock backend must never ship).
 4. Rust stable with clippy and rustfmt through rustup; cached cargo registry (keyed on `Cargo.lock`) and `src-tauri/target` (keyed on the rustc version and `Cargo.lock`); `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
+
+The `linux` job, on `ubuntu-22.04`, installs the WebKitGTK libraries, builds the frontend and runs `cargo clippy --all-targets -- -D warnings` and `cargo test` against the Linux side (rustfmt and the frontend checks run once, in the Windows job).
 
 A push to a branch with an open pull request runs twice (once per event). Restrict `push` to `main` and tags if that gets noisy.
 
@@ -168,7 +172,7 @@ A push to a branch with an open pull request runs twice (once per event). Restri
 
 Livery updates itself with `tauri-plugin-updater` (Rust side only, `src-tauri/src/update.rs`; Settings → Updates).
 
-- **Feed:** `https://github.com/Pier144/Livery/releases/latest/download/latest.json` (`plugins.updater.endpoints`). GitHub's `latest` is the newest **published**, non-prerelease release, so drafts are never offered. `release.yml` writes `latest.json` with `scripts/updater-manifest.mjs`: version, notes link, date, and for `windows-x86_64` the installer's release URL and its signature.
+- **Feed:** `https://github.com/Pier144/Livery/releases/latest/download/latest.json` (`plugins.updater.endpoints`). GitHub's `latest` is the newest **published**, non-prerelease release, so drafts are never offered. `release.yml` writes `latest.json` with `scripts/updater-manifest.mjs`: version, notes link, date, and for `windows-x86_64` the installer's release URL and its signature. The `linux` job of `release.yml` runs after the Windows one: it downloads that `latest.json` from the draft, adds `linux-x86_64` (the AppImage) with the same script, and uploads it again with the AppImage, its `.sig`, `.sha256` and a fixed-name copy `Livery-x86_64.AppImage`. Re-running only the Windows job rewrites `latest.json` without the Linux entry: re-run the Linux job after it.
 - **Signature:** every update is checked against the minisign public key in `plugins.updater.pubkey` before it runs. The private key is `~/.tauri/livery-updater.key` on the author's machine (no password) and the **`TAURI_SIGNING_PRIVATE_KEY`** repository secret (its file content; `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` stays unset). **Back the key up.** If it's lost, installed copies can't verify any new version: they would need a manual reinstall of a build with a new public key. Never commit it.
 - **Install:** the NSIS installer runs in passive mode (`plugins.updater.windows.installMode`): a small progress window, no questions, then Livery opens again on the new version.
 - **Manual:** Settings → Updates → Check now → Install and restart.

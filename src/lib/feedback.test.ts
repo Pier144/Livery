@@ -25,7 +25,7 @@ describe('feedback drafts', () => {
   it('writes the message, then the technical details only when attached', () => {
     const body = feedbackBody(input(), DIAG.logTail);
     expect(body).toContain('### What happened\n\nInstall fails\nwith a RAR pack');
-    expect(body).toContain('- Livery: 0.3.2\n- Windows: Windows 11 24H2 (build 26100.1)\n- Language: it');
+    expect(body).toContain('- Livery: 0.3.2\n- OS: Windows 11 24H2 (build 26100.1)\n- Language: it');
     expect(body).toContain('````text\nline 1\nline 2\nline 3\n````');
     const plain = feedbackBody(input({ attach: false }), DIAG.logTail);
     expect(plain).not.toContain('Technical details');

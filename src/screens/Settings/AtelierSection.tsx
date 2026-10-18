@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import { errorText } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
+import { IS_LINUX } from '@/lib/platform';
 import { hasBackend } from '@/lib/tauri';
 import { useCutoutStatus, useRemoveCutoutFiles } from '@/queries/atelier';
 import { confirm } from '@/store/confirm';
@@ -53,7 +54,7 @@ export function AtelierSection() {
             />
           )}
         </SettingRow>
-        {settings.atelierEnabled && <CutoutFilesRow />}
+        {settings.atelierEnabled && !IS_LINUX && <CutoutFilesRow />}
       </SettingGroup>
     </>
   );

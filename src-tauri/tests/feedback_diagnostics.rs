@@ -1,6 +1,6 @@
 //! Feedback details: the log tail is anonymised before the user sees it (and maybe attaches it).
 
-use livery_lib::feedback::{log_tail, os_description, Anonymizer};
+use livery_lib::feedback::{log_tail, os_description, os_release_name, Anonymizer};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -64,4 +64,15 @@ fn the_os_is_described() {
     println!("{os}");
     #[cfg(windows)]
     assert!(os.starts_with("Windows 1") && os.contains("build "), "{os}");
+    #[cfg(target_os = "linux")]
+    assert!(os.starts_with("Linux "), "{os}");
+}
+
+#[test]
+fn os_release_gives_the_pretty_name() {
+    let text = "NAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nPRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\n";
+    assert_eq!(os_release_name(text).as_deref(), Some("Ubuntu 24.04.4 LTS"));
+    assert_eq!(os_release_name("PRETTY_NAME=Arch Linux\n").as_deref(), Some("Arch Linux"), "unquoted");
+    assert_eq!(os_release_name("PRETTY_NAME=\"\"\n"), None);
+    assert_eq!(os_release_name("NAME=Debian\n"), None);
 }

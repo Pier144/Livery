@@ -25,7 +25,7 @@ const HEADING: Record<FeedbackKind, string> = { bug: 'What happened', idea: 'Ide
 export interface FeedbackInput {
   kind: FeedbackKind;
   text: string;
-  /** "Attach technical details": version, Windows, language and the log tail. */
+  /** "Attach technical details": version, OS, language and the log tail. */
   attach: boolean;
   diagnostics?: FeedbackDiagnostics | undefined;
   /** The UI language code. */
@@ -55,7 +55,7 @@ export function feedbackBody(input: FeedbackInput, logLines: readonly string[]):
   const parts = [`### ${HEADING[input.kind]}`, '', input.text.trim() || '_(no message)_'];
   const d = input.attach ? input.diagnostics : undefined;
   if (d) {
-    parts.push('', '### Technical details', '', `- Livery: ${d.appVersion}`, `- Windows: ${d.os}`, `- Language: ${input.language}`);
+    parts.push('', '### Technical details', '', `- Livery: ${d.appVersion}`, `- OS: ${d.os}`, `- Language: ${input.language}`);
     if (logLines.length) {
       // A four-backtick fence: a log line can't close it by accident.
       parts.push(

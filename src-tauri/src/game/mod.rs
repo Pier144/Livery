@@ -219,7 +219,7 @@ pub async fn game_lineups(app: AppHandle) -> AppResult<crate::model::Lineups> {
     blocking(move || {
         let on = app.state::<SettingsStore>().get().read_game_data;
         app.state::<profile::ProfileStore>()
-            .lineups(on, || profile::system_documents_dir().and_then(|d| profile::profile_file(&d)))
+            .lineups(on, || profile::system_saves_dir().and_then(|s| profile::saves_profile_file(&s)))
     })
     .await
 }

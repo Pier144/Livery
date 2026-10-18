@@ -331,7 +331,7 @@ fn the_queue_is_newest_first_and_a_path_is_queued_once() {
     );
 
     // The same folder again (spelled differently) is analysed again in place: same id, same spot.
-    let spelled = PathBuf::from(format!("{}\\", fixture("Winter Tiger").display()));
+    let spelled = PathBuf::from(format!("{}{}", fixture("Winter Tiger").display(), std::path::MAIN_SEPARATOR));
     let again = env.analyze(&spelled);
     assert_eq!(again.id, first.id);
     assert_eq!(env.queue.list().len(), 2);

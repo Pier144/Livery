@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { REPO_URL, openLink } from '@/lib/opener';
+import { IS_LINUX } from '@/lib/platform';
 import { openFeedback } from '@/store/feedback';
 import { LicensesDialog } from './LicensesDialog';
 import { SectionTitle } from './SettingRow';
@@ -28,7 +29,7 @@ export function AboutSection() {
         <div className="flex items-center gap-3">
           <span aria-hidden className="h-2.5 w-2.5 flex-none rounded-full bg-amber shadow-glow-lg" />
           <span className="text-[14px] font-semibold leading-[normal] tracking-[.14em]">{t('common.brand')}</span>
-          <span className="font-mono text-mono-sm leading-[normal] text-ink-4">{t('settings.about.build', { version })}</span>
+          <span className="font-mono text-mono-sm leading-[normal] text-ink-4">{t(IS_LINUX ? 'settings.about.buildLinux' : 'settings.about.build', { version })}</span>
         </div>
         <p>{t('settings.about.description')}</p>
         <p className="rounded-card border border-line-2 bg-bg-3 px-3.5 py-3 text-ink-3">{t('common.unofficial')}</p>

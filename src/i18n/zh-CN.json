@@ -10,7 +10,9 @@
     "showPath": "显示路径",
     "hidePath": "隐藏路径",
     "showInExplorer": "在文件资源管理器中显示",
+    "showInExplorerLinux": "在文件夹中显示",
     "explorerFailed": "无法在文件资源管理器中打开该文件夹。",
+    "explorerFailedLinux": "无法打开该文件夹。",
     "link": {
       "copied": "Livery 无法打开您的浏览器，已将链接复制到剪贴板，请粘贴到浏览器中。",
       "failed": "无法打开链接：{{url}}",
@@ -285,6 +287,7 @@
       },
       "attach": "附带技术信息",
       "attachHelper": "Livery 和 Windows 版本、语言以及日志的最后几行。文件夹和您的用户名会被隐藏。",
+      "attachHelperLinux": "Livery 和 Linux 版本、语言以及日志的最后几行。文件夹和您的用户名会被隐藏。",
       "preview": "GitHub 将收到的内容",
       "dropped_other": "为缩短链接，已省略 {{count}} 行较早的日志。",
       "tooLong": "内容过长，无法放入 GitHub 链接。请缩短内容。",
@@ -1319,10 +1322,14 @@
     },
     "general": {
       "autostart": "随 Windows 启动",
+      "autostartLinux": "登录时启动",
       "autostartHelper": "登录 Windows 时自动打开 Livery。",
+      "autostartHelperLinux": "登录时自动打开 Livery。",
       "autostartFailed": "无法更改“随 Windows 启动”：{{message}}",
+      "autostartFailedLinux": "无法更改“登录时启动”：{{message}}",
       "reduceMotion": "减少动态效果",
       "reduceMotionHelper": "默认跟随 Windows 设置。",
+      "reduceMotionHelperLinux": "默认跟随系统设置。",
       "motion": {
         "system": "系统",
         "on": "开",
@@ -1450,6 +1457,7 @@
     },
     "about": {
       "build": "{{version}} · Windows x64",
+      "buildLinux": "{{version}} · Linux x64",
       "description": "War Thunder 用户涂装管理器。浏览 WT Live，一键安装，让您的基地井井有条。",
       "privacyTitle": "隐私",
       "privacy": "无需账号，没有广告，没有遥测。Livery 仅在您浏览或安装涂装时连接 WT Live（live.warthunder.com 及其图片服务器），并在检查更新时连接 GitHub。您的设置和本地库都保存在这台电脑上。Livery 只读取游戏文件和您 War Thunder 存档中的阵容，不会做任何更改。“发送反馈”只会在浏览器中打开一个 GitHub 页面：在您于该页面提交之前，不会发送任何内容。如果您在 Atelier 中使用“去除背景”，Livery 只会在您请求时从 GitHub 下载一次所需文件；您的图片始终保留在此电脑上。",

@@ -45,10 +45,12 @@ impl Anonymizer {
         Self { roots, user_name }
     }
 
-    /// From this machine: `%USERPROFILE%`, `%USERNAME%`, the saved game folder and the data dir.
+    /// From this machine: `%USERPROFILE%`, `%USERNAME%` (`$HOME`, `$USER` elsewhere), the saved
+    /// game folder and the data dir.
     pub fn from_system(game: Option<&Path>, data: Option<&Path>) -> Self {
-        let profile = std::env::var_os("USERPROFILE").map(PathBuf::from);
-        let user = std::env::var("USERNAME").ok();
+        let (home, user) = if cfg!(windows) { ("USERPROFILE", "USERNAME") } else { ("HOME", "USER") };
+        let profile = std::env::var_os(home).map(PathBuf::from);
+        let user = std::env::var(user).ok();
         Self::new(profile.as_deref(), game, data, user.as_deref())
     }
 
@@ -184,7 +186,21 @@ pub fn os_description() -> String {
             return text;
         }
     }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(name) = std::fs::read_to_string("/etc/os-release").ok().as_deref().and_then(os_release_name) {
+            return format!("Linux {name} ({})", std::env::consts::ARCH);
+        }
+    }
     format!("{} {}", std::env::consts::OS, std::env::consts::ARCH)
+}
+
+/// `PRETTY_NAME` of an `os-release` file ("Ubuntu 24.04.4 LTS"), unquoted; `None` when missing.
+pub fn os_release_name(text: &str) -> Option<String> {
+    let value = text.lines().find_map(|l| l.trim().strip_prefix("PRETTY_NAME="))?.trim();
+    let value = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')).unwrap_or(value).trim();
+    // One short line: the file is the distribution's, but nothing long reaches a report.
+    (!value.is_empty()).then(|| value.chars().take(80).collect())
 }
 
 #[cfg(windows)]

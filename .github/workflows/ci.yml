@@ -1,4 +1,4 @@
-# Checks every push and pull request on the only release target (Windows).
+# Checks every push and pull request on Windows (all checks) and Linux (build, clippy, Rust tests).
 # Official actions only (actions/*); no third-party actions. See docs/release.md.
 name: CI
 
@@ -119,6 +119,81 @@ jobs:
       - name: cargo fmt
         working-directory: src-tauri
         run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --locked
+
+  # Linux build: the Rust side compiles, lints and passes its tests against WebKitGTK. The
+  # frontend checks run once, in the Windows job; here the frontend is only built (Tauri embeds it).
+  linux:
+    name: Linux build and Rust tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential file pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev xdg-utils p7zip-full
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable pnpm through corepack
+        run: |
+          corepack enable
+          corepack install --global "pnpm@${PNPM_VERSION}"
+
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Build the frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Install the Rust toolchain
+        id: rust
+        run: |
+          rustup toolchain install stable --profile minimal -c clippy
+          rustup default stable
+          echo "version=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the cargo registry
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+
+      - name: Cache the Rust build
+        uses: actions/cache@v6
+        with:
+          path: src-tauri/target/
+          key: cargo-target-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-target-${{ runner.os }}-${{ steps.rust.outputs.version }}-
 
       - name: cargo clippy
         working-directory: src-tauri

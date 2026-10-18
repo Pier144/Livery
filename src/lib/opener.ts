@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { IS_LINUX } from '@/lib/platform';
 import { isTauri } from '@/lib/tauri';
 import { toast } from '@/store/toasts';
 
@@ -135,6 +136,6 @@ export async function revealInExplorer(path: string): Promise<boolean> {
 /** `revealInExplorer` plus a toast when the folder can't be shown. */
 export async function showInExplorer(path: string, t: TFunction): Promise<boolean> {
   const ok = await revealInExplorer(path);
-  if (!ok) toast(t('common.explorerFailed'));
+  if (!ok) toast(t(IS_LINUX ? 'common.explorerFailedLinux' : 'common.explorerFailed'));
   return ok;
 }

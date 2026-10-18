@@ -10,7 +10,9 @@
     "showPath": "Pokaż ścieżkę",
     "hidePath": "Ukryj ścieżkę",
     "showInExplorer": "Pokaż w Eksploratorze",
+    "showInExplorerLinux": "Pokaż w folderze",
     "explorerFailed": "Nie udało się otworzyć tego folderu w Eksploratorze plików.",
+    "explorerFailedLinux": "Nie udało się otworzyć tego folderu.",
     "link": {
       "copied": "Livery nie może otworzyć przeglądarki, więc link jest w schowku. Wklej go tam.",
       "failed": "Nie udało się otworzyć linku: {{url}}",
@@ -291,6 +293,7 @@
       },
       "attach": "Dołącz informacje techniczne",
       "attachHelper": "Wersja Livery i Windows, język i ostatnie wiersze dziennika. Foldery i nazwa użytkownika są ukryte.",
+      "attachHelperLinux": "Wersja Livery i Linuksa, język i ostatnie wiersze dziennika. Foldery i nazwa użytkownika są ukryte.",
       "preview": "Co otrzyma GitHub",
       "dropped_one": "Pominięto {{count}} starszy wiersz dziennika, aby link się zmieścił.",
       "dropped_few": "Pominięto {{count}} starsze wiersze dziennika, aby link się zmieścił.",
@@ -1463,10 +1466,14 @@
     },
     "general": {
       "autostart": "Uruchamiaj z Windows",
+      "autostartLinux": "Uruchamiaj po zalogowaniu",
       "autostartHelper": "Livery otwiera się po zalogowaniu do Windows.",
+      "autostartHelperLinux": "Livery otwiera się po zalogowaniu.",
       "autostartFailed": "Nie udało się zmienić opcji Uruchamiaj z Windows: {{message}}",
+      "autostartFailedLinux": "Nie udało się zmienić opcji Uruchamiaj po zalogowaniu: {{message}}",
       "reduceMotion": "Ogranicz animacje",
       "reduceMotionHelper": "Domyślnie zgodnie z ustawieniem Windows.",
+      "reduceMotionHelperLinux": "Domyślnie zgodnie z ustawieniem systemu.",
       "motion": {
         "system": "System",
         "on": "Wł.",
@@ -1606,6 +1613,7 @@
     },
     "about": {
       "build": "{{version}} · Windows x64",
+      "buildLinux": "{{version}} · Linux x64",
       "description": "Menedżer kamuflaży użytkowników dla War Thunder. Przeglądaj WT Live, instaluj jednym kliknięciem, utrzymuj porządek w hangarze.",
       "privacyTitle": "Prywatność",
       "privacy": "Bez konta, bez reklam, bez telemetrii. Livery łączy się tylko z WT Live (live.warthunder.com i jego serwerem obrazów), gdy przeglądasz lub instalujesz kamuflaże, oraz z serwisem GitHub, aby sprawdzić aktualizacje. Twoje ustawienia i biblioteka zostają na tym komputerze. Livery odczytuje pliki gry i zestawy z twojego profilu War Thunder, nie zmieniając ich. „Wyślij opinię” tylko otwiera stronę GitHub w przeglądarce: nic nie zostanie wysłane, dopóki jej tam nie zatwierdzisz. Jeśli używasz Usuń tło w Atelier, Livery jednorazowo i tylko na twoje żądanie pobiera potrzebne pliki z GitHuba; twoje obrazy zostają na tym PC.",

@@ -1,4 +1,4 @@
-# Builds the NSIS installer and attaches it to a DRAFT GitHub release.
+# Builds the NSIS installer and the Linux AppImage and attaches them to a DRAFT GitHub release.
 # Trigger: push a tag `v<version>` (it must match tauri.conf.json), or run it by hand
 # (workflow_dispatch), which drafts `v<version>` on the chosen branch's commit.
 # Code signing is optional and off until its secrets exist: a certificate of your own
@@ -380,3 +380,131 @@ jobs:
               --generate-notes
           fi
           echo "Draft release ${TAG} is ready for review."
+
+  # ── Linux AppImage ────────────────────────────────────────────────────────
+  # After the Windows job: adds the AppImage, its updater signature and its entry in latest.json
+  # to the same draft. Built on the oldest supported Ubuntu so the AppImage runs on older glibc.
+  linux:
+    name: Linux AppImage
+    needs: release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential file pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev xdg-utils
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Read the version
+        id: version
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Enable pnpm through corepack
+        run: |
+          corepack enable
+          corepack install --global "pnpm@${PNPM_VERSION}"
+          actual=$(pnpm --version)
+          if [ "${actual}" != "${PNPM_VERSION}" ]; then
+            echo "::error::pnpm ${actual} is active, expected ${PNPM_VERSION}."
+            exit 1
+          fi
+
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the pnpm store
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+
+      - name: Restore the cargo registry
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+
+      # tauri.linux.conf.json makes the bundle an AppImage; createUpdaterArtifacts writes its .sig.
+      - name: Build the AppImage
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing: updates can't be signed (docs/release.md, \"Updates\")."
+            exit 1
+          fi
+          pnpm tauri build --ci
+
+      - name: Locate the AppImage and extend the update feed
+        id: appimage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          shopt -s nullglob
+          files=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          if [ "${#files[@]}" -ne 1 ]; then
+            echo "::error::Expected one AppImage, found ${#files[@]}."
+            exit 1
+          fi
+          appimage="${files[0]}"
+          dir="$(dirname "$appimage")"
+          if [ ! -s "${appimage}.sig" ]; then
+            echo "::error::${appimage}.sig is missing: the updater signature wasn't written."
+            exit 1
+          fi
+          if [ "$(gh release view "${TAG}" --json isDraft --jq .isDraft)" != "true" ]; then
+            echo "::error::Release ${TAG} isn't a draft: the Windows job must draft it first."
+            exit 1
+          fi
+          # The Windows job's feed, with the Linux entry added next to it.
+          gh release download "${TAG}" --pattern latest.json --dir "${dir}" --clobber
+          node scripts/updater-manifest.mjs "${appimage}" "${dir}/latest.json" "${GITHUB_REPOSITORY}"
+          (cd "$dir" && sha256sum "$(basename "$appimage")" > "$(basename "$appimage").sha256")
+          # A fixed name for a stable download link (releases/latest/download/Livery-x86_64.AppImage).
+          cp "${appimage}" "${dir}/Livery-x86_64.AppImage"
+          echo "path=${appimage}" >> "$GITHUB_OUTPUT"
+          echo "dir=${dir}" >> "$GITHUB_OUTPUT"
+          ls -l "${dir}"
+
+      - name: Add the AppImage to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+          APPIMAGE: ${{ steps.appimage.outputs.path }}
+          DIR: ${{ steps.appimage.outputs.dir }}
+        run: |
+          gh release upload "${TAG}" "${APPIMAGE}" "${APPIMAGE}.sig" "${APPIMAGE}.sha256" \
+            "${DIR}/latest.json" "${DIR}/Livery-x86_64.AppImage" --clobber
+          echo "Draft release ${TAG} now has the AppImage."

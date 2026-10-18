@@ -4,6 +4,7 @@ import { Kbd } from '@/components/ui/Kbd';
 import { SegmentedControl, type Segment } from '@/components/ui/SegmentedControl';
 import { Switch } from '@/components/ui/Switch';
 import { errorText } from '@/lib/errors';
+import { IS_LINUX } from '@/lib/platform';
 import { isTauri, toAppError } from '@/lib/tauri';
 import { formatZoom, ZOOM_STEPS } from '@/lib/zoom';
 import { useSettings } from '@/queries/settings';
@@ -89,7 +90,7 @@ function useStartWithWindows(settings: Settings, patch: (changes: Partial<Settin
     } catch (e) {
       // Nothing changed, so a read still in flight is right again.
       toggled.current = false;
-      toast(t('settings.general.autostartFailed', { message: errorText(toAppError(e), t) }));
+      toast(t(IS_LINUX ? 'settings.general.autostartFailedLinux' : 'settings.general.autostartFailed', { message: errorText(toAppError(e), t) }));
     } finally {
       busy.current = false;
       setPending(null);
@@ -113,7 +114,10 @@ export function GeneralSection() {
     <>
       <SectionTitle>{t('settings.nav.general')}</SectionTitle>
       <SettingGroup>
-        <SettingRow label={t('settings.general.autostart')} helper={t('settings.general.autostartHelper')}>
+        <SettingRow
+          label={t(IS_LINUX ? 'settings.general.autostartLinux' : 'settings.general.autostart')}
+          helper={t(IS_LINUX ? 'settings.general.autostartHelperLinux' : 'settings.general.autostartHelper')}
+        >
           {({ labelId, helperId }) => (
             <Switch
               checked={autostart.checked}
@@ -124,7 +128,7 @@ export function GeneralSection() {
             />
           )}
         </SettingRow>
-        <SettingRow label={t('settings.general.reduceMotion')} helper={t('settings.general.reduceMotionHelper')}>
+        <SettingRow label={t('settings.general.reduceMotion')} helper={t(IS_LINUX ? 'settings.general.reduceMotionHelperLinux' : 'settings.general.reduceMotionHelper')}>
           {({ helperId }) => (
             <SegmentedControl
               label={t('settings.general.reduceMotion')}
