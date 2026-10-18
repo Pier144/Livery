@@ -42,6 +42,10 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 # ONNX Runtime bindings for Atelier's background removal, MIT OR Apache-2.0. `load-dynamic`: the
 # runtime DLL is downloaded on request (atelier::models) and loaded at runtime; nothing is bundled.
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"] }
+# The Linux ONNX Runtime ships as a .tgz: only its library is read out of it (atelier::models).
+# Both already in the tree through `tauri-plugin-updater`. MIT OR Apache-2.0.
+flate2 = "1"
+tar = { version = "0.4", default-features = false }
 
 # Steam install path (HKCU\Software\Valve\Steam) and Atelier's font list live in the registry.
 [target."cfg(windows)".dependencies]

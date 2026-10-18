@@ -859,20 +859,20 @@ fn env_path(name: &str, default: &str) -> PathBuf {
     std::env::var_os(name).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(default))
 }
 
-/// The real pinned runtime (from the zip in `LIVERY_ORT_ZIP`) and model (`LIVERY_ISNET_MODEL`)
+/// The real pinned runtime (from this platform's archive in `LIVERY_ORT_ARCHIVE`) and model (`LIVERY_ISNET_MODEL`)
 /// copied into a temp models folder; an anime picture's cut-out (`LIVERY_CUTOUT_SOURCE`, RGBA)
 /// composited over a flat background. The cut must cover the subject and make the background
 /// transparent.
 #[test]
-#[ignore = "needs the downloaded ONNX Runtime zip and the isnet-anime model"]
+#[ignore = "needs the downloaded ONNX Runtime archive and the isnet-anime model"]
 fn background_removal_cuts_out_an_anime_picture() {
     use image::{Rgba, RgbaImage};
     use livery_lib::atelier::cutout::{alpha_bbox, ALPHA_THRESHOLD, CROP_MARGIN, UNMIX_ALPHA};
     use livery_lib::atelier::models::{extract_runtime, pinned, ModelFiles};
     use livery_lib::atelier::CutoutState;
 
-    let zip = env_path(
-        "LIVERY_ORT_ZIP",
+    let archive = env_path(
+        "LIVERY_ORT_ARCHIVE",
         r"C:\Users\piera\AppData\Local\Temp\claude\D--Dev-Progetti-Livery\f0929977-7776-4221-ba0c-79874e5498b5\scratchpad\downloads\onnxruntime-win-x64-1.30.0.zip",
     );
     let model = env_path("LIVERY_ISNET_MODEL", r"C:\Users\piera\.u2net\isnet-anime.onnx");
@@ -884,7 +884,8 @@ fn background_removal_cuts_out_an_anime_picture() {
     let models = dir.join("models");
     let files = ModelFiles::new(&models);
     let pins = pinned();
-    extract_runtime(&zip, &pins.runtime_zip.hash, &pins.dll_entry, &pins.dll, &files.runtime_dll()).unwrap();
+    let (format, hash) = (pins.runtime_format, &pins.runtime_archive.hash);
+    extract_runtime(&archive, format, hash, &pins.dll_entry, &pins.dll, &files.runtime_dll()).unwrap();
     std::fs::copy(&model, files.model_path()).unwrap();
     let state = CutoutState::new(&models);
     let status = state.files.status();

@@ -18,7 +18,6 @@ import { debounce, fontStatus } from '@/atelier/text';
 import { Button } from '@/components/ui/Button';
 import { ChipDropdown } from '@/components/ui/ChipDropdown';
 import { Switch } from '@/components/ui/Switch';
-import { IS_LINUX } from '@/lib/platform';
 import { useFonts } from '@/queries/atelier';
 import type { PartGroup } from '@/types';
 import { ColorSwatch, Field, Slider } from './controls';
@@ -253,13 +252,10 @@ export function ImageContent({
       </div>
       {onRemoveBackground && onRefineEdge && (
         <div className="flex flex-wrap gap-2">
-          {/* Background removal's runtime download is the Windows build of ONNX Runtime. */}
-          {!IS_LINUX && (
-            <Button size={28} disabled={missing || busy} onClick={() => onRemoveBackground(layer.id)} title={t('atelier.props.removeBackgroundHint')}>
-              <Wand2 size={14} strokeWidth={1.75} aria-hidden />
-              {t('atelier.props.removeBackground')}
-            </Button>
-          )}
+          <Button size={28} disabled={missing || busy} onClick={() => onRemoveBackground(layer.id)} title={t('atelier.props.removeBackgroundHint')}>
+            <Wand2 size={14} strokeWidth={1.75} aria-hidden />
+            {t('atelier.props.removeBackground')}
+          </Button>
           <Button size={28} disabled={missing} onClick={() => onRefineEdge(layer.id)} title={t('atelier.props.refineEdgeHint')}>
             <Brush size={14} strokeWidth={1.75} aria-hidden />
             {t('atelier.props.refineEdge')}

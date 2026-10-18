@@ -241,7 +241,7 @@
         "cutoutFailed": "Der Hintergrund konnte nicht entfernt werden",
         "cutoutRuntimeMissingDeps": "Die Hintergrundentfernung braucht Microsoft Visual C++ Redistributable (x64): installiere es und versuche es erneut",
         "cutoutCancelled": "Hintergrundentfernung abgebrochen",
-        "cutoutUnsupported": "Die Hintergrundentfernung gibt es vorerst nur unter Windows"
+        "cutoutUnsupported": "Die Hintergrundentfernung braucht Windows oder Linux auf x64"
       }
     },
     "vehicleClass": {

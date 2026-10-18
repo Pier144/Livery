@@ -59,7 +59,7 @@ olive grey and stone grey, light edge wear, and the Bundeswehr cross built from 
 - **Atelier, make your own skin**: paint a ground vehicle on its 3D model, read from your game:
   a base colour or camouflage, worn paint chipped along the edges, pictures and text projected
   onto the hull (mirrored to the other side if you like, snapped to the centre line and to each
-  other), stock shapes, background removal for pictures (Windows only for now), protected areas
+  other), stock shapes, background removal for pictures, protected areas
   that keep the game's texture. Apply to game writes the skin into War Thunder in one click.
   Settings → Atelier hides it if you don't want it.
 - **Checks** each skin for missing textures and problems in its `.blk` file.
@@ -98,8 +98,8 @@ your skins in the game's `UserSkins` folder stay where they are.
 3. Livery finds War Thunder's Linux client in Steam (also Flatpak and Snap), in `~/WarThunder`,
    `~/Games/WarThunder` or `/opt/games/WarThunder`; elsewhere, pick the folder by hand.
 
-The AppImage updates itself like the Windows version. Atelier's Remove background is Windows-only
-for now; everything else works the same. To uninstall, delete the AppImage; Livery's data lives in
+The AppImage updates itself like the Windows version, and everything works the same, Atelier's
+Remove background included. To uninstall, delete the AppImage; Livery's data lives in
 `~/.local/share/app.livery.desktop`.
 
 ## Privacy

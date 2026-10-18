@@ -3,15 +3,18 @@
 //!
 //! **Integrity.** The model is hashed once per process before its first session (and again when
 //! a session can't be made from it); a model that isn't the pinned one is deleted, so the next
-//! download fetches it again. The runtime's DLL is opened sharing only reads (nobody can replace
-//! it), hashed through that handle, and kept open until `ort` has loaded it.
+//! download fetches it again. The runtime's library is opened (on Windows sharing only reads:
+//! nobody can replace it), hashed through that handle, and kept open until `ort` has loaded it.
 //!
-//! **Loading.** The runtime's DLL (downloaded by `models`) is hashed before its first load in a
-//! process, then preloaded with `LoadLibraryExW(…, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
-//! LOAD_LIBRARY_SEARCH_SYSTEM32)`, so its own imports resolve only from its folder and System32
-//! (never the current folder or `PATH`); `ort::init_from` then loads the same full path, which
-//! reuses that module. The environment is `livery` with telemetry off, set once per process: a
-//! runtime at another path needs a restart. The module stays loaded until the process ends.
+//! **Loading.** The runtime's library (downloaded by `models`) is hashed before its first load in
+//! a process. On Windows the DLL is then preloaded with `LoadLibraryExW(…,
+//! LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32)`, so its own imports resolve
+//! only from its folder and System32 (never the current folder or `PATH`); `ort::init_from` then
+//! loads the same full path, which reuses that module. On Linux `ort::init_from` loads the
+//! shared object through the hashed handle (`/proc/self/fd/<fd>`, see [`load_path`]), so the
+//! file loaded is the file checked. The environment is `livery` with telemetry off, set once per
+//! process: a runtime at another path needs a restart. The library stays loaded until the
+//! process ends.
 //!
 //! **Pipeline** (as the author's `isnet.py`): Lanczos3 to 1024², `v/255 - mean` (std 1), NCHW;
 //! the first output plane min-max normalised, Lanczos3 back to the source size, alpha = mask ×
@@ -39,8 +42,9 @@ use std::time::{Duration, Instant};
 /// `notFound`: the background-removal files aren't downloaded (or a removal waits for a restart,
 /// or the runtime's DLL doesn't match its pinned hash and was deleted).
 pub const CUTOUT_NOT_READY: &str = "Download the background-removal files first";
-/// `unsupported`: the runtime Livery downloads is the Windows build of ONNX Runtime.
-pub const CUTOUT_UNSUPPORTED: &str = "Background removal needs Windows for now";
+/// `unsupported`: Livery downloads the x64 Windows and x64 Linux builds of ONNX Runtime only
+/// ([`crate::atelier::models::CUTOUT_SUPPORTED`]).
+pub const CUTOUT_UNSUPPORTED: &str = "Background removal needs Windows or Linux on x64";
 /// `internal`: the runtime or the model failed to load or run.
 pub const CUTOUT_FAILED: &str = "The background couldn't be removed";
 /// `unsupported`: the runtime's DLL needs a DLL Windows can't find (error 126), in practice the
@@ -393,7 +397,7 @@ impl Cutout {
         }
         #[cfg(windows)]
         win::preload(dll).map_err(preload_error)?;
-        let builder = ort::init_from(dll).map_err(|e| failed(e.to_string()))?;
+        let builder = ort::init_from(load_path(dll, &held)).map_err(|e| failed(e.to_string()))?;
         if !builder.with_name("livery").with_telemetry(false).commit() {
             tracing::warn!("an ONNX Runtime environment was already configured");
         }
@@ -514,6 +518,23 @@ fn open_read_only_shared(path: &Path) -> std::io::Result<std::fs::File> {
     #[cfg(not(windows))]
     {
         std::fs::File::open(path)
+    }
+}
+
+/// The path `ort` loads the runtime from. On Linux it is the held handle itself
+/// (`/proc/self/fd/<fd>`): the library loaded is the one hashed through it, and its `$ORIGIN`
+/// RUNPATH resolves to `/proc/self/fd`, where no library can be planted. Elsewhere, `dll`.
+fn load_path(dll: &Path, held: &std::fs::File) -> PathBuf {
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::fd::AsRawFd;
+        let _ = dll;
+        PathBuf::from(format!("/proc/self/fd/{}", held.as_raw_fd()))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = held;
+        dll.to_path_buf()
     }
 }
 

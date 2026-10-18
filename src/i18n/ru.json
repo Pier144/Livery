@@ -245,7 +245,7 @@
         "cutoutFailed": "Не удалось удалить фон",
         "cutoutRuntimeMissingDeps": "Для удаления фона нужен Microsoft Visual C++ Redistributable (x64): установите его и повторите попытку",
         "cutoutCancelled": "Удаление фона отменено",
-        "cutoutUnsupported": "Пока удаление фона работает только в Windows"
+        "cutoutUnsupported": "Для удаления фона нужна Windows или Linux на x64"
       }
     },
     "vehicleClass": {

@@ -1,11 +1,13 @@
-//! The background-removal files: Microsoft's ONNX Runtime (only `onnxruntime.dll`, extracted from
-//! the official release zip) and the isnet-anime model, downloaded on the user's click into
+//! The background-removal files: Microsoft's ONNX Runtime (only its library, extracted from the
+//! official release archive: `onnxruntime.dll` from the Windows zip, `libonnxruntime.so.<ver>`
+//! from the Linux tarball) and the isnet-anime model, downloaded on the user's click into
 //! `<models>` (`app_local_data_dir()/models`, or `<data>/models` with `LIVERY_DATA_DIR`), with
 //! pinned URLs, sizes and SHA-256s.
 //!
 //! Remove deletes what it can; a runtime this process loaded can't be deleted on Windows (the DLL
 //! is mapped), so the folder is marked ([`REMOVE_MARKER`]) and the next launch purges it before
-//! anything loads it. Downloads are refused while the mark is there.
+//! anything loads it (on Linux too: the loaded library stays mapped until the process ends).
+//! Downloads are refused while the mark is there.
 
 use crate::atelier::download::{
     part_path, Downloader, Expected, Flight, MODEL_DOWNLOAD_CORRUPT, MODEL_DOWNLOAD_FAILED,
@@ -26,38 +28,86 @@ pub const CUTOUT_RESTART_NEEDED: &str = "Restart Livery to finish removing the b
 pub const MODELS_DIR: &str = "models";
 /// File in the models folder that marks it for removal at the next launch.
 pub const REMOVE_MARKER: &str = ".remove";
-/// Where the runtime zip is downloaded to (deleted once the DLL is out).
-pub const RUNTIME_ZIP_FILE: &str = "onnxruntime-win-x64.zip";
-pub const DLL_FILE: &str = "onnxruntime.dll";
 pub const MODEL_FILE: &str = "isnet-anime.onnx";
 
-// Pinned on 2026-10-16 from the files downloaded then (the author approved the one-off download).
-//
+/// Whether this build can remove backgrounds: Microsoft's pinned runtime is the x64 Windows or
+/// x64 Linux build (other targets compile with the Linux pins but never download them).
+pub const CUTOUT_SUPPORTED: bool = cfg!(all(target_arch = "x86_64", any(windows, target_os = "linux")));
+
 // ONNX Runtime 1.30.0 (published 2026-09-10): the newest Microsoft release at least two weeks old
 // with an `onnxruntime-win-x64-<ver>.zip`; `ort` 2.0.0-rc.13 needs ORT API 17 (1.17) or newer.
-// Source: https://github.com/microsoft/onnxruntime/releases/tag/v1.30.0 (MIT). The zip's
-// `lib/onnxruntime_providers_shared.dll` is only for non-CPU execution providers and is not
-// extracted. `onnxruntime.dll` (x64) imports, besides Windows' own DLLs (KERNEL32, ADVAPI32,
-// SETUPAPI, dbghelp, dxgi, SHELL32 delay-loaded, api-ms-win-crt-*/api-ms-win-core-path), the
-// Visual C++ 2015-2022 runtime: VCRUNTIME140.dll, VCRUNTIME140_1.dll (Livery itself needs these
-// two), MSVCP140.dll and MSVCP140_1.dll (Livery doesn't: missing on a PC without the VC++
-// Redistributable, which makes loading fail with error 126).
+// Source: https://github.com/microsoft/onnxruntime/releases/tag/v1.30.0 (MIT). The archives'
+// `onnxruntime_providers_shared` library is only for non-CPU execution providers and is not
+// extracted.
 pub const ORT_VERSION: &str = "1.30.0";
-pub const RUNTIME_ZIP_URL: &str =
-    "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-win-x64-1.30.0.zip";
-pub const RUNTIME_ZIP_SIZE: u64 = 82_645_522;
-pub const RUNTIME_ZIP_SHA256: &str = "c6ba983baf5681af108599675d2a89c2d145512d02de28aed0bff177cd0ba949";
-pub const RUNTIME_DLL_ENTRY: &str = "onnxruntime-win-x64-1.30.0/lib/onnxruntime.dll";
-pub const RUNTIME_DLL_SIZE: u64 = 16_462_648;
-pub const RUNTIME_DLL_SHA256: &str = "7e39e2bdbba836d98071ef28620735ba36a47c554cf794585269aecc50fab0da";
-/// Sub-folder of the models folder that holds the runtime's DLL.
+/// Sub-folder of the models folder that holds the runtime's library.
 pub const RUNTIME_DIR: &str = "ort-1.30.0";
+pub use runtime_pins::*;
+
+/// Pinned on 2026-10-16 from the files downloaded then (the author approved the one-off download).
+///
+/// `onnxruntime.dll` (x64) imports, besides Windows' own DLLs (KERNEL32, ADVAPI32, SETUPAPI,
+/// dbghelp, dxgi, SHELL32 delay-loaded, api-ms-win-crt-*/api-ms-win-core-path), the Visual C++
+/// 2015-2022 runtime: VCRUNTIME140.dll, VCRUNTIME140_1.dll (Livery itself needs these two),
+/// MSVCP140.dll and MSVCP140_1.dll (Livery doesn't: missing on a PC without the VC++
+/// Redistributable, which makes loading fail with error 126).
+#[cfg(windows)]
+mod runtime_pins {
+    use super::ArchiveFormat;
+
+    /// Where the runtime archive is downloaded to (deleted once the library is out).
+    pub const RUNTIME_ARCHIVE_FILE: &str = "onnxruntime-win-x64.zip";
+    /// The runtime's library, as it is saved in [`super::RUNTIME_DIR`].
+    pub const DLL_FILE: &str = "onnxruntime.dll";
+    pub const RUNTIME_ARCHIVE_FORMAT: ArchiveFormat = ArchiveFormat::Zip;
+    pub const RUNTIME_ARCHIVE_URL: &str =
+        "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-win-x64-1.30.0.zip";
+    pub const RUNTIME_ARCHIVE_SIZE: u64 = 82_645_522;
+    pub const RUNTIME_ARCHIVE_SHA256: &str = "c6ba983baf5681af108599675d2a89c2d145512d02de28aed0bff177cd0ba949";
+    pub const RUNTIME_DLL_ENTRY: &str = "onnxruntime-win-x64-1.30.0/lib/onnxruntime.dll";
+    pub const RUNTIME_DLL_SIZE: u64 = 16_462_648;
+    pub const RUNTIME_DLL_SHA256: &str = "7e39e2bdbba836d98071ef28620735ba36a47c554cf794585269aecc50fab0da";
+}
+
+/// Pinned on 2026-10-18 from the file downloaded then (the author approved the one-off download;
+/// its SHA-256 matches the digest GitHub lists for the release asset).
+///
+/// Only the tarball's real file is extracted (`libonnxruntime.so` and `.so.1` are symlinks to it).
+/// It needs glibc 2.28 and GLIBCXX 3.4.22, and links only libc, libm, libdl, librt, libpthread,
+/// libgcc_s and libstdc++. Its RUNPATH is `$ORIGIN`: `cutout` loads it through its open handle
+/// (`/proc/self/fd/<fd>`), so nothing next to it in the models folder can be picked up.
+#[cfg(not(windows))]
+mod runtime_pins {
+    use super::ArchiveFormat;
+
+    /// Where the runtime archive is downloaded to (deleted once the library is out).
+    pub const RUNTIME_ARCHIVE_FILE: &str = "onnxruntime-linux-x64.tgz";
+    /// The runtime's library, as it is saved in [`super::RUNTIME_DIR`].
+    pub const DLL_FILE: &str = "libonnxruntime.so.1.30.0";
+    pub const RUNTIME_ARCHIVE_FORMAT: ArchiveFormat = ArchiveFormat::TarGz;
+    pub const RUNTIME_ARCHIVE_URL: &str =
+        "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-linux-x64-1.30.0.tgz";
+    pub const RUNTIME_ARCHIVE_SIZE: u64 = 11_306_877;
+    pub const RUNTIME_ARCHIVE_SHA256: &str = "a5ed5a3cac51fbb2e90da632ae43d19212faaa20e76484e62bcb7c23ddb3b3fd";
+    pub const RUNTIME_DLL_ENTRY: &str = "onnxruntime-linux-x64-1.30.0/lib/libonnxruntime.so.1.30.0";
+    pub const RUNTIME_DLL_SIZE: u64 = 28_985_152;
+    pub const RUNTIME_DLL_SHA256: &str = "245a6f8c38127551057a1cd1ffd59f0a186a227ade4f3492dea2494eb565542e";
+}
+
 // isnet-anime (SkyTNT anime-segmentation, Apache-2.0) as distributed by rembg. Same bytes as the
 // author's reference copy (C:\Users\piera\.u2net\isnet-anime.onnx).
 // Source: https://github.com/danielgatis/rembg/releases/tag/v0.0.0
 pub const MODEL_URL: &str = "https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-anime.onnx";
 pub const MODEL_SIZE: u64 = 176_069_933;
 pub const MODEL_SHA256: &str = "f15622d853e8260172812b657053460e20806f04b9e05147d49af7bed31a6e99";
+
+/// How the runtime's archive is packed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchiveFormat {
+    Zip,
+    /// A gzip-compressed tarball.
+    TarGz,
+}
 
 /// A size and a SHA-256 (lowercase hex).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,11 +132,13 @@ impl Pin {
 /// Everything the install checks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pins {
-    pub runtime_zip: Pin,
-    /// The DLL's path inside the zip.
+    pub runtime_archive: Pin,
+    pub runtime_format: ArchiveFormat,
+    /// The runtime library's path inside the archive.
     pub dll_entry: String,
+    /// The runtime's library (a DLL on Windows, a shared object on Linux).
     pub dll: FileHash,
-    /// Folder (inside the models folder) the DLL goes to.
+    /// Folder (inside the models folder) the library goes to.
     pub runtime_dir: String,
     pub model: Pin,
 }
@@ -94,10 +146,11 @@ pub struct Pins {
 /// The pinned files above.
 pub fn pinned() -> Pins {
     Pins {
-        runtime_zip: Pin {
-            url: RUNTIME_ZIP_URL.to_owned(),
-            hash: FileHash { size: RUNTIME_ZIP_SIZE, sha256: RUNTIME_ZIP_SHA256.to_owned() },
+        runtime_archive: Pin {
+            url: RUNTIME_ARCHIVE_URL.to_owned(),
+            hash: FileHash { size: RUNTIME_ARCHIVE_SIZE, sha256: RUNTIME_ARCHIVE_SHA256.to_owned() },
         },
+        runtime_format: RUNTIME_ARCHIVE_FORMAT,
         dll_entry: RUNTIME_DLL_ENTRY.to_owned(),
         dll: FileHash { size: RUNTIME_DLL_SIZE, sha256: RUNTIME_DLL_SHA256.to_owned() },
         runtime_dir: RUNTIME_DIR.to_owned(),
@@ -121,19 +174,54 @@ fn file_matches(path: &Path, expected: &FileHash) -> io::Result<bool> {
     Ok(crate::atelier::sha256::file_hex(path)?.eq_ignore_ascii_case(&expected.sha256))
 }
 
-/// Extracts the runtime's DLL: checks the zip's size and hash first, then copies only the entry
-/// `entry` to `dest` (through `<dest>.part`) and checks its size and hash. `parse`
-/// ([`MODEL_DOWNLOAD_CORRUPT`]) for anything that doesn't match; `dest` is left untouched then.
-pub fn extract_runtime(zip: &Path, zip_hash: &FileHash, entry: &str, dll: &FileHash, dest: &Path) -> AppResult<()> {
-    if !file_matches(zip, zip_hash).map_err(io_failed)? {
-        return Err(corrupt("runtime zip hash"));
+/// Extracts the runtime's library: checks the archive's size and hash first, then copies only the
+/// entry `entry` (a regular file: a tarball's link is refused) to `dest` (through `<dest>.part`)
+/// and checks its size and hash. `parse` ([`MODEL_DOWNLOAD_CORRUPT`]) for anything that doesn't
+/// match; `dest` is left untouched then.
+pub fn extract_runtime(
+    archive: &Path,
+    format: ArchiveFormat,
+    archive_hash: &FileHash,
+    entry: &str,
+    dll: &FileHash,
+    dest: &Path,
+) -> AppResult<()> {
+    if !file_matches(archive, archive_hash).map_err(io_failed)? {
+        return Err(corrupt("runtime archive hash"));
     }
-    let mut archive = zip::ZipArchive::new(io::BufReader::new(File::open(zip).map_err(io_failed)?))
-        .map_err(|e| corrupt(e.to_string()))?;
-    let mut file = archive.by_name(entry).map_err(|e| corrupt(format!("{entry}: {e}")))?;
-    if file.size() != dll.size {
-        return Err(corrupt(format!("{entry}: {} bytes", file.size())));
+    let reader = io::BufReader::new(File::open(archive).map_err(io_failed)?);
+    match format {
+        ArchiveFormat::Zip => {
+            let mut archive = zip::ZipArchive::new(reader).map_err(|e| corrupt(e.to_string()))?;
+            let mut file = archive.by_name(entry).map_err(|e| corrupt(format!("{entry}: {e}")))?;
+            if file.size() != dll.size {
+                return Err(corrupt(format!("{entry}: {} bytes", file.size())));
+            }
+            write_checked(&mut file, entry, dll, dest)
+        }
+        ArchiveFormat::TarGz => {
+            let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(reader));
+            for file in archive.entries().map_err(|e| corrupt(e.to_string()))? {
+                let mut file = file.map_err(|e| corrupt(e.to_string()))?;
+                if file.path_bytes().as_ref() != entry.as_bytes() {
+                    continue;
+                }
+                if !file.header().entry_type().is_file() {
+                    return Err(corrupt(format!("{entry}: not a regular file")));
+                }
+                if file.size() != dll.size {
+                    return Err(corrupt(format!("{entry}: {} bytes", file.size())));
+                }
+                return write_checked(&mut file, entry, dll, dest);
+            }
+            Err(corrupt(format!("{entry}: not in the archive")))
+        }
     }
+}
+
+/// Copies `file` (the archive's `entry`) to `dest` through `<dest>.part`, reading at most
+/// `dll.size` bytes, and renames it into place only when its size and hash match.
+fn write_checked(file: &mut dyn Read, entry: &str, dll: &FileHash, dest: &Path) -> AppResult<()> {
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent).map_err(io_failed)?;
     }
@@ -225,12 +313,12 @@ impl ModelFiles {
         let pending = self.pending_removal();
         let runtime = !pending && self.has_runtime();
         let model = !pending && self.has_model();
-        let download_bytes = if runtime { 0 } else { self.pins.runtime_zip.hash.size }
+        let download_bytes = if runtime { 0 } else { self.pins.runtime_archive.hash.size }
             + if model { 0 } else { self.pins.model.hash.size };
         CutoutStatus { runtime, model, bytes: folder_bytes(&self.dir), download_bytes, pending_removal: pending }
     }
 
-    /// Downloads and installs what's missing: the runtime (zip, then only its DLL) and the model.
+    /// Downloads and installs what's missing: the runtime (its archive, then only its library) and the model.
     /// `progress(item, received, total)` follows each download. `conflict`
     /// ([`CUTOUT_RESTART_NEEDED`]) while a remove waits for a restart.
     pub fn install(
@@ -244,14 +332,20 @@ impl ModelFiles {
         }
         fs::create_dir_all(&self.dir).map_err(io_failed)?;
         if !self.has_runtime() {
-            let zip = self.dir.join(RUNTIME_ZIP_FILE);
-            downloader.download(flight, self.pins.runtime_zip.expected(), &zip, &mut |received, total| {
+            let archive = self.dir.join(RUNTIME_ARCHIVE_FILE);
+            downloader.download(flight, self.pins.runtime_archive.expected(), &archive, &mut |received, total| {
                 progress(DownloadItem::Runtime, received, total)
             })?;
             let pins = &self.pins;
-            let extracted =
-                extract_runtime(&zip, &pins.runtime_zip.hash, &pins.dll_entry, &pins.dll, &self.runtime_dll());
-            let _ = fs::remove_file(&zip);
+            let extracted = extract_runtime(
+                &archive,
+                pins.runtime_format,
+                &pins.runtime_archive.hash,
+                &pins.dll_entry,
+                &pins.dll,
+                &self.runtime_dll(),
+            );
+            let _ = fs::remove_file(&archive);
             extracted?;
         }
         if !self.has_model() {
@@ -294,7 +388,7 @@ impl ModelFiles {
         self.status()
     }
 
-    /// At launch: unfinished downloads (`*.part`, anywhere in the folder) and a runtime zip left
+    /// At launch: unfinished downloads (`*.part`, anywhere in the folder) and a runtime archive left
     /// by an interrupted install go. Returns how many files went.
     pub fn clean_leftovers(&self) -> usize {
         fn clean(dir: &Path) -> usize {
@@ -334,7 +428,7 @@ impl ModelFiles {
 
 /// A file of the models folder that an unfinished download or install left behind.
 fn is_leftover(name: &str) -> bool {
-    name.ends_with(".part") || name == RUNTIME_ZIP_FILE
+    name.ends_with(".part") || name == RUNTIME_ARCHIVE_FILE
 }
 
 /// Bytes of the files under `dir` (0 when it's missing), without download leftovers.

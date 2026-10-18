@@ -245,7 +245,7 @@
         "cutoutFailed": "Nie udało się usunąć tła",
         "cutoutRuntimeMissingDeps": "Usuwanie tła wymaga pakietu Microsoft Visual C++ Redistributable (x64): zainstaluj go i spróbuj ponownie",
         "cutoutCancelled": "Usuwanie tła anulowane",
-        "cutoutUnsupported": "Na razie usuwanie tła działa tylko w systemie Windows"
+        "cutoutUnsupported": "Usuwanie tła wymaga systemu Windows lub Linux na x64"
       }
     },
     "vehicleClass": {

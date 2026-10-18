@@ -25,7 +25,7 @@ This page is for developers.
   ```bash
   sudo apt install build-essential curl wget file pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xdg-utils
   ```
-  Atelier lists fonts through fontconfig (`fc-list`); background removal is Windows-only for now. RAR archives decode through `7z`/`7zz` or `unrar` in `/usr/bin` or `/usr/local/bin`.
+  Atelier lists fonts through fontconfig (`fc-list`); background removal downloads the Linux x64 build of ONNX Runtime (glibc 2.28 or newer). RAR archives decode through `7z`/`7zz` or `unrar` in `/usr/bin` or `/usr/local/bin`.
 
 ## Setup
 

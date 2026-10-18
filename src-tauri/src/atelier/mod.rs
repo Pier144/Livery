@@ -571,7 +571,7 @@ pub async fn atelier_cutout_status(app: AppHandle) -> AppResult<CutoutStatus> {
 #[tauri::command]
 pub async fn atelier_cutout_download(app: AppHandle) -> AppResult<CutoutStatus> {
     atelier_on(&app)?;
-    if cfg!(not(windows)) {
+    if !models::CUTOUT_SUPPORTED {
         return Err(AppError::new(ErrorCode::Unsupported, CUTOUT_UNSUPPORTED));
     }
     blocking(move || {

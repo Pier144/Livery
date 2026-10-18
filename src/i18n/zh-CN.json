@@ -239,7 +239,7 @@
         "cutoutFailed": "无法移除背景",
         "cutoutRuntimeMissingDeps": "背景移除需要 Microsoft Visual C++ Redistributable (x64)：请安装后重试",
         "cutoutCancelled": "背景移除已取消",
-        "cutoutUnsupported": "背景移除目前仅支持 Windows"
+        "cutoutUnsupported": "背景移除需要 x64 上的 Windows 或 Linux"
       }
     },
     "vehicleClass": {

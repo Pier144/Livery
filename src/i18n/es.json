@@ -243,7 +243,7 @@
         "cutoutFailed": "No se pudo eliminar el fondo",
         "cutoutRuntimeMissingDeps": "La eliminación del fondo necesita Microsoft Visual C++ Redistributable (x64): instálalo e inténtalo de nuevo",
         "cutoutCancelled": "Eliminación del fondo cancelada",
-        "cutoutUnsupported": "Por ahora, la eliminación del fondo solo funciona en Windows"
+        "cutoutUnsupported": "La eliminación del fondo necesita Windows o Linux en x64"
       }
     },
     "vehicleClass": {
