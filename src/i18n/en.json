@@ -240,7 +240,8 @@
         "cutoutNotReady": "Download the background-removal files first",
         "cutoutFailed": "The background couldn't be removed",
         "cutoutRuntimeMissingDeps": "Background removal needs the Microsoft Visual C++ Redistributable (x64): install it, then try again",
-        "cutoutCancelled": "Background removal cancelled"
+        "cutoutCancelled": "Background removal cancelled",
+        "cutoutUnsupported": "Background removal needs Windows for now"
       }
     },
     "vehicleClass": {

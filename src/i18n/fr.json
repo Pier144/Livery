@@ -242,7 +242,8 @@
         "cutoutNotReady": "Téléchargez d’abord les fichiers de suppression de l’arrière-plan",
         "cutoutFailed": "Impossible de supprimer l’arrière-plan",
         "cutoutRuntimeMissingDeps": "La suppression de l’arrière-plan nécessite Microsoft Visual C++ Redistributable (x64) : installez-le, puis réessayez",
-        "cutoutCancelled": "Suppression de l’arrière-plan annulée"
+        "cutoutCancelled": "Suppression de l’arrière-plan annulée",
+        "cutoutUnsupported": "Pour l’instant, la suppression de l’arrière-plan ne fonctionne que sous Windows"
       }
     },
     "vehicleClass": {

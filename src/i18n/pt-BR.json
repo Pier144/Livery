@@ -242,7 +242,8 @@
         "cutoutNotReady": "Baixe primeiro os arquivos da remoção de fundo",
         "cutoutFailed": "Não foi possível remover o fundo",
         "cutoutRuntimeMissingDeps": "A remoção de fundo precisa do Microsoft Visual C++ Redistributable (x64): instale-o e tente de novo",
-        "cutoutCancelled": "Remoção de fundo cancelada"
+        "cutoutCancelled": "Remoção de fundo cancelada",
+        "cutoutUnsupported": "Por enquanto, a remoção de fundo só funciona no Windows"
       }
     },
     "vehicleClass": {

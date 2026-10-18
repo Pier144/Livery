@@ -242,7 +242,8 @@
         "cutoutNotReady": "Prima scarica i file per la rimozione dello sfondo",
         "cutoutFailed": "Impossibile rimuovere lo sfondo",
         "cutoutRuntimeMissingDeps": "La rimozione dello sfondo richiede Microsoft Visual C++ Redistributable (x64): installalo e riprova",
-        "cutoutCancelled": "Rimozione dello sfondo annullata"
+        "cutoutCancelled": "Rimozione dello sfondo annullata",
+        "cutoutUnsupported": "Per ora la rimozione dello sfondo funziona solo su Windows"
       }
     },
     "vehicleClass": {
