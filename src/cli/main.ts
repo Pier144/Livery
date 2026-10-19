@@ -15,7 +15,8 @@ async function main(): Promise<void> {
     await call('cli_finish', { ok, error: null });
   } catch (e) {
     const err = isCliError(e) ? e : toAppError(e);
-    await call('cli_finish', { ok: null, error: { code: err.code, message: err.message, detail: err.detail ?? null } });
+    // Nothing is left to tell Rust; its timeout ends the run.
+    await call('cli_finish', { ok: null, error: { code: err.code, message: err.message, detail: err.detail ?? null } }).catch(console.error);
   }
 }
 

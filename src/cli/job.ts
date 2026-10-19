@@ -62,8 +62,16 @@ export interface VehicleInfo {
   radius: number;
 }
 
+/** An image layer (or a merged object's image piece) whose picture couldn't be loaded. */
+export interface MissingPicture {
+  layer: string;
+  assetId: string;
+}
+
 export interface PutResult {
   project: AtelierProject;
+  /** Pictures the bake had to leave out (saved anyway, as the editor does; `render` and `apply` refuse them). */
+  missingPictures: MissingPicture[];
   /** `checkLayers` changed something (an invalid or unsupported value was repaired). */
   repaired: boolean;
   /** Ids of placed layers with Mirror on whose decal lands on shared texels (the editor turns Mirror off there). */
@@ -94,6 +102,16 @@ export interface RenderResult {
 export function viewName(v: ViewArg): string {
   if (v.kind === 'quick') return v.name;
   return `orbit_${v.theta.toFixed(2)}_${v.phi.toFixed(2)}_${v.zoom.toFixed(2)}`;
+}
+
+/** Refuses two views of one render with the same name (the second picture would replace the first). */
+export function checkViewNames(views: readonly ViewArg[]): void {
+  const seen = new Set<string>();
+  for (const v of views) {
+    const name = viewName(v);
+    if (seen.has(name)) throw { code: 'invalidInput', message: 'Two views have the same name', detail: name } satisfies CliError;
+    seen.add(name);
+  }
 }
 
 /** The camera of a view, framed for a square picture. */

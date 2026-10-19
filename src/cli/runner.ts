@@ -2,7 +2,7 @@ import { isBodySlot, type TemplateImage } from '@/atelier/gl/baker';
 import type { DecalImage } from '@/atelier/gl/decalTextures';
 import { encodePng } from '@/atelier/gl/scene';
 import { frameFromHit } from '@/atelier/decal';
-import { framedLayers } from '@/atelier/layerTree';
+import { allLayers, framedLayers } from '@/atelier/layerTree';
 import { envelopeOf } from '@/atelier/merge';
 import { parseModelBuffer, type VehicleModelData } from '@/atelier/modelBuffer';
 import type { Layer } from '@/atelier/project';
@@ -15,11 +15,13 @@ import type { AtelierProject } from '@/types';
 import { drawGrid } from './grid';
 import {
   atToNdc,
+  checkViewNames,
   viewName,
   viewOrbit,
   type Bounds,
   type CliError,
   type CliJob,
+  type MissingPicture,
   type PlaceResult,
   type PutResult,
   type RenderResult,
@@ -48,6 +50,8 @@ export interface Workspace {
   slots: string[];
   /** `checkLayers` repaired something. */
   repaired: boolean;
+  /** Assets whose picture the last load failed (the Baker then leaves their layers out silently). */
+  failedAssets: Set<string>;
 }
 
 /** Side of the project thumbnail, as the editor's (`Editor.tsx` THUMB_SIZE). */
@@ -84,10 +88,18 @@ export async function loadWorkspace(source: string | AtelierProject, deps: Runne
   const templates = await loadTemplates(project.vehicle, model, deps);
   const { layers, repaired } = checkLayers(project.layers);
   const slots = enabledSlots(project, model);
-  // The editor's loader without its UI flags (missing pictures, sizes for Remove background).
+  // The editor's loader without its UI flags; a failure is remembered (the editor flags the layer,
+  // the CLI reports it: see `missingPictures`).
+  const failedAssets = new Set<string>();
   const loadAsset = async (assetId: string): Promise<DecalImage> => {
-    const picture = parseAssetBuffer(toArrayBuffer(await deps.call<unknown>(ATELIER_CMD.asset, { projectId: project.id, assetId })));
-    return { rgba: picture.rgba, w: picture.width, h: picture.height };
+    try {
+      const picture = parseAssetBuffer(toArrayBuffer(await deps.call<unknown>(ATELIER_CMD.asset, { projectId: project.id, assetId })));
+      failedAssets.delete(assetId);
+      return { rgba: picture.rgba, w: picture.width, h: picture.height };
+    } catch (e) {
+      failedAssets.add(assetId);
+      throw e;
+    }
   };
   const engine = deps.createEngine({ canvas: deps.canvas(), model, templates, loadAsset });
   try {
@@ -97,7 +109,23 @@ export async function loadWorkspace(source: string | AtelierProject, deps: Runne
     engine.dispose();
     throw e;
   }
-  return { project, model, engine, layers, slots, repaired };
+  return { project, model, engine, layers, slots, repaired, failedAssets };
+}
+
+/** Image layers and image pieces of merged objects whose picture failed to load. */
+export function missingPictures(w: Pick<Workspace, 'layers' | 'failedAssets'>): MissingPicture[] {
+  if (w.failedAssets.size === 0) return [];
+  const out: MissingPicture[] = [];
+  for (const item of allLayers(w.layers)) {
+    if (item.kind === 'image' && w.failedAssets.has(item.assetId)) out.push({ layer: item.id, assetId: item.assetId });
+  }
+  return out;
+}
+
+/** Refuses to make pictures or textures without every layer's picture (`render`, `apply`). */
+export function requirePictures(w: Pick<Workspace, 'layers' | 'failedAssets'>): void {
+  const missing = missingPictures(w);
+  if (missing.length > 0) throw { code: 'notFound', message: "A layer's picture can't be loaded", detail: JSON.stringify(missing) } satisfies CliError;
 }
 
 /** Stores the project's thumbnail as the editor makes it; a failure only warns (as in the editor). */
@@ -122,6 +150,7 @@ export async function runJob(job: CliJob, deps: RunnerDeps): Promise<unknown> {
     case 'place':
       return withWorkspace(job.id, deps, async (w) => place(w, job));
     case 'render':
+      checkViewNames(job.views);
       return withWorkspace(job.id, deps, (w) => render(w, job, deps));
     case 'apply':
       throw { code: 'unsupported', message: '"apply" is not in the agent CLI yet' } satisfies CliError;
@@ -192,12 +221,17 @@ async function put(w: Workspace, deps: RunnerDeps): Promise<PutResult> {
   const sharedTexels: string[] = [];
   for (const layer of framedLayers(w.layers)) {
     if (!layer.decal?.mirror) continue;
-    if (await w.engine.baker.decalTouchesSharedTexels(envelopeOf(layer.decal, layer.repeat))) sharedTexels.push(layer.id);
+    try {
+      if (await w.engine.baker.decalTouchesSharedTexels(envelopeOf(layer.decal, layer.repeat))) sharedTexels.push(layer.id);
+    } catch (e) {
+      // As the editor: a failed check counts as not shared, the save still happens.
+      console.warn('Atelier CLI: shared-texel check failed', layer.id, e);
+    }
   }
   // As the editor store saves: unsupported layers and pieces go back as they came.
   const saved = await deps.call<AtelierProject>('atelier_project_save', { project: { ...w.project, layers: serializeLayers(w.layers) } });
   await sendThumb({ ...w, project: saved }, deps);
-  return { project: saved, repaired: w.repaired, sharedTexels };
+  return { project: saved, missingPictures: missingPictures(w), repaired: w.repaired, sharedTexels };
 }
 
 // ── place ───────────────────────────────────────────────────────────────────
@@ -218,6 +252,7 @@ function place(w: Workspace, job: Extract<CliJob, { command: 'place' }>): PlaceR
 async function render(w: Workspace, job: Extract<CliJob, { command: 'render' }>, deps: RunnerDeps): Promise<RenderResult> {
   const { scene, baker } = w.engine;
   const size = job.size;
+  requirePictures(w);
   // The full-size paint before the pictures (otherwise the body shows the 1024 px preview).
   baker.upgrade();
   const views: RenderResult['views'] = [];
@@ -234,6 +269,8 @@ async function render(w: Workspace, job: Extract<CliJob, { command: 'render' }>,
       // bakeForExport needs the full-size decal pictures that prepareExport loads; a failing
       // prepareExport still gets its endExport (as useApply).
       await baker.prepareExport(false);
+      // The full-size copies load again: a picture can fail here too.
+      requirePictures(w);
       for (const slot of w.slots) {
         const r = baker.bakeForExport(slot, false);
         const file = `flat_${slot.replace(/[^A-Za-z0-9._-]/g, '_')}.png`;

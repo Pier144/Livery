@@ -24,7 +24,7 @@ const DIGITS: Record<number, readonly string[]> = {
 };
 const PAD = 2;
 
-/** Pixels per font cell: 2 up to 682 px, then growing with the picture so a label stays readable when it is viewed scaled down. */
+/** Pixels per font cell: 2 up to 1022 px, then growing with the picture so a label stays readable when it is viewed scaled down. */
 export function labelScale(size: number): number {
   return Math.max(2, Math.floor(size / 341));
 }

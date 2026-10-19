@@ -64,11 +64,16 @@ const CAMERA = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 3, 1];
 
 function stubEngine() {
   const order: string[] = [];
+  // Pictures the stub Baker asks for in whenReady (as the real one does through input.loadAsset).
+  const pictures: string[] = [];
+  const state: { input: EngineInput | null } = { input: null };
   let hit: SceneHit | null = { point: [0.1, 0.2, 0.5], normal: [0, 0, 1], node: '@root', group: 'hull', distance: 2.5 };
   const shared = new Set<string>();
   return {
     order,
     shared,
+    pictures,
+    state,
     setHit: (h: SceneHit | null) => (hit = h),
     scene: {
       quickOrbit: vi.fn(() => ORBIT),
@@ -85,6 +90,8 @@ function stubEngine() {
       setLayers: vi.fn((_l: Layer[], _s: string[]) => order.push('setLayers')),
       whenReady: vi.fn(async () => {
         order.push('whenReady');
+        // The real Baker swallows a failed picture (it marks it failed and bakes without it).
+        for (const id of pictures) await state.input!.loadAsset!(id).catch(() => {});
       }),
       upgrade: vi.fn(() => order.push('upgrade')),
       decalTouchesSharedTexels: vi.fn(async (d: Decal) => shared.has(JSON.stringify(d.center))),
@@ -117,6 +124,14 @@ function stub(stored: AtelierProject = project()): Stub {
         const i = SLOTS.findIndex((s) => s.texture === args!.slot);
         return mockTemplate(i);
       }
+      case 'atelier_asset': {
+        if (args!.assetId === 'gone') throw { code: 'notFound', message: 'This picture is missing from the project' };
+        // u32 width and height (little-endian), then RGBA.
+        const buf = new Uint8Array(8 + 4);
+        buf[0] = 1;
+        buf[4] = 1;
+        return buf;
+      }
       case 'atelier_project_save':
         return { ...(args!.project as AtelierProject), updatedAt: '2026-02-02T00:00:00Z' };
       default:
@@ -132,6 +147,7 @@ function stub(stored: AtelierProject = project()): Stub {
     callRaw: callRaw as unknown as RunnerDeps['callRaw'],
     createEngine: (input) => {
       inputs.push(input);
+      engine.state.input = input;
       return engine as unknown as Engine;
     },
     canvas: () => document.createElement('canvas'),
@@ -316,5 +332,88 @@ describe('runJob: errors', () => {
 
   it('refuses apply until it exists', async () => {
     await expect(runJob({ command: 'apply', id: 'p1' }, stub().deps)).rejects.toMatchObject({ code: 'unsupported' });
+  });
+});
+
+describe('runJob: pictures that cannot be loaded', () => {
+  const merged = (id: string, assetId: string) => ({
+    id,
+    kind: 'merged',
+    name: '',
+    visible: true,
+    decal: decal({ center: [0.4, 0, 0.5] }),
+    opacity: 1,
+    children: [{ id: `${id}-piece`, kind: 'image', name: '', visible: true, assetId, opacity: 1, flipX: false, place: { x: 0, y: 0, w: 1, h: 1, angle: 0 } }],
+  });
+  const layers = () => [{ ...image('l-ok', decal()), assetId: 'fine' }, { ...image('l-gone', decal({ center: [0.2, 0, 0.5] })), assetId: 'gone' }, merged('l-merged', 'gone')];
+  const renderJob: CliJob = { command: 'render', id: 'p1', views: [{ kind: 'quick', name: 'front' }], size: 256, grid: false, flat: false };
+
+  it('render refuses with notFound naming each layer and piece whose picture failed', async () => {
+    const s = stub(project(layers()));
+    s.engine.pictures.push('fine', 'gone');
+    const err = await runJob(renderJob, s.deps).then(
+      () => null,
+      (e: unknown) => e as { code: string; message: string; detail: string },
+    );
+    expect(err).toMatchObject({ code: 'notFound', message: "A layer's picture can't be loaded" });
+    expect(JSON.parse(err!.detail)).toEqual([
+      { layer: 'l-gone', assetId: 'gone' },
+      { layer: 'l-merged-piece', assetId: 'gone' },
+    ]);
+    expect(s.calls.filter((c) => c.cmd === 'atelier_asset').map((c) => (c.args as { assetId: string }).assetId)).toEqual(['fine', 'gone']);
+    expect(s.raw.some((r) => r.cmd === 'cli_file')).toBe(false);
+    expect(s.engine.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('render goes on when every picture loads', async () => {
+    const s = stub(project([{ ...image('l-ok', decal()), assetId: 'fine' }]));
+    s.engine.pictures.push('fine');
+    const out = (await runJob(renderJob, s.deps)) as RenderResult;
+    expect(out.views).toHaveLength(1);
+  });
+
+  it('put still saves and lists the missing pictures', async () => {
+    const doc = project(layers());
+    const s = stub(doc);
+    s.engine.pictures.push('fine', 'gone');
+    const out = (await runJob({ command: 'put', project: doc }, s.deps)) as PutResult;
+    expect(out.missingPictures).toEqual([
+      { layer: 'l-gone', assetId: 'gone' },
+      { layer: 'l-merged-piece', assetId: 'gone' },
+    ]);
+    expect(s.calls.some((c) => c.cmd === 'atelier_project_save')).toBe(true);
+  });
+});
+
+describe('runJob: review fixes', () => {
+  it('put treats a failing shared-texel check as not shared and still saves', async () => {
+    const doc = project([image('l-m', decal({ mirror: true }))]);
+    const s = stub(doc);
+    s.engine.baker.decalTouchesSharedTexels.mockRejectedValueOnce(new Error('no overlap map'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const out = (await runJob({ command: 'put', project: doc }, s.deps)) as PutResult;
+    expect(out.sharedTexels).toEqual([]);
+    expect(out.missingPictures).toEqual([]);
+    expect(s.calls.some((c) => c.cmd === 'atelier_project_save')).toBe(true);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('render refuses two views with the same name before loading anything', async () => {
+    const s = stub();
+    const job: CliJob = {
+      command: 'render',
+      id: 'p1',
+      views: [
+        { kind: 'orbit', theta: 0.501, phi: 1, zoom: 1 },
+        { kind: 'orbit', theta: 0.499, phi: 1, zoom: 1 },
+      ],
+      size: 256,
+      grid: false,
+      flat: false,
+    };
+    await expect(runJob(job, s.deps)).rejects.toMatchObject({ code: 'invalidInput', message: 'Two views have the same name', detail: 'orbit_0.50_1.00_1.00' });
+    expect(s.calls).toHaveLength(0);
+    expect(s.inputs).toHaveLength(0);
   });
 });
