@@ -119,9 +119,13 @@ const GENERIC_ON_PURPOSE: (string | RegExp)[] = [
   /^The (LIVERY_DATA_DIR|app data) folder can't be (created|found)$/,
 ];
 
+/** The agent CLI (`src-tauri/src/cli`): its messages go to an agent's stdout in English, never to the UI. */
+const NOT_UI = join(RUST_SRC, 'cli');
+
 function rustFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
+    if (path === NOT_UI) return [];
     if (statSync(path).isDirectory()) return rustFiles(path);
     return path.endsWith('.rs') ? [path] : [];
   });
