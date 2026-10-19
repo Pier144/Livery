@@ -25,11 +25,13 @@
 | File | Responsibility |
 |---|---|
 | `src-tauri/src/lock.rs` (new) | `DataLock`: exclusive lock on `<data>/livery.lock`. Used by the app and the CLI. |
-| `src-tauri/src/cli/mod.rs` (new, debug only) | `main(args) -> ExitCode`, `CliState`, dispatch, timeout, window creation. |
+| `src-tauri/src/cli/mod.rs` (new, **not** gated) | `pub mod page;` always; `#[cfg(debug_assertions)]` on `args`, `output`, `runtime`. |
+| `src-tauri/src/cli/runtime.rs` (new, debug only) | `main(args) -> ExitCode`, `CliState`, dispatch, timeout, window creation. |
 | `src-tauri/src/cli/args.rs` (new, debug only) | Argument parser → `CliCommand`. Pure. |
 | `src-tauri/src/cli/output.rs` (new, debug only) | `CliError`, JSON printing, code → exit code. Pure. |
-| `src-tauri/src/cli/page.rs` (new) | The three page commands `cli_job`, `cli_file`, `cli_finish` (registered in every build; refuse without `CliState`). |
+| `src-tauri/src/cli/page.rs` (new, every build) | The three page commands `cli_job`, `cli_file`, `cli_finish` (registered in every build; refuse without `CliState`). |
 | `src-tauri/src/lib.rs` | `run()` split into `build_app(mode)` shared by app and CLI; app takes the lock. |
+| `src-tauri/src/logging.rs` | `init_cli()`: console output to stderr (stdout is the CLI's JSON). |
 | `src-tauri/src/main.rs` | `--livery-cli` branch (debug only), after `webview_data_into_data_dir`. |
 | `src-tauri/capabilities/cli.json` (new) | `core:default` for the `cli` window. |
 | `cli.html` (new), `vite.config.ts` | Second Vite input. |
@@ -126,7 +128,26 @@ mod tests {
 }
 ```
 
-Check first that `tempfile` is a dev-dependency (`grep tempfile src-tauri/Cargo.toml`); if not, use the helper the other tests in `src-tauri/src` use for temp dirs (grep `tempdir` / `scratch_dir`) instead. Do **not** add a dependency.
+`src-tauri/Cargo.toml` has **no** `[dev-dependencies]` (no `tempfile`). Do **not** add one. Replace `tempfile::tempdir()` in these tests (and in Task 2's) with a small std helper, shared as `#[cfg(test)] pub(crate) mod test_dir` in `lib.rs`:
+
+```rust
+/// A fresh empty folder under the system temp dir, removed on drop.
+pub(crate) struct TestDir(pub std::path::PathBuf);
+impl TestDir {
+    pub(crate) fn new(tag: &str) -> Self {
+        static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let p = std::env::temp_dir().join(format!("livery-test-{tag}-{}-{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).unwrap();
+        TestDir(p)
+    }
+    pub(crate) fn path(&self) -> &std::path::Path { &self.0 }
+}
+impl Drop for TestDir { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); } }
+```
+
+(Look at `settings.rs`'s private test helper around line 124 for the house style.)
 
 Note: on Windows `try_lock` locks per handle, so two `acquire` calls in one process conflict. That's what the first test relies on.
 
@@ -157,8 +178,8 @@ with `struct AppLock(#[allow(dead_code)] lock::DataLock);` declared near `run()`
 ### Task 2: Argument parser
 
 **Files:**
-- Create: `src-tauri/src/cli/mod.rs` (for now only `pub mod args; pub mod output;`), `src-tauri/src/cli/args.rs`
-- Modify: `src-tauri/src/lib.rs`: `#[cfg(debug_assertions)] pub mod cli;`
+- Create: `src-tauri/src/cli/mod.rs` (for now `#[cfg(debug_assertions)] pub mod args; #[cfg(debug_assertions)] pub mod output;`; Task 5 adds `pub mod page;` ungated and `#[cfg(debug_assertions)] pub mod runtime;`), `src-tauri/src/cli/args.rs`
+- Modify: `src-tauri/src/lib.rs`: `pub mod cli;` (**not** gated: `page.rs` must exist in release so the one `generate_handler!` list compiles)
 
 Types (put in `args.rs`):
 
@@ -207,6 +228,18 @@ Rules:
 - `render --out`: required, must be an existing directory (`is_dir()`), stored canonicalized (`std::fs::canonicalize`).
 - `import-image <file>`: must be an existing file, stored canonicalized.
 - `project put <file|->`: read the whole file (or `stdin` for `-`), `serde_json::from_slice::<AtelierProject>`; parse error → `invalidInput` "Not an Atelier project" with the serde message in detail.
+
+Also in `args.rs`: `impl CliCommand { pub fn page_job(&self) -> Option<serde_json::Value>; pub fn timeout(&self) -> Duration }`. `page_job` is `None` for the no-GPU commands and the JSON the page reads for the others, exactly (keep `src/cli/job.ts` in step):
+
+```json
+{"command":"put","project":{"...":"..."}}
+{"command":"vehicleInfo","vehicle":"us_m4a3e2_sherman_jumbo"}
+{"command":"place","id":"...","view":{"kind":"quick","name":"front"},"at":[0.5,0.4],"part":null,"width":null,"height":null,"depth":null}
+{"command":"render","id":"...","views":[{"kind":"orbit","theta":0.5,"phi":1.2,"zoom":1.0}],"size":1024,"grid":true,"flat":false}
+{"command":"apply","id":"..."}
+```
+
+(`None` → `null`; `part` as `"hull"|"turret"|"gun"|null`; the `--out` path is never in it.) `timeout`: 300 s for `Apply`, 120 s otherwise. Test `page_job` for each command.
 
 - [ ] **Step 1: Write the failing tests** (inline in `args.rs`), one per rule, e.g.:
 
@@ -320,21 +353,13 @@ Check `AppError`'s `Serialize` in `src-tauri/src/error.rs` (field names, how `Er
 - Test: `src/atelier/gl/scene.test.ts` (existing; add cases that run without WebGL), `src/screens/Atelier/engine.test.ts` if it exists (else a small new test for the `loadAsset` plumbing with a mocked `Baker`; check how the existing tests stub `three`).
 
 Changes:
-1. In `scene.ts` add an exported pure helper so the CLI and tests share the camera maths:
+1. (No new camera helper: reuse `placeCamera`.)
 
-```ts
-/** The camera of an orbit at aspect 1 (CLI pictures and picks): position, target and up. */
-export function orbitCamera(o: OrbitState): { position: Vec3; target: Vec3 } {
-  return { position: orbitPosition(o), target: o.target };
-}
-```
-(only if `placeCamera` doesn't already expose this; read `placeCamera` and `orbitPosition` first and reuse them.)
-
-2. `EditorScene.renderPixels(orbit: OrbitState, size: number): Uint8ClampedArray` — the body of today's `thumbnailPng` up to the readback, with `orbit` instead of `defaultOrbit(...)` and returning `toStraightTopDown(pixels, size, size)`. `thumbnailPng(size)` becomes `encodePng(this.renderPixels(defaultOrbit(this.center, framingDistance(this.boundingRadius, FOV, 1)), size), size, size)`. Keep the camera restore in `finally` exactly as today. Read the current `thumbnailPng` tail (lines ~399-410) to keep the same straight-alpha conversion.
+2. `EditorScene.renderPixels(orbit: OrbitState, size: number): Uint8ClampedArray` — the body of today's `thumbnailPng` up to the readback, with `orbit` instead of `defaultOrbit(...)` and returning `toStraightTopDown(pixels, size, size)`. `thumbnailPng(size)` becomes `encodePng(this.renderPixels(defaultOrbit(this.center, framingDistance(this.boundingRadius, FOV, 1)), size), size, size)`. Keep the camera restore in `finally` exactly as today. Read the current `thumbnailPng` (lines 373-400) to keep the same straight-alpha conversion.
 
 3. `EditorScene.quickOrbit(view: QuickView): OrbitState` → `quickViewOrbit(view, this.center, framingDistance(this.boundingRadius, FOV, 1))`, and `EditorScene.orbitFor(theta, phi, zoom): OrbitState` → `{ theta, phi: clamp(phi, PHI_MIN, PHI_MAX), radius: framingDistance(this.boundingRadius, FOV, 1) * clamp(zoom, ZOOM_MIN, ZOOM_MAX), target: [...this.center] }`. Check `OrbitState`'s field names (lines 22-29) and use them.
 
-4. `EditorScene.raycastView(orbit, ndcX, ndcY, group = null): { hit: SceneHit | null; cameraMatrixWorld: number[] }` — saves `this.orbit` and the aspect, places the camera at `orbit` with aspect 1, `updateMatrixWorld(true)`, raycasts with `this.ndc.set(ndcX, ndcY)` using the same part filtering and hit building as `raycast` (factor the shared part into a private `hitFrom(intersections)`), copies `camera.matrixWorld.elements`, then restores the camera in `finally`.
+4. `EditorScene.raycastView(orbit, ndcX, ndcY, group = null): { hit: SceneHit | null; cameraMatrixWorld: number[] }` — saves `this.orbit`, places the camera at `orbit`, sets aspect 1 **and calls `camera.updateProjectionMatrix()`** (as `thumbnailPng` does; on restore set `this.width / this.height` and update it again), `updateMatrixWorld(true)`, raycasts with `this.ndc.set(ndcX, ndcY)` using the same part filtering and hit building as `raycast` (factor the shared part into a private `hitFrom(intersections)`), copies `camera.matrixWorld.elements`, then restores the camera in `finally`.
 
 5. `engine.ts`: `EngineInput` gets `loadAsset?: (assetId: string) => Promise<DecalImage>`; `createEngine` passes `loadAsset ?? loadProjectAsset` to the Baker. `EngineScene` interface gains `renderPixels`, `raycastView`, `quickOrbit`, `orbitFor`. Update any test stub implementing `EngineScene` (grep `EngineScene` in `src/**/*.test.tsx`) with `vi.fn()` members.
 
@@ -373,24 +398,27 @@ pub fn run() {
 }
 
 #[cfg(debug_assertions)]
-pub fn run_cli(state: cli::CliState) -> u8 {
-    let mut context = tauri::generate_context!();
-    context.config_mut().app.windows.clear();
-    let mut app = build_app(context, Mode::Cli(state));
-    let code = app.run_return(|_, _| {});
-    // `run_return`'s own code is the event loop's; the CLI's is what `cli_finish`/the timeout stored.
-    let _ = code;
-    cli::exit_code(&app.handle())
+pub fn run_cli(state: cli::runtime::CliState) -> i32 {
+    logging::init_cli();
+    let mut ctx = context();
+    ctx.config_mut().app.windows.clear();
+    let app = build_app(ctx, Mode::Cli(state));
+    // `finish` calls `app.exit(code)`; `run_return` (it takes `self`) returns that code.
+    app.run_return(|_, _| {})
 }
 ```
+
+The printed text lives in an `Arc<Mutex<Option<String>>>` that `cli::runtime::main` creates, keeps a clone of and puts in `CliState`; after `run_cli` returns, `main` prints it (never read managed state after the app is gone).
+
+**Logging.** `logging::init()` writes the console layer to **stdout** in debug builds, which would mix with the JSON. Add `logging::init_cli()`: the same subscriber with the console layer on **stderr** (give the `Console` writer a `stderr: bool` field, or a second writer type) and the file layer unchanged; CLI setup still calls `logging::attach(&data_dir)` so the log file is written.
 
 Careful: `generate_context!()` must appear **once per binary build path** — two expansions in two functions of the same crate embed the assets twice. Put the single expansion in a private `fn context() -> tauri::Context<tauri::Wry> { tauri::generate_context!() }` and call it from both `run()` and `run_cli()`.
 
 In `build_app`, the parts that differ by mode:
 - `Mode::App`: everything `run()` does today (updater + autostart plugins, all `setup` work, lock from Task 1).
-- `Mode::Cli`: no updater or autostart plugin; in `setup` the same data dir/logging/managed state (settings, libraries, queue, catalog, profile, wtlive, atelier, cutout), **no** lock acquire (the CLI took it), **no** `purge_on_startup`s, `start_idle_ticker`, `load_vehicles_in_background`, `watch::start`, `update::start`; `app.manage(state)` then `cli::start(app.handle())`.
+- `Mode::Cli`: no updater or autostart plugin; in `setup` the same data dir (`resolve_data_dir`, so `LIVERY_DATA_DIR` and the platform default work everywhere, Linux included), `logging::attach`, then **the CLI's lock**: `DataLock::acquire(&data_dir)`; `Busy` → `finish` with the `appRunning` error (exit 3) right away and skip the rest of setup; keep the `DataLock` in managed state. Then the same managed state (settings, libraries, queue, catalog, profile, wtlive, atelier, cutout); **no** `purge_on_startup`s, `start_idle_ticker`, `load_vehicles_in_background`, `watch::start`, `update::start`; `app.manage(state)` then `cli::start(app.handle())`.
 - `RunEvent::Exit`'s `update::install_on_exit` only in App mode.
-- Data dir: `run_cli` needs the data dir **before** setup to take the lock. `cli::main` resolves it with `startup::resolve_data_dir(env, || ...)`; the fallback closure has no `AppHandle` yet, so for the CLI require `LIVERY_DATA_DIR` **or** compute the default with `dirs`-free std: `std::env::var_os("APPDATA")` + the bundle identifier `app.livery.desktop` (that is what Tauri's `app_data_dir()` returns on Windows; confirm by logging `app.path().app_data_dir()` once in the app). Store the resolved dir in `CliState` and in setup use it instead of resolving again (assert it equals `app.path().app_data_dir()` when `LIVERY_DATA_DIR` is unset, warn if not).
+- The app's own lock (Task 1) stays in `Mode::App` only, so each process holds one handle.
 
 The invoke handler list stays one list; add `cli::page::cli_job, cli::page::cli_file, cli::page::cli_finish` to it. `page.rs` is **not** cfg-gated (so the list compiles in release); in release `CliState` doesn't exist, so the commands look it up through a small non-gated type:
 
@@ -413,25 +441,24 @@ fn job(app: &AppHandle) -> AppResult<tauri::State<'_, PageJob>> {
 #[tauri::command] pub async fn cli_file(app: AppHandle, request: Request<'_>) -> AppResult<()>
     // header x-name, checked by `is_file_name` (^[A-Za-z0-9._-]{1,64}$, not "." or ".."),
     // raw body written to out_dir/name (create or replace); no out_dir → invalidInput
-#[tauri::command] pub fn cli_finish(app: AppHandle, result: Result<serde_json::Value, PageError>) -> AppResult<()>
-```
-
-Check how Tauri 2 deserializes a `Result` argument; if awkward, use `cli_finish(app, ok: Option<Value>, error: Option<PageError>)` instead and mirror it in `main.ts`. Reuse `atelier`'s `header`/`raw_body` helpers (make them `pub(crate)`).
+#[tauri::command] pub fn cli_finish(app: AppHandle, ok: Option<serde_json::Value>, error: Option<PageError>) -> AppResult<()>
+    // exactly one of them; both or neither → treated as an internal error
+``` Reuse `atelier`'s `header`/`raw_body` helpers (make them `pub(crate)`).
 
 **5b. `cli::main` and `cli::start`** (`cli/mod.rs`):
 
 ```rust
 pub fn main(args: Vec<OsString>) -> ExitCode {
-    // 1. parse (stdin for `put -`); error → print, exit
-    // 2. resolve data dir; DataLock::acquire → Busy → CliError APP_RUNNING
-    // 3. CliState { command, data_dir, lock, result: Mutex<Option<(String, u8)>> }
-    // 4. crate::run_cli(state) → exit code; print the stored output
+    // 1. parse (stdin for `put -`); error → print, exit 1
+    // 2. out = Arc<Mutex<Option<String>>>; CliState { command, out: out.clone(), done: AtomicBool }
+    // 3. code = crate::run_cli(state); print out's text (or an internal error if none); ExitCode::from(code as u8)
 }
 ```
 
-`CliState` holds the result **text** and code; printing happens in `main` after `run_cli` returns (so nothing else interleaves). `cli::start(app)`:
-- no-GPU command → `tauri::async_runtime::spawn(async move { let r = run_rust(&app, cmd).await; finish(&app, r) })` (Task 6 fills `run_rust`; for now return `unsupported` for everything but the spike).
-- GPU command → `app.manage(PageJob { job, out_dir, finish })`, create the window:
+`finish(app, result)`: the first call wins (an `AtomicBool`), renders the JSON with `output::render`, stores the text, then `app.exit(code)`. `cli::runtime::start(app)` (called at the end of CLI setup):
+- Everything runs in one `tauri::async_runtime::spawn(async move { ... })` task, so `setup` stays synchronous.
+- no-GPU command → `let r = run_rust(&app, &cmd).await; finish(&app, r)` (Task 6 fills `run_rust`; until then `unsupported`).
+- GPU command → first the async Rust pre-steps inside the task (`put`: Task 6's vehicle check; `apply`: `crate::game::current_vehicles(&app)` in `blocking`, so the library entry uses the game's vehicle list, which CLI mode doesn't preload), then `app.manage(PageJob { job, out_dir, finish })` and create the window:
 
 ```rust
 tauri::WebviewWindowBuilder::new(app, "cli", tauri::WebviewUrl::App("cli.html".into()))
@@ -442,8 +469,8 @@ tauri::WebviewWindowBuilder::new(app, "cli", tauri::WebviewUrl::App("cli.html".i
     .build()?;
 ```
 
-- timeout: `spawn(async { sleep(120 s or 300 s for apply); finish(&app, Err(CliError::new(TIMEOUT, ...))) })`. `finish` stores the result only the first time (later calls ignored) and calls `app.exit(0)`.
-- `cli::exit_code(handle)` reads the stored code.
+- timeout: `std::thread::spawn(move || { std::thread::sleep(cmd.timeout()); finish(&app, Err(CliError::new(TIMEOUT, "The agent CLI page didn't answer in time"))) })` (tokio is not a direct dependency: don't add it).
+- `render`'s result: before printing, `finish` rewrites each `views[].file` / `flat[].file` bare name to the absolute path in `out_dir`.
 
 **5c. `main.rs`:**
 
@@ -452,7 +479,7 @@ tauri::WebviewWindowBuilder::new(app, "cli", tauri::WebviewUrl::App("cli.html".i
     #[cfg(debug_assertions)]
     if std::env::args_os().nth(1).is_some_and(|a| a == livery_lib::cli::args::CLI_ARG) {
         let args: Vec<_> = std::env::args_os().skip(2).collect();
-        return livery_lib::cli::main(args); // main must then return ExitCode
+        return livery_lib::cli::runtime::main(args); // main must then return ExitCode
     }
     livery_lib::run();
     ExitCode::SUCCESS
@@ -487,15 +514,15 @@ tauri::WebviewWindowBuilder::new(app, "cli", tauri::WebviewUrl::App("cli.html".i
 `src/cli/main.ts` (spike version): `const job = await call('cli_job')`; for `{ command: 'spike' }`… Instead of a throwaway command, the spike **is** a minimal `render`: implement in `main.ts` a temporary path that loads project/model/templates, `createEngine` on `document.createElement('canvas')`, `setLayers(project.layers via checkLayers, enabledSlots)`, `await baker.whenReady()`, `renderPixels(quickOrbit('front'), 512)`, `encodePng`, `callRaw('cli_file', png, {'x-name': 'spike.png'})`, `cli_finish({ ok: { ms } })`. Task 8 replaces it with `runJob`.
 
 **5f. Spike run** (needs the scratch game root, see Task 11 "Scratch setup"; do that setup now):
-- `pnpm tauri build --debug --no-bundle`
+- `pnpm tauri build --debug --no-bundle` (`pnpm tauri dev` overwrites `target/debug/livery.exe` with a build that loads the page from the Vite dev server; after any `tauri dev`, rebuild with this command before using the CLI, or the GPU commands time out)
 - `LIVERY_DATA_DIR=<scratch>/data src-tauri/target/debug/livery.exe --livery-cli render <projectId> --out <scratch>/out --views front --size 512` (create the project once with the dev app on the scratch data, or with Task 6's `project new` if done first: Task 6 may be done before 5f).
 - Expect exit 0, `spike.png` showing the Jumbo, time under ~15 s.
-- If it times out or the PNG is empty: try (1) `.additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding")` on the builder, then (2) `.visible(true).position(-32000.0, -32000.0)`. Keep the first that works.
+- If it times out or the PNG is empty: try (1) under `#[cfg(windows)]` (the method is Windows-only) `.additional_browser_args("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding")` on the builder, then (2) `.visible(true).position(-32000.0, -32000.0)`. Keep the first that works.
 - Write the outcome as a DESIGN_NOTES row "Atelier CLI: hidden window" (what was tried, what works, timings).
 
 - [ ] **Step 1:** Rust tests in `page.rs` for `is_file_name` (ok: `front.png`, `slot_body_c.png`; refused: `../x`, `a/b`, `a\\b`, ``, `.`, `..`, 65 chars, `con:`).
 - [ ] **Step 2:** 5a–5e; `cargo test`, clippy (both `--all-targets` and `--release` check: `cargo check --manifest-path src-tauri/Cargo.toml --release`), `pnpm typecheck`, `pnpm build`.
-- [ ] **Step 3:** App unchanged: `pnpm tauri dev` starts, Atelier opens a project (on scratch data), Apply still works. (Or `cargo test` + the existing `Editor.test.tsx` if the dev run is done once at the end of Task 9.)
+- [ ] **Step 3:** App unchanged: `cargo test` and the existing `Editor.test.tsx` pass; the dev-app run on scratch data happens once in Task 11.
 - [ ] **Step 4:** 5f spike; DESIGN_NOTES row.
 - [ ] **Step 5: Commit** `feat(cli): CLI mode with a hidden page window` (+ the DESIGN_NOTES row).
 
@@ -511,11 +538,11 @@ tauri::WebviewWindowBuilder::new(app, "cli", tauri::WebviewUrl::App("cli.html".i
 - `Vehicles { query }` → `crate::game::game_vehicles(app.clone()).await`, filter `code`/`name` by lowercase substring, `serde_json::to_value`.
 - `ProjectNew` → `crate::atelier::atelier_project_create(app.clone(), name, vehicle).await`.
 - `ProjectList` → `atelier_projects`. `ProjectGet` → `atelier_project_get`.
-- `ImportImage { id, file, cutout }` → `atelier_import_image(app, id, file.to_string_lossy())`; if `cutout`, `atelier_cutout(app, id, asset.id)`; output `{ "asset": AssetRef, "cutout": CutoutResult? }`.
+- `ImportImage { id, file, cutout }` → `atelier_import_image(app, id, file.to_string_lossy().into_owned())`; if `cutout`, `atelier_cutout(app, id, asset.id)`; output `{ "asset": AssetRef, "cutout": CutoutResult? }`.
 
-Before a GPU job starts, `ProjectPut` is checked in Rust: `atelier_project_get(app, project.id)` must succeed (`notFound` passes through) and `stored.vehicle == project.vehicle` (else `invalidInput` "The project's vehicle can't change"). Then the page job carries the project.
+Before a GPU job starts (inside the spawned task of Task 5b, before the window is created), `ProjectPut` is checked in Rust: `atelier_project_get(app, project.id)` must succeed (`notFound` passes through) and `stored.vehicle == project.vehicle` (else `invalidInput` "The project's vehicle can't change"). Then the page job carries the project.
 
-`game_vehicles` returns the built-in list when reading the game is off; that's fine (documented in cli.md).
+`game_vehicles` returns `[]` when Settings → Game → Read data from the game is off (no game list); document that in cli.md (Atelier needs it on anyway).
 
 - [ ] **Step 1:** Tests: `run_rust` needs an `AppHandle`. Use `tauri::test::mock_builder()` if the crate enables Tauri's `test` feature (grep `features` for tauri in Cargo.toml and look for `mock_builder` in existing tests). If not available, test the pure pieces only (the vehicle filter as `fn filter_vehicles(list, query)`, the vehicle check as `fn check_put(stored, incoming)`), and cover the rest in the Task 11 real run. Do not add the feature without asking.
 - [ ] **Step 2–4:** implement, tests, clippy, fmt. Real check on scratch data: `vehicles --query jumbo`, `project new Test us_m4a3e2_sherman_jumbo`, `project list`, `project get <id>`, `import-image <id> <png>` (and `--cutout` if the scratch models dir has the files; otherwise expect the not-ready error, exit 1).
@@ -532,7 +559,7 @@ export type ViewArg = { kind: 'quick'; name: QuickView } | { kind: 'orbit'; thet
 export type CliJob =
   | { command: 'put'; project: AtelierProject }
   | { command: 'vehicleInfo'; vehicle: string }
-  | { command: 'place'; id: string; view: ViewArg; at: [number, number]; part: PartGroup | null; width?: number; height?: number; depth?: number }
+  | { command: 'place'; id: string; view: ViewArg; at: [number, number]; part: PartGroup | null; width: number | null; height: number | null; depth: number | null }
   | { command: 'render'; id: string; views: ViewArg[]; size: number; grid: boolean; flat: boolean }
   | { command: 'apply'; id: string };
 export function viewName(v: ViewArg): string  // 'front' | 'orbit_0.50_1.20_1.00' (file-name safe)
@@ -562,10 +589,10 @@ export async function runJob(job: CliJob, deps: RunnerDeps): Promise<unknown>  /
 
 Shared loading (`loadWorkspace(projectId | project)`): project (`atelier_project_get`, or the job's for `put`), model `parseModelBuffer(toArrayBuffer(await call('atelier_model', { vehicle })))`, templates as in `Editor.tsx` lines 134-143 (one `atelier_template_texture` per slot; a failed one is left out, like the editor), `{ layers } = checkLayers(project.layers)`, `slots = enabledSlots(project, model)`, engine via `deps.createEngine({ canvas, model, templates, loadAsset })` where `loadAsset(assetId)` = `fetchAsset(project.id, assetId)` mapped to `{ rgba, w, h }` (as `loadProjectAsset` does, without the UI flags). `baker.setLayers(layers, slots)`; `await baker.whenReady()`. Always `engine.dispose()` in `finally`.
 
-- `vehicleInfo`: no engine. From the parsed model: `{ vehicle, model, mirrorAxis, slots: header.slots, parts: header.parts.map(p => ({ node, group, slot: slots[p.slot].texture, triangles: p.indexCount/3, bounds: {min,max} })), bounds, center, radius }`. Bounds from `positions` over each part's vertex range (same loop as `scene.setModel`); centre/radius from the overall box (document that the editor uses the bounding *sphere*; give both: `box` and `sphere` computed like three's `computeBoundingSphere` — simplest: centre of the box, radius = max distance of any vertex from it).
-- `put`: `checked = checkLayers(job.project.layers)`; build the engine with `checked.layers`; for each placed layer (image/text/shape/merged; reuse the editor's predicate — grep `isPlaced` or how `LayerRows`/Mirror toggle decides) with `decal.mirror === true`, `await baker.decalTouchesSharedTexels(decal)` → collect ids; `saved = await call('atelier_project_save', { project: { ...job.project, layers: checked.layers } })`; thumbnail: `baker.upgrade(); png = await scene.thumbnailPng(512); await callRaw('atelier_project_thumb', png, { 'x-project-id': saved.id })` (failure only warns, like the editor); return `{ project: saved, repaired: checked.repaired, sharedTexels }`.
+- `vehicleInfo`: no engine. From the parsed model: `{ vehicle, model, mirrorAxis, slots: header.slots.map(s => ({ ...s, body: isBodySlot(s.texture) })), parts: header.parts.map(p => ({ node, group, slot: slots[p.slot].texture, triangles: p.indexCount/3, bounds: {min,max} })), bounds, center, radius }`. Bounds from `positions` over each part's vertex range (same loop as `scene.setModel`); centre/radius from the overall box (document that the editor uses the bounding *sphere*; give both: `box` and `sphere` computed like three's `computeBoundingSphere` — simplest: centre of the box, radius = max distance of any vertex from it).
+- `put`: `checked = checkLayers(job.project.layers)`; build the engine with `checked.layers`; shared texels exactly as `Editor.tsx`'s `checkShared` (lines ~329-350): for each `framedLayers(checked.layers)` (`src/atelier/layerTree.ts`: top level and in folders, merged objects by their frame) whose `decal.mirror` is true, `await baker.decalTouchesSharedTexels(envelopeOf(layer.decal, layer.repeat))` (`src/atelier/merge.ts`) → collect ids; `saved = await call('atelier_project_save', { project: { ...job.project, layers: serializeLayers(checked.layers) } })` (`serializeLayers` from `projectCheck.ts`, as the editor store saves: it restores unsupported layers and pieces as they came); thumbnail: `baker.upgrade(); png = await scene.thumbnailPng(512); await callRaw('atelier_project_thumb', png, { 'x-project-id': saved.id })` (failure only warns, like the editor); return `{ project: saved, repaired: checked.repaired, sharedTexels }`.
 - `place`: `{ hit, cameraMatrixWorld } = scene.raycastView(viewOrbit(job.view, scene), ...atToNdc(job.at), job.part)`; no hit → throw `{ code: 'noHit', message: 'Nothing of the vehicle at that point' }`; `size = { width: job.width ?? 1, height: job.height ?? 1, depth: job.depth }`; `decal = frameFromHit(hit.point, hit.normal, cameraMatrixWorld, size, job.part ?? 'all')`; null → `noHit` too; return `{ decal, group: hit.group, node: hit.node }`.
-- `render`: `baker.upgrade()` (full preview quality before pictures); per view: `px = scene.renderPixels(viewOrbit(v, scene), job.size)`; `if (job.grid) drawGrid(px, job.size)`; `png = await encodePng(px, size, size)`; `name = `${viewName(v)}.png``; `callRaw('cli_file', png, { 'x-name': name })`; collect `{ view: viewName(v), file: name, width, height }`. `flat`: per slot `r = baker.bakeForExport(slot, false)` — check whether `bakeForExport` requires `prepareExport` first (`EXPORT_PICTURE_NOT_READY`); if so call `prepareExport(false)` before and `endExport()` after. Encode `r.rgba` (`r.w × r.h`) as PNG named `flat_${slot}.png`. Return `{ views, flat }`. The page sends file names only; Rust adds the directory, and `main.ts`... the result's `file` field is the bare name; Rust's `finish` for `render` rewrites each `file` to the absolute path in `out_dir` before printing (do this in `cli::start`'s finish for the render job; keeps paths out of the page).
+- `render`: `baker.upgrade()` (full preview quality before pictures); per view: `px = scene.renderPixels(viewOrbit(v, scene), job.size)`; `if (job.grid) drawGrid(px, job.size)`; `png = await encodePng(px, size, size)`; `name = `${viewName(v)}.png``; `callRaw('cli_file', png, { 'x-name': name })`; collect `{ view: viewName(v), file: name, width, height }`. `flat`: `bakeForExport` throws `EXPORT_PICTURE_NOT_READY` with decals unless `prepareExport` ran, so: `prepareExport(false)` once, then per slot `r = baker.bakeForExport(slot, false)` (template size, full resolution; this replaces the spec's "at most 2048"), encode `r.rgba` (`r.w × r.h`) as PNG named `flat_${slot}.png`; `endExport()` in `finally`. Return `{ views, flat }`. The page sends file names only; Rust adds the directory, and `main.ts`... the result's `file` field is the bare name; Rust's `finish` for `render` rewrites each `file` to the absolute path in `out_dir` before printing (do this in `cli::start`'s finish for the render job; keeps paths out of the page).
 
 `main.ts`:
 
@@ -614,8 +641,8 @@ export async function applyProject(w: Workspace, deps: Pick<RunnerDeps, 'call' |
   try {
     engine.baker.setLayers(layers, slots);
     await engine.baker.whenReady();
+    exporting = true; // before: a failing prepareExport still gets its endExport (as useApply)
     await engine.baker.prepareExport(highQuality);
-    exporting = true;
     for (const slot of slots) {
       engine.baker.setLayers(layers, slots);
       const r = engine.baker.bakeForExport(slot, highQuality);
@@ -653,6 +680,8 @@ Output: the `ApplyResult` plus `downscaled` (OR of the slots' `r.downscaled`) so
 DESIGN_NOTES rows (dated 2026-10-19): "Atelier CLI" (decision summary: approach A, debug only, lock, codes, English messages not via `t()` because not UI, own apply sequence mirroring `useApply`), plus the spike row from Task 5.
 
 HANDOFF: new top section "Atelier CLI (2026-10-19)": what's in, how to build/run, checks, open points.
+
+Memory: a `reference` memory file `livery-cli.md` in `C:\Users\piera\.claude\projects\D--Dev-Progetti-Livery\memory\` ("Agent CLI for Atelier: build with `pnpm tauri build --debug --no-bundle`, manual in docs/cli.md, Livery must be closed") and its line in `MEMORY.md`.
 
 - [ ] Write, proofread, commit `docs(cli): agent manual, design notes, handoff`
 

@@ -183,7 +183,7 @@ the editor modules it reuses (`engine.ts` pulls in React's `createContext`, whic
   - `vehicle-info`: the summary from `parseModelBuffer` alone (no engine, no WebGL).
   - `place`: `raycastView`, then `frameFromHit` with the view's camera matrix; no hit → `noHit`.
   - `render`: per view `renderPixels`, optional `grid.ts`, `encodePng`, `cli_file`; `--flat`:
-    `bakeForExport` per enabled slot at preview size (at most 2048), PNG, `cli_file`.
+    `prepareExport(false)`, `bakeForExport` per enabled slot at the template size, PNG, `cli_file`, `endExport()`.
   - `apply`: `apply.ts` (above).
   `deps` holds `invoke`/`invokeRaw`, the engine factory and the canvas, so Vitest runs it with
   stubs. Every exception ends as a `cli_finish` error (`AppError` from `toAppError`).
