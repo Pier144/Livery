@@ -17,7 +17,8 @@ vi.mock('@/atelier/gl/scene', async (importOriginal) => ({
   }),
 }));
 
-import { runJob, type RunnerDeps } from './runner';
+import { runJob } from './runner';
+import type { RunnerDeps } from './workspace';
 
 const VEHICLE = 'mock_vehicle';
 const SLOTS = mockSlots(VEHICLE);
@@ -132,6 +133,10 @@ function stub(stored: AtelierProject = project()): Stub {
         buf[4] = 1;
         return buf;
       }
+      case 'atelier_apply_begin':
+        return { applyId: 'ap1' };
+      case 'atelier_apply_commit':
+        return { skin: { id: 's1' } };
       case 'atelier_project_save':
         return { ...(args!.project as AtelierProject), updatedAt: '2026-02-02T00:00:00Z' };
       default:
@@ -319,6 +324,29 @@ describe('runJob: vehicleInfo', () => {
     expect(out.bounds.min).toEqual([-0.5, -0.5, -0.5]);
     for (let c = 0; c < 3; c++) expect(out.center[c]).toBeCloseTo((out.bounds.min[c]! + out.bounds.max[c]!) / 2);
     expect(out.radius).toBeGreaterThan(0.8);
+  });
+});
+
+describe('runJob: apply', () => {
+  it('applies the stored project and disposes the engine', async () => {
+    const s = stub();
+    const out = await runJob({ command: 'apply', id: 'p1' }, s.deps);
+    expect(out).toEqual({ skin: { id: 's1' }, downscaled: false });
+    expect(s.calls.map((c) => c.cmd)).toContain('atelier_project_get');
+    expect(s.calls.find((c) => c.cmd === 'atelier_apply_begin')!.args).toEqual({ projectId: 'p1', enabled: [`${VEHICLE}_body_c`, `${VEHICLE}_turret_c`] });
+    expect(s.raw.filter((r) => r.cmd === 'atelier_apply_texture').map((r) => r.headers['x-slot'])).toEqual([`${VEHICLE}_body_c`, `${VEHICLE}_turret_c`]);
+    expect(s.engine.baker.endExport).toHaveBeenCalledOnce();
+    expect(s.engine.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('disposes the engine when the apply fails', async () => {
+    const s = stub();
+    s.engine.baker.bakeForExport.mockImplementationOnce(() => {
+      throw new Error('boom');
+    });
+    await expect(runJob({ command: 'apply', id: 'p1' }, s.deps)).rejects.toThrow('boom');
+    expect(s.calls.map((c) => c.cmd)).toContain('atelier_apply_cancel');
+    expect(s.engine.dispose).toHaveBeenCalledOnce();
   });
 });
 

@@ -4,7 +4,7 @@ import type { VehicleModelData } from '@/atelier/modelBuffer';
 import type { Engine } from '@/screens/Atelier/engine';
 import type { AtelierProject } from '@/types';
 import { applyProject } from './apply';
-import type { RunnerDeps, Workspace } from './runner';
+import type { RunnerDeps, Workspace } from './workspace';
 
 const SLOTS = ['v_body_c', 'v_turret_c'];
 const LAYERS = [{ id: 'l-img', kind: 'image', name: '', visible: true, assetId: 'a1', decal: null, opacity: 1, flipX: false }] as unknown as Layer[];
@@ -130,16 +130,15 @@ describe('applyProject', () => {
     expect(s.log).toContain('atelier_apply_cancel');
   });
 
-  it('a picture that cannot be loaded fails the apply with notFound and cancels it, before any bake', async () => {
+  it('a picture that could not be loaded fails with notFound before the apply begins', async () => {
     const s = setup();
     s.w.failedAssets.add('a1');
     await expect(applyProject(s.w, s.deps)).rejects.toMatchObject({
       code: 'notFound',
       detail: JSON.stringify([{ layer: 'l-img', assetId: 'a1' }]),
     });
-    expect(s.log).toContain('atelier_apply_cancel');
-    expect(s.engine.baker.bakeForExport).not.toHaveBeenCalled();
-    expect(s.engine.baker.endExport).not.toHaveBeenCalled();
+    // Nothing started, so nothing to cancel or end.
+    expect(s.log).toEqual([]);
   });
 
   it('a picture whose full-size copy fails in prepareExport fails the apply too', async () => {

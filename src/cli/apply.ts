@@ -1,5 +1,5 @@
 import type { ApplyResult, ApplyStarted } from '@/types';
-import { requirePictures, sendThumb, type RunnerDeps, type Workspace } from './runner';
+import { requirePictures, sendThumb, type RunnerDeps, type Workspace } from './workspace';
 
 /** `apply`'s answer: the installed skin (and the backup after a replace), plus whether a slot was baked smaller. */
 export type CliApplyResult = ApplyResult & {
@@ -17,13 +17,14 @@ export type CliApplyResult = ApplyResult & {
 export async function applyProject(w: Workspace, deps: Pick<RunnerDeps, 'call' | 'callRaw'>): Promise<CliApplyResult> {
   const { project, engine, layers, slots } = w;
   const highQuality = project.output.highQuality;
+  // loadWorkspace already waited for the pictures: a missing one fails before anything starts.
+  requirePictures(w);
   const { applyId } = await deps.call<ApplyStarted>('atelier_apply_begin', { projectId: project.id, enabled: slots });
   let committing = false;
   let exporting = false;
   try {
     engine.baker.setLayers(layers, slots);
     await engine.baker.whenReady();
-    requirePictures(w);
     // Before the call: a failing prepareExport still gets its endExport (as useApply).
     exporting = true;
     await engine.baker.prepareExport(highQuality);
@@ -41,7 +42,8 @@ export async function applyProject(w: Workspace, deps: Pick<RunnerDeps, 'call' |
         'x-height': String(r.h),
       });
     }
-    // Rust copies the thumbnail into the skin as preview.png; a failure only warns.
+    // Rust copies the thumbnail into the skin as preview.png; a failure only warns. No whenReady
+    // first: prepareExport already waited for these same layers' pictures.
     await sendThumb(w, deps);
     committing = true;
     const result = await deps.call<ApplyResult>('atelier_apply_commit', { applyId });
