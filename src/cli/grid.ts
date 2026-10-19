@@ -22,11 +22,18 @@ const DIGITS: Record<number, readonly string[]> = {
   8: ['###', '#.#', '###', '#.#', '###'],
   9: ['###', '#.#', '###', '..#', '###'],
 };
-const SCALE = 2;
 const PAD = 2;
+
+/** Pixels per font cell: 2 up to 682 px, then growing with the picture so a label stays readable when it is viewed scaled down. */
+export function labelScale(size: number): number {
+  return Math.max(2, Math.floor(size / 341));
+}
+
 /** Label box: the scaled digit plus its dark margin. */
-export const LABEL_W = 3 * SCALE + 2 * PAD;
-export const LABEL_H = 5 * SCALE + 2 * PAD;
+export function labelSize(size: number): { w: number; h: number } {
+  const s = labelScale(size);
+  return { w: 3 * s + 2 * PAD, h: 5 * s + 2 * PAD };
+}
 /** Gap between the picture's edge and a label box. */
 const EDGE = 2;
 
@@ -38,7 +45,8 @@ export function gridLine(size: number, k: number): number {
 /** Top-left corner of the label of line `k`: at the top of a vertical line or the left of a horizontal one. */
 export function labelBox(size: number, k: number, edge: 'top' | 'left'): { x: number; y: number } {
   const at = gridLine(size, k);
-  return edge === 'top' ? { x: at - Math.floor(LABEL_W / 2), y: EDGE } : { x: EDGE, y: at - Math.floor(LABEL_H / 2) };
+  const { w, h } = labelSize(size);
+  return edge === 'top' ? { x: at - Math.floor(w / 2), y: EDGE } : { x: EDGE, y: at - Math.floor(h / 2) };
 }
 
 function put(rgba: Uint8ClampedArray, size: number, x: number, y: number, c: readonly [number, number, number]): void {
@@ -51,13 +59,15 @@ function put(rgba: Uint8ClampedArray, size: number, x: number, y: number, c: rea
 }
 
 function label(rgba: Uint8ClampedArray, size: number, k: number, box: { x: number; y: number }): void {
-  for (let y = 0; y < LABEL_H; y++) for (let x = 0; x < LABEL_W; x++) put(rgba, size, box.x + x, box.y + y, DARK);
+  const { w, h } = labelSize(size);
+  const scale = labelScale(size);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) put(rgba, size, box.x + x, box.y + y, DARK);
   const rows = DIGITS[k]!;
   rows.forEach((row, ry) => {
     for (let rx = 0; rx < 3; rx++) {
       if (row[rx] !== '#') continue;
-      for (let sy = 0; sy < SCALE; sy++)
-        for (let sx = 0; sx < SCALE; sx++) put(rgba, size, box.x + PAD + rx * SCALE + sx, box.y + PAD + ry * SCALE + sy, LIGHT);
+      for (let sy = 0; sy < scale; sy++)
+        for (let sx = 0; sx < scale; sx++) put(rgba, size, box.x + PAD + rx * scale + sx, box.y + PAD + ry * scale + sy, LIGHT);
     }
   });
 }

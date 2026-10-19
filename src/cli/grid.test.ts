@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LABEL_H, LABEL_W, drawGrid, gridLine, labelBox } from './grid';
+import { drawGrid, gridLine, labelBox, labelScale, labelSize } from './grid';
 
 const LIGHT = [0xf2, 0xf2, 0xf2, 255];
 const DARK = [0x10, 0x10, 0x10, 255];
@@ -33,25 +33,38 @@ describe('drawGrid', () => {
     expect(pixel(rgba, size, 140, 140)).toEqual([77, 77, 77, 77]);
   });
 
-  it('labels line 5 with a 5 on a dark box at the top and the left', () => {
-    const rgba = new Uint8ClampedArray(size * size * 4);
-    drawGrid(rgba, size);
+  it.each([256, 1024])('labels line 5 with a 5 on a dark box at the top and the left (%i px)', (side) => {
+    const rgba = new Uint8ClampedArray(side * side * 4);
+    drawGrid(rgba, side);
+    const scale = labelScale(side);
+    const { w, h } = labelSize(side);
     for (const edge of ['top', 'left'] as const) {
-      const box = labelBox(size, 5, edge);
+      const box = labelBox(side, 5, edge);
       const glyph: string[] = [];
-      // Sample each font cell at its scaled top-left pixel (scale 2, 2 px margin).
+      // Sample each font cell at the far corner of its scaled block (2 px margin).
       for (let ry = 0; ry < 5; ry++) {
         let row = '';
-        for (let rx = 0; rx < 3; rx++) row += pixel(rgba, size, box.x + 2 + rx * 2, box.y + 2 + ry * 2)[0] === LIGHT[0] ? '#' : '.';
+        for (let rx = 0; rx < 3; rx++) {
+          const p = pixel(rgba, side, box.x + 2 + rx * scale + scale - 1, box.y + 2 + ry * scale + scale - 1);
+          row += p[0] === LIGHT[0] ? '#' : '.';
+        }
         glyph.push(row);
       }
       expect(glyph, edge).toEqual(['###', '#..', '###', '..#', '###']);
       // The box's margin is dark.
-      expect(pixel(rgba, size, box.x, box.y)).toEqual(DARK);
-      expect(pixel(rgba, size, box.x + LABEL_W - 1, box.y + LABEL_H - 1)).toEqual(DARK);
+      expect(pixel(rgba, side, box.x, box.y)).toEqual(DARK);
+      expect(pixel(rgba, side, box.x + w - 1, box.y + h - 1)).toEqual(DARK);
     }
-    // The top label sits on its line, the left one across its line.
-    expect(labelBox(size, 5, 'top').x).toBeLessThan(128);
-    expect(labelBox(size, 5, 'top').x + LABEL_W).toBeGreaterThan(128);
+    // The top label sits on its line.
+    const line = gridLine(side, 5);
+    expect(labelBox(side, 5, 'top').x).toBeLessThan(line);
+    expect(labelBox(side, 5, 'top').x + w).toBeGreaterThan(line);
+  });
+
+  it('grows the labels with the picture', () => {
+    expect(labelScale(256)).toBe(2);
+    expect(labelScale(512)).toBe(2);
+    expect(labelScale(1024)).toBe(3);
+    expect(labelScale(2048)).toBe(6);
   });
 });
