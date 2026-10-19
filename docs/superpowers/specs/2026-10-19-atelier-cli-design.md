@@ -154,7 +154,7 @@ need no GPU create no window.
 the editor modules it reuses (`engine.ts` pulls in React's `createContext`, which is harmless).
 
 **Changes to shared modules (no behaviour change in the editor):**
-- **`EditorScene.renderPixels(orbit, size): Uint8Array`** — renders the given orbit into a
+- **`EditorScene.renderPixels(orbit, size): Uint8ClampedArray`** — renders the given orbit into a
   `size × size` render target (as `thumbnailPng` does today, which becomes a caller of it) and
   returns straight top-down RGBA. Independent of the canvas size and `devicePixelRatio`; draws
   synchronously, no `requestAnimationFrame`.
