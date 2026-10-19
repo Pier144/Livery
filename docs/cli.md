@@ -238,6 +238,10 @@ Every layer has `id` (any unique string), `kind`, `name` (`""` = default label) 
   - The hull sides share texels, so Mirror on them paints both sides at once (`sharedTexels`).
 - **Small parts in front of a plate:** a hit on a bracket, hook or light puts the decal in front
   of the plate, and the picture barely shows. Place on the plate itself, or pass `--part`.
+- **Cutouts can come back empty:** isnet-anime is trained on characters. On a logo, flag or
+  synthetic drawing it can make the whole picture transparent, and the layer then paints nothing
+  without any error. After `--cutout`, `render` and check that the picture shows. If it doesn't,
+  use the original asset (pictures with real transparency need no cutout).
 - **Box spill:** a decal box can catch small bits of nearby geometry. Look at `--flat` for stray
   marks, and shrink `depth` or use `part`.
 - **Other vehicles:** vehicles whose textures are their own on a shared model are refused
