@@ -4,3 +4,5 @@
 
 #[cfg(debug_assertions)]
 pub mod args;
+#[cfg(debug_assertions)]
+pub mod output;
