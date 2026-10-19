@@ -90,7 +90,10 @@ describe('scene camera maths', () => {
   });
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 /** A renderer that draws nothing: enough for the scene's camera, picking and read-back code. */
 function fakeRenderer() {
@@ -242,9 +245,14 @@ describe('EditorScene.raycastView', () => {
 
   it('leaves plain raycast on the on-screen camera', () => {
     const { scene } = makeScene();
-    const hit = scene.raycast(100, 50);
-    expect(hit).not.toBeNull();
-    expect(['body', 'turret']).toContain(hit!.node);
+    const before = scene.raycast(100, 50);
+    expect(before).not.toBeNull();
+    // A pick from a clearly different orbit (the other side of the model) borrows the camera and gives it back.
+    scene.raycastView({ target: [0, 0, 0], radius: 20, theta: -Math.PI / 2, phi: Math.PI / 2 }, 0, 0);
+    const after = scene.raycast(100, 50);
+    expect(after?.node).toBe(before!.node);
+    // The camera is rebuilt by lookAt on the way back: equal up to float noise.
+    after!.point.forEach((v, i) => expect(v).toBeCloseTo(before!.point[i]!, 6));
   });
 });
 
