@@ -40,7 +40,7 @@ use std::path::Path;
 use tauri::Manager;
 
 /// How the process runs: the app, or (debug builds) the agent CLI with its command.
-pub enum Mode {
+pub(crate) enum Mode {
     App(startup::StartupClock),
     #[cfg(debug_assertions)]
     Cli(cli::runtime::CliState),
@@ -66,15 +66,16 @@ pub fn run() {
     });
 }
 
-/// The agent CLI's Tauri run (see [`cli::runtime`]): no configured window, and the exit code
-/// `cli::runtime::finish` asked for. The printed answer stays in `state`'s shared slot.
+/// The agent CLI's Tauri run (see [`cli::runtime`]): no configured window. The answer and its
+/// exit code stay in `state`'s shared slot, which `cli::runtime::main` reads after this returns.
 #[cfg(debug_assertions)]
 pub fn run_cli(state: cli::runtime::CliState) -> i32 {
     // Logs on stderr: stdout is the JSON answer.
     logging::init_cli();
     let mut ctx = context();
     ctx.config_mut().app.windows.clear();
-    // `finish` calls `app.exit(code)`; `run_return` (it takes `self`) returns that code.
+    // `finish` stores the answer (with its exit code) and calls `app.exit`, which ends this loop.
+    // The code returned here is not used: the stored answer carries it.
     build_app(ctx, Mode::Cli(state)).run_return(|_, _| {})
 }
 

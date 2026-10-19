@@ -106,10 +106,15 @@ pub fn lock_error(e: crate::lock::LockError) -> CliError {
 pub fn start(app: &AppHandle) {
     let command = app.state::<CliState>().command.clone();
     let timeout = command.timeout();
+    let message = if command.page_job().is_some() {
+        "The agent CLI page didn't answer in time"
+    } else {
+        "The command didn't finish in time"
+    };
     let timer = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(timeout);
-        finish(&timer, Err(CliError::new(TIMEOUT, "The agent CLI page didn't answer in time")));
+        finish(&timer, Err(CliError::new(TIMEOUT, message)));
     });
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -145,14 +150,41 @@ pub fn start(app: &AppHandle) {
                             .map_err(|e| CliError { code: e.code, message: e.message, detail: e.detail });
                         finish(&handle, result);
                     }),
+                    loaded: AtomicBool::new(false),
                 });
                 if let Err(e) = open_page(&app) {
                     finish(
                         &app,
                         Err(CliError::new("internal", "The agent CLI page can't open").with_detail(e.to_string())),
                     );
+                    return;
                 }
+                watch_page_load(&app);
             }
+        }
+    });
+}
+
+/// How long the page may take to ask for its job. A page that never loads (a `tauri dev` build
+/// pointing at a dev server that isn't running, a broken bundle) fails here instead of after
+/// the full timeout, which stays for a page that did load and is working.
+const PAGE_LOAD_LIMIT: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// Ends the run with `internal` when the page hasn't called `cli_job` within [`PAGE_LOAD_LIMIT`].
+fn watch_page_load(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(PAGE_LOAD_LIMIT);
+        let loaded = app.try_state::<PageJob>().is_some_and(|page| page.loaded.load(Ordering::SeqCst));
+        if !loaded {
+            finish(
+                &app,
+                Err(CliError::new(
+                    "internal",
+                    "The agent CLI page didn't load (is target/debug/livery.exe a `tauri dev` build? \
+                     Rebuild with pnpm tauri build --debug --no-bundle)",
+                )),
+            );
         }
     });
 }

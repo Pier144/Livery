@@ -8,6 +8,7 @@ use crate::blocking;
 use crate::error::{AppError, AppResult, ErrorCode};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::ipc::Request;
 use tauri::{AppHandle, Manager};
 
@@ -19,6 +20,8 @@ pub struct PageJob {
     pub out_dir: Option<PathBuf>,
     /// Ends the run with the page's answer (the first answer wins; see `cli::runtime::finish`).
     pub finish: Box<dyn Fn(Result<serde_json::Value, PageError>) + Send + Sync>,
+    /// Set by the first `cli_job`: the page loaded and its script runs (the CLI's load check).
+    pub loaded: AtomicBool,
 }
 
 /// A failure the page reports: an `AppError` it caught or one of the CLI-only codes (`noHit`).
@@ -46,7 +49,9 @@ pub fn is_file_name(name: &str) -> bool {
 /// The job the page runs.
 #[tauri::command]
 pub fn cli_job(app: AppHandle) -> AppResult<serde_json::Value> {
-    Ok(job(&app)?.job.clone())
+    let page = job(&app)?;
+    page.loaded.store(true, Ordering::SeqCst);
+    Ok(page.job.clone())
 }
 
 /// One output file: the raw body written to `--out`/`x-name` (created or replaced).
