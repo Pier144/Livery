@@ -59,6 +59,7 @@ interface UseApplyArgs {
  * 0 to 50 %, Rust's encode / write / install events (`atelier://apply-progress`) the rest. Any error
  * cancels the apply (`atelier_apply_cancel`) and toasts it; leaving the editor before the commit
  * cancels it too. After the commit the project records the installed skin at once.
+ * The agent CLI has its own copy of this sequence in `src/cli/apply.ts`: keep the two in step.
  */
 export function useApply({ projectId, model, engine, flush, beforeCommit }: UseApplyArgs) {
   const { t } = useTranslation();

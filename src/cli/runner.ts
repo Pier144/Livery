@@ -12,6 +12,7 @@ import { ATELIER_CMD, parseAssetBuffer, toArrayBuffer } from '@/queries/atelier'
 import type { Engine, EngineFactory } from '@/screens/Atelier/engine';
 import { enabledSlots } from '@/screens/Atelier/editorModel';
 import type { AtelierProject } from '@/types';
+import { applyProject } from './apply';
 import { drawGrid } from './grid';
 import {
   atToNdc,
@@ -30,7 +31,7 @@ import {
 
 /**
  * Runs the agent CLI's GPU jobs in the hidden page (`cli.html`) with the editor's own scene and
- * Baker: `put`, `vehicleInfo`, `place` and `render` (`apply` is Task 9's `apply.ts`). Everything
+ * Baker: `put`, `vehicleInfo`, `place`, `render` and `apply` (`apply.ts`). Everything
  * the page talks to comes in `deps`, so Vitest runs it with stubs and no WebGL.
  */
 
@@ -153,7 +154,7 @@ export async function runJob(job: CliJob, deps: RunnerDeps): Promise<unknown> {
       checkViewNames(job.views);
       return withWorkspace(job.id, deps, (w) => render(w, job, deps));
     case 'apply':
-      throw { code: 'unsupported', message: '"apply" is not in the agent CLI yet' } satisfies CliError;
+      return withWorkspace(job.id, deps, (w) => applyProject(w, deps));
   }
 }
 

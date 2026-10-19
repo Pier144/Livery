@@ -329,10 +329,6 @@ describe('runJob: errors', () => {
     await expect(runJob({ command: 'render', id: 'p1', views: [{ kind: 'quick', name: 'top' }], size: 256, grid: false, flat: false }, s.deps)).rejects.toThrow('lost');
     expect(s.engine.dispose).toHaveBeenCalledOnce();
   });
-
-  it('refuses apply until it exists', async () => {
-    await expect(runJob({ command: 'apply', id: 'p1' }, stub().deps)).rejects.toMatchObject({ code: 'unsupported' });
-  });
 });
 
 describe('runJob: pictures that cannot be loaded', () => {
