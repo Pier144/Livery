@@ -393,6 +393,10 @@ fn parse_views(list: &str) -> AppResult<Vec<ViewArg>> {
             let theta = parse_finite("orbit theta", theta)?;
             let phi = parse_finite("orbit phi", phi)?;
             let zoom = parse_finite("orbit zoom", zoom)?;
+            // One turn either way is every camera; the bound also keeps the view's file name short.
+            if !(-std::f64::consts::TAU..=std::f64::consts::TAU).contains(&theta) {
+                return Err(bad("orbit theta must be from -2 pi to 2 pi radians"));
+            }
             if !(PHI_MIN..=PHI_MAX).contains(&phi) {
                 return Err(bad(format!(
                     "orbit phi must be from {PHI_MIN} to pi - {PHI_MIN} (about {PHI_MAX:.4}) radians"
@@ -516,6 +520,8 @@ mod tests {
             "orbit:x,1,1",       // not a number
             "orbit:inf,1,1",     // not finite
             "orbit:NaN,1,1",     // not finite
+            "orbit:6.3,1,1",     // theta past one turn
+            "orbit:-6.3,1,1",    // theta past one turn
             "left",              // unknown quick view
             "front,,top",        // empty item
             "",                  // empty list
@@ -523,7 +529,7 @@ mod tests {
             invalid(&["render", "a", "--out", out, "--views", views]);
         }
         // The edges themselves are fine.
-        assert!(p(&["render", "a", "--out", out, "--views", "orbit:-9,0.01,0.15,orbit:9,3.13,6"]).is_ok());
+        assert!(p(&["render", "a", "--out", out, "--views", "orbit:-6.28,0.01,0.15,orbit:6.28,3.13,6"]).is_ok());
     }
 
     #[test]

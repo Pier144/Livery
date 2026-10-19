@@ -91,7 +91,7 @@ export function quickViewOrbit(view: QuickView, center: Vec3, framing: number): 
     case 'rear':
       return { target: center, radius: framing, theta: Math.PI, phi: VIEW_PHI };
     case 'side':
-      // The left side (+Z is the right): the camera on −Z sees the nose on the right.
+      // The left side (+Z is the right): the camera on −Z sees the nose on the left.
       return { target: center, radius: framing, theta: -Math.PI / 2, phi: VIEW_PHI };
     case 'top':
       // From just behind the zenith, so the nose points up the screen.

@@ -19,8 +19,9 @@ pnpm tauri build --debug --no-bundle
 
 The result is `src-tauri/target/debug/livery.exe`, with the frontend embedded. `pnpm tauri dev`
 overwrites that exe with a build that loads its pages from the Vite dev server. After any
-`tauri dev`, rebuild with the command above. Otherwise the GPU commands fail after about 20 s with
-"The agent CLI page didn't load".
+`tauri dev`, rebuild with the command above. Otherwise the commands that use the hidden page
+(`vehicle-info`, `project put`, `place`, `render`, `apply`) fail after about 20 s with "The agent
+CLI page didn't load".
 
 ## Rules
 
@@ -60,8 +61,9 @@ LIVERY_DATA_DIR=<scratch>/data src-tauri/target/debug/livery.exe --livery-cli <c
 | 4 | `timeout` (120 s, or 300 s for `apply`) |
 
 **Timings:**
-- `project` and `vehicles` commands: about 1 s.
-- `render` and `place`: about 4 s.
+- `vehicles`, `vehicle-info`, `project new|list|get` and `import-image`: about 1 s (a
+  `--cutout` adds about 8 s).
+- `project put`, `render` and `place` (they open the hidden page): about 4 s.
 - `apply`: about 10 s on the Jumbo.
 - The first GPU run of a session adds about 4 s (shader cache).
 
@@ -88,7 +90,7 @@ empty when Settings → Game → Read data from the game is off.
 
 ### `vehicle-info <code>`
 
-Gives the model summary. No GPU is needed.
+Gives the model summary (read on the page, but nothing is baked).
 - `slots`: `texture`, `width`, `height`, `hq`, `paintableByDefault`, `body`.
 - `parts`: `node`, `group` (`hull`, `turret` or `gun`), `slot`, `triangles`, `bounds`.
 - Overall: `bounds`, `center`, `radius` and `mirrorAxis`.
@@ -159,14 +161,17 @@ Writes PNG pictures of the baked project (transparent background) into an existi
 - **Views:**
   - `front`, `side` (the left side, `-z`), `rear`, `top`;
   - or `orbit:<theta>,<phi>,<zoom>`: theta and phi in radians (phi from 0.01 to π−0.01, measured
-    from straight above), zoom from 0.15 to 6 (1 = framed, smaller = closer).
+    from straight above), theta from -2π to 2π (0 = front, π/2 = the right side, +z), zoom
+    from 0.15 to 6 (1 = framed, smaller = closer).
   - The default is all four quick views.
-  - `orbit:0.6,1.0,0.7` is a good three-quarter look at the front left.
+  - `orbit:0.6,1.0,0.7` is a good three-quarter look at the front right; `orbit:-0.6,1.0,0.7`
+    the front left.
 - `--size`: 256 to 2048, default 1024.
 - `--grid`: lines every 10 % with labels 1 to 9 (tenths) along the top and left. Use them for
   `place --at`.
-- `--flat`: also writes each painted slot's texture at full size as `flat_<slot>.png`. This is
-  what `apply` encodes, so it is good for checking UV placement.
+- `--flat`: also writes each painted slot's texture at its template size as `flat_<slot>.png`.
+  That is what `apply` encodes, except that `apply` raises the body to 4096 when the project's
+  `output.highQuality` is on. Good for checking UV placement.
 
 ### `apply <id>`
 
@@ -179,7 +184,9 @@ entry.
   "backupId": "b-…", "downscaled": false }
 ```
 
-- `backupId` is set when an installed skin was replaced; the author can restore it in Livery.
+- `backupId` is set when an installed skin was replaced. The author can restore it from Livery
+  only with Settings → Backups on; otherwise it is a temporary backup that lives as long as an
+  Undo toast would (the CLI shows none) and is purged at the next start.
 - `downscaled` means a texture was reduced to fit the GPU.
 
 ## Layer JSON essentials

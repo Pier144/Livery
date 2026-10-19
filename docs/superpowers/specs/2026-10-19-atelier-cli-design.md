@@ -1,6 +1,9 @@
 # Atelier CLI: a command line for agents
 
-Status: design approved by the author on 2026-10-19 (brainstorming, section by section; the
+Status: implemented on branch `feat/atelier-cli` (2026-10-19). Two choices differ from the text
+below, both simpler: all argument parsing and range checks live in Rust (`cli/args.rs`), and the
+no-GPU commands call the existing `#[tauri::command]` functions directly instead of extracted
+copies. Design approved by the author on 2026-10-19 (brainstorming, section by section; the
 author then said to go on to development autonomously). Revised after the spec review (all
 commands inside Tauri, scene render target, asset loader, lock outside the CLI module, the
 editor's `frameFromHit` for `place`, an own apply sequence instead of refactoring `useApply`). Next
@@ -41,8 +44,9 @@ rewrite, would drift from the editor, new dependency).
 **Executable.** The debug build with the frontend embedded:
 `pnpm tauri build --debug --no-bundle` → `src-tauri/target/debug/livery.exe`. Debug builds use the
 console subsystem (`main.rs`'s `windows_subsystem` attribute is release-only), so stdout works.
-Everything the CLI adds on the Rust side, except the data lock (§2), is behind
-`#[cfg(debug_assertions)]`: release builds neither parse `--livery-cli` nor register its commands.
+Everything the CLI adds on the Rust side is behind `#[cfg(debug_assertions)]`, except the data
+lock and the three page commands (§2), which are registered in every build but refuse without CLI
+mode's state: release builds never parse `--livery-cli`.
 `cli.html` and `src/cli/` end up in `dist/` too; without the Rust side they are inert (they only
 call `cli_job`, which a release build doesn't have). `pnpm build`'s "no mock in dist" check is
 unaffected.
