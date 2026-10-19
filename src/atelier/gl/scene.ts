@@ -327,26 +327,36 @@ export class EditorScene {
    * that part group's meshes are hit (a decal limited to the turret slides on the turret).
    */
   raycast(x: number, y: number, group: PartGroup | null = null): SceneHit | null {
-    const parts = group === null ? this.parts : this.parts.filter((p) => p.group === group);
+    const parts = this.pickable(group);
     if (parts.length === 0) return null;
     this.ndc.set((x / this.width) * 2 - 1, -(y / this.height) * 2 + 1);
     this.raycaster.setFromCamera(this.ndc, this.camera);
-    const hits = this.raycaster.intersectObjects(
-      parts.map((p) => p.mesh),
-      false,
-    );
-    const hit = hits[0];
-    if (!hit) return null;
-    const part = this.parts.find((p) => p.mesh === hit.object);
-    if (!part) return null;
-    const n = hit.face?.normal ?? new THREE.Vector3(0, 1, 0);
-    return {
-      point: [hit.point.x, hit.point.y, hit.point.z],
-      normal: [n.x, n.y, n.z],
-      node: part.node,
-      group: part.group,
-      distance: hit.distance,
-    };
+    return this.hitFrom(this.raycaster.intersectObjects(parts, false));
+  }
+
+  /**
+   * The nearest part under the normalised point (`ndcX`, `ndcY`: x right, y up, both −1..1) of a
+   * square picture taken from `orbit`, plus that camera's world matrix (column-major, what
+   * `frameFromHit` needs). The on-screen camera is only borrowed for the pick and put back, so the
+   * answer doesn't depend on the canvas size.
+   */
+  raycastView(orbit: OrbitState, ndcX: number, ndcY: number, group: PartGroup | null = null): { hit: SceneHit | null; cameraMatrixWorld: number[] } {
+    const parts = this.pickable(group);
+    try {
+      this.placeCamera(orbit);
+      this.camera.aspect = 1;
+      this.camera.updateProjectionMatrix();
+      this.camera.updateMatrixWorld(true);
+      const cameraMatrixWorld = [...this.camera.matrixWorld.elements];
+      if (parts.length === 0) return { hit: null, cameraMatrixWorld };
+      this.ndc.set(ndcX, ndcY);
+      this.raycaster.setFromCamera(this.ndc, this.camera);
+      return { hit: this.hitFrom(this.raycaster.intersectObjects(parts, false)), cameraMatrixWorld };
+    } finally {
+      this.camera.aspect = this.width / this.height;
+      this.camera.updateProjectionMatrix();
+      this.placeCamera(this.orbit);
+    }
   }
 
   /** The camera as it is now (to restore it later with `setView`). */
@@ -371,6 +381,34 @@ export class EditorScene {
    * encoding is asynchronous, so the scene may be disposed right after the call.
    */
   thumbnailPng(size = 512): Promise<Uint8Array> {
+    const opening = defaultOrbit(this.center, framingDistance(this.boundingRadius, FOV, 1));
+    return encodePng(this.renderPixels(opening, size), size, size);
+  }
+
+  /** The orbit of a quick view framed for a square picture (the on-screen framing follows the canvas's shape). */
+  quickOrbit(view: QuickView): OrbitState {
+    return quickViewOrbit(view, [...this.center], framingDistance(this.boundingRadius, FOV, 1));
+  }
+
+  /**
+   * An orbit round the model's centre for a square picture: azimuth `theta`, polar angle `phi`
+   * and `zoom` in multiples of the framing distance, the last two kept within the editor's limits.
+   */
+  orbitFor(theta: number, phi: number, zoom: number): OrbitState {
+    return {
+      theta,
+      phi: clamp(phi, PHI_MIN, PHI_MAX),
+      radius: framingDistance(this.boundingRadius, FOV, 1) * clamp(zoom, ZOOM_MIN, ZOOM_MAX),
+      target: [...this.center],
+    };
+  }
+
+  /**
+   * The model seen from `orbit`, rendered off-screen square at `size` px with a transparent
+   * background, as straight-alpha RGBA rows from the top. Independent of the canvas size, the
+   * device pixel ratio and the camera the user moved; drawn and read back synchronously.
+   */
+  renderPixels(orbit: OrbitState, size: number): Uint8ClampedArray<ArrayBuffer> {
     const target = new THREE.WebGLRenderTarget(size, size, {
       samples: 4,
       colorSpace: THREE.SRGBColorSpace,
@@ -380,11 +418,11 @@ export class EditorScene {
     const pixels = new Uint8Array(size * size * 4);
     const previous = this.renderer.getRenderTarget();
     const view = this.orbit;
-    // The scene's own camera (its headlight follows it), moved for the shot and put back.
-    this.placeCamera(defaultOrbit(this.center, framingDistance(this.boundingRadius, FOV, 1)));
-    this.camera.aspect = 1;
-    this.camera.updateProjectionMatrix();
     try {
+      // The scene's own camera (its headlight follows it), moved for the shot and put back.
+      this.placeCamera(orbit);
+      this.camera.aspect = 1;
+      this.camera.updateProjectionMatrix();
       this.renderer.setRenderTarget(target);
       this.renderer.clear();
       this.renderer.render(this.scene, this.camera);
@@ -396,7 +434,7 @@ export class EditorScene {
       this.camera.updateProjectionMatrix();
       this.placeCamera(view);
     }
-    return encodePng(toStraightTopDown(pixels, size, size), size, size);
+    return toStraightTopDown(pixels, size, size);
   }
 
   dispose(): void {
@@ -421,6 +459,27 @@ export class EditorScene {
     this.parts = [];
     this.geometry?.dispose();
     this.geometry = null;
+  }
+
+  /** The meshes a pick may hit: all, or one part group's. */
+  private pickable(group: PartGroup | null): THREE.Mesh[] {
+    return (group === null ? this.parts : this.parts.filter((p) => p.group === group)).map((p) => p.mesh);
+  }
+
+  /** The nearest of a raycast's intersections as a brush hit. */
+  private hitFrom(intersections: THREE.Intersection[]): SceneHit | null {
+    const hit = intersections[0];
+    if (!hit) return null;
+    const part = this.parts.find((p) => p.mesh === hit.object);
+    if (!part) return null;
+    const n = hit.face?.normal ?? new THREE.Vector3(0, 1, 0);
+    return {
+      point: [hit.point.x, hit.point.y, hit.point.z],
+      normal: [n.x, n.y, n.z],
+      node: part.node,
+      group: part.group,
+      distance: hit.distance,
+    };
   }
 
   private setOrbit(o: OrbitState): void {

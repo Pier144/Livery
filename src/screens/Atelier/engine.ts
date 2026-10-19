@@ -29,6 +29,14 @@ export interface EngineScene {
   /** With `group`, only that part group's meshes are hit. */
   raycast(x: number, y: number, group?: PartGroup | null): SceneHit | null;
   thumbnailPng(size?: number): Promise<Uint8Array>;
+  /** The model from `orbit`, square at `size` px: straight-alpha RGBA rows from the top (the CLI's pictures). */
+  renderPixels(orbit: OrbitState, size: number): Uint8ClampedArray<ArrayBuffer>;
+  /** `raycast` through a square picture taken from `orbit`, with the camera it used; normalised x right, y up. */
+  raycastView(orbit: OrbitState, ndcX: number, ndcY: number, group?: PartGroup | null): { hit: SceneHit | null; cameraMatrixWorld: number[] };
+  /** A quick view's orbit, framed for a square picture. */
+  quickOrbit(view: QuickView): OrbitState;
+  /** An orbit round the model's centre for a square picture (angles in radians, `zoom` in framing distances). */
+  orbitFor(theta: number, phi: number, zoom: number): OrbitState;
   view(): OrbitState;
   setView(view: OrbitState): void;
   contextLost(): boolean;
@@ -64,6 +72,8 @@ export interface EngineInput {
   canvas: HTMLCanvasElement;
   model: VehicleModelData;
   templates: Map<string, TemplateImage>;
+  /** Where the Baker reads a project's pictures from; the editor's own loader when omitted. */
+  loadAsset?: (assetId: string) => Promise<DecalImage>;
 }
 
 export type EngineFactory = (input: EngineInput) => Engine;
@@ -89,14 +99,14 @@ export async function loadProjectAsset(assetId: string): Promise<DecalImage> {
 }
 
 /** The real engine: a WebGL 2 renderer shared by the scene and the Baker. Throws when WebGL fails. */
-export const createEngine: EngineFactory = ({ canvas, model, templates }) => {
+export const createEngine: EngineFactory = ({ canvas, model, templates, loadAsset }) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   let scene: EditorScene | null = null;
   let baker: Baker | null = null;
   try {
     scene = new EditorScene(renderer, canvas);
     const view = scene;
-    baker = new Baker(renderer, model, templates, { onUpdate: () => view.requestRender(), loadAsset: loadProjectAsset });
+    baker = new Baker(renderer, model, templates, { onUpdate: () => view.requestRender(), loadAsset: loadAsset ?? loadProjectAsset });
     const bake = baker;
     scene.setModel(model, (slot) => bake.previewMaterial(model.header.slots[slot]!.texture));
   } catch (e) {
