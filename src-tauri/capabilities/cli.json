@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "cli",
+  "description": "The hidden agent-CLI window (debug builds only create it): core IPC and events.",
+  "windows": ["cli"],
+  "permissions": ["core:default"]
+}

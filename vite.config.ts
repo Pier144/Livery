@@ -53,6 +53,13 @@ export default defineConfig({
     target: 'chrome110',
     minify: !process.env.TAURI_ENV_DEBUG,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    rollupOptions: {
+      // The app, and the agent CLI's hidden page (debug builds only open it; inert elsewhere).
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        cli: fileURLToPath(new URL('./cli.html', import.meta.url)),
+      },
+    },
   },
   test: {
     environment: 'jsdom',

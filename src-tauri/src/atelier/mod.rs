@@ -284,12 +284,12 @@ pub fn purge_on_startup(app: &AppHandle) {
 }
 
 /// A header of a raw request as text (`None` when missing or not visible ASCII).
-fn header<'a>(request: &'a Request<'_>, name: &str) -> Option<&'a str> {
+pub(crate) fn header<'a>(request: &'a Request<'_>, name: &str) -> Option<&'a str> {
     request.headers().get(name).and_then(|v| v.to_str().ok())
 }
 
 /// The body of a raw request (`None` for a JSON one), copied out of the request.
-fn raw_body(request: &Request<'_>) -> Option<Vec<u8>> {
+pub(crate) fn raw_body(request: &Request<'_>) -> Option<Vec<u8>> {
     match request.body() {
         InvokeBody::Raw(bytes) => Some(bytes.clone()),
         InvokeBody::Json(_) => None,

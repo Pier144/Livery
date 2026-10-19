@@ -1,7 +1,8 @@
 //! Logging. `tracing` events go to `<appData>/logs/livery.log` and, in debug builds, to stdout
-//! too. Release builds have no console (`windows_subsystem = "windows"`), so the file is where
-//! their logs live; they write to stdout only while no log file is open (before the setup opens
-//! it, or when it can't be opened), which a console-less build simply discards.
+//! too (stderr for the agent CLI, whose stdout is its JSON). Release builds have no console
+//! (`windows_subsystem = "windows"`), so the file is where their logs live; they write to stdout
+//! only while no log file is open (before the setup opens it, or when it can't be opened), which
+//! a console-less build simply discards.
 //!
 //! - **Level**: debug in debug builds, info in release. Full paths are logged at debug only, so
 //!   a release log holds no paths.
@@ -23,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tracing::Subscriber;
 use tracing_subscriber::filter::{LevelFilter, Targets};
-use tracing_subscriber::fmt::writer::{MakeWriter, OptionalWriter};
+use tracing_subscriber::fmt::writer::{EitherWriter, MakeWriter, OptionalWriter};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -59,10 +60,28 @@ pub fn init() {
     install_panic_hook();
 }
 
+/// [`init`] for the agent CLI (debug builds): the console copy goes to **stderr**, because the
+/// CLI's stdout is its JSON answer and nothing else. The log file is the same.
+pub fn init_cli() {
+    let _ = layers(&LOG, max_level(), true, true).try_init();
+    install_panic_hook();
+}
+
 /// The subscriber [`init`] installs, writing to the file in `slot` once it is set. `console`:
 /// always write to stdout too; otherwise stdout only while `slot` is empty.
 pub fn subscriber(slot: &'static OnceLock<File>, level: LevelFilter, console: bool) -> impl Subscriber + Send + Sync {
-    let stdout = tracing_subscriber::fmt::layer().with_target(false).with_writer(Console { slot, always: console });
+    layers(slot, level, console, false)
+}
+
+/// [`subscriber`] with the console copy on stdout or, with `stderr`, on stderr.
+fn layers(
+    slot: &'static OnceLock<File>,
+    level: LevelFilter,
+    console: bool,
+    stderr: bool,
+) -> impl Subscriber + Send + Sync {
+    let stdout =
+        tracing_subscriber::fmt::layer().with_target(false).with_writer(Console { slot, always: console, stderr });
     let file = tracing_subscriber::fmt::layer().with_target(false).with_ansi(false).with_writer(LogFile { slot });
     tracing_subscriber::registry().with(quiet_network(level)).with(stdout).with(file)
 }
@@ -171,16 +190,20 @@ impl<'a> MakeWriter<'a> for LogFile {
     }
 }
 
-/// The stdout layer's writer: always when `always`, otherwise only while no log file is open.
+/// The console layer's writer: always when `always`, otherwise only while no log file is open.
+/// stdout, or stderr when `stderr` (the agent CLI).
 struct Console {
     slot: &'static OnceLock<File>,
     always: bool,
+    stderr: bool,
 }
 
 impl<'a> MakeWriter<'a> for Console {
-    type Writer = OptionalWriter<io::Stdout>;
+    type Writer = OptionalWriter<EitherWriter<io::Stdout, io::Stderr>>;
 
     fn make_writer(&'a self) -> Self::Writer {
-        (self.always || self.slot.get().is_none()).then(io::stdout).into()
+        (self.always || self.slot.get().is_none())
+            .then(|| if self.stderr { EitherWriter::B(io::stderr()) } else { EitherWriter::A(io::stdout()) })
+            .into()
     }
 }
