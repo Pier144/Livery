@@ -2,7 +2,8 @@
 
 Status: design approved by the author on 2026-10-19 (brainstorming, section by section; the
 author then said to go on to development autonomously). Revised after the spec review (all
-commands inside Tauri, scene render target, asset loader, lock outside the CLI module). Next
+commands inside Tauri, scene render target, asset loader, lock outside the CLI module, the
+editor's `frameFromHit` for `place`, an own apply sequence instead of refactoring `useApply`). Next
 step: implementation plan.
 
 ## Goal
@@ -63,7 +64,7 @@ absolute. Ids are the existing project and asset ids.
 | `project get <id>` | As `atelier_project_get`. | the `AtelierProject` |
 | `project put <file\|->` | Rust reads the document (file or stdin) and parses it as `AtelierProject`; the stored project with that `id` must exist and have the same `vehicle` (else `invalidInput`). The page checks the layers with `checkLayers` (the editor's check), saves the checked project (`atelier_project_save`) and stores a thumbnail (`atelier_project_thumb`). | `{project, repaired, sharedTexels}`: `repaired` is `checkLayers`'s flag; `sharedTexels` lists the ids of placed layers with Mirror on whose decal touches shared texels (`Baker.decalTouchesSharedTexels`; the editor disables Mirror for those) |
 | `import-image <id> <file> [--cutout]` | As `atelier_import_image`; with `--cutout` then as `atelier_cutout` on the new asset. Background removal needs its files already downloaded (else the existing not-ready error); the CLI never downloads. | `{asset, cutout?}` |
-| `place <id> --view <view> --at <x>,<y> [--part hull\|turret\|gun]` | Casts a ray through the point of the given view and returns the decal frame at the hit. | `{center, normal, up, part}` or error `noHit` |
+| `place <id> --view <view> --at <x>,<y> [--part hull\|turret\|gun] [--width <m>] [--height <m>] [--depth <m>]` | Casts a ray through the point of the given view and returns a ready `Decal` at the hit, built by the editor's own `frameFromHit` (`src/atelier/decal.ts`). Size default 1 × 1 m, depth `defaultDepth(width)`, clamped as in the editor. | `{decal, group, node}` or error `noHit` |
 | `render <id> --out <dir> [--views <list>] [--size <px>] [--grid] [--flat]` | 3D pictures of the baked project; `--flat` also writes each enabled slot's baked texture. | `{views: [{view, file, width, height}], flat: [{slot, file, width, height}]}` |
 | `apply <id>` | As the editor's Apply to game: bake at export size, `atelier_apply_begin`, one `atelier_apply_texture` per enabled slot, thumbnail, `atelier_apply_commit`; cancel on any error. | the `ApplyResult` |
 
@@ -76,11 +77,11 @@ uses the same view definitions with aspect 1, so a point read on any render of t
 the same ray regardless of its size.
 
 **`--at`.** Fractions of the picture, `0,0` top left, `1,1` bottom right (both in 0..1), turned
-into NDC directly (`x*2-1`, `1-y*2`). The frame: `center` = the hit point, `normal` = the hit's
-normal as the editor's click placement uses it, `up` = the camera's up vector projected on the
-surface plane and normalised; when that is near zero (the camera's up is along the normal, e.g.
-`top` on a flat roof) the camera's forward vector projected the same way is used instead. `part` is
-the hit's part group. `--part` limits the ray to that group, as the editor's "Only this part".
+into NDC directly (`x*2-1`, `1-y*2`). The decal comes from `frameFromHit(point, normal,
+cameraMatrixWorld, size, part)`, exactly as a click in the editor places one: centre at the hit,
+facing out along the face normal, up = the camera's screen-up on the surface plane (with
+`upOnPlane`'s fallbacks). `--part` limits the ray to that group and is written as the decal's
+`part`, as the editor's "Only this part"; without it the decal's part is `all`.
 
 **`--grid`.** Draws on the render a grid every 10 % with labels (`1` … `9`, tenths) along the top
 and left edges, light lines with a dark outline so they read on any paint. Only the PNG gets it.
@@ -122,7 +123,11 @@ need no GPU create no window.
   acquire; before building it clears the configured windows
   (`context.config_mut().app.windows.clear()`). Normal mode is exactly today's `run()` plus the
   lock.
-- **Dispatch** (in `setup`, after the managed state exists):
+- **Run and exit.** CLI mode uses `build()` and `run_return`, and `cli::main` returns the exit
+  code that `cli_finish` (or the no-GPU path, or the timeout) stored in managed state; `app.exit`
+  only stops the event loop. `main` turns it into the process `ExitCode`.
+- **Dispatch** (from `setup`, after the managed state exists; `setup` stays synchronous and
+  spawns the work with `tauri::async_runtime::spawn`):
   - **No-GPU commands** (`vehicles`, `project new|list|get`, `import-image`) run in
     `crate::blocking` against the `AppHandle`. The Tauri command bodies they share move into plain
     functions taking `&AppHandle` (for example `atelier::project_create(&app, name, vehicle)`), the
@@ -130,7 +135,9 @@ need no GPU create no window.
     `app.exit(code)`.
   - **GPU commands** (`project put`, `vehicle-info`, `place`, `render`, `apply`) store the job in
     managed state and create one window `cli` on `cli.html`: hidden, no decorations,
-    `skip_taskbar`. Two commands exist only in CLI mode:
+    `skip_taskbar`. Three commands serve the page. They are registered in every build (one handler
+    list, no duplicated `generate_handler!`) but answer `unsupported` unless CLI mode's state is
+    managed (`try_state`), which only a debug build's `--livery-cli` creates:
     - `cli_job() -> CliJob` — the command and its arguments (never the `--out` path).
     - `cli_file(raw body; header x-name)` — one output file; the name is checked against
       `^[A-Za-z0-9._-]{1,64}$` and joined to `--out` by Rust.
@@ -152,18 +159,18 @@ the editor modules it reuses (`engine.ts` pulls in React's `createContext`, whic
   returns straight top-down RGBA. Independent of the canvas size and `devicePixelRatio`; draws
   synchronously, no `requestAnimationFrame`.
 - **`EditorScene.raycastView(orbit, ndcX, ndcY, group)`** — the existing raycast, but from the
-  given orbit at aspect 1 instead of the on-screen camera; also returns the camera's up and
-  forward vectors for the frame.
+  given orbit at aspect 1 instead of the on-screen camera; also returns that camera's
+  `matrixWorld` (column-major) for `frameFromHit`. The on-screen camera is put back after.
 - **`createEngine` takes an optional `loadAsset`** in `EngineInput` (default: today's
   `loadProjectAsset`, which reads the project id from the editor store). The CLI passes a loader
   bound to the job's project id.
-- **`src/atelier/applyRun.ts`** — the apply sequence moved out of `useApply.ts`:
-  `runApply({ project, model, engine, beforeCommit }, io, hooks)` with `project` giving the id,
-  enabled slots and `output.highQuality`; `io = { call, callRaw, listenEvent }` (injectable for
-  Vitest); `hooks = { progress(step, pct, part?), aborted() }`. It saves nothing (the editor's
-  flush stays in `useApply`), bakes per slot, sends textures, calls `beforeCommit`, commits, and
-  cancels on any error. `useApply` keeps the React state, toasts, query invalidation and the
-  editor's flush, and calls `runApply`. Its tests stay green.
+- **`useApply.ts` is not refactored.** Its sequence is interleaved with the editor's needs (view
+  lost mid-export, leaving the editor, progress per step, store updates). The CLI has its own
+  short sequence in `src/cli/apply.ts` with the same calls in the same order (begin → `setLayers`
+  → `whenReady` → `prepareExport(highQuality)` → per enabled slot `bakeForExport` + texture →
+  thumbnail → commit; `atelier_apply_cancel` on any error before the commit; `endExport` in
+  `finally`), slots from the editor's `enabledSlots(project, model)`. A comment in both files
+  names the other, so a change to one is made to both (DESIGN_NOTES row too).
 
 **New, in `src/cli/`:**
 - **`job.ts`** — `CliJob`/result types, `parseView` and range checks.
@@ -173,14 +180,13 @@ the editor modules it reuses (`engine.ts` pulls in React's `createContext`, whic
   `createEngine` with the CLI `loadAsset`, sets the layers, waits for `whenReady`, then:
   - `put`: `checkLayers`, `sharedTexels` from `decalTouchesSharedTexels` for each placed layer with
     Mirror on, `atelier_project_save`, thumbnail as the editor makes it.
-  - `vehicle-info`: the summary from the parsed model (no bake needed beyond loading).
-  - `place`: `raycastView`, frame from `frame.ts`; no hit → `noHit`.
+  - `vehicle-info`: the summary from `parseModelBuffer` alone (no engine, no WebGL).
+  - `place`: `raycastView`, then `frameFromHit` with the view's camera matrix; no hit → `noHit`.
   - `render`: per view `renderPixels`, optional `grid.ts`, `encodePng`, `cli_file`; `--flat`:
     `bakeForExport` per enabled slot at preview size (at most 2048), PNG, `cli_file`.
-  - `apply`: `runApply` with no-op progress and a thumbnail `beforeCommit`.
+  - `apply`: `apply.ts` (above).
   `deps` holds `invoke`/`invokeRaw`, the engine factory and the canvas, so Vitest runs it with
   stubs. Every exception ends as a `cli_finish` error (`AppError` from `toAppError`).
-- **`frame.ts`** — `decalFrame(hit, cameraUp, cameraForward)`: the `up` projection and fallback.
 - **`grid.ts`** — draws the 10 % grid and digit labels on RGBA pixels (a built-in 3×5 digit font,
   no canvas text).
 
@@ -191,7 +197,8 @@ the Jumbo (scratch game root), wait for `whenReady` (the Baker's upgrade uses a 
 hidden page may throttle), bake for export and read back `renderPixels`. Fallbacks in order:
 WebView2 browser arguments that turn off background throttling
 (`--disable-background-timer-throttling --disable-renderer-backgrounding`, via the window
-builder's `additional_browser_args`); a visible window at a far-off-screen position, no
+builder's `additional_browser_args`, which replaces Tauri's defaults, so
+`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection` is passed again); a visible window at a far-off-screen position, no
 decorations, `skip_taskbar`. The outcome goes in DESIGN_NOTES before the rest is built.
 
 ## 3. Errors, safety, tests, docs
@@ -225,10 +232,10 @@ interface (DESIGN_NOTES row, since CLAUDE.md asks for `t()` for visible text).
   `lock` (second holder refused, released on drop, file left in place), `output` (JSON shape,
   code → exit), `cli_file` name check, the extracted Atelier functions still covered by the
   existing tests.
-- Vitest: `job.ts`, `frame.ts` (up projection, fallback), `grid.ts` (lines and digits at known
-  pixels), `runner.ts` per command with stub `invoke` and a stub engine, `applyRun.ts` (order,
-  cancel on error, aborted), `renderPixels`/`raycastView` logic that runs without WebGL, and
-  `useApply`/`Editor` tests still passing.
+- Vitest: `job.ts`, `grid.ts` (lines and digits at known pixels), `runner.ts` per command with
+  stub `invoke` and a stub engine, `apply.ts` (order, cancel on error, `endExport` always), the
+  `loadAsset` option of `createEngine`, and the existing scene/engine/`useApply`/`Editor` tests
+  still passing.
 - Real acceptance (debug build, scratch game root with junctions to `content`/`content.hq`, scratch
   `LIVERY_DATA_DIR`): on the M4A3E2 Jumbo, from the CLI only — `vehicles --query jumbo`,
   `vehicle-info`, `project new`, a camo Base by `project put`, `import-image --cutout`,
