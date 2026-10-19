@@ -7,6 +7,7 @@
 pub mod archive;
 pub mod atelier;
 pub mod backup;
+pub mod cli;
 pub mod error;
 pub mod feedback;
 pub mod game;
