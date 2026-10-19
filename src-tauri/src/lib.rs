@@ -11,6 +11,7 @@ pub mod error;
 pub mod feedback;
 pub mod game;
 pub mod library;
+pub mod lock;
 pub mod logging;
 pub mod model;
 pub mod settings;
@@ -21,6 +22,11 @@ pub mod watch;
 pub mod wtlive;
 
 pub use error::{AppError, AppResult, ErrorCode};
+
+/// Keeps the data folder lock for as long as the app runs (see [`lock`]).
+struct AppLock {
+    _held: lock::DataLock,
+}
 
 /// Runs disk work off the async runtime so the UI thread never waits on I/O.
 pub(crate) async fn blocking<T: Send + 'static>(work: impl FnOnce() -> AppResult<T> + Send + 'static) -> AppResult<T> {
@@ -67,6 +73,18 @@ pub fn run() {
             tracing::debug!(data_dir = %data_dir.path.display(), "app data");
             let data_dir_from_env = data_dir.from_env;
             let data_dir = data_dir.path;
+            // One writer per data folder: an agent CLI run (debug builds) holds it while it works.
+            // The app starts anyway when it can't have it: a blocked launch would be worse than a
+            // CLI run overlapping for a moment.
+            match lock::DataLock::acquire(&data_dir) {
+                Ok(held) => {
+                    app.manage(AppLock { _held: held });
+                }
+                Err(lock::LockError::Busy) => {
+                    tracing::warn!("the data folder is in use by another Livery process (agent CLI); starting anyway")
+                }
+                Err(lock::LockError::Io(e)) => tracing::warn!(error = %e, "the data folder lock can't be taken"),
+            }
             app.manage(feedback::DataDir(data_dir.clone()));
             let settings = settings::SettingsStore::load(data_dir.join("settings.json"));
             // One library index per game folder; the saved folder's is loaded now, which also
@@ -203,4 +221,32 @@ pub fn run() {
                 update::install_on_exit(app);
             }
         });
+}
+
+/// A fresh empty folder under the system temp dir, removed on drop (tests only: no `tempfile`
+/// dependency).
+#[cfg(test)]
+pub(crate) mod test_dir {
+    pub(crate) struct TestDir(std::path::PathBuf);
+
+    impl TestDir {
+        pub(crate) fn new(tag: &str) -> Self {
+            static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let p = std::env::temp_dir().join(format!("livery-test-{tag}-{}-{n}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&p);
+            std::fs::create_dir_all(&p).unwrap();
+            TestDir(p)
+        }
+
+        pub(crate) fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
 }
