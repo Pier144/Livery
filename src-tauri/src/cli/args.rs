@@ -7,7 +7,7 @@ use crate::error::{AppError, AppResult, ErrorCode};
 use crate::model::AtelierProject;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf, Prefix};
 use std::time::Duration;
 
 pub const CLI_ARG: &str = "--livery-cli";
@@ -252,7 +252,14 @@ fn parse_project(rest: &[String], stdin: &mut dyn std::io::Read) -> AppResult<Cl
                 stdin.read_to_end(&mut buf)?;
                 buf
             } else {
-                std::fs::read(&source)?
+                if !Path::new(&source).is_file() {
+                    return Err(AppError::new(ErrorCode::NotFound, "Project file not found")
+                        .with_detail(format!("{source} is not an existing file")));
+                }
+                std::fs::read(&source).map_err(|e| {
+                    let detail = format!("{source}: {e}");
+                    AppError::from(e).with_detail(detail)
+                })?
             };
             let project = serde_json::from_slice::<AtelierProject>(&bytes).map_err(|e| {
                 AppError::new(ErrorCode::InvalidInput, "Not an Atelier project").with_detail(e.to_string())
@@ -387,7 +394,9 @@ fn parse_views(list: &str) -> AppResult<Vec<ViewArg>> {
             let phi = parse_finite("orbit phi", phi)?;
             let zoom = parse_finite("orbit zoom", zoom)?;
             if !(PHI_MIN..=PHI_MAX).contains(&phi) {
-                return Err(bad(format!("orbit phi must be between {PHI_MIN} and {PHI_MAX:.2} radians")));
+                return Err(bad(format!(
+                    "orbit phi must be from {PHI_MIN} to pi - {PHI_MIN} (about {PHI_MAX:.4}) radians"
+                )));
             }
             if !(ZOOM_MIN..=ZOOM_MAX).contains(&zoom) {
                 return Err(bad(format!("orbit zoom must be between {ZOOM_MIN} and {ZOOM_MAX}")));
@@ -402,15 +411,20 @@ fn parse_views(list: &str) -> AppResult<Vec<ViewArg>> {
     Ok(views)
 }
 
-/// The absolute path without Windows' `\\?\` prefix when it only spells out a drive path: the
-/// paths the CLI prints are for agents and tools that don't all understand the verbatim form.
+/// The absolute path without Windows' `\\?\` prefix when it only spells out a drive: the paths the
+/// CLI prints are for agents and tools that don't all understand the verbatim form. Built from
+/// the path's components, so a name that isn't valid Unicode survives. Other prefixes (UNC,
+/// device paths) stay as they are.
 fn plain(path: &Path) -> AppResult<PathBuf> {
     let canonical = std::fs::canonicalize(path)?;
-    let text = canonical.to_string_lossy();
-    if let Some(rest) = text.strip_prefix(r"\\?\") {
-        let drive = rest.as_bytes();
-        if drive.len() >= 2 && drive[0].is_ascii_alphabetic() && drive[1] == b':' {
-            return Ok(PathBuf::from(rest));
+    let mut parts = canonical.components();
+    if let Some(Component::Prefix(prefix)) = parts.next() {
+        if let Prefix::VerbatimDisk(letter) = prefix.kind() {
+            let mut out = PathBuf::from(format!("{}:", char::from(letter)));
+            for part in parts {
+                out.push(part.as_os_str());
+            }
+            return Ok(out);
         }
     }
     Ok(canonical)
@@ -456,6 +470,11 @@ mod tests {
         assert!(!grid && !flat);
         assert!(stored.is_absolute() && stored.is_dir());
         assert!(!stored.to_string_lossy().starts_with(r"\\?\"), "the verbatim prefix is dropped");
+        #[cfg(windows)]
+        assert!(
+            matches!(stored.components().next(), Some(Component::Prefix(p)) if matches!(p.kind(), Prefix::Disk(_))),
+            "a plain drive path"
+        );
     }
 
     #[test]
@@ -505,6 +524,23 @@ mod tests {
         }
         // The edges themselves are fine.
         assert!(p(&["render", "a", "--out", out, "--views", "orbit:-9,0.01,0.15,orbit:9,3.13,6"]).is_ok());
+    }
+
+    #[test]
+    fn at_out_of_range_says_so_in_the_detail() {
+        // A single dash is a value, not a flag: the range check must be the one that refuses it.
+        for at in ["-0.1,0.5", "0.5,1.1"] {
+            let detail = invalid(&["place", "a", "--view", "front", "--at", at]).detail.unwrap();
+            assert!(detail.contains("--at fractions must be between 0 and 1"), "{detail}");
+        }
+    }
+
+    #[test]
+    fn phi_bounds_are_named_exactly() {
+        let dir = TestDir::new("args-phi");
+        let out = dir.path().to_str().unwrap();
+        let detail = invalid(&["render", "a", "--out", out, "--views", "orbit:0.5,0,1"]).detail.unwrap();
+        assert!(detail.contains("from 0.01 to pi - 0.01 (about 3.1316) radians"), "{detail}");
     }
 
     #[test]
@@ -606,6 +642,8 @@ mod tests {
         let dir = TestDir::new("args-put-bad");
         let missing = dir.path().join("none.json");
         assert_eq!(p(&["project", "put", missing.to_str().unwrap()]).unwrap_err().code, ErrorCode::NotFound);
+        // A folder is not a project file.
+        assert_eq!(p(&["project", "put", dir.path().to_str().unwrap()]).unwrap_err().code, ErrorCode::NotFound);
         let e = parse(&os(&["project", "put", "-"]), &mut &b"{\"hello\":1}"[..]).unwrap_err();
         assert_eq!(e.code, ErrorCode::InvalidInput);
         assert_eq!(e.message, "Not an Atelier project");

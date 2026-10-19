@@ -82,7 +82,7 @@ pub fn run() {
                     app.manage(AppLock { _held: held });
                 }
                 Err(lock::LockError::Busy) => {
-                    tracing::warn!("the data folder is in use by another Livery process (agent CLI); starting anyway")
+                    tracing::warn!("the data folder is in use by another Livery process (another app window or the agent CLI); starting anyway")
                 }
                 Err(lock::LockError::Io(e)) => tracing::warn!(error = %e, "the data folder lock can't be taken"),
             }
