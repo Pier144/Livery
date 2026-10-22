@@ -236,7 +236,7 @@ describe('mock Atelier · apply', () => {
     await texture(applyId, TURRET.toUpperCase());
     const first = await call<ApplyResult>('atelier_apply_commit', { applyId });
     expect(first.backupId).toBeUndefined();
-    expect(first.skin).toMatchObject({ origin: 'mine', active: true, folder: `${VEHICLE}_Desert` });
+    expect(first.skin).toMatchObject({ origin: 'mine', active: true, folder: 'Desert' });
     expect(first.skin.vehicle.code).toBe(VEHICLE);
     expect((await ended).map((e) => [e.step, e.pct])).toEqual([
       ['encode', 0],
