@@ -65,10 +65,10 @@ fn failed(e: std::io::Error) -> AppError {
     AppError::new(ErrorCode::Io, APPLY_FAILED).with_detail(e.to_string())
 }
 
-/// The folder a project's skin installs under when it is new: `<vehicle>_<project name>`, made
-/// safe by `sanitize_folder_name`.
+/// The folder a project's skin installs under when it is new: the project name, made safe by
+/// `sanitize_folder_name` (the vehicle code when nothing is left of it).
 pub fn folder_name(project: &AtelierProject) -> String {
-    sanitize_folder_name(&format!("{}_{}", project.vehicle, project.name), &project.vehicle)
+    sanitize_folder_name(&project.name, &project.vehicle)
 }
 
 /// `w`×`h` RGBA8 in `rgba`, both sides multiples of 4 up to [`MAX_APPLY_SIDE`].

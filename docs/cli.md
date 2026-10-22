@@ -176,11 +176,11 @@ Writes PNG pictures of the baked project (transparent background) into an existi
 ### `apply <id>`
 
 Applies the project to the game, as Apply to game does: it bakes at export size, writes the DDS
-files, the blk and `preview.png` into `UserSkins/<vehicle>_<project name>`, and adds the library
-entry.
+files, the blk and `preview.png` into `UserSkins/<project name>` (` (2)` and on when the name is
+taken), and adds the library entry.
 
 ```json
-{ "skin": { "id": "s-…", "folder": "us_m4a3e2_sherman_jumbo_CLI test", "active": true, "…": "…" },
+{ "skin": { "id": "s-…", "folder": "CLI test", "active": true, "…": "…" },
   "backupId": "b-…", "downscaled": false }
 ```
 

@@ -729,7 +729,7 @@ export function atelierCommands(host: AtelierHost): Record<string, (args: Args) 
         projectId: p.id,
         installedSkinId: p.installedSkinId,
         vehicle: p.vehicle,
-        folder: mockFolderName(`${p.vehicle}_${p.name}`, p.vehicle),
+        folder: mockFolderName(p.name, p.vehicle),
         enabled: slots,
         written: [],
         lastPct: 0,

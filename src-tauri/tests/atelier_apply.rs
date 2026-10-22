@@ -131,7 +131,7 @@ fn begin_texture_texture_commit_installs_a_new_skin() {
     assert!(id.starts_with("a-"), "{id}");
     assert_eq!(job.project_id, project.id);
     let folder = folder_name(&project);
-    assert_eq!(folder, format!("{JUMBO}_Desert"));
+    assert_eq!(folder, "Desert");
     assert_eq!(job.root, partial_dir(&env.user_skins).join(&id));
     assert_eq!(job.dir, job.root.join(&folder));
     assert!(job.dir.is_dir());
